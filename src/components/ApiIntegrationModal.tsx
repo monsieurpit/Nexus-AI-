@@ -220,6 +220,48 @@ SUPER_CHILL_USER_ID="1394001641899954368"
 // Universal compatibility: Node.js (Discord.js), Bun, Railway, and modern browser environments.
 // Supports both ES Modules (import) and CommonJS (require).
 
+export class NexusChatSession {
+  constructor(client, options = {}) {
+    this.client = client;
+    this.persona = options.persona || client.getPersona();
+    this.authorId = options.authorId || client.defaultAuthorId || '';
+    this.username = options.username || 'DiscordUser';
+    this.rules = options.rules || client.getClientRules();
+    this.reasoningMode = options.reasoningMode || 'standard';
+    this.history = [];
+  }
+
+  async sendMessage(message, overrides = {}) {
+    const res = await this.client.askJSON({
+      prompt: message,
+      persona: overrides.persona || this.persona,
+      authorId: overrides.authorId || this.authorId,
+      username: overrides.username || this.username,
+      rules: overrides.rules || this.rules,
+      mode: overrides.mode || this.reasoningMode,
+      history: this.history,
+    });
+
+    this.history.push({ role: 'user', content: message, timestamp: new Date() });
+    this.history.push({
+      role: 'assistant',
+      content: res.response || res.text || '',
+      sources: res.knowledgeHits || [],
+      timestamp: new Date(),
+    });
+    if (this.history.length > 20) this.history = this.history.slice(-20);
+
+    return {
+      text: res.response || res.text || '',
+      knowledgeHits: res.knowledgeHits || [],
+      followUpQuestions: res.followUpQuestions || [],
+    };
+  }
+
+  clearHistory() { this.history = []; return this; }
+  getHistory() { return [...this.history]; }
+}
+
 export class NexusAI {
   /**
    * Initialize a new Nexus AI Client instance
@@ -274,6 +316,16 @@ export class NexusAI {
 
   async listPersonas() {
     const res = await fetch(\`\${this.baseUrl}/personas\`, { headers: this._getHeaders() });
+    return await res.json();
+  }
+
+  async listModels() {
+    const res = await fetch(\`\${this.baseUrl}/models\`, { headers: this._getHeaders() });
+    return await res.json();
+  }
+
+  async getActivePersona() {
+    const res = await fetch(\`\${this.baseUrl}/persona\`, { headers: this._getHeaders() });
     return await res.json();
   }
 
@@ -351,6 +403,36 @@ export class NexusAI {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({ text }),
+    });
+    return await res.json();
+  }
+
+  async searchWeb(options) {
+    const opts = typeof options === 'string' ? { query: options } : options || {};
+    const res = await fetch(\`\${this.baseUrl}/web/search\`, {
+      method: 'POST',
+      headers: this._getHeaders(),
+      body: JSON.stringify({ query: opts.query || opts.q || '', provider: opts.provider || 'all', limit: opts.limit || 5 }),
+    });
+    return await res.json();
+  }
+
+  async askWithSearch(options) {
+    const opts = typeof options === 'string' ? { prompt: options } : options || {};
+    return this.ask({ ...opts, webSearch: true, search: true });
+  }
+
+  async infuseSwear(options) {
+    const opts = typeof options === 'string' ? { text: options } : options || {};
+    const res = await fetch(\`\${this.baseUrl}/swear\`, {
+      method: 'POST',
+      headers: this._getHeaders(),
+      body: JSON.stringify({
+        text: opts.text || opts.prompt || '',
+        intensity: opts.intensity || 'heavy',
+        language: opts.language || 'english',
+        isSuperChill: Boolean(opts.isSuperChill),
+      }),
     });
     return await res.json();
   }
@@ -454,15 +536,59 @@ export class NexusAI {
     return await res.json();
   }
 
+  // --- FORMAT COMPATIBILITY ---
+  async generate(options = {}) {
+    const res = await fetch(\`\${this.baseUrl}/generate\`, {
+      method: 'POST',
+      headers: this._getHeaders(),
+      body: JSON.stringify(options),
+    });
+    return await res.json();
+  }
+
+  async chatCompletion(options = {}) {
+    const res = await fetch(\`\${this.baseUrl}/chat/completions\`, {
+      method: 'POST',
+      headers: this._getHeaders(),
+      body: JSON.stringify(options),
+    });
+    return await res.json();
+  }
+
   // --- AUTH & SYSTEM ---
   async verifyAuth() {
     const res = await fetch(\`\${this.baseUrl}/auth/verify\`, { headers: this._getHeaders() });
     return await res.json();
   }
+
+  async listKeys() {
+    const res = await fetch(\`\${this.baseUrl}/keys\`, { headers: this._getHeaders() });
+    return await res.json();
+  }
+
+  async generateKey(label = 'discord_bot') {
+    const res = await fetch(\`\${this.baseUrl}/keys/generate\`, {
+      method: 'POST',
+      headers: this._getHeaders(),
+      body: JSON.stringify({ label }),
+    });
+    return await res.json();
+  }
+
+  async getQueueStatus() {
+    const res = await fetch(\`\${this.baseUrl}/queue/status\`, { headers: this._getHeaders() });
+    return await res.json();
+  }
+
+  async getHealth() {
+    const rootUrl = this.baseUrl.replace(/\\/v1$/, '');
+    const res = await fetch(\`\${rootUrl}/health\`, { headers: this._getHeaders() });
+    return await res.json();
+  }
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { NexusAI, default: NexusAI };
+  module.exports = { NexusAI, NexusChatSession, default: NexusAI };
 }
 export default NexusAI;
 `;

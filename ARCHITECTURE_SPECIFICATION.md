@@ -196,11 +196,12 @@ All endpoints authenticate via `Authorization: Bearer <NEXUS_API_KEY>`.
 
 ### Initializing the SDK
 ```javascript
-const NexusAI = require('./nexus-ai.js');
+const { NexusAI } = require('./nexus-ai.js');
+// or: import NexusAI from './nexus-ai.js';
 
 const ai = new NexusAI({
   apiKey: process.env.NEXUS_API_KEY || 'nexus_sk_live_a89f41b7e092c31d4e68bb507ef194',
-  baseURL: 'https://ais-dev-ibvpx7fn3pnxtdxabola6x-240233116101.us-east1.run.app/api/v1',
+  baseUrl: 'https://ais-dev-ibvpx7fn3pnxtdxabola6x-240233116101.us-east1.run.app/api/v1',
   persona: 'nexus-homie'
 });
 ```
@@ -209,17 +210,19 @@ const ai = new NexusAI({
 
 | Method | Parameters | Description |
 |---|---|---|
-| `ai.chat(prompt, options)` | `prompt: string`, `{ persona, authorId, customRules, imageUrl }` | Core chat reasoning execution |
-| `ai.ask(prompt)` | `prompt: string` | Quick query returning clean text string |
-| `ai.scanMessage(text, options)` | `text: string`, `{ imageUrl, authorId }` | RaidShield security threat check |
-| `ai.discordMiddleware(client)` | `client: DiscordClient` | Auto-registers auto-moderation and mentions |
+| `ai.askJSON(options)` | `{ prompt, persona, authorId, rules, imageUrl }` | Core chat reasoning execution, full structured JSON response |
+| `ai.ask(options)` | `prompt: string \| options object` | Quick query returning clean text string |
+| `ai.checkSecurity(options)` | `{ messageText, authorId, imageUrl, imageData }` | RaidShield security threat check |
+| `ai.isSafe(messageText)` | `messageText: string` | Quick boolean safety check |
+| `ai.createChatSession(options)` | `{ persona, authorId, username, rules }` | Stateful multi-turn `NexusChatSession` with automatic history |
 | `ai.solveMath(expression)` | `expression: string` | Math & algebraic deduction |
-| `ai.solveCode(prompt)` | `prompt: string` | Code synthesis and bug analysis |
+| `ai.extractEntities(text)` | `text: string` | Named entity / salient noun extraction |
+| `ai.searchDocuments(options)` | `{ query, limit }` | BM25 knowledge-corpus search |
 
 ### Discord.js Bot Integration Example
 ```javascript
 const { Client, GatewayIntentBits } = require('discord.js');
-const NexusAI = require('./nexus-ai.js');
+const { NexusAI } = require('./nexus-ai.js');
 
 const client = new Client({
   intents: [
@@ -238,7 +241,7 @@ client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
   // 1. Instant RaidShield Security Scan
-  const scan = await nexus.scanMessage(message.content, { authorId: message.author.id });
+  const scan = await nexus.checkSecurity({ messageText: message.content, authorId: message.author.id });
   if (scan.classification === 'scam' || scan.classification === 'raid') {
     await message.delete().catch(() => {});
     await message.channel.send(`🛡️ **RaidShield Security Action:** Removed malicious payload from <@${message.author.id}>. Reason: ${scan.reason}`);
@@ -248,11 +251,12 @@ client.on('messageCreate', async (message) => {
   // 2. Respond when mentioned
   if (message.mentions.has(client.user)) {
     const cleanPrompt = message.content.replace(/<@!?\d+>/g, '').trim();
-    const reply = await nexus.chat(cleanPrompt, {
+    const reply = await nexus.ask({
+      prompt: cleanPrompt,
       authorId: message.author.id,
       username: message.author.username
     });
-    await message.reply(reply.text);
+    await message.reply(reply);
   }
 });
 

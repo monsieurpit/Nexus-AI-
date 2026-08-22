@@ -268,6 +268,30 @@ export class NexusAI {
   }
 
   /**
+   * List all available AI models/personas in OpenAI-style model list format.
+   */
+  async listModels() {
+    const res = await fetch(`${this.baseUrl}/models`, {
+      method: 'GET',
+      headers: this._getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to list models: HTTP ${res.status}`);
+    return await res.json();
+  }
+
+  /**
+   * Get the server's currently active default persona.
+   */
+  async getActivePersona() {
+    const res = await fetch(`${this.baseUrl}/persona`, {
+      method: 'GET',
+      headers: this._getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to get active persona: HTTP ${res.status}`);
+    return await res.json();
+  }
+
+  /**
    * Switch the server's global default persona.
    * @param {string} persona
    */
