@@ -8,11 +8,12 @@ import {
   WebSearchResult,
 } from '../types';
 import { generateReasoningPath } from './reasoningEngine';
-import { calculateAttentionMatrix } from './semanticEngine';
+import { calculateAttentionMatrix, searchKnowledgeGraph } from './semanticEngine';
 import { countTokens, tokenize } from './tokenizer';
 import {
   executeUnifiedWebSearch,
   shouldTriggerLiveWebSearch,
+  buildWebSearchQuery,
 } from './webSearchEngine';
 
 export interface GenerationCallbacks {
@@ -95,19 +96,19 @@ export async function generateAIResponse(
   let webSearchExecuted = false;
   let webSearchQuery = '';
 
-  const shouldSearchWeb =
-    !imageUrl &&
-    userPrompt &&
-    shouldTriggerLiveWebSearch(userPrompt, settings);
+  const knowledgeScore = userPrompt ? searchKnowledgeGraph(userPrompt, knowledgeBase, 1)[0]?.score : undefined;
+  const searchTriggerReason =
+    !imageUrl && userPrompt ? shouldTriggerLiveWebSearch(userPrompt, settings, knowledgeScore) : false;
 
-  if (shouldSearchWeb) {
+  if (searchTriggerReason) {
+    const searchQuery = buildWebSearchQuery(userPrompt, searchTriggerReason);
     try {
       // First try server endpoint (which has direct unrestricted node fetch)
       const resp = await fetch('/api/v1/web/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: userPrompt,
+          query: searchQuery,
           provider: settings.webSearchEngine || 'all',
           limit: 5,
         }),
@@ -119,13 +120,13 @@ export async function generateAIResponse(
         if (Array.isArray(data.results) && data.results.length > 0) {
           webSearchResults = data.results;
           webSearchExecuted = true;
-          webSearchQuery = data.query || userPrompt;
+          webSearchQuery = data.query || searchQuery;
         }
       }
     } catch {
       // Fallback: client-side unified web search
       try {
-        const fallbackRes = await executeUnifiedWebSearch(userPrompt, {
+        const fallbackRes = await executeUnifiedWebSearch(searchQuery, {
           provider: settings.webSearchEngine || 'all',
           limit: 5,
         });

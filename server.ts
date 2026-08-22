@@ -33,6 +33,7 @@ import {
   searchDuckDuckGoDirect,
   searchWikipediaKnowledge,
   shouldTriggerLiveWebSearch,
+  buildWebSearchQuery,
 } from './src/ai-engine/webSearchEngine';
 
 const app = express();
@@ -817,14 +818,14 @@ app.post('/api/v1/nexus', async (req, res) => {
 
       // Autonomous Web Search Grounding
       const searchAllowed = req.body.search !== false && req.body.webSearch !== false;
-      if (
-        !imagePart &&
-        promptToEvaluate &&
-        searchAllowed &&
-        shouldTriggerLiveWebSearch(promptToEvaluate, settings)
-      ) {
+      const knowledgeScore = promptToEvaluate ? searchKnowledgeGraph(promptToEvaluate, allKnowledge, 1)[0]?.score : undefined;
+      const searchTriggerReason =
+        !imagePart && promptToEvaluate && searchAllowed
+          ? shouldTriggerLiveWebSearch(promptToEvaluate, settings, knowledgeScore)
+          : false;
+      if (searchTriggerReason) {
         try {
-          const searchRes = await executeUnifiedWebSearch(promptToEvaluate, {
+          const searchRes = await executeUnifiedWebSearch(buildWebSearchQuery(promptToEvaluate, searchTriggerReason), {
             provider: req.body.searchEngine || req.body.provider || 'all',
             limit: 5,
           });
@@ -863,13 +864,6 @@ app.post('/api/v1/nexus', async (req, res) => {
             }));
         }
       }
-
-      // Always guarantee final rule enforcement
-      outputText = enforceStrictSdkRules(outputText, promptToEvaluate, userRules, {
-        isSuperChill,
-        username: username || '',
-        systemInstruction: persona.systemPrompt,
-      });
 
       if (imagePart) {
         outputText = `🖼️ **Visual Input Received & Inspected:**\n\n${outputText}`;
@@ -1148,9 +1142,11 @@ app.post('/api/v1/generate', async (req, res) => {
       let outputText = '';
       let webSearchResults: WebSearchResult[] = [];
       const searchAllowed = body.webSearch !== false && body.search !== false;
-      if (searchAllowed && shouldTriggerLiveWebSearch(promptText, settings)) {
+      const knowledgeScore = searchKnowledgeGraph(promptText, allKnowledge, 1)[0]?.score;
+      const searchTriggerReason = searchAllowed ? shouldTriggerLiveWebSearch(promptText, settings, knowledgeScore) : false;
+      if (searchTriggerReason) {
         try {
-          const searchRes = await executeUnifiedWebSearch(promptText, {
+          const searchRes = await executeUnifiedWebSearch(buildWebSearchQuery(promptText, searchTriggerReason), {
             provider: body.searchEngine || body.provider || 'all',
             limit: 5,
           });
@@ -1176,12 +1172,6 @@ app.post('/api/v1/generate', async (req, res) => {
         );
         outputText = reasoningResult.content;
       }
-
-      outputText = enforceStrictSdkRules(outputText, promptText, customRules, {
-        isSuperChill,
-        username: body.username || '',
-        systemInstruction: persona.systemPrompt,
-      });
 
       const promptTokens = countTokens(promptText);
       const candidatesTokens = countTokens(outputText);
@@ -1261,9 +1251,11 @@ app.post('/api/v1/chat/completions', async (req, res) => {
       let outputText = '';
       let webSearchResults: WebSearchResult[] = [];
       const searchAllowed = webSearch !== false && search !== false;
-      if (searchAllowed && shouldTriggerLiveWebSearch(promptText, settings)) {
+      const knowledgeScore = searchKnowledgeGraph(promptText, allKnowledge, 1)[0]?.score;
+      const searchTriggerReason = searchAllowed ? shouldTriggerLiveWebSearch(promptText, settings, knowledgeScore) : false;
+      if (searchTriggerReason) {
         try {
-          const searchRes = await executeUnifiedWebSearch(promptText, {
+          const searchRes = await executeUnifiedWebSearch(buildWebSearchQuery(promptText, searchTriggerReason), {
             provider: searchEngine || provider || 'all',
             limit: 5,
           });
@@ -1289,11 +1281,6 @@ app.post('/api/v1/chat/completions', async (req, res) => {
         );
         outputText = reasoningResult.content;
       }
-
-      outputText = enforceStrictSdkRules(outputText, promptText, userRules, {
-        isSuperChill,
-        systemInstruction: persona.systemPrompt,
-      });
 
       const promptTokens = countTokens(promptText);
       const completionTokens = countTokens(outputText);

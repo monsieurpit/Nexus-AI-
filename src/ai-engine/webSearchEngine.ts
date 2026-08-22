@@ -455,19 +455,30 @@ export function convertSearchResultsToKnowledgeItems(
   });
 }
 
+export type WebSearchTriggerReason =
+  | 'always'
+  | 'meaning'
+  | 'explicit'
+  | 'current-events'
+  | 'low-confidence-fallback'
+  | false;
+
 /**
- * Determines whether the user query should automatically trigger a live Google web search.
- * Strictly prevents searching for conversational chit-chat (e.g. "how are you doing", "what's up"),
- * greetings, insults (e.g. "fuck you"), feelings, roasts, or math.
- * Triggers primarily for finding the meaning of something, explicit search requests, or current event lookups.
+ * Determines whether the user query should automatically trigger a live Google web search,
+ * and why. Strictly prevents searching for conversational chit-chat (e.g. "how are you doing",
+ * "what's up"), greetings, insults (e.g. "fuck you"), feelings, roasts, or math.
+ * Triggers primarily for finding the meaning of something, explicit search requests, current
+ * event lookups, or as a last-resort fallback when the local corpus has no confident match.
+ * The returned reason is falsy when no search should happen, and truthy (a non-empty string)
+ * otherwise, so `if (shouldTriggerLiveWebSearch(...))` still works as a plain boolean check.
  */
 export function shouldTriggerLiveWebSearch(
   query: string,
   settings?: AISettings,
   matchedKnowledgeScore?: number
-): boolean {
+): WebSearchTriggerReason {
   if (settings?.webSearchMode === 'disabled') return false;
-  if (settings?.webSearchMode === 'always') return true;
+  if (settings?.webSearchMode === 'always') return 'always';
 
   const q = query.toLowerCase().trim();
 
@@ -503,18 +514,36 @@ export function shouldTriggerLiveWebSearch(
   // 4. TRIGGER: Finding the MEANING or DEFINITION of something
   const isMeaningSearch =
     /(?:what\s+is\s+the\s+meaning\s+of|what\s+does\s+.+\s+mean|meaning\s+of|definition\s+of|define\s+|what\s+is\s+the\s+definition\s+of|what\s+does\s+.+\s+stand\s+for|what\s+means\s+|meaning\s+behind)/i.test(q);
-  if (isMeaningSearch) return true;
+  if (isMeaningSearch) return 'meaning';
 
   // 5. TRIGGER: Explicit user requests to search Google or the web
   const isExplicitSearch =
     /(?:search\s+google|search\s+on\s+google|google\s+search|search\s+the\s+web|look\s+up\s+on\s+google|look\s+up\s+|search\s+for\s+|find\s+info\s+on|google\s+)/i.test(q);
-  if (isExplicitSearch) return true;
+  if (isExplicitSearch) return 'explicit';
 
   // 6. TRIGGER: Specific real-time / current events, recent releases, sports finals, or live lookups
   const isCurrentEventOrLiveLookup =
     /(?:latest\s+news|breaking\s+news|what\s+happened\s+in|who\s+won\s+the\s+202|release\s+date\s+of|stock\s+price\s+of|price\s+of\s+bitcoin|weather\s+in|who\s+played\s+in|2024\s+ucl\s+final|2024\s+champions\s+league)/i.test(q);
-  if (isCurrentEventOrLiveLookup) return true;
+  if (isCurrentEventOrLiveLookup) return 'current-events';
+
+  // 7. FALLBACK: Local corpus has no confident match — reach for the web instead of giving up
+  if (typeof matchedKnowledgeScore === 'number' && matchedKnowledgeScore < 1.0) {
+    return 'low-confidence-fallback';
+  }
 
   // For all other standard knowledge queries, rely on internal knowledge base
   return false;
+}
+
+/**
+ * Builds the actual text sent to the search engines for a query that has already
+ * been approved by shouldTriggerLiveWebSearch(). The low-confidence fallback case
+ * gets rephrased as "Meaning of X" so the search engine returns a definition/explainer
+ * instead of unrelated results for the raw (often conversational) user prompt.
+ */
+export function buildWebSearchQuery(query: string, reason: WebSearchTriggerReason): string {
+  if (reason === 'low-confidence-fallback') {
+    return `Meaning of ${query}`;
+  }
+  return query;
 }

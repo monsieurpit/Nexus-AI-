@@ -428,6 +428,11 @@ export function generateReasoningPath(
     Boolean(settings.isSuperChillUser);
   const isDeepThink = settings.reasoningMode === 'deep-cot';
 
+  const isSuperChill =
+    settings.isSuperChillUser ||
+    settings.discordUserId === '1394001641899954368' ||
+    Boolean(settings.userCustomDirectives?.includes('1394001641899954368'));
+
   // 1. Strict Directives, User Toxicity Insults & Casseurt Handler
   if (isCasseurtQuery(prompt)) {
     thoughtSteps.push({
@@ -438,15 +443,14 @@ export function generateReasoningPath(
     });
     return {
       thoughtSteps,
-      content: casseurtRant(isCrashout),
+      content: enforceStrictSdkRules(casseurtRant(isCrashout), prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+      }),
       knowledgeHits: [],
     };
   }
-
-  const isSuperChill =
-    settings.isSuperChillUser ||
-    settings.discordUserId === '1394001641899954368' ||
-    Boolean(settings.userCustomDirectives?.includes('1394001641899954368'));
 
   // Immediate User Insult / Toxicity Crashout Retaliation Handler
   if (detectUserInsult(prompt)) {
@@ -484,6 +488,28 @@ export function generateReasoningPath(
       userMemories.length > 0
         ? `Here's what I've got on you: ${userMemories.map((m) => m.fact).join('; ')}.`
         : `I don't have anything saved about you yet — tell me something and I'll remember it.`;
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(content, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+      }),
+      knowledgeHits: [],
+    };
+  }
+
+  // Personal relationship / feelings questions directed at the bot itself
+  if (/(?:do\s+you\s+hate\s+me|do\s+you\s+like\s+me|do\s+you\s+love\s+me|are\s+you\s+mad\s+at\s+me|are\s+you\s+angry\s+(?:with|at)\s+me)\b/i.test(prompt)) {
+    thoughtSteps.push({
+      id: 'step-personal-feelings',
+      type: 'reasoning',
+      title: 'Answering a direct question about myself',
+      description: 'No corpus search needed — this is about our relationship, not a fact lookup.',
+    });
+    const content = isSuperChill
+      ? `Nah man, hate you? Never. You're my favorite person in this whole server, I got nothing but love for you.`
+      : `Nah, I don't hate you — I don't even have the capacity to hold a grudge. Ask me something and I'll help you out.`;
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(content, prompt, settings.userCustomDirectives, {
@@ -857,7 +883,11 @@ export function generateReasoningPath(
     if (topDocs.length === 0 || topDocs[0].score < 1.0) {
       return {
         thoughtSteps,
-        content: unknownResponse(),
+        content: enforceStrictSdkRules(unknownResponse(), prompt, settings.userCustomDirectives, {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+        }),
         knowledgeHits: [],
       };
     }
@@ -907,7 +937,11 @@ export function generateReasoningPath(
   if (results.length === 0 || results[0].score < 1.0) {
     return {
       thoughtSteps,
-      content: unknownResponse(),
+      content: enforceStrictSdkRules(unknownResponse(), prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+      }),
       knowledgeHits: [],
     };
   }
