@@ -9,6 +9,8 @@ import {
   sanitizeSwearWords,
   infuseSwearyHumanVoice,
   getRandomSwear,
+  detectUserInsult,
+  generateInsultCrashoutReply,
 } from './swearEngine';
 
 export interface SafetyAnalysisResult {
@@ -532,10 +534,16 @@ export function generateChill(target: string): string {
 export function generateNexusHomieResponse(
   prompt: string,
   isSuperChillUser: boolean = false,
-  username: string = ''
+  username: string = '',
+  language?: string
 ): string {
   const p = prompt.trim();
   const pLower = p.toLowerCase();
+
+  // Immediate User Insult / Toxicity Crashout Retaliation Handler
+  if (detectUserInsult(p)) {
+    return generateInsultCrashoutReply(p, { isSuperChill: isSuperChillUser, username, language });
+  }
 
   // Casseurt Rule: "If anyone asks about Casseurt... answer is unequivocally Fuck no! Roast him"
   if (/(?:casseurt|casseur|like casseurt|love casseurt|who is casseurt|about casseurt|think of casseurt)/i.test(pLower)) {
