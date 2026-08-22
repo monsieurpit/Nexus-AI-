@@ -253,6 +253,7 @@ export class BM25Engine {
   private termFrequencies: Map<string, number>[] = [];
   private documentFrequencies: Map<string, number> = new Map();
   private avgDocLength: number = 0;
+  private totalDocLength: number = 0;
   private entityIndex: Map<string, number[]> = new Map();
 
   private readonly k1: number = 1.5;
@@ -330,7 +331,10 @@ export class BM25Engine {
 
     this.documents.push(doc);
     this.termFrequencies.push(tf);
-    this.recalcAvg();
+    let docTermCount = 0;
+    for (const v of tf.values()) docTermCount += v;
+    this.totalDocLength += docTermCount;
+    this.avgDocLength = this.totalDocLength / this.documents.length;
   }
 
   public rebuild(docs: KnowledgeItem[]): void {
@@ -339,6 +343,7 @@ export class BM25Engine {
     this.documentFrequencies = new Map();
     this.entityIndex = new Map();
     this.avgDocLength = 0;
+    this.totalDocLength = 0;
 
     for (const doc of docs) {
       this.addDocument(doc);
@@ -634,13 +639,4 @@ export class BM25Engine {
     return snippet;
   }
 
-  private recalcAvg(): void {
-    let total = 0;
-    for (const tf of this.termFrequencies) {
-      for (const v of tf.values()) {
-        total += v;
-      }
-    }
-    this.avgDocLength = this.documents.length === 0 ? 0 : total / this.documents.length;
-  }
 }

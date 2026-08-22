@@ -1,5 +1,6 @@
 import { AISettings, KnowledgeItem, WebSearchResult } from '../types';
 import { processForSearch, BM25Engine } from './bm25Engine';
+import { isCasseurtMention } from './swearEngine';
 
 /**
  * Autonomous Zero-API-Key Web Search Engine
@@ -466,6 +467,7 @@ export function shouldTriggerLiveWebSearch(
   matchedKnowledgeScore?: number
 ): boolean {
   if (settings?.webSearchMode === 'disabled') return false;
+  if (settings?.webSearchMode === 'always') return true;
 
   const q = query.toLowerCase().trim();
 
@@ -491,7 +493,7 @@ export function shouldTriggerLiveWebSearch(
   if (/\d+\s*[+\-*/÷×^%]\s*\d+/.test(q) || q.startsWith('solve ') || q.startsWith('calculate ') || q.startsWith('compute ')) {
     return false;
   }
-  if (/(?:casseurt|casseur)/i.test(q)) {
+  if (isCasseurtMention(q)) {
     return false;
   }
   if (/^(?:write\s+(?:a\s+)?(?:python|javascript|typescript|rust|c\+\+|code|script|function)|implement\s+|code\s+a)\b/i.test(q)) {
@@ -512,9 +514,6 @@ export function shouldTriggerLiveWebSearch(
   const isCurrentEventOrLiveLookup =
     /(?:latest\s+news|breaking\s+news|what\s+happened\s+in|who\s+won\s+the\s+202|release\s+date\s+of|stock\s+price\s+of|price\s+of\s+bitcoin|weather\s+in|who\s+played\s+in|2024\s+ucl\s+final|2024\s+champions\s+league)/i.test(q);
   if (isCurrentEventOrLiveLookup) return true;
-
-  // 7. If settings explicitly set to always search
-  if (settings?.webSearchMode === 'always') return true;
 
   // For all other standard knowledge queries, rely on internal knowledge base
   return false;

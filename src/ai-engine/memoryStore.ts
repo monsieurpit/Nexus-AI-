@@ -366,7 +366,8 @@ export function loadMemories(): UserMemory[] {
     if (typeof window !== 'undefined' && window.localStorage) {
       const saved = localStorage.getItem(STORAGE_KEYS.MEMORIES);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       }
     }
   } catch (e) {
@@ -390,7 +391,8 @@ export function loadMessages(): ChatMessage[] {
     if (typeof window !== 'undefined' && window.localStorage) {
       const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       }
     }
   } catch (e) {

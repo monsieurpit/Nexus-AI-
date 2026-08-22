@@ -1,4 +1,5 @@
 import { KnowledgeItem } from '../types';
+import { tokenizeWords } from './bm25Engine';
 import { EVERYDAY_BASICS_CORPUS } from './corpus/everydayBasics';
 import { SCIENCE_AND_ANATOMY_CORPUS } from './corpus/scienceAndAnatomy';
 import { TECH_AND_COMPUTING_CORPUS } from './corpus/techAndComputing';
@@ -608,9 +609,8 @@ const CONVERSATIONAL_STOPWORDS = new Set([
 
 export function findRelevantKnowledge(query: string, limit: number = 5, extraKnowledge: KnowledgeItem[] = []): KnowledgeItem[] {
   const allKnowledge = [...getAllKnowledge(), ...extraKnowledge];
-  const clean = query.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
   const normalizedQuery = query.toLowerCase().trim();
-  const rawTokens = clean.split(/\s+/).filter((t) => t.length > 1);
+  const rawTokens = tokenizeWords(query).filter((t) => t.length > 1);
   const substantiveTokens = rawTokens.filter((t) => !CONVERSATIONAL_STOPWORDS.has(t) && t.length > 2);
 
   // If query is pure conversational noise or empty, do NOT return random documents!

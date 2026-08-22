@@ -302,7 +302,7 @@ function tryUnitConversion(input: string): MathSolution | null {
   const q = input.toLowerCase();
 
   // Temperature: C to F
-  const cToFMatch = q.match(/(-?\d+\.?\d*)\s*(?:celsius|c)\s*(?:to|in)\s*(?:fahrenheit|f)/i);
+  const cToFMatch = q.match(/(-?\d+\.?\d*)\s*(?:celsius|c)\b\s*(?:to|in)\s*(?:fahrenheit|f)\b/i);
   if (cToFMatch) {
     const c = parseFloat(cToFMatch[1]);
     const f = (c * 9) / 5 + 32;
@@ -319,7 +319,7 @@ function tryUnitConversion(input: string): MathSolution | null {
   }
 
   // Temperature: F to C
-  const fToCMatch = q.match(/(-?\d+\.?\d*)\s*(?:fahrenheit|f)\s*(?:to|in)\s*(?:celsius|c)/i);
+  const fToCMatch = q.match(/(-?\d+\.?\d*)\s*(?:fahrenheit|f)\b\s*(?:to|in)\s*(?:celsius|c)\b/i);
   if (fToCMatch) {
     const f = parseFloat(fToCMatch[1]);
     const c = ((f - 32) * 5) / 9;
@@ -336,7 +336,7 @@ function tryUnitConversion(input: string): MathSolution | null {
   }
 
   // Distance: km to miles
-  const kmToMiMatch = q.match(/(\d+\.?\d*)\s*(?:km|kilometers|kilometres)\s*(?:to|in)\s*(?:miles|mi)/i);
+  const kmToMiMatch = q.match(/(\d+\.?\d*)\s*(?:km|kilometers|kilometres)\b\s*(?:to|in)\s*(?:miles|mi)\b/i);
   if (kmToMiMatch) {
     const km = parseFloat(kmToMiMatch[1]);
     const mi = km * 0.621371;
@@ -353,7 +353,7 @@ function tryUnitConversion(input: string): MathSolution | null {
   }
 
   // Distance: miles to km
-  const miToKmMatch = q.match(/(\d+\.?\d*)\s*(?:miles|mi)\s*(?:to|in)\s*(?:km|kilometers|kilometres)/i);
+  const miToKmMatch = q.match(/(\d+\.?\d*)\s*(?:miles|mi)\b\s*(?:to|in)\s*(?:km|kilometers|kilometres)\b/i);
   if (miToKmMatch) {
     const mi = parseFloat(miToKmMatch[1]);
     const km = mi * 1.60934;
@@ -370,7 +370,7 @@ function tryUnitConversion(input: string): MathSolution | null {
   }
 
   // Weight: kg to lbs
-  const kgToLbsMatch = q.match(/(\d+\.?\d*)\s*(?:kg|kilos|kilograms)\s*(?:to|in)\s*(?:lbs|pounds)/i);
+  const kgToLbsMatch = q.match(/(\d+\.?\d*)\s*(?:kg|kilos|kilograms)\b\s*(?:to|in)\s*(?:lbs|pounds)\b/i);
   if (kgToLbsMatch) {
     const kg = parseFloat(kgToLbsMatch[1]);
     const lbs = kg * 2.20462;
@@ -387,7 +387,7 @@ function tryUnitConversion(input: string): MathSolution | null {
   }
 
   // Weight: lbs to kg
-  const lbsToKgMatch = q.match(/(\d+\.?\d*)\s*(?:lbs|pounds)\s*(?:to|in)\s*(?:kg|kilos|kilograms)/i);
+  const lbsToKgMatch = q.match(/(\d+\.?\d*)\s*(?:lbs|pounds)\b\s*(?:to|in)\s*(?:kg|kilos|kilograms)\b/i);
   if (lbsToKgMatch) {
     const lbs = parseFloat(lbsToKgMatch[1]);
     const kg = lbs / 2.20462;

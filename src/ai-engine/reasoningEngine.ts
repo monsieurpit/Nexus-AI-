@@ -18,6 +18,7 @@ import {
   SWEAR_DICTIONARY,
   detectUserInsult,
   generateInsultCrashoutReply,
+  isCasseurtMention,
 } from './swearEngine';
 import {
   normalizeInternetSlang,
@@ -70,7 +71,7 @@ export function detectQueryIntent(query: string): QueryIntent {
 
   if (
     chatTriggers.some(
-      (t) => q === t || q.startsWith(t + ' ') || q.startsWith(t) || q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
+      (t) => q === t || q.startsWith(t + ' ') || q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
     ) ||
     /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q)
   ) {
@@ -267,12 +268,7 @@ function applyContextBoost(
 
 function isCasseurtQuery(query: string): boolean {
   const q = query.toLowerCase();
-  return (
-    q.includes('casseurt') ||
-    q.includes('casseur') ||
-    q.includes('do you like cass') ||
-    q.includes('do you love cass')
-  );
+  return isCasseurtMention(q) || q.includes('do you like cass') || q.includes('do you love cass');
 }
 
 function casseurtRant(crashout: boolean): string {
@@ -468,6 +464,29 @@ export function generateReasoningPath(
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(roastReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+      }),
+      knowledgeHits: [],
+    };
+  }
+
+  // Recall stored facts when the user directly asks what we remember about them
+  if (/(?:do\s+you\s+remember\s+me|what'?s\s+my\s+name|what\s+is\s+my\s+name|who\s+am\s+i|what\s+do\s+you\s+(?:know|remember)\s+about\s+me)\b/i.test(prompt)) {
+    thoughtSteps.push({
+      id: 'step-memory-recall',
+      type: 'reasoning',
+      title: 'Recalling stored user memory',
+      description: `Scanned ${userMemories.length} stored fact(s) for relevant context.`,
+    });
+    const content =
+      userMemories.length > 0
+        ? `Here's what I've got on you: ${userMemories.map((m) => m.fact).join('; ')}.`
+        : `I don't have anything saved about you yet — tell me something and I'll remember it.`;
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(content, prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,

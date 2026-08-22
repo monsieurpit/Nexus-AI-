@@ -11,6 +11,7 @@ import {
   SWEAR_DICTIONARY,
   infuseSwearyHumanVoice as swearEngineInfuse,
   hasSwearWords,
+  isCasseurtMention,
 } from './swearEngine';
 
 export interface GeneralKnowledgeResult {
@@ -264,7 +265,7 @@ export function solveGeneralKnowledge(prompt: string, isSuperChill: boolean = fa
   }
 
   // 2. Casseurt Rule
-  if (/(casseurt|casseur|like casseurt|love casseurt|who is casseurt|about casseurt|think of casseurt)/i.test(lower)) {
+  if (isCasseurtMention(lower)) {
     return {
       matched: true,
       category: 'roast',

@@ -11,6 +11,15 @@
  * 4. Multi-language profanity (English, Polish, Spanish)
  */
 
+/**
+ * Shared detector for any mention of "Casseurt" — the personal roast-rule trigger.
+ * Single source of truth so every module that needs to special-case this name
+ * (rule enforcement, reasoning, general knowledge, web search gating) stays in sync.
+ */
+export function isCasseurtMention(text: string): boolean {
+  return /casseurt|casseur/i.test(text);
+}
+
 export interface SwearOptions {
   intensity?: 'light' | 'moderate' | 'heavy' | 'unhinged';
   language?: 'english' | 'polish' | 'spanish' | 'mixed';
@@ -218,7 +227,7 @@ export function detectUserInsult(text: string): boolean {
     /\b(?:you'?re|you\s+are)\s+(?:so\s+)?(?:dumb|stupid|trash|useless|worthless|retarded|idiotic|blind|slow|broken)\b/i,
     /\b(?:kill\s+yourself|kys|go\s+die|delete\s+yourself)\b/i,
     /\b(?:you\s+know\s+nothing|you\s+can'?t\s+do\s+shit|you\s+don'?t\s+know\s+shit)\b/i,
-    /\b(?:idiot|moron|dumbass|dipshit|dickhead|jackass|asshole|clown|bitch|bastard)\b/i,
+    /\b(?:you'?re|you\s+are|ur|u\s+are)\s+(?:an?\s+)?(?:idiot|moron|dumbass|dipshit|dickhead|jackass|asshole|clown|bitch|bastard)\b/i,
     // Polish insults
     /\b(?:spierdalaj|wypierdalaj|zamknij\s+si[eę]|chuj\s+ci\s+w\s+dup[eę]|jesteś\s+g[oó]wnem|debilu|kretynie|zamknij\s+mord[eę]|poca[lł]uj\s+mnie\s+w\s+dup[eę])\b/i,
     // Spanish insults

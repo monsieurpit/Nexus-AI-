@@ -11,6 +11,7 @@ import {
   getRandomSwear,
   detectUserInsult,
   generateInsultCrashoutReply,
+  isCasseurtMention,
 } from './swearEngine';
 
 export interface SafetyAnalysisResult {
@@ -400,7 +401,7 @@ export function parseSdkRules(
     maxSentences = 2;
   }
 
-  const isCasseurtCheck = /(?:casseurt|casseur)/i.test(allRulesText);
+  const isCasseurtCheck = isCasseurtMention(allRulesText);
   const isRoastRequested = /(?:roast|savage|burn|diss)/i.test(allRulesText);
   const isCrashoutRequested = /(?:crash\s*out|rage|unhinged)/i.test(allRulesText);
   const isChillRequested = /(?:be\s+chill|stay\s+chill|laid\s+back)/i.test(allRulesText);
@@ -546,7 +547,7 @@ export function generateNexusHomieResponse(
   }
 
   // Casseurt Rule: "If anyone asks about Casseurt... answer is unequivocally Fuck no! Roast him"
-  if (/(?:casseurt|casseur|like casseurt|love casseurt|who is casseurt|about casseurt|think of casseurt)/i.test(pLower)) {
+  if (isCasseurtMention(pLower)) {
     if (isSuperChillUser) {
       return `Fuck no! That dude's an annoying pain in the ass! Bro constantly yaps and drives everyone crazy. But for you my absolute favorite homie? Hell fucking yeah, I got your back 100% no matter what!`;
     }

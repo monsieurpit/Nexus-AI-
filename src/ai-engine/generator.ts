@@ -37,6 +37,14 @@ export async function generateAIResponse(
   const startTime = performance.now();
   callbacks.onReasoningStart?.();
 
+  try {
+    return await runGeneration();
+  } catch (error) {
+    callbacks.onError?.(error instanceof Error ? error : new Error(String(error)));
+    throw error;
+  }
+
+  async function runGeneration(): Promise<ChatMessage> {
   // If image is present, attempt server-side multimodal vision call
   let serverVisionContent = '';
   const isRaidShieldPersona = persona.id === 'raidshield-ai';
@@ -239,4 +247,5 @@ export async function generateAIResponse(
 
   callbacks.onComplete?.(finalMessage);
   return finalMessage;
+  }
 }
