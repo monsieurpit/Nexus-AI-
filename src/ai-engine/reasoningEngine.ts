@@ -159,7 +159,10 @@ export function detectQueryIntent(query: string): QueryIntent {
     q.includes('difference between') ||
     q.includes(' vs ') ||
     q.includes(' versus ') ||
-    q.includes('better than')
+    q.includes('better than') ||
+    // Narrow "X or Y" pattern (e.g. "messi or ronaldo") — only two bare tokens either
+    // side of "or", so it doesn't misfire on longer sentences that happen to contain "or"
+    /^[a-z0-9'-]+\s+or\s+[a-z0-9'-]+$/i.test(q)
   ) {
     return 'comparative';
   }
@@ -251,6 +254,43 @@ function buildConversationMemory(query: string, history: ChatMessage[]): Convers
     contextDescription: descParts.length === 0 ? 'No carryover from prior turns.' : descParts.join(' · '),
     isFollowUp,
   };
+}
+
+// A "confident" answer needs a score at or above this. Below it but at/above WEAK_MATCH_SCORE,
+// we still answer — just hedged — rather than pretending we have nothing at all.
+const CONFIDENT_MATCH_SCORE = 1.0;
+const WEAK_MATCH_SCORE = 0.4;
+
+type SearchHit = { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] };
+
+/**
+ * Searches the corpus, and if the first attempt comes back weak or empty, retries once
+ * with a tightened, stopword-free keyword query instead of immediately giving up. Natural-language
+ * phrasing (pronouns, filler words) can dilute BM25 scoring even when the corpus has a good match
+ * for the underlying keywords.
+ */
+function searchWithReformulation(
+  augmentedQuery: string,
+  queryTerms: string[],
+  allKnowledge: KnowledgeItem[],
+  citedDocIds: Set<string>,
+  topK: number
+): { results: SearchHit[]; reformulatedQuery: string | null } {
+  let results = applyContextBoost(searchKnowledgeGraph(augmentedQuery, allKnowledge, topK), citedDocIds);
+  if (results.length > 0 && results[0].score >= CONFIDENT_MATCH_SCORE) {
+    return { results, reformulatedQuery: null };
+  }
+
+  const keywordQuery = queryTerms.join(' ').trim();
+  if (!keywordQuery || keywordQuery === augmentedQuery.toLowerCase().trim()) {
+    return { results, reformulatedQuery: null };
+  }
+
+  const retryResults = applyContextBoost(searchKnowledgeGraph(keywordQuery, allKnowledge, topK), citedDocIds);
+  if (retryResults.length > 0 && (results.length === 0 || retryResults[0].score > results[0].score)) {
+    return { results: retryResults, reformulatedQuery: keywordQuery };
+  }
+  return { results, reformulatedQuery: null };
 }
 
 function applyContextBoost(
@@ -410,6 +450,25 @@ function crashoutConversational(query: string): string {
 
 function unknownResponse(): string {
   return `I genuinely don't have enough in my corpus on that. Hit the **Corpus** button and paste in some info — I'll search it immediately after.`;
+}
+
+/**
+ * Wraps an answer built from a below-confident-threshold match with an honest hedge, instead
+ * of presenting a shaky match with the same false certainty as a strong one.
+ */
+function hedgeAnswer(text: string, isSuperChill: boolean): string {
+  const prefixes = isSuperChill
+    ? [
+        "Not gonna lie, this isn't my strongest match, but here's my best shot at it: ",
+        "I don't have a rock-solid source on this one, so take it with a grain of salt: ",
+      ]
+    : [
+        "I'm not fully confident on this one — my corpus match is thin — but here's my best read: ",
+        "Heads up, this is a weaker match than I'd like, so double-check it, but here's what I've got: ",
+        "Not 100% certain here, closest thing I've got is this: ",
+      ];
+  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+  return `*${prefix}*\n\n${text}`;
 }
 
 export function generateReasoningPath(
@@ -774,8 +833,13 @@ export function generateReasoningPath(
 
   // CRASHOUT MODE
   if (isCrashout) {
-    let results = searchKnowledgeGraph(memory.augmentedQuery, allKnowledge, 6);
-    results = applyContextBoost(results, memory.citedDocIds);
+    const { results, reformulatedQuery } = searchWithReformulation(
+      memory.augmentedQuery,
+      queryTerms,
+      allKnowledge,
+      memory.citedDocIds,
+      6
+    );
 
     thoughtSteps.push({
       id: 'step-crashout-search',
@@ -784,7 +848,16 @@ export function generateReasoningPath(
       description: results.slice(0, 4).map((r) => `[${r.score.toFixed(2)}] ${r.item.title}`).join('\n'),
     });
 
-    if (results.length === 0 || results[0].score < 1.0) {
+    if (reformulatedQuery) {
+      thoughtSteps.push({
+        id: 'step-crashout-reformulated',
+        type: 'retrieval',
+        title: 'Weak first pass — reformulated and retried',
+        description: `Retried with: "${reformulatedQuery}"`,
+      });
+    }
+
+    if (results.length === 0 || results[0].score < WEAK_MATCH_SCORE) {
       return {
         thoughtSteps,
         content: enforceStrictSdkRules(
@@ -798,14 +871,16 @@ export function generateReasoningPath(
     }
 
     const top = results.slice(0, 3);
+    const isConfident = results[0].score >= CONFIDENT_MATCH_SCORE;
     thoughtSteps.push({
       id: 'step-crashout-synth',
       type: 'synthesis',
       title: 'Writing crashout response',
-      description: `Source: ${top[0].item.title}.`,
+      description: `Source: ${top[0].item.title}.${isConfident ? '' : ' (weak match — hedging)'}`,
     });
 
-    const reply = synthesiseCrashout(prompt, intent, top);
+    const synthesised = synthesiseCrashout(prompt, intent, top);
+    const reply = isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill);
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(reply, prompt, settings.userCustomDirectives, {
@@ -880,7 +955,7 @@ export function generateReasoningPath(
     const merged = deduplicateResults(allResults);
     const topDocs = merged.slice(0, 7);
 
-    if (topDocs.length === 0 || topDocs[0].score < 1.0) {
+    if (topDocs.length === 0 || topDocs[0].score < WEAK_MATCH_SCORE) {
       return {
         thoughtSteps,
         content: enforceStrictSdkRules(unknownResponse(), prompt, settings.userCustomDirectives, {
@@ -901,14 +976,18 @@ export function generateReasoningPath(
     });
 
     const confidence = computeConfidence(topDocs, queryTerms);
+    const isConfident = topDocs[0].score >= CONFIDENT_MATCH_SCORE;
     thoughtSteps.push({
       id: 'step-deep-synth',
       type: 'synthesis',
       title: 'Writing comprehensive response',
-      description: `Synthesising ${topDocs.length} sources. Confidence: ${(confidence * 100).toFixed(0)}%`,
+      description: `Synthesising ${topDocs.length} sources. Confidence: ${(confidence * 100).toFixed(0)}%${
+        isConfident ? '' : ' — below full-confidence threshold, hedging'
+      }`,
     });
 
-    const text = synthesiseDeep(prompt, intent, topDocs);
+    const synthesisedDeep = synthesiseDeep(prompt, intent, topDocs);
+    const text = isConfident ? synthesisedDeep : hedgeAnswer(synthesisedDeep, isSuperChill);
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(text, prompt, settings.userCustomDirectives, {
@@ -921,8 +1000,13 @@ export function generateReasoningPath(
   }
 
   // STANDARD MODE
-  let results = searchKnowledgeGraph(memory.augmentedQuery, allKnowledge, 7);
-  results = applyContextBoost(results, memory.citedDocIds);
+  const { results, reformulatedQuery } = searchWithReformulation(
+    memory.augmentedQuery,
+    queryTerms,
+    allKnowledge,
+    memory.citedDocIds,
+    7
+  );
 
   thoughtSteps.push({
     id: 'step-searched-docs',
@@ -934,7 +1018,16 @@ export function generateReasoningPath(
         : results.slice(0, 4).map((r) => `[${r.score.toFixed(2)}] ${r.item.title}`).join('\n'),
   });
 
-  if (results.length === 0 || results[0].score < 1.0) {
+  if (reformulatedQuery) {
+    thoughtSteps.push({
+      id: 'step-reformulated-search',
+      type: 'retrieval',
+      title: 'Initial phrasing was weak — reformulated and retried',
+      description: `Retried with keyword-only query: "${reformulatedQuery}" → top score ${results[0]?.score.toFixed(2) ?? '0.00'}`,
+    });
+  }
+
+  if (results.length === 0 || results[0].score < WEAK_MATCH_SCORE) {
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(unknownResponse(), prompt, settings.userCustomDirectives, {
@@ -948,12 +1041,15 @@ export function generateReasoningPath(
 
   const top = results.slice(0, 3);
   const confidence = computeConfidence(results, queryTerms);
+  const isConfident = results[0].score >= CONFIDENT_MATCH_SCORE;
 
   thoughtSteps.push({
     id: 'step-reasoning',
     type: 'reasoning',
     title: 'Reasoning over docs',
-    description: `Top: '${results[0].item.title}' (${results[0].score.toFixed(2)})\nConfidence: ${(confidence * 100).toFixed(0)}%`,
+    description: `Top: '${results[0].item.title}' (${results[0].score.toFixed(2)})\nConfidence: ${(confidence * 100).toFixed(0)}%${
+      isConfident ? '' : ' — below full-confidence threshold, hedging the answer'
+    }`,
   });
 
   thoughtSteps.push({
@@ -963,7 +1059,8 @@ export function generateReasoningPath(
     description: `${top.length} source(s) · intent: ${intentLabel(intent)}`,
   });
 
-  const mainText = synthesiseStandard(prompt, intent, top);
+  const synthesised = synthesiseStandard(prompt, intent, top);
+  const mainText = isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill);
   const followUps = suggestFollowUps(prompt, intent, results);
 
   return {
@@ -1002,15 +1099,22 @@ function computeConfidence(
   const gapRatio = topScore / Math.max(secondScore, 0.5);
   const gapSignal = Math.min((gapRatio - 1.0) / 3.0, 1.0);
 
-  const topText = (results[0].item.content + ' ' + results[0].item.title).toLowerCase();
+  const topTitle = results[0].item.title.toLowerCase();
+  const topText = (results[0].item.content + ' ' + topTitle).toLowerCase();
   const matched = queryTerms.filter((t) => topText.includes(t)).length;
   const coverageSignal = queryTerms.length === 0 ? 0.5 : matched / queryTerms.length;
+
+  // A term landing in the title (not just buried somewhere in the body) is a much stronger
+  // signal that the document is actually *about* the query subject, not just tangentially related.
+  const titleMatched = queryTerms.filter((t) => topTitle.includes(t)).length;
+  const titleSignal = queryTerms.length === 0 ? 0 : titleMatched / queryTerms.length;
 
   const threshold = Math.max(topScore * 0.4, 2.0);
   const supporters = results.filter((r) => r.score >= threshold).length;
   const supportSignal = Math.min(supporters / 3.0, 1.0);
 
-  const raw = 0.3 * gapSignal + 0.28 * coverageSignal + 0.25 * magnitudeSignal + 0.17 * supportSignal;
+  const raw =
+    0.25 * gapSignal + 0.23 * coverageSignal + 0.2 * magnitudeSignal + 0.14 * supportSignal + 0.18 * titleSignal;
   return Math.max(0.15, Math.min(raw, 0.97));
 }
 
@@ -1188,9 +1292,8 @@ function variedSentences(
       : splitSentences(doc.item.content).slice(0, pick + 2);
 
   if (pool.length === 0) return [];
-  if (pool.length >= 2 && Math.random() < 0.25) {
-    return [pool[1], pool[0], ...pool.slice(2, pick)];
-  }
+  // Sentence order is preserved intentionally — shuffling risks putting an effect
+  // before its cause or a conclusion before its premise, breaking logical flow.
   return pool.slice(0, pick);
 }
 

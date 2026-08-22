@@ -201,32 +201,12 @@ Clean, fast, and simple as fuck!`,
     };
   }
 
-  // General "how to [verb] [noun]" extraction
-  const generalActionMatch = lower.match(/^(?:how to|how do you|how can i|tell me how to|steps to)\s+([a-zA-Z]+)\s+([a-zA-Z0-9\s]+)/i);
-  if (generalActionMatch) {
-    const verb = generalActionMatch[1].trim();
-    const object = generalActionMatch[2].trim();
-
-    const intro = isSuperChill
-      ? `Hell fucking yeah bro, let's break down how to **${verb} ${object}** with real, practical steps:`
-      : `Alright bro, here's how to **${verb} ${object}** straight to the point:`;
-
-    return {
-      matched: true,
-      title: `How to ${verb.toUpperCase()} ${object.toUpperCase()}`,
-      category: 'action_how_to',
-      confidence: 0.95,
-      response: `${intro}
-
-1. **Preparation & Setup**: Make sure you have the required tools, clean space, and materials ready before you start to avoid unnecessary hassle.
-2. **Execution & Form**: Focus on the core mechanics of ${verb}ing ${object}. Execute deliberately with steady control rather than rushing.
-3. **Verification**: Check your work to ensure the ${object} is properly handled, stable, and performing as intended.
-4. **Cleanup & Safety**: Secure any equipment and finish up cleanly.
-
-If you have a specific scenario or condition for ${verb}ing ${object}, drop the details and let's get it done!`,
-    };
-  }
-
+  // Deliberately no generic "how to [verb] [noun]" catch-all here. A previous version of this
+  // function answered *any* unmatched how-to question with the same four boilerplate steps
+  // ("Preparation & Setup", "Execution & Form"...) regardless of what was actually asked —
+  // confidently worded but content-free for anything not explicitly handled above. Returning
+  // null for genuinely unmatched how-tos is the honest move: it lets the caller fall through to
+  // real corpus search or a live web search instead of a fake-specific non-answer.
   return null;
 }
 

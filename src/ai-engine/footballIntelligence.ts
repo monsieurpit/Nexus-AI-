@@ -15,6 +15,14 @@
  * - Rules & Officiating (Offside rule, VAR, Handball interpretations, Red cards, Penalty shootouts, FFP/PSR, Bosman Ruling)
  * - Iconic lore & Derbies (El Clasico, Remontada, Corner taken quickly ORIGI, Aguero 93:20, Istanbul 2005, Leicester 5000-1)
  * - Ballon d'Or history and controversies (Rodri 2024, Lewandowski 2020, Sneijder 2010, Ribery 2013)
+ * - Ligue 1 & PSG (QSI era, MNM trio, 2025 UCL title), Europa/Conference League (Sevilla's 7 titles, Villarreal, Atalanta)
+ * - South American football (Copa Libertadores, Boca/River, Flamengo, Pelé's Santos), Eredivisie (Ajax Total Football, PSV, Feyenoord)
+ * - Primeira Liga (Porto, Benfica, Sporting), Atlético Madrid (Cholismo), Borussia Dortmund (Yellow Wall), Inter/Roma/Napoli
+ * - AFCON & African legends (Weah, Drogba, Eto'o, Salah, Mané), FIFA Club World Cup, domestic cups (FA Cup, Copa del Rey, DFB-Pokal, Coppa Italia)
+ * - Midfield maestros (Xavi, Iniesta, Busquets, Pirlo, De Bruyne), Premier League legends (Gerrard, Lampard, Beckham, Shearer, Rooney)
+ * - Strikers hall of fame (Ibrahimović, Van Nistelrooy, Van Basten, Müller), more managers (Simeone, Conte, Bielsa, Michels, Del Bosque)
+ * - More World Cup finals (1990, 2002, 2010, 2018), Euro Championship history (Denmark 1992, Greece 2004, Italy 2020)
+ * - Women's football (USWNT dynasty, Marta, Lionesses Euro 2022, Women's Champions League)
  */
 
 export interface FootballKnowledgeResult {
@@ -881,6 +889,383 @@ Here is the exact breakdown of the drama that went down in that final:
 - **66' Messi's Ankle Injury**: Lionel Messi suffered a severe swollen right ankle, had to be substituted, and wept uncontrollably on the bench.
 - **112' The Winning Goal**: In extra time, Giovani Lo Celso slipped a first-time pass to **Lautaro Martínez**, who sprinted through and hammered the winner past Camilo Vargas (Lautaro won the Golden Boot with 5 goals).
 - **Ángel Di María's Farewell**: Di María was substituted in the 117th minute to a standing ovation in his final match for Argentina.`,
+    };
+  }
+
+  // 28. LIGUE 1 & PARIS SAINT-GERMAIN (PSG)
+  if (/(ligue 1|paris saint-germain|psg|marseille|monaco 2017|lyon|kylian mbappe psg|neymar psg|qatar sports investments)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Ligue 1 & The Rise of Paris Saint-Germain',
+      topic: 'ligue_1',
+      confidence: 0.98,
+      response: `French Ligue 1 has long been a factory for raw, explosive talent even while sitting a notch below the "Big 4" leagues in overall depth.
+
+### 🇫🇷 Paris Saint-Germain's QSI Era (2011–Present):
+- **Qatar Sports Investments** bought PSG in 2011 and turned them into a global superpower, assembling the **MNM trio** (Mbappé, Neymar, Messi) from 2021–2023 — arguably the most expensive attacking front three ever fielded, though it never delivered the Champions League.
+- **12+ Ligue 1 titles**, including a period of near-total domination (7 titles in 8 seasons from 2015 to 2023).
+- **2020 UCL Final Heartbreak**: Lost 1-0 to Bayern Munich (Kingsley Coman header) in the empty-stadium COVID final in Lisbon.
+- **2025 Treble & UCL Glory**: Under Luis Enrique and a rebuilt, less star-studded but far more cohesive squad (Dembélé, Vitinha, Hakimi, Doué), PSG finally won their first-ever Champions League, thrashing Inter Milan 5-0 in the 2025 final — the biggest UCL final winning margin in history.
+
+### 🔵⚪ Other Ligue 1 Giants:
+- **Olympique de Marseille**: Won France's only Champions League/European Cup in **1993** (Basile Boli header vs AC Milan). Fierce, passionate Stade Vélodrome atmosphere and *Le Classique* rivalry with PSG.
+- **AS Monaco**: Shocked Europe winning Ligue 1 in **2016-17** with a teenage Kylian Mbappé, Bernardo Silva, and Fabinho, reaching the UCL semi-finals.
+- **Olympique Lyonnais**: Won a remarkable **7 consecutive Ligue 1 titles from 2002 to 2008**, and their women's team (OL Féminin) is the most decorated club in Women's Champions League history (8 titles).`,
+    };
+  }
+
+  // 29. UEFA EUROPA LEAGUE & CONFERENCE LEAGUE
+  if (/(europa league|uefa cup history|conference league|europa league winners|sevilla europa league|jose mourinho europa league)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'UEFA Europa League & Conference League: Europe\'s Second-Tier Glory',
+      topic: 'europa_league',
+      confidence: 0.98,
+      response: `The UEFA Europa League (rebranded from the UEFA Cup in 2009) is European football's second club competition, and Sevilla FC have turned it into their personal fiefdom.
+
+### 🏆 Sevilla's Unmatched Europa League Dynasty (7 Titles!):
+- Won it in **2006, 2007, 2014, 2015, 2016, 2020, and 2023** — no club has ever come close to this level of dominance in a single European competition.
+- The 2014-2016 three-peat under Unai Emery remains one of the most underrated feats in modern football, and their 2023 win (beating Roma on penalties, José Mourinho's first-ever European final loss as a manager) extended the legend.
+
+### ⚔️ Other Notable Europa League Moments:
+- **José Mourinho's Europa League Obsession**: Won it with Porto (2003) before it was even called the Europa League (still UEFA Cup), then again with Manchester United (2017) and Roma (2022, the first-ever Europa Conference League title).
+- **Villarreal 2021**: Beat Manchester United on penalties (11-10, the longest UCL/Europa shootout in a major European final) with goalkeeper Gerónimo Rulli scoring the winning penalty himself before saving the last one.
+- **Atalanta 2024**: Ended their trophy drought by demolishing Bayer Leverkusen 3-0 in the final — the only defeat "Neverkusen" suffered in their entire historic 2023-24 season.
+
+### 🥉 UEFA Europa Conference League (Est. 2021):
+- The newest third-tier UEFA competition, giving smaller nations and clubs (Roma, West Ham, Fiorentina, Chelsea) a genuine shot at continental silverware. West Ham won the inaugural-era trophy in 2023, their first European title since 1965.`,
+    };
+  }
+
+  // 30. COPA LIBERTADORES & SOUTH AMERICAN CLUB FOOTBALL
+  if (/(copa libertadores|libertadores|south american club football|flamengo|palmeiras|santos fc|corinthians|boca juniors libertadores|river plate libertadores|independiente)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Copa Libertadores: South America\'s Ultimate Club Prize',
+      topic: 'copa_libertadores',
+      confidence: 0.98,
+      response: `The **Copa Libertadores** (est. 1960) is South America's equivalent of the Champions League — arguably even more brutal, passionate, and chaotic given the stadium atmospheres in Argentina and Brazil.
+
+### 🏆 All-Time Record Holders:
+- 🇦🇷 **Independiente (7 titles)**: The most decorated club in the competition's history, dominant in the 1960s-70s ("Rey de Copas" - King of Cups).
+- 🇦🇷 **Boca Juniors (6 titles)**: La Bombonera is one of the most intimidating away venues on Earth. Won a historic Libertadores/Intercontinental double in 2000 and 2003.
+- 🇧🇷 **São Paulo (3 titles)** & 🇦🇷 **River Plate (4 titles)**: River's 2015 win over Tigres and 2018 win over bitter rivals Boca (played in Madrid due to fan violence, "La Final de Madrid") are historic.
+- 🇧🇷 **Flamengo**: Won a stunning **2019 final** with two stoppage-time goals (Gabigol brace in the 89th & 91st minutes) to beat River Plate 2-1, sparking pandemonium in Rio de Janeiro. Won it again in 2022.
+- 🇧🇷 **Palmeiras**: Won back-to-back titles in 2020 and 2021, the latter decided by a Deyverson extra-time header vs Flamengo.
+
+### ⚽ Pelé's Santos FC (The Original Global Icon):
+- Pelé's Santos won back-to-back Libertadores/Intercontinental Cup doubles in **1962 and 1963**, beating European champions Benfica and AC Milan, cementing Brazil as the spiritual home of *jogo bonito* football on the world stage decades before the modern Champions League era existed.
+
+### 🔥 The Brasileirão (Campeonato Brasileiro Série A):
+- Brazil's top flight is famously the most competitive and physically demanding domestic league in South America, with Palmeiras, Flamengo, Corinthians, and São Paulo as the modern powerhouses.`,
+    };
+  }
+
+  // 31. EREDIVISIE & DUTCH FOOTBALL (AJAX, PSV, FEYENOORD)
+  if (/(eredivisie|ajax amsterdam|psv eindhoven|feyenoord|dutch football|johan cruyff arena|de klassieker)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Eredivisie & The Dutch Total Football Legacy',
+      topic: 'eredivisie',
+      confidence: 0.98,
+      response: `The Netherlands has produced a footballing philosophy (Total Football) that influenced the entire modern game, despite the Eredivisie being a relatively small league financially.
+
+### 🔴⚪ AFC Ajax (36 Eredivisie Titles, 4 European Cups):
+- **The 1971-1973 European Cup 3-peat** under Rinus Michels then Ştefan Kovács, powered by Johan Cruyff's genius, invented and perfected *Totaalvoetbal* (Total Football).
+- **1995 Champions League Title**: Louis van Gaal's legendary young Ajax squad (Edwin van der Sar, Frank & Ronald de Boer, Patrick Kluivert, Clarence Seedorf, Edgar Davids) beat Milan 1-0, arguably the last great triumph of a fully homegrown academy side in the Champions League era.
+- **La Masia's European cousin**: Ajax's academy (De Toekomst) produced Cruyff, Van Basten, Bergkamp, the De Boer twins, Davids, Seedorf, and modern stars like De Ligt and Frenkie de Jong.
+
+### 🔵⚪ PSV Eindhoven & 🔴⚫ Feyenoord:
+- **PSV**: Won the 1988 European Cup Treble under Guus Hiddink with Ronald Koeman and Romário, and remain Ajax's biggest domestic rival.
+- **Feyenoord**: Won the 1970 European Cup (the first Dutch club European champion) and 2002 UEFA Cup on home turf at De Kuip.
+- **De Klassieker**: Ajax vs Feyenoord is the fiercest, most historic rivalry in Dutch football, a clash of Amsterdam vs Rotterdam identity.`,
+    };
+  }
+
+  // 32. PRIMEIRA LIGA & PORTUGUESE FOOTBALL (PORTO, BENFICA, SPORTING)
+  if (/(primeira liga|fc porto|benfica|sporting cp|sporting lisbon|portuguese football|estadio da luz|jose mourinho porto 2004)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Primeira Liga & The Big Three of Portuguese Football',
+      topic: 'primeira_liga',
+      confidence: 0.98,
+      response: `Portugal punches wildly above its weight in football, producing world-class talent and two European champion clubs from a nation of just 10 million people.
+
+### 🔵 FC Porto (José Mourinho's Launchpad):
+- Won the **2003 UEFA Cup and the 2004 Champions League** back-to-back under a then-unknown 41-year-old José Mourinho, beating Monaco 3-0 in the UCL final and launching "The Special One" into global superstardom.
+- 30+ Primeira Liga titles, historically Portugal's most dominant club alongside Benfica.
+
+### 🔴 SL Benfica (The Eagles):
+- Won back-to-back European Cups in **1961 and 1962** under Béla Guttmann, powered by the legendary **Eusébio** ("The Black Panther"), who scored 4 goals in the 1962 final vs Real Madrid.
+- **The Curse of Guttmann**: After being denied a pay rise, Guttmann allegedly cursed the club, declaring Benfica would never win a European title again for 100 years — they've since lost **8 consecutive European finals**.
+
+### 🟢⚪ Sporting CP:
+- Poland-adjacent claim to fame: developed Cristiano Ronaldo before selling him to Manchester United in 2003. Won a rare Primeira Liga title in 2021 under Rúben Amorim after a 19-year drought.`,
+    };
+  }
+
+  // 33. ATLÉTICO MADRID (LOS COLCHONEROS)
+  if (/(atletico madrid|atleti|diego simeone atletico|cholismo|wanda metropolitano)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Atlético Madrid: Diego Simeone\'s Fortress of Grit',
+      topic: 'atletico_madrid',
+      confidence: 0.98,
+      response: `Atlético Madrid ("Los Colchoneros") have built their entire modern identity around one man: **Diego "Cholo" Simeone**, manager since December 2011.
+
+### ⚔️ "Cholismo" — The Philosophy of Suffering to Win:
+- Simeone's Atlético is defined by an ultra-organized, physically relentless **4-4-2 defensive block**, brutal work-rate, and a "no game is over until the final whistle" mentality that has become known globally as *Cholismo*.
+- Won **La Liga in 2014 and 2021**, breaking the Real Madrid/Barcelona duopoly both times — the 2014 title was won on the final day at Camp Nou with a Diego Godín header.
+
+### 💔 The Heartbreak of 3 Champions League Finals:
+- **2014 Final vs Real Madrid**: Led 1-0 deep into stoppage time before Sergio Ramos' 92:48 header sent it to extra time, where Real Madrid ran away 4-1 winners (*La Décima*).
+- **2016 Final vs Real Madrid (again)**: A 1-1 draw went to penalties, where Juanfran hit the post to hand Real Madrid their 11th European Cup.
+- Simeone remains one of the greatest managers to never win the Champions League, but has built Atlético into a permanent top-4 European power on a fraction of Real Madrid and Barcelona's budgets.`,
+    };
+  }
+
+  // 34. BORUSSIA DORTMUND (BVB & THE YELLOW WALL)
+  if (/(borussia dortmund|bvb|yellow wall|signal iduna park|westfalenstadion|dortmund champions league)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Borussia Dortmund: The Yellow Wall & The Klopp Revolution',
+      topic: 'borussia_dortmund',
+      confidence: 0.98,
+      response: `Borussia Dortmund is famous worldwide for having the single most intimidating fan atmosphere in club football: the **Südtribüne ("Yellow Wall")** at Signal Iduna Park, holding 25,000 standing fans in one continuous terrace.
+
+### 🟡⚫ The Klopp Golden Era (2008–2015):
+- Jürgen Klopp built a young, high-pressing, counter-attacking Gegenpressing machine, winning back-to-back Bundesliga titles in **2011 and 2012** (the 2012 season included a domestic double with the DFB-Pokal, going undefeated at home).
+- Reached the **2013 Champions League final at Wembley**, losing a bruising 2-1 battle to fellow Bundesliga rivals Bayern Munich (Robben's 89th-minute winner).
+- Klopp's Dortmund became the Bundesliga's premier academy for elite talent: Lewandowski, Mario Götze, Marco Reus, İlkay Gündoğan, Shinji Kagawa, and later Jadon Sancho, Erling Haaland, and Jude Bellingham all passed through the Westfalenstadion before becoming global superstars elsewhere.
+- Reached a second Champions League final in **2024**, losing 2-0 to Real Madrid despite dominating large stretches of the game (see the 2024 UCL Final entry for the full breakdown).`,
+    };
+  }
+
+  // 35. INTER MILAN, AS ROMA & NAPOLI DEEP DIVE
+  if (/(inter milan history|internazionale|jose mourinho inter treble|as roma history|totti|napoli history|diego maradona napoli)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Inter Milan, AS Roma & Napoli: The Soul of Italian Football',
+      topic: 'italian_clubs',
+      confidence: 0.98,
+      response: `Beyond Juventus and AC Milan, Italy's football culture runs deep through Inter, Roma, and Napoli.
+
+### 🔵⚫ Inter Milan (Internazionale):
+- **The Grande Inter (1960s)**: Helenio Herrera's Catenaccio masters won back-to-back European Cups in 1964 and 1965.
+- **José Mourinho's 2010 Treble**: Won Serie A, Coppa Italia, and the Champions League in the same season — famously eliminating Pep Guardiola's Barcelona in the semi-final playing with 10 men for over an hour, then beating Bayern Munich 2-0 in the final (Diego Milito brace). No Italian club has repeated this Treble since.
+- **2024 "Second Star"**: Won their 20th Scudetto under Simone Inzaghi, clinching it in the Derby della Madonnina against bitter rivals AC Milan.
+
+### 🟡🔴 AS Roma:
+- **Francesco Totti**: "Il Capitano" spent his entire 25-year career at Roma (786 appearances, 307 goals), winning the 2001 Scudetto and becoming the eternal symbol of one-club loyalty in modern football.
+- Reached the 2023 Europa League final under José Mourinho, their first European final in over 30 years.
+
+### 🔵⚪ Napoli:
+- **Diego Maradona's Napoli (1984–1991)**: Maradona single-handedly dragged a mid-table southern Italian club to two Scudettos (1987, 1990) and a UEFA Cup (1989), toppling the dominant northern giants Juventus, Milan, and Inter. The city still worships him as a religious figure.
+- **2023 Scudetto**: See the Serie A entry — Napoli's first title since Maradona's era, 33 years later.`,
+    };
+  }
+
+  // 36. AFCON & AFRICAN FOOTBALL LEGENDS
+  if (/(afcon|africa cup of nations|african football|george weah|didier drogba|samuel eto'o|sadio mane|mohamed salah|senegal 2022 afcon|ivory coast 2024 afcon)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'AFCON & The Legends of African Football',
+      topic: 'african_football',
+      confidence: 0.98,
+      response: `African football has produced some of the most electrifying talent in the sport's history, showcased biennially at the **Africa Cup of Nations (AFCON)**.
+
+### 🏆 AFCON Powerhouses:
+- 🇪🇬 **Egypt (7 titles - record)**: The most successful AFCON nation, including a stunning 3-peat from 2006 to 2010.
+- 🇨🇲 **Cameroon (5 titles)** & 🇬🇭 **Ghana (4 titles)**: Historic African giants.
+- 🇸🇳 **Senegal (2022)**: Sadio Mané scored the winning penalty to beat Egypt (and Mohamed Salah) in the final, delivering Senegal's first-ever AFCON title.
+- 🇨🇮 **Ivory Coast (2024)**: Hosted and won the tournament on home soil in a stunning turnaround after firing their coach mid-tournament and nearly getting eliminated in the group stage.
+
+### 🌟 African Football Icons:
+- 🇱🇷 **George Weah**: The only African player to ever win the Ballon d'Or (1995) with AC Milan, later became President of Liberia.
+- 🇨🇮 **Didier Drogba**: Chelsea legend, scored the equalizer and the winning penalty in the 2012 Champions League final shootout vs Bayern Munich. Used his global platform to help broker peace during the Ivorian Civil War.
+- 🇨🇲 **Samuel Eto'o**: Won 3 Champions League titles with 3 different clubs (Barcelona x2, Inter Milan) — a treble-treble that mirrors Ronaldo/Zidane's Real Madrid feats.
+- 🇪🇬 **Mohamed Salah**: Liverpool's Egyptian King, one of the greatest Premier League forwards ever, adored equally in Merseyside and Cairo.
+- 🇸🇳 **Sadio Mané**: Won the Champions League with Liverpool in 2019 and later the AFCON with Senegal in 2022, completing a legendary career double.`,
+    };
+  }
+
+  // 37. FIFA CLUB WORLD CUP
+  if (/(fifa club world cup|club world cup|intercontinental cup|toyota cup|2025 club world cup)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'FIFA Club World Cup: Crowning the World\'s Best Club',
+      topic: 'club_world_cup',
+      confidence: 0.97,
+      response: `The **FIFA Club World Cup** pits the champions of every continental confederation (UEFA, CONMEBOL, CONCACAF, AFC, CAF, OFC) against each other to crown a true "world champion" club.
+
+### 🏆 History & Evolution:
+- Originally the **Intercontinental Cup / Toyota Cup** (1960–2004), a one-off match between the European Cup and Copa Libertadores winners — dominated fiercely by South American clubs in the 60s-80s (Peñarol, Santos, Independiente, Boca Juniors).
+- Rebranded as the **FIFA Club World Cup** in 2005 with all confederations included, though European clubs (Real Madrid with a record 5 titles, Barcelona, Bayern) have dominated the modern era almost every year.
+- **2025 Expanded 32-Team Format**: FIFA dramatically expanded the tournament into a full month-long, 32-club World Cup-style competition held in the United States, giving it far greater global weight and prize money than ever before — a preview of the infrastructure being tested for the 2026 World Cup.`,
+    };
+  }
+
+  // 38. DOMESTIC CUP COMPETITIONS (FA CUP, COPA DEL REY, DFB-POKAL, COPPA ITALIA)
+  if (/(fa cup history|copa del rey history|dfb-pokal history|coppa italia history|oldest football competition|fa cup final)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'The Great European Domestic Cup Competitions',
+      topic: 'domestic_cups',
+      confidence: 0.97,
+      response: `Every major football nation has a historic knockout cup competition running parallel to the league season, often producing the game's biggest underdog stories.
+
+### 🏆 The FA Cup (England, est. 1871 — the oldest football competition on Earth):
+- Famous for shock giant-killings where lower-league minnows occasionally topple Premier League royalty. Manchester United holds the record with 13 titles, followed by Arsenal with 14 (the current record-holder).
+- The magic of the FA Cup Final at Wembley remains one of English football's most cherished traditions.
+
+### 🇪🇸 Copa del Rey (Spain, est. 1903):
+- Barcelona hold the record with 31+ titles. Historic finals are played at a neutral venue, often producing iconic moments like Cristiano Ronaldo's petulant celebration in front of the Barcelona bench in 2014.
+
+### 🇩🇪 DFB-Pokal (Germany, est. 1935):
+- Known for a completely open first-round bracket where tiny 5th and 6th-division amateur clubs can draw Bayern Munich and occasionally cause massive upsets on live television.
+
+### 🇮🇹 Coppa Italia (Italy, est. 1922):
+- Juventus hold the all-time record with 15+ titles, and it's historically used by top clubs to fine-tune their Serie A/UCL squad rotations.`,
+    };
+  }
+
+  // 39. MIDFIELD MAESTROS (XAVI, INIESTA, BUSQUETS, PIRLO, DE BRUYNE)
+  if (/(xavi hernandez|andres iniesta|sergio busquets|andrea pirlo|kevin de bruyne|midfield maestro)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Midfield Maestros: The Architects of Tempo & Control',
+      topic: 'midfielders',
+      confidence: 0.98,
+      response: `While strikers grab headlines, these midfielders are the true engines that made their teams historically great.
+
+- 🇪🇸 **Xavi Hernández**: The metronome of Guardiola's Barcelona. Completed more passes than any player in history during his prime, once completing **900+ passes in a single Champions League match** with a 95%+ accuracy rate. Won 8 La Liga titles and 4 Champions Leagues.
+- 🇪🇸 **Andrés Iniesta**: Scored the **winning goal in the 2010 World Cup final** (116') for Spain and is widely regarded as one of the greatest dribblers under pressure ever, capable of escaping impossible tight spaces (*"La Croqueta"*).
+- 🇪🇸 **Sergio Busquets**: The invisible genius. A defensive midfielder who almost never makes a visible "highlight" play, but whose positional intelligence and half-turn body shape made Barcelona's entire tiki-taka system function for over a decade.
+- 🇮🇹 **Andrea Pirlo**: The "L'Architetto" (The Architect) with an impossibly elegant deep-lying playmaker role, famous for his cheeky Panenka penalties (including one vs England in Euro 2012) and orchestrating Milan's 2007 Champions League title and Juventus' Serie A dominance.
+- 🇧🇪 **Kevin De Bruyne**: Widely considered the greatest passer and chance-creator of the modern Premier League era, the engine of Pep Guardiola's Manchester City dynasty (4 Premier Leagues, 1 Champions League in 2023), renowned for whipped inch-perfect crosses and long-range screamers.`,
+    };
+  }
+
+  // 40. PREMIER LEAGUE LEGENDS: GERRARD, LAMPARD, BECKHAM, SHEARER, ROONEY
+  if (/(steven gerrard|frank lampard|david beckham|alan shearer|wayne rooney|ryan giggs|paul scholes|premier league goat)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Premier League Icons: Gerrard, Lampard, Beckham & More',
+      topic: 'premier_league_legends',
+      confidence: 0.98,
+      response: `The Premier League has its own pantheon of legends who never needed a Ballon d'Or to become immortal in England.
+
+- 🔴 **Steven Gerrard**: Liverpool's talismanic captain, the driving force behind the 2005 Miracle of Istanbul, capable of single-handedly dragging a team from the ashes with thunderous long-range strikes and box-to-box dominance ("Gerrard-esque" performances).
+- 🔵 **Frank Lampard**: Chelsea's all-time record goalscorer (211 goals) despite playing as a box-to-box midfielder, renowned for perfectly timed late runs into the box. Won 3 Premier Leagues and the 2012 Champions League.
+- 🏴󠁧󠁢󠁥󠁮󠁧󠁿 **David Beckham**: The most famous footballer on the planet in the early 2000s — pinpoint dead-ball delivery, that iconic last-minute free-kick vs Greece to send England to the 2002 World Cup, and a genuine global marketing phenomenon at Man Utd, Real Madrid, LA Galaxy, and PSG.
+- ⚫⚪ **Alan Shearer**: The Premier League's all-time top scorer (260 goals), a ruthless, powerful, aerially dominant striker for Blackburn Rovers (title winner 1995) and Newcastle United.
+- 🔴 **Wayne Rooney**: Manchester United's all-time record scorer (253 goals), a generational teenage talent who burst onto the scene at 16 with Everton before becoming England's all-time top scorer for years.
+- 🔴 **Ryan Giggs & Paul Scholes**: Two "Class of '92" one-club legends — Giggs (13 Premier League titles, the most decorated player in English top-flight history) and Scholes (Zidane himself called Scholes the toughest midfielder he ever faced).`,
+    };
+  }
+
+  // 41. STRIKERS HALL OF FAME (IBRAHIMOVIĆ, VAN NISTELROOY, VAN BASTEN, MÜLLER)
+  if (/(zlatan ibrahimovic|ruud van nistelrooy|marco van basten|gerd muller|greatest striker of all time|poacher striker)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Strikers Hall of Fame: The Ultimate Goal Machines',
+      topic: 'strikers',
+      confidence: 0.98,
+      response: `A pantheon of pure, clinical, and at times outrageously arrogant goal-scoring machines:
+
+- 🇸🇪 **Zlatan Ibrahimović**: A walking highlight reel with unmatched self-confidence ("Lions don't compare themselves to humans"). His overhead bicycle kick from 30+ yards vs England in 2012 is considered one of the greatest goals ever scored. Won league titles in 4 different countries (Netherlands, Italy, Spain, France).
+- 🇳🇱 **Ruud van Nistelrooy**: A pure, clinical fox-in-the-box poacher for Manchester United, scoring in **8 consecutive Premier League games** at one stretch and terrorizing defenses with his timing in the box.
+- 🇳🇱 **Marco van Basten**: 3x Ballon d'Or winner, scored one of the greatest volleys in football history in the **1988 European Championship final** (an audacious sidefoot volley from an almost impossible angle vs USSR).
+- 🇩🇪 **Gerd Müller ("Der Bomber")**: Held the Bundesliga single-season scoring record (40 goals) for nearly 50 years until Lewandowski broke it in 2021. Scored the winning goal in the **1974 World Cup final** for West Germany and remains one of the most ruthlessly efficient six-yard-box finishers ever.`,
+    };
+  }
+
+  // 42. MANAGERIAL GENIUSES PART 2 (SIMEONE, CONTE, BIELSA, MICHELS)
+  if (/(diego simeone|antonio conte|marcelo bielsa|rinus michels|vicente del bosque|luis enrique)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Managerial Geniuses: Simeone, Conte, Bielsa & The Total Football Pioneers',
+      topic: 'managers_part2',
+      confidence: 0.97,
+      response: `More tactical trailblazers who reshaped how the game is coached:
+
+- 🇦🇷 **Diego Simeone**: Built Atlético Madrid into a perennial Champions League contender through sheer will, defensive organization, and *Cholismo* — proof that tactical identity and mentality can consistently overcome financial gaps against Real Madrid and Barcelona.
+- 🇮🇹 **Antonio Conte**: Won titles at Juventus (launching their 9-in-a-row dynasty), Chelsea (2017 Premier League with a switch to a back-3 mid-season), and Inter Milan (ending Juventus's Serie A dominance in 2021), known for his intensity and rigid tactical discipline.
+- 🇦🇷 **Marcelo Bielsa ("El Loco")**: The spiritual godfather of Gegenpressing, hugely influential on Pep Guardiola and Mauricio Pochettino. Promoted Leeds United back to the Premier League in 2020 with his trademark relentless man-marking, high-octane pressing system.
+- 🇳🇱 **Rinus Michels**: Invented and coached Total Football at Ajax and the Netherlands in the 1970s, later winning Euro 1988 with Van Basten's Netherlands — voted "Coach of the Century" by FIFA in 1999.
+- 🇪🇸 **Vicente del Bosque**: Led Spain to an unprecedented **Euro 2008 → World Cup 2010 → Euro 2012 treble** of consecutive major international tournament wins, the only nation in history to achieve this.`,
+    };
+  }
+
+  // 43. WORLD CUP FINALS HISTORY (1990, 2002, 2010, 2018)
+  if (/(1990 world cup final|2002 world cup final|2010 world cup final|2018 world cup final|west germany vs argentina 1990|brazil vs germany 2002|spain vs netherlands 2010|france vs croatia 2018)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Legendary World Cup Finals: 1990, 2002, 2010 & 2018',
+      topic: 'world_cup_finals',
+      confidence: 0.98,
+      response: `A rundown of more iconic modern World Cup Finals beyond 2022 and 2014:
+
+### 🇩🇪 1990: West Germany 1 - 0 Argentina (Rome)
+- A bitter, foul-riddled rematch of the 1986 final. Argentina had two players sent off, and West Germany won on a controversial late Andreas Brehme penalty — Franz Beckenbauer became the first man to win the World Cup as both captain (1974) and manager (1990).
+
+### 🇧🇷 2002: Brazil 2 - 0 Germany (Yokohama)
+- Ronaldo Nazário's redemption arc after his mysterious 1998 final collapse — scored both goals to win the Golden Boot (8 goals) and cement Brazil's record 5th World Cup title.
+
+### 🇪🇸 2010: Spain 1 - 0 Netherlands (Johannesburg)
+- A famously ill-tempered, foul-heavy final (Nigel de Jong's chest-high karate kick on Xabi Alonso somehow avoided a red card) decided by Andrés Iniesta's iconic 116th-minute extra-time winner, sealing Spain's first-ever World Cup and completing their tiki-taka golden generation.
+
+### 🇫🇷 2018: France 4 - 2 Croatia (Moscow)
+- An action-packed final featuring an own goal, a Griezmann penalty (awarded after the tournament's first-ever VAR review in a final), and a young Kylian Mbappé becoming only the second teenager ever (after Pelé) to score in a World Cup final.`,
+    };
+  }
+
+  // 44. UEFA EUROPEAN CHAMPIONSHIP (EURO) HISTORY
+  if (/(euro history|european championship history|italy euro 2020|euro 2020 winner|denmark euro 1992|greece euro 2004)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'UEFA European Championship: History\'s Biggest Shocks & Dynasties',
+      topic: 'euro_history',
+      confidence: 0.98,
+      response: `The UEFA European Championship (Euros) has produced some of international football's most stunning underdog stories.
+
+### 🏆 All-Time Winners:
+- 🇩🇪 **Germany & 🇪🇸 Spain (3 titles each)**: The most successful nations in Euro history.
+- 🇫🇷 **France (2 titles)**, 🇮🇹 **Italy (2 titles)**.
+
+### 🇩🇰 Denmark 1992: The Greatest Underdog Story in Euro History
+- Denmark didn't even qualify for the tournament — they were called up as a **late replacement for war-torn Yugoslavia just 10 days before the tournament started**, players literally coming back from vacation, and somehow went on to beat reigning World Champions Germany 2-0 in the final.
+
+### 🇬🇷 Greece 2004: The Ultimate Miracle
+- 150-1 outsiders under German coach Otto Rehhagel, playing ultra-disciplined defensive football, beat co-favorites Portugal **twice** (in the opening match AND the final) to win their only major trophy ever — still considered the biggest upset in the history of international football.
+
+### 🇮🇹 Italy Euro 2020 (Played in 2021):
+- Won on penalties against England at Wembley in the final, Gianluigi Donnarumma saving the decisive spot-kick, capping a stunning Roberto Mancini-led revival after Italy failed to even qualify for the 2018 World Cup.`,
+    };
+  }
+
+  // 45. WOMEN'S FOOTBALL & THE WOMEN'S WORLD CUP
+  if (/(women's football|womens world cup|women's world cup|uswnt|megan rapinoe|alex morgan|marta brazil|women's champions league|ballon d'or feminin|lionesses)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Women\'s Football: The USWNT Dynasty & Global Growth',
+      topic: 'womens_football',
+      confidence: 0.97,
+      response: `Women's football has exploded in global popularity, professionalism, and quality over the last two decades.
+
+### 🇺🇸 The USWNT Dynasty (4 World Cups):
+- The United States Women's National Team is the most dominant program in the sport's history, winning the **Women's World Cup in 1991, 1999, 2015, and 2019**.
+- The 1999 team (led by Mia Hamm and Brandi Chastain's iconic shirt-off penalty celebration) sparked a cultural explosion for the sport in America.
+- **Megan Rapinoe & Alex Morgan** were the faces of the dominant 2019 back-to-back winning squad, and were vocal leaders in the fight for equal pay that led to a landmark 2022 USSF equal pay agreement.
+
+### 🇧🇷 Marta (The Queen of Football):
+- Won a record **6 FIFA World Player of the Year / Best FIFA Women's Player awards**, the all-time leading scorer (male or female) in World Cup history with 17 goals across 6 tournaments for Brazil, despite never winning the trophy itself.
+
+### 🏴󠁧󠁢󠁥󠁮󠁧󠁿 The Lionesses (England) — Euro 2022 Champions:
+- Won England's first major trophy (men's or women's) since 1966, beating Germany 2-1 in extra time at a sold-out Wembley in front of 87,192 fans — the largest attendance in Euros history (men's or women's).
+
+### 🏆 Growth of the Women's Champions League & NWSL/WSL:
+- Lyon's dominance (8 Women's Champions League titles) mirrors Barcelona's current era (with Alexia Putellas and Aitana Bonmatí both winning Ballon d'Or Féminin back-to-back), while England's WSL and the USA's NWSL have become the two most-watched domestic women's leagues on Earth.`,
     };
   }
 
