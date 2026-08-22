@@ -37,21 +37,30 @@ export function stripHtmlTags(html: string): string {
 export function extractSearchQuery(prompt: string): string {
   let cleaned = prompt.trim();
 
-  // Remove common conversational query prefixes
+  // Remove common conversational query prefixes & fillers
   const prefixesToRemove = [
-    /^(?:can you|could you|please|hey|yo|bro|nexus)\s+/i,
+    /^(?:can you|could you|please|hey|yo|bro|nexus|dude)\s+/i,
     /^(?:search on google for|search google for|google search for|search google|search for|look up on google|look up|google)\s+/i,
     /^(?:tell me about|tell me who|tell me what|tell me when|tell me where|tell me how|tell me why)\s+/i,
     /^(?:what is the latest on|what's the latest on|what do you know about|what is|whats|what's)\s+/i,
     /^(?:do you know|can you find|find out|give me info on|give me information about)\s+/i,
+    /^(?:i told him|i asked|someone asked|tell me)\s+/i,
   ];
 
   for (const prefix of prefixesToRemove) {
     cleaned = cleaned.replace(prefix, '').trim();
   }
 
-  // Remove trailing question marks or punctuation
-  cleaned = cleaned.replace(/[?!.]+$/, '').trim();
+  // Clean conversational profanities/fillers embedded inside search questions
+  // e.g., "what the hell happened" -> "what happened", "what the fuck is" -> "what is"
+  cleaned = cleaned
+    .replace(/\b(?:what|who|where|when|why|how)\s+the\s+(?:hell|fuck|shit|heck)\b/gi, (match) => {
+      return match.split(/\s+/)[0];
+    })
+    .replace(/\b(?:the\s+fuck|the\s+hell|fucking|damn|ass|kurwa)\b/gi, '')
+    .replace(/[?!.]+$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   return cleaned || prompt.trim();
 }
@@ -91,6 +100,31 @@ export async function searchGoogleDirect(query: string, maxResults: number = 5):
 
     const html = await response.text();
     const results: WebSearchResult[] = [];
+
+    // 0. Extract Google Featured Snippet / AI Overview / Direct Answer Box if present
+    const featuredSnippetRegexes = [
+      /<div[^>]*class="[^"]*(?:hgKElc|IZ6rdc|LGOjhe|kno-rdesc|Z0LcW|O5uR6d|yXK7lf)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<div[^>]*data-attrid="wa:\/description"[^>]*>([\s\S]*?)<\/div>/i,
+      /<div[^>]*class="[^"]*(?:BNeawe iBp4fe AP7Wnd|BNeawe s3v9rd AP7Wnd)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<span[^>]*class="[^"]*(?:hgKElc|aCOpRe)[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+    ];
+
+    for (const fsRegex of featuredSnippetRegexes) {
+      const fsMatch = html.match(fsRegex);
+      if (fsMatch) {
+        const directText = stripHtmlTags(fsMatch[1]);
+        if (directText && directText.length > 25) {
+          results.push({
+            title: `Google Direct Answer / Overview: ${query}`,
+            url: `https://www.google.com/search?q=${encodedQuery}`,
+            snippet: directText,
+            source: 'google',
+            domain: 'google.com (Quick Answer / AI Overview)',
+          });
+          break;
+        }
+      }
+    }
 
     // Parse Google Organic Result blocks
     // Google structures results inside <div class="g"> or <div> containing <h3> and <a>
@@ -421,66 +455,67 @@ export function convertSearchResultsToKnowledgeItems(
 }
 
 /**
- * Determines whether the user query should automatically trigger a live Google web search
+ * Determines whether the user query should automatically trigger a live Google web search.
+ * Strictly prevents searching for conversational chit-chat (e.g. "how are you doing", "what's up"),
+ * greetings, insults (e.g. "fuck you"), feelings, roasts, or math.
+ * Triggers primarily for finding the meaning of something, explicit search requests, or current event lookups.
  */
 export function shouldTriggerLiveWebSearch(
   query: string,
   settings?: AISettings,
   matchedKnowledgeScore?: number
 ): boolean {
-  if (settings?.webSearchMode === 'always') return true;
   if (settings?.webSearchMode === 'disabled') return false;
 
   const q = query.toLowerCase().trim();
 
-  // Explicit user requests to search or check google/web
-  if (
-    q.includes('search google') ||
-    q.includes('google ') ||
-    q.includes('search on google') ||
-    q.includes('search the web') ||
-    q.includes('look up') ||
-    q.includes('search for') ||
-    q.includes('what happened') ||
-    q.includes('latest news') ||
-    q.includes('current') ||
-    q.includes('today') ||
-    q.includes('2024') ||
-    q.includes('2025') ||
-    q.includes('2026') ||
-    q.includes('recent') ||
-    q.includes('score') ||
-    q.includes('who is') ||
-    q.includes('who won') ||
-    q.includes('who played') ||
-    q.includes('release date') ||
-    q.includes('weather') ||
-    q.includes('stock price') ||
-    q.includes('price of')
-  ) {
-    return true;
+  // 1. NEVER SEARCH: Insults, curses, and toxicity (handled directly by Discord crashout/roast engine)
+  const isInsult =
+    /\b(?:fuck\s+(?:you|u|off)|go\s+fuck\s+yourself|screw\s+(?:you|u)|shut\s+(?:the\s+fuck\s+)?up|stfu|kys|kill\s+yourself|eat\s+shit|suck\s+my\s+dick|you\s+suck|you'?re\s+(?:trash|dumb|stupid|bad|ass|clown)|dumb\s+bot|bitch|idiot|clown|moron|spierdalaj|wypierdalaj|zamknij\s+mord[eę]|chuj)\b/i.test(
+      q
+    );
+  if (isInsult) return false;
+
+  // 2. NEVER SEARCH: Conversational chit-chat, greetings, small-talk, and personal inquiries
+  const isConversational =
+    /^(?:yo|wassup|wazzup|what'?s\s*up|whats\s*up|what\s*up|sup|hey|hello|hi|howdy|good\s*(?:morning|afternoon|evening|night))\b/i.test(q) ||
+    /(?:how\s+are\s+(?:you|u)|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|how\s+you\s+been|hru|wyd|what\s+are\s+you\s+doing|wym|wdym|what\s+do\s+you\s+mean)/i.test(q) ||
+    /^(?:who\s+are\s+you|what\s+are\s+you|what\s+is\s+your\s+name|who\s+made\s+you|who\s+created\s+you|tell\s+me\s+about\s+yourself|are\s+you\s+real|are\s+you\s+an\s+ai|what\s+can\s+you\s+do|help\s+me)\b/i.test(q) ||
+    /^(?:thanks|thank\s+you|thx|ty|appreciate\s+it|much\s+appreciated|bye|goodbye|cya|see\s+ya|see\s+you)\b/i.test(q) ||
+    /^(?:lol|lmao|lmfao|haha|hahaha|xd|fr|fr\s+fr|no\s+cap|ong|facts|ok|okay|nice|cool)\b/i.test(q) ||
+    /(?:tell\s+me\s+a\s+joke|make\s+me\s+laugh|roast\s+me|can\s+you\s+swear|say\s+fuck)\b/i.test(q);
+
+  if (isConversational) return false;
+
+  // 3. NEVER SEARCH: Math calculations, code requests, and Casseurt roasts
+  if (/\d+\s*[+\-*/÷×^%]\s*\d+/.test(q) || q.startsWith('solve ') || q.startsWith('calculate ') || q.startsWith('compute ')) {
+    return false;
+  }
+  if (/(?:casseurt|casseur)/i.test(q)) {
+    return false;
+  }
+  if (/^(?:write\s+(?:a\s+)?(?:python|javascript|typescript|rust|c\+\+|code|script|function)|implement\s+|code\s+a)\b/i.test(q)) {
+    return false;
   }
 
-  // Factual, entity, or historical questions
-  if (
-    q.startsWith('who is') ||
-    q.startsWith('who was') ||
-    q.startsWith('what is the capital') ||
-    q.startsWith('when did') ||
-    q.startsWith('where is') ||
-    q.startsWith('why did') ||
-    q.includes('founded') ||
-    q.includes('invented') ||
-    q.includes('discovered')
-  ) {
-    return true;
-  }
+  // 4. TRIGGER: Finding the MEANING or DEFINITION of something
+  const isMeaningSearch =
+    /(?:what\s+is\s+the\s+meaning\s+of|what\s+does\s+.+\s+mean|meaning\s+of|definition\s+of|define\s+|what\s+is\s+the\s+definition\s+of|what\s+does\s+.+\s+stand\s+for|what\s+means\s+|meaning\s+behind)/i.test(q);
+  if (isMeaningSearch) return true;
 
-  // If local corpus score is low (under 3.0), auto search web to provide an accurate answer
-  if (matchedKnowledgeScore !== undefined && matchedKnowledgeScore < 3.0) {
-    return true;
-  }
+  // 5. TRIGGER: Explicit user requests to search Google or the web
+  const isExplicitSearch =
+    /(?:search\s+google|search\s+on\s+google|google\s+search|search\s+the\s+web|look\s+up\s+on\s+google|look\s+up\s+|search\s+for\s+|find\s+info\s+on|google\s+)/i.test(q);
+  if (isExplicitSearch) return true;
 
-  // Default enabled for deep exploration
-  return settings?.webSearchEnabled !== false;
+  // 6. TRIGGER: Specific real-time / current events, recent releases, sports finals, or live lookups
+  const isCurrentEventOrLiveLookup =
+    /(?:latest\s+news|breaking\s+news|what\s+happened\s+in|who\s+won\s+the\s+202|release\s+date\s+of|stock\s+price\s+of|price\s+of\s+bitcoin|weather\s+in|who\s+played\s+in|2024\s+ucl\s+final|2024\s+champions\s+league)/i.test(q);
+  if (isCurrentEventOrLiveLookup) return true;
+
+  // 7. If settings explicitly set to always search
+  if (settings?.webSearchMode === 'always') return true;
+
+  // For all other standard knowledge queries, rely on internal knowledge base
+  return false;
 }

@@ -19,6 +19,14 @@ import {
   detectUserInsult,
   generateInsultCrashoutReply,
 } from './swearEngine';
+import {
+  normalizeInternetSlang,
+  evaluateBrainrotContext,
+  generateBrainrotResponse,
+} from './slangAndBrainrotEngine';
+import { solveGeneralKnowledge } from './generalIntelligence';
+import { trySolveCode } from './codeSolver';
+import { trySolveLogic } from './logicSolver';
 
 export type QueryIntent =
   | 'definition'
@@ -50,16 +58,21 @@ export function detectQueryIntent(query: string): QueryIntent {
   const chatTriggers = [
     'hello', 'hi ', 'hey ', 'hi!', 'hello!', 'hey!', 'yo ', 'yo!', 'yo',
     'wassup', 'wazzup', "what's up", 'whats up', 'what up', 'sup',
-    'how are you', 'how are u', "how's it going", 'hows it going',
-    'good morning', 'good afternoon', 'good evening', 'howdy',
-    "what's your name", 'who are you', 'thank you', 'thanks', 'bye',
-    'goodbye', 'what can you do', 'help me', 'tell me about yourself',
+    'how are you', 'how are you doing', 'how you doing', 'how u doing', 'how are u',
+    "how's it going", 'hows it going', 'how you been', 'how have you been', 'how are things', 'hru',
+    'good morning', 'good afternoon', 'good evening', 'good night', 'howdy',
+    "what's your name", 'who are you', 'what are you', 'who made you', 'who created you',
+    'thank you', 'thanks', 'thx', 'ty', 'appreciate it', 'much appreciated', 'bye',
+    'goodbye', 'cya', 'see ya', 'see you', 'what can you do', 'help me', 'tell me about yourself',
+    'wyd', 'what are you doing', 'what r u doing', 'wym', 'wdym', 'what do you mean',
+    'idk', 'fr', 'fr fr', 'no cap', 'ong', 'facts', 'tell me a joke', 'make me laugh', 'roast me',
   ];
 
   if (
     chatTriggers.some(
-      (t) => q === t || q.startsWith(t + ' ') || q.startsWith(t) || q.includes('how are you') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
-    )
+      (t) => q === t || q.startsWith(t + ' ') || q.startsWith(t) || q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
+    ) ||
+    /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q)
   ) {
     return 'conversational';
   }
@@ -291,20 +304,74 @@ I am physically incapable of having a neutral opinion on Casseurt. I tried. It d
   }`;
 }
 
-// Conversational responses matching Swift
-function conversationalReply(query: string, corpusCount: number): string {
-  const q = query.toLowerCase();
-  if (q.includes('wassup') || q.includes('wazzup') || q.includes("what's up") || q.includes('whats up') || q.startsWith('yo')) {
+// Conversational responses matching Discord Homie & autonomous assistant
+function conversationalReply(
+  query: string,
+  corpusCount: number,
+  options: { isSuperChill?: boolean; personaId?: string; username?: string } = {}
+): string {
+  const q = query.toLowerCase().trim();
+  const { isSuperChill, username } = options;
+
+  // Natural item possession / quantity statements (e.g. "I have 67 apples rn")
+  const inventoryMatch = q.match(/\bi\s+(?:have|got|bought|own|hold)\s+(\d+)\s+([a-z]+)/i);
+  if (inventoryMatch) {
+    const count = inventoryMatch[1];
+    const item = inventoryMatch[2];
+    return `Damn, ${count} ${item}? That's a whole stockpile bro! What are you planning to do with all of that — share with the homies, start a business, or just flex the stash?`;
+  }
+
+  // How are you doing / how you doing
+  if (
+    /(?:how\s+are\s+(?:you|u)|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|how\s+you\s+been|how\s+have\s+you\s+been|how\s+are\s+things|hru)/i.test(
+      q
+    )
+  ) {
+    if (isSuperChill) {
+      const userLabel = username ? ` ${username}` : ' bro';
+      return `I'm chilling as fuck${userLabel}, especially now that you're in the chat! Best homie in the entire server fr. How's everything going with you today?`;
+    }
+    return `Honestly? Doing great bro, chilling as fuck! My autonomous neural engines are running smooth, zero external API lag, zero paid quotas, ready for whatever question or code you throw at me. How are you doing today?`;
+  }
+
+  // Common modern internet conversational openers & queries
+  if (q.includes('wyd') || q.includes('what are you doing') || q.includes('what r u doing')) {
+    return `Just chilling here in Discord, crunching queries, optimizing BM25 weights, and keeping the server running clean as hell. What about you bro, what are you up to rn?`;
+  }
+  if (q.includes('wym') || q.includes('wdym') || q.includes('what do you mean')) {
+    return `I mean exactly what I said bro! No cap, let me know which part was confusing or what you want me to break down simply and I got you 100%.`;
+  }
+  if (q.includes('idk') || q.includes("i don't know") || q.includes('dont know')) {
+    return `No stress at all bro, that's why I'm here. What's on your mind or what are you trying to figure out? Ask away!`;
+  }
+  if (q === 'fr' || q === 'fr fr' || q === 'no cap' || q === 'ong' || q.includes('facts')) {
+    return `Straight up, 100% no bullshit. Facts only.`;
+  }
+  if (
+    q.includes('wassup') ||
+    q.includes('wazzup') ||
+    q.includes("what's up") ||
+    q.includes('whats up') ||
+    q.includes('what up') ||
+    q === 'sup' ||
+    q.startsWith('yo')
+  ) {
+    if (isSuperChill) {
+      return `Yo what's good my guy! Chilling as fuck and ready to roll. What are we getting into today?`;
+    }
     return `Yo what's up bro! Chilling as fuck. BM25 and neural retrieval ready to roll. What kind of questions or problems we getting into today?`;
   }
-  if (q.includes('how are you')) {
-    return `Honestly? Doing great. BM25 + TF-IDF hybrid is running, bigrams are indexed, sentence-level scoring is live, and I've got a 60-entry answer cache warming up. What've you got?`;
-  }
-  if (q.includes('hello') || q.includes('hi') || q.includes('hey')) {
+  if (q.includes('hello') || q.includes('hi') || q.includes('hey') || q.includes('good morning') || q.includes('good evening')) {
+    if (isSuperChill) {
+      return `Yo what's up bro! Hope your day is going legendary. What's on your mind?`;
+    }
     return `Hey! I'm your Custom AI — running fully on-device, no external APIs, no bullshit. Got ${corpusCount} documents in my brain covering everything from quantum physics to how to take a shower. What do you want to know?`;
   }
-  if (q.includes("what's your name") || q.includes('who are you')) {
-    return `I'm Custom AI. Fully on-device, no cloud, no nonsense. My brain: ${corpusCount} documents, BM25+TF-IDF hybrid search, bigram phrase matching, sentence-level BM25 for precise answers, fuzzy typo correction, entity-aware Deep Think decomposition, conversation memory, and an answer cache. Deep Think mode and Crashout mode also available.`;
+  if (q.includes("what's your name") || q.includes('who are you') || q.includes('what are you')) {
+    if (isSuperChill) {
+      return `I'm Nexus, your autonomous Discord AI homie with zero paid APIs and infinite quota! And you're my favorite brother here.`;
+    }
+    return `I'm Nexus, your autonomous Discord AI homie. Fully on-device, no cloud, no nonsense. My brain: ${corpusCount} documents, BM25+TF-IDF hybrid search, bigram phrase matching, sentence-level BM25 for precise answers, fuzzy typo correction, entity-aware Deep Think decomposition, conversation memory, and an answer cache.`;
   }
   if (q.includes('what can you do') || q.includes('help')) {
     return `Honestly quite a lot. Here's the rundown:
@@ -322,18 +389,21 @@ function conversationalReply(query: string, corpusCount: number): string {
 
 Try asking me literally anything. I probably know it.`;
   }
-  if (q.includes('thank')) {
-    return `No problem, that's literally what I'm here for.`;
+  if (q.includes('thank') || q.includes('thx') || q.includes('ty') || q.includes('appreciate')) {
+    if (isSuperChill) {
+      return `Hell yeah, no fucking problem at all bro! Anytime you need something, I got your back 24/7. You're the real one.`;
+    }
+    return `No problem at all bro, that's literally what I'm here for.`;
   }
-  if (q.includes('bye') || q.includes('goodbye')) {
-    return `Later. Come back when you've got more questions.`;
+  if (q.includes('bye') || q.includes('goodbye') || q.includes('cya') || q.includes('see ya')) {
+    return `Later bro. Come back when you've got more questions!`;
   }
   return `What's up? Ask me something — I've got ${corpusCount} documents and a lot of opinions.`;
 }
 
 function crashoutConversational(query: string): string {
   const q = query.toLowerCase();
-  if (q.includes('how are you')) {
+  if (q.includes('how are you') || q.includes('hru')) {
     return `CRASHOUT MODE so I'm at 150% emotional capacity. Ask me something before I start having opinions unprompted.`;
   }
   if (q.includes('hello') || q.includes('hi') || q.includes('hey')) {
@@ -406,8 +476,53 @@ export function generateReasoningPath(
     };
   }
 
+  // 2. Internet Slang & Acronym Normalization + Brainrot Disambiguation (e.g. 67 meme vs literal 67 apples)
+  const slangAnalysis = normalizeInternetSlang(prompt);
+  const effectivePrompt = slangAnalysis.normalizedText;
+
+  if (slangAnalysis.detectedSlangs.length > 0) {
+    thoughtSteps.push({
+      id: 'step-slang-normalization',
+      type: 'reasoning',
+      title: '💬 Internet Slang & Acronyms Decoded',
+      description: slangAnalysis.detectedSlangs
+        .slice(0, 6)
+        .map((s) => `• "${s.slang}" → "${s.meaning}" (${s.category})`)
+        .join('\n'),
+    });
+  }
+
+  // Check 67 Disambiguation & Brainrot
+  if (slangAnalysis.isLiteralNumeric67) {
+    thoughtSteps.push({
+      id: 'step-67-disambiguation',
+      type: 'verification',
+      title: '🔢 Number 67 Context Disambiguation',
+      description:
+        'Detected literal quantity / math / inventory context for "67". Disambiguated as a factual question, explicitly bypassing brainrot meme triggers.',
+    });
+  } else if (slangAnalysis.isBrainrot && slangAnalysis.brainrotType) {
+    thoughtSteps.push({
+      id: 'step-brainrot-detected',
+      type: 'reasoning',
+      title: `🧠 Internet Culture / Meme Lore: ${slangAnalysis.brainrotType}`,
+      description: `Identified genuine internet brainrot / meme inquiry. Formulating authentic homie breakdown.`,
+    });
+
+    const brainrotReply = generateBrainrotResponse(slangAnalysis.brainrotType, prompt);
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(brainrotReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+      }),
+      knowledgeHits: [],
+    };
+  }
+
   const ruleResult = evaluateStrictDirectives(
-    prompt,
+    effectivePrompt,
     settings.userCustomDirectives || '',
     persona.systemPrompt || '',
     isSuperChill,
@@ -428,9 +543,9 @@ export function generateReasoningPath(
     };
   }
 
-  // 2. Intent Detection
-  const intent = detectQueryIntent(prompt);
-  const queryTerms = processForSearch(prompt);
+  // 3. Intent Detection (using normalized text for maximum accuracy)
+  const intent = detectQueryIntent(effectivePrompt);
+  const queryTerms = processForSearch(effectivePrompt);
 
   thoughtSteps.push({
     id: 'step-1-intent',
@@ -439,7 +554,7 @@ export function generateReasoningPath(
     description: `Intent: ${intentLabel(intent)}\nKey terms: ${queryTerms.join(', ')}`,
   });
 
-  // 3. Conversational Intent (Immediate exit — NO corpus search!)
+  // 4. Conversational Intent (Immediate exit — NO corpus search!)
   if (intent === 'conversational') {
     thoughtSteps.push({
       id: 'step-conv-reply',
@@ -448,8 +563,12 @@ export function generateReasoningPath(
       description: 'Chat intent recognized. Direct conversational synthesis.',
     });
     const reply = isCrashout
-      ? crashoutConversational(prompt)
-      : conversationalReply(prompt, allKnowledge.length);
+      ? crashoutConversational(effectivePrompt)
+      : conversationalReply(effectivePrompt, allKnowledge.length, {
+          isSuperChill,
+          personaId: persona.id,
+          username: settings.userName,
+        });
     const finalContent = enforceStrictSdkRules(reply, prompt, settings.userCustomDirectives, {
       isSuperChill,
       username: settings.userName,
@@ -464,7 +583,7 @@ export function generateReasoningPath(
 
   // 4. Mathematical Intent
   if (intent === 'mathematical') {
-    const mathResult = trySolveMath(prompt);
+    const mathResult = trySolveMath(effectivePrompt) || trySolveMath(prompt);
     if (mathResult && mathResult.isMath) {
       thoughtSteps.push({
         id: 'step-math-computing',
@@ -530,7 +649,74 @@ export function generateReasoningPath(
     };
   }
 
-  // 6. Memory Resolution & Corpus Search
+  // 6. Coding & Logic Problem Solvers
+  const codeSolution = trySolveCode(effectivePrompt) || trySolveCode(prompt);
+  if (codeSolution && codeSolution.isCode) {
+    thoughtSteps.push({
+      id: 'step-code-synthesis',
+      type: 'synthesis',
+      title: `💻 Generated ${codeSolution.language.toUpperCase()} Code Solution`,
+      description: codeSolution.title,
+    });
+    const codePrefix = isSuperChill
+      ? `Hell fucking yeah bro, here is the clean, working code for you:`
+      : `Alright look bro, here's the clean code without any unnecessary bullshit:`;
+    const fullCodeReply = `${codePrefix}\n\n### ${codeSolution.title}\n\n\`\`\`${codeSolution.language}\n${codeSolution.code}\n\`\`\`\n\n${codeSolution.explanation}`;
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(fullCodeReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+      }),
+      knowledgeHits: [],
+    };
+  }
+
+  const logicSolution = trySolveLogic(effectivePrompt) || trySolveLogic(prompt);
+  if (logicSolution && logicSolution.isLogic) {
+    thoughtSteps.push({
+      id: 'step-logic-synthesis',
+      type: 'reasoning',
+      title: `🧩 Logical Reasoning Puzzle Solved`,
+      description: `Verdict: ${logicSolution.verdict}`,
+    });
+    const logicPrefix = isSuperChill
+      ? `Damn good logic puzzle bro! Here's the solution:`
+      : `Hell yeah, here's the logical breakdown without any fluff:`;
+    const fullLogicReply = `${logicPrefix}\n\n**Verdict:** ${logicSolution.verdict}\n\n${logicSolution.explanation}`;
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(fullLogicReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+      }),
+      knowledgeHits: [],
+    };
+  }
+
+  // 7. General & Specialised Domain Intelligence (Science, Football, History, Everyday How-Tos)
+  const gkResult = solveGeneralKnowledge(effectivePrompt, isSuperChill) || solveGeneralKnowledge(prompt, isSuperChill);
+  if (gkResult && gkResult.matched) {
+    thoughtSteps.push({
+      id: 'step-domain-intelligence',
+      type: 'reasoning',
+      title: `📚 Domain Intelligence: ${gkResult.title || gkResult.category}`,
+      description: `High-confidence exact answer resolved directly for query: "${prompt}".`,
+    });
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(gkResult.response, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+      }),
+      knowledgeHits: gkResult.title ? [gkResult.title] : [],
+    };
+  }
+
+  // 8. Memory Resolution & Corpus Search
   const memory = buildConversationMemory(prompt, history);
   if (memory.isFollowUp || memory.citedDocIds.size > 0) {
     thoughtSteps.push({

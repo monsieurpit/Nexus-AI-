@@ -634,14 +634,6 @@ export function generateNexusHomieResponse(
     return `${intro}\n\n${primary.content}`;
   }
 
-  // 6. Generic Football / Sports & Culture question solver
-  if (/(football|soccer|club|team|player|match|league|champions league|premier league|la liga)/i.test(pLower)) {
-    const intro = isSuperChillUser
-      ? `Hell yeah bro! You're asking about football:`
-      : `Here's the real breakdown on that:`;
-    return `${intro}\n\nRegarding **"${p}"**: Football history is packed with legendary dynasties, iconic clubs (Real Madrid, FC Barcelona, AC Milan, Bayern Munich, Liverpool, Man United, Legia Warszawa), generational players (Messi, CR7, Lewandowski, Pelé, Maradona), and incredible tactical evolutions. What specific club, player, or historic match do you want to dive deeper into?`;
-  }
-
   // Dynamic response fallback
   const humanIntros = isSuperChillUser
     ? SWEAR_DICTIONARY.english.intros.superChill
@@ -847,15 +839,8 @@ ${safetyData.helpResponse ? `\n---\n\n#### 💬 Community Support Response:\n${s
     };
   }
 
-  // 8. Nexus Homie Mode Execution (Default)
-  const isNexusMode =
-    personaSystemPrompt.includes('nexus') ||
-    personaSystemPrompt.includes('chill ai buddy in a discord server') ||
-    combinedContext.includes('nexus-homie') ||
-    combinedContext.includes('like a homie talking in discord') ||
-    Boolean(parsedRules.rawRules.length);
-
-  if (isNexusMode) {
+  // 8. Custom strict constraints / short-circuit rules only if specifically requested
+  if (parsedRules.forbiddenPhrases.length > 0 || parsedRules.requiredPhrases.length > 0 || parsedRules.formatConstraint) {
     const rawNexus = generateNexusHomieResponse(prompt, isSuperChill, username);
     const finalized = enforceStrictSdkRules(rawNexus, prompt, userDirectives, {
       isSuperChill,
@@ -863,21 +848,24 @@ ${safetyData.helpResponse ? `\n---\n\n#### 💬 Community Support Response:\n${s
       systemInstruction: personaSystemPrompt,
     });
 
-    return {
-      hasCustomRules: true,
-      isStrictConstraint: false,
-      isDiscordSafetyCheck: false,
-      isRoastRequest: false,
-      output: finalized,
-      ruleExplanation: isSuperChill
-        ? 'Nexus Super Chill User Mode active (User ID: 1394001641899954368 / Favorite Homie) with strict rule compliance.'
-        : 'Nexus Discord Homie Mode active with strict rule adherence, natural swearing, and direct facts.',
-      activeRulesApplied: [
-        'Strict SDK rule enforcement',
-        `Swear directive: ${parsedRules.swearDirective}`,
-        ...(parsedRules.language !== 'auto' ? [`Language: ${parsedRules.language}`] : []),
-      ],
-    };
+    // Only short-circuit if this wasn't a standard fallback
+    if (!rawNexus.includes('Core Insight') && !rawNexus.includes('Hit me with an actual question')) {
+      return {
+        hasCustomRules: true,
+        isStrictConstraint: false,
+        isDiscordSafetyCheck: false,
+        isRoastRequest: false,
+        output: finalized,
+        ruleExplanation: isSuperChill
+          ? 'Nexus Super Chill User Mode active (User ID: 1394001641899954368 / Favorite Homie) with strict rule compliance.'
+          : 'Nexus Discord Homie Mode active with strict rule adherence, natural swearing, and direct facts.',
+        activeRulesApplied: [
+          'Strict SDK rule enforcement',
+          `Swear directive: ${parsedRules.swearDirective}`,
+          ...(parsedRules.language !== 'auto' ? [`Language: ${parsedRules.language}`] : []),
+        ],
+      };
+    }
   }
 
   return {

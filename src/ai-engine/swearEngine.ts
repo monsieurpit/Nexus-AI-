@@ -26,6 +26,8 @@ export const SWEAR_DICTIONARY = {
     fWords: [
       'fuck',
       'fucking',
+      'fucked',
+      'fucker',
       'fuck yeah',
       'fuck no',
       'holy fuck',
@@ -37,6 +39,9 @@ export const SWEAR_DICTIONARY = {
       'zero fucks given',
       'fuck around and find out',
       'clusterfuck',
+      'mindfuck',
+      'fuck outta here',
+      'fuck off',
       'shut the fuck up',
       'get the fuck outta here',
       'go fuck yourself',
@@ -45,6 +50,7 @@ export const SWEAR_DICTIONARY = {
       'shit',
       'bullshit',
       'horseshit',
+      'dogshit',
       'holy shit',
       'dipshit',
       'dumbshit',
@@ -53,6 +59,8 @@ export const SWEAR_DICTIONARY = {
       'batshit crazy',
       'good shit',
       'no shit',
+      'deep shit',
+      'talking shit',
       'cut the bullshit',
       'get your shit together',
       'shitshow',
@@ -67,9 +75,12 @@ export const SWEAR_DICTIONARY = {
       'hot damn',
       'hell yeah',
       'what the hell',
+      'hell of a',
       'fast as hell',
       'smart as hell',
       'clean as hell',
+      'annoying as hell',
+      'hard as hell',
       'bloody hell',
       'hell to the no',
     ],
@@ -85,13 +96,16 @@ export const SWEAR_DICTIONARY = {
       'broke ass',
       'clown ass',
       'deadass',
+      'hauling ass',
       'busting my ass',
+      'kiss my ass',
     ],
     roastInsults: [
       'bitch',
       'bitchass',
       'son of a bitch',
       'piss off',
+      'pissed off',
       'bastard',
       'prick',
       'dickhead',
@@ -402,19 +416,24 @@ export function enhanceNaturalSwearPhrasing(
   // Natural replacements for vivid, human-like voice — single clean substitutions
   const replacements: [RegExp, string[]][] = [
     [/\b(very fast|extremely fast|rapidly)\b/gi, ['fast as hell', 'fast as fuck', 'blazing fast']],
-    [/\b(very good|really good|excellent|amazing)\b/gi, ['damn good', 'badass', 'fucking solid']],
+    [/\b(very good|really good|excellent|amazing)\b/gi, ['damn good', 'badass', 'fucking solid', 'fucking awesome']],
     [/\b(very easy|extremely simple|simple)\b/gi, ['easy as hell', 'dead simple', 'simple as fuck']],
     [/\b(very cool|awesome|impressive)\b/gi, ['cool as hell', 'badass', 'fucking great']],
     [/\b(a lot of|tons of|huge amount of)\b/gi, ['a shit ton of', 'a whole bunch of', 'a fuckton of']],
     [/\b(very strong|powerful)\b/gi, ['strong as hell', 'fucking powerful']],
-    [/\b(complicated|difficult|hard)\b/gi, ['a pain in the ass', 'tricky as hell', 'annoying as fuck']],
+    [/\b(complicated|difficult|hard)\b/gi, ['a pain in the ass', 'tricky as hell', 'annoying as fuck', 'hard as shit']],
+    [/\b(very annoying|irritating|frustrating)\b/gi, ['annoying as fuck', 'annoying as hell', 'a real pain in the ass']],
+    [/\b(terrible|very bad|awful|garbage)\b/gi, ['straight dogshit', 'total ass', 'terrible as hell', 'trash as fuck']],
+    [/\b(broken|ruined|messed up)\b/gi, ['fucked up', 'broken as hell', 'totally cooked']],
     [/\b(nonsense|fake|false|incorrect)\b/gi, ['pure bullshit', 'straight fake', 'total horseshit']],
     [/\b(crazy|wild|insane)\b/gi, ['wild as hell', 'batshit crazy', 'insane as fuck']],
+    [/\b(obviously)\b/gi, ['obviously, no shit,', 'obviously, no cap,']],
     [/\b(honestly|to be honest|truthfully)\b/gi, ['real talk,', 'no bullshit,', 'straight up,']],
+    [/\b(definitely|certainly)\b/gi, ['fucking definitely', 'damn right', '100% no bullshit']],
   ];
 
   let substitutionsCount = 0;
-  const maxSubstitutions = intensity === 'unhinged' ? 4 : intensity === 'heavy' ? 2 : 1;
+  const maxSubstitutions = intensity === 'unhinged' ? 5 : intensity === 'heavy' ? 3 : 1;
 
   for (const [regex, options] of replacements) {
     if (substitutionsCount >= maxSubstitutions) break;

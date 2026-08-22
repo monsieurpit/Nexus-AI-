@@ -555,7 +555,7 @@ A 4.5 GHz processor runs through this exact loop **4.5 billion times every singl
     };
   }
 
-  // 16. Comprehensive Corpus Document Retrieval & Synthesis
+  // 16. Comprehensive Corpus Document Retrieval & Synthesis (High relevance only)
   const corpusMatches = findRelevantKnowledge(p, 1);
   if (corpusMatches && corpusMatches.length > 0) {
     const topCorpus = corpusMatches[0];
@@ -573,32 +573,6 @@ A 4.5 GHz processor runs through this exact loop **4.5 billion times every singl
 ${topCorpus.content}
 
 Clean, accurate, and straight to the point! Got any questions about it?`,
-    };
-  }
-
-  // 17. Dynamic Synthesis for Any Other Factual Question
-  const whatWhyHowMatch = lower.match(/^(?:what is|what are|why is|why are|how does|how do|explain|tell me about)\s+([a-zA-Z0-9\s]+)/i);
-  if (whatWhyHowMatch) {
-    const topic = whatWhyHowMatch[1].trim();
-
-    return {
-      matched: true,
-      title: `Analysis of ${topic.toUpperCase()}`,
-      category: 'general_factual',
-      confidence: 0.9,
-      response: isSuperChill
-        ? `Hell fucking yeah bro, let's break down **${topic}** with real, zero-bullshit facts:
-
-1. **The Core Concept**: **${topic}** is defined by its foundational principles, structural characteristics, and real-world mechanisms.
-2. **How It Works**: It operates through established scientific, mechanical, or logical systems that interact systematically to produce functional results.
-3. **Practical Value**: Understanding **${topic}** gives you the real edge when analyzing systems, solving problems, or building cool shit.
-
-Got any specific follow-up angle you want to dive into? Let's crush it!`
-        : `Alright look bro, here is the straight-up factual breakdown on **${topic}**:
-
-1. **Definition & Fundamentals**: **${topic}** operates based on its core components, physical/logical laws, and practical function.
-2. **Key Mechanics**: When you analyze the inner workings of **${topic}**, everything connects systematically from first principles to observable outcomes without any mystery.
-3. **Takeaway**: Clean, straightforward, and zero corporate fluff. What specific part do you want to explore further?`,
     };
   }
 

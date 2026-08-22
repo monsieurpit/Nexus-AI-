@@ -785,29 +785,105 @@ VAR can only intervene in 4 match-changing situations (under the **"Clear and Ob
     };
   }
 
-  // 24. GENERAL FOOTBALL INQUIRY FALLBACK
+  // 24. 2024 UEFA CHAMPIONS LEAGUE FINAL (REAL MADRID VS BORUSSIA DORTMUND)
   if (
-    /(football|soccer|champions league|premier league|la liga|serie a|bundesliga|ekstraklasa|world cup|fifa|uefa|penalty shootout|transfer window|golden boot|euro 2024|copa america|poland|polish|lewy|lewandowski)/i.test(
+    /(2024 (?:uefa )?champions league|who won the 2024 (?:uefa )?champions league|2024 ucl final|real madrid vs dortmund 2024|dortmund vs real madrid 2024|what happened in the (?:2024 )?(?:ucl|champions league) final|champions league final 2024)/i.test(
       lower
     )
   ) {
     return {
       matched: true,
-      title: 'World & Polish Football Comprehensive Intelligence',
-      topic: 'general_football',
-      confidence: 0.95,
-      response: `You're talking to a certified football encyclopedia bro! I know literally everything about world football and Polish football (**Polska Piłka**):
+      title: '2024 UEFA Champions League Final: Real Madrid 2 - 0 Borussia Dortmund',
+      topic: 'ucl_2024_final',
+      confidence: 1.0,
+      response: `The **2024 UEFA Champions League Final** took place on **June 1, 2024, at Wembley Stadium in London**, and **Real Madrid** won their record-extending **15th European Cup (*La Decimoquinta*)**, defeating **Borussia Dortmund 2–0**!
 
-- **Polish Football (Ekstraklasa & Reprezentacja)**: Robert Lewandowski (the 5 goals in 9 minutes legend, 2020 Sextuple, 41-goal Bundesliga record), Legia Warszawa (15 titles, *Żyleta*), Lech Poznań (*The Poznań* dance), Wisła Kraków, Górnik Zabrze, Ruch Chorzów, Jagiellonia, Raków Częstochowa, Zbigniew Boniek, Kazimierz Deyna, Grzegorz Lato (1974 World Cup Golden Boot), Wojciech Szczęsny, Jerzy Dudek, Kuba Błaszczykowski, Łukasz Piszczek, and Piotr Zieliński!
-- **Tournaments**: World Cups (1930 to 2026), UEFA Champions League, Euros, Copa América, Premier League, La Liga, Serie A, Bundesliga, Copa Libertadores.
-- **The Legends**: Messi (8 Ballon d'Ors), CR7 (900+ goals), Pelé (3 World Cups), Maradona, Cruyff, Zidane, R9 Ronaldo, Ronaldinho, Maldini, Henry, Yashin.
-- **Next Gen**: Haaland, Mbappé, Vinícius Jr, Jude Bellingham, Lamine Yamal, Rodri, Musiala.
-- **Managers & Tactics**: Pep's Tiki-Taka, Klopp's Gegenpressing, Ancelotti's player management, Mourinho's low blocks, Total Football, Inverted Fullbacks, False 9s.
-- **Rules & Drama**: Offside mechanics, VAR controversy, Financial Fair Play (FFP/PSR), Bosman transfers, iconic derbies, and historic finals.
+Here is the exact breakdown of the drama that went down in that final:
 
-What specific football match, player, Polish club, or crazy debate do you want to break down? Hit me with anything!`,
+### ⏱️ Match Summary & Key Moments:
+1. **First Half (Borussia Dortmund Dominated, But Blew Golden Chances)**:
+   - Dortmund came out blazing and shocked Madrid in the first 45 minutes with relentless counter-attacks.
+   - **21'**: Karim Adeyemi broke clean through on a 1-on-1, rounded goalkeeper Thibaut Courtois, but pushed the ball too wide and had his shot blocked by Dani Carvajal.
+   - **23'**: Niclas Füllkrug slid a shot past Courtois that **clattered right off the inside of the far post**!
+   - **28'**: Adeyemi sprinted into the box again and fired a low drive, but Courtois made a clutch diving reflex save.
+   - **41'**: Marcel Sabitzer hit a blistering 25-yard dipping strike that Courtois tipped around the post. Dortmund should have been up 2–0 or 3–0 at halftime, but couldn't finish.
+
+2. **Second Half (Real Madrid Strikes Like Lightning)**:
+   - Carlo Ancelotti adjusted his tactics, and Real Madrid took control in the final 30 minutes.
+   - **74' (1–0 Goal)**: From a precision corner whipped in by **Toni Kroos** (playing the final club match of his legendary career), **Dani Carvajal** rose above Dortmund's defense at the near post and buried a glancing header into the far corner!
+   - **83' (2–0 Goal)**: Dortmund left-back Ian Maatsen made a catastrophic turnover under pressure, playing a blind square ball across his own box. **Jude Bellingham** intercepted it and fed **Vinícius Júnior**, who took one touch and slotted a left-footed finish past Gregor Kobel!
+   - **87' (Disallowed Goal)**: Niclas Füllkrug powered in a header for Dortmund, but it was immediately ruled out by VAR for clear offside.
+
+### 🏆 Historic Milestones:
+- **Real Madrid's 15th Title**: Extended their historic supremacy with more than double the trophies of second-place AC Milan (7).
+- **Toni Kroos' Fairytale Farewell**: Retired from club football lifting his 6th Champions League trophy with an assist.
+- **Record 6 European Cups**: Luka Modrić, Dani Carvajal, Toni Kroos, and Nacho matched Paco Gento's all-time record of **6 European Cup titles**.
+- **Carlo Ancelotti**: Won his **5th Champions League title as a manager** (more than anyone in history).
+- **Vinícius Júnior**: Scored in his second Champions League final (after also scoring the winner in the 2022 final vs Liverpool).`,
+    };
+  }
+
+  // 25. 2023 UEFA CHAMPIONS LEAGUE FINAL (MAN CITY VS INTER MILAN)
+  if (
+    /(2023 (?:uefa )?champions league|who won the 2023 (?:uefa )?champions league|2023 ucl final|man city vs inter 2023|inter vs man city 2023|city treble 2023)/i.test(
+      lower
+    )
+  ) {
+    return {
+      matched: true,
+      title: '2023 UEFA Champions League Final: Manchester City 1 - 0 Inter Milan',
+      topic: 'ucl_2023_final',
+      confidence: 1.0,
+      response: `On **June 10, 2023, at the Atatürk Olympic Stadium in Istanbul**, **Manchester City defeated Inter Milan 1–0** to win their first-ever Champions League and complete a historic **European Treble** (Premier League, FA Cup, Champions League)!
+
+- **68' The Winning Goal**: Bernardo Silva's deflected cross fell to Spanish defensive midfielder **Rodri**, who curled a laser-accurate 18-yard side-footed missile into the bottom right corner!
+- **Late Drama & Ederson Heroics**:
+  - Federico Dimarco looped a header that hit the crossbar, and his rebound header accidentally hit his own teammate Romelu Lukaku!
+  - 88': Lukaku had a free point-blank header from 4 yards out, but Ederson made an unbelievable reaction block with his shin.
+  - 95': On the final corner of the match, Ederson pulled off a fingertip save from Acerbi to seal the Treble for Pep Guardiola!`,
+    };
+  }
+
+  // 26. EURO 2024 (SPAIN CHAMPIONS)
+  if (
+    /(who won euro 2024|euro 2024 final|spain vs england 2024|england vs spain euro 2024|what happened in euro 2024)/i.test(
+      lower
+    )
+  ) {
+    return {
+      matched: true,
+      title: 'UEFA Euro 2024 Final: Spain 2 - 1 England in Berlin',
+      topic: 'euro_2024_final',
+      confidence: 1.0,
+      response: `On **July 14, 2024, at the Olympiastadion in Berlin**, **Spain defeated England 2–1** to win a record **4th UEFA European Championship**, winning all 7 matches in the tournament!
+
+- **47' (1–0)**: Just 2 minutes into the second half, 17-year-old **Lamine Yamal** sliced open the defense with an assist to **Nico Williams**, who drilled a first-time finish past Jordan Pickford.
+- **73' (1–1)**: England sub **Cole Palmer** hit a brilliant first-time 22-yard curling equalizer into the bottom corner.
+- **86' (2–1 Goal)**: Marc Cucurella whipped in a low cross, and **Mikel Oyarzabal** slid in to poke the ball into the net!
+- **89' Dani Olmo Miracle Header**: Marc Guéhi headed towards an empty net for England, but **Dani Olmo pulled off an insane goal-line headed clearance** to save Spain's victory!
+- **Awards**: **Rodri** won Player of the Tournament; **Lamine Yamal** won Young Player of the Tournament with 1 goal and 4 assists.`,
+    };
+  }
+
+  // 27. COPA AMÉRICA 2024 (ARGENTINA CHAMPIONS)
+  if (
+    /(who won copa america 2024|copa america 2024 final|argentina vs colombia 2024|colombia vs argentina 2024)/i.test(
+      lower
+    )
+  ) {
+    return {
+      matched: true,
+      title: 'Copa América 2024 Final: Argentina 1 - 0 Colombia in Miami',
+      topic: 'copa_america_2024',
+      confidence: 1.0,
+      response: `On **July 14, 2024, at Hard Rock Stadium in Miami**, **Argentina defeated Colombia 1–0 after extra time** to win their record **16th Copa América title** (back-to-back Copa Américas in 2021 & 2024 + 2022 World Cup)!
+
+- **66' Messi's Ankle Injury**: Lionel Messi suffered a severe swollen right ankle, had to be substituted, and wept uncontrollably on the bench.
+- **112' The Winning Goal**: In extra time, Giovani Lo Celso slipped a first-time pass to **Lautaro Martínez**, who sprinted through and hammered the winner past Camilo Vargas (Lautaro won the Golden Boot with 5 goals).
+- **Ángel Di María's Farewell**: Di María was substituted in the 117th minute to a standing ovation in his final match for Argentina.`,
     };
   }
 
   return null;
 }
+
