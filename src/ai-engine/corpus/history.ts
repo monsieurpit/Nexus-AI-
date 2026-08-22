@@ -1,0 +1,68 @@
+import { KnowledgeItem } from '../../types';
+
+export const HISTORY_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-history-ancient-mesopotamia-egypt',
+    title: 'Ancient Civilizations: Mesopotamia and Egypt',
+    category: 'History',
+    keywords: ['ancient history', 'Mesopotamia', 'Egypt', 'Sumer', 'pyramid', 'pharaoh', 'Hammurabi', 'civilisation', 'cuneiform'],
+    content: `The earliest civilisations arose in river valleys offering fertile soil and water. Mesopotamia (modern Iraq) between the Tigris and Euphrates hosted Sumer, Akkad, Babylon, and Assyria. Sumerians (~3500 BCE) invented the wheel, writing (cuneiform on clay tablets), city-states, and the first law code. Hammurabi's Code (~1754 BCE) established 282 laws. Ancient Egypt arose along the Nile ~3100 BCE when Upper and Lower Egypt unified under Pharaoh Narmer. The pharaoh was a god-king. The Old Kingdom (~2686–2181 BCE) built the Great Pyramids of Giza — engineering marvels still standing. Hieroglyphics were a pictographic writing system; scribes had high status. The Nile's annual floods deposited rich silt, enabling agriculture. Egypt produced papyrus, enabling writing and record-keeping. New Kingdom pharaohs like Ramesses II expanded through military conquest. Both civilisations made advances in mathematics, astronomy, medicine, and architecture. The Indus Valley civilisation (Pakistan/India, ~2500 BCE) and ancient China (Yellow River, ~1700 BCE) also arose independently, showing human civilisation emerged from similar agricultural conditions worldwide.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-history-ancient-greece',
+    title: 'Ancient Greece: Democracy and Philosophy',
+    category: 'History',
+    keywords: ['ancient Greece', 'democracy', 'philosophy', 'Socrates', 'Plato', 'Aristotle', 'Athens', 'Alexander', 'Olympia'],
+    content: `Ancient Greece (800–146 BCE) gave the world democracy, philosophy, mathematics, drama, and the Olympic games. City-states (poleis) like Athens, Sparta, Corinth, and Thebes were independent entities with different governments. Athens under Cleisthenes (~508 BCE) introduced direct democracy — male citizens voted in the assembly. Pericles (~460–429 BCE) led Athens' golden age, rebuilding the Acropolis with the Parthenon. Socrates (469–399 BCE) developed the Socratic method — questioning beliefs to find truth — and was condemned to death. His student Plato founded the Academy and wrote dialogues exploring justice, beauty, the Forms, and ideal government (The Republic). Aristotle, Plato's student, systematised logic, biology, ethics, and politics and tutored Alexander the Great. Alexander (356–323 BCE) conquered the Persian Empire, Egypt, and reached India, spreading Hellenistic culture. Greek contributions: Euclid's geometry, Archimedes' mathematics and physics, Hippocrates' medicine, Thucydides' and Herodotus's historiography, and Homer's epics (Iliad, Odyssey).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-history-roman-empire',
+    title: 'The Roman Empire',
+    category: 'History',
+    keywords: ['Rome', 'Roman Empire', 'Julius Caesar', 'Augustus', 'Latin', 'law', 'republic', 'senate', 'Byzantine', 'Pax Romana'],
+    content: `Rome began as a city-state (~753 BCE) and grew into a republic governing through elected consuls and the Senate. Julius Caesar's assassination (44 BCE) led to civil wars; Augustus became the first emperor in 27 BCE, beginning the Pax Romana (27 BCE–180 CE) — two centuries of relative peace and prosperity. At its height (~117 CE under Trajan), the Roman Empire stretched from Britain to Mesopotamia, containing ~70 million people. Roman engineering achievements include concrete, the arch, aqueducts (carrying water hundreds of kilometres), roads (over 80,000 km, enabling military and trade), and the Colosseum. Roman law — codified in the Justinian Code — influenced the legal systems of most Western nations. Latin evolved into the Romance languages (Italian, French, Spanish, Portuguese, Romanian). Christianity spread through the empire; Constantine I's Edict of Milan (313 CE) legalised it. The Western Roman Empire fell in 476 CE under pressure from migrations and military overstrain. The Eastern Roman Empire (Byzantine Empire) continued until Constantinople fell to the Ottomans in 1453 CE.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-history-renaissance-scientific-revolution',
+    title: 'The Renaissance and Scientific Revolution',
+    category: 'History',
+    keywords: ['Renaissance', 'scientific revolution', 'Copernicus', 'Galileo', 'Newton', 'printing press', 'humanism', 'Florence', 'art'],
+    content: `The Renaissance (14th–17th century) began in Italian city-states (Florence, Venice, Rome) as a cultural and intellectual revival inspired by rediscovered classical texts. Humanism placed humanity at the centre of thought. Artists achieved unprecedented realism: Leonardo da Vinci combined art and science; Michelangelo painted the Sistine Chapel; Raphael depicted Classical harmony. Gutenberg's printing press (~1440) democratised knowledge, spreading Renaissance ideas and later enabling the Reformation. The Scientific Revolution (16th–17th century) fundamentally changed how humanity understood nature. Copernicus proposed the heliocentric solar system (1543). Galileo observed Jupiter's moons with a telescope, confirmed heliocentrism, and pioneered experimental science. Kepler derived laws of planetary motion. Newton synthesised all this into universal gravitation and mechanics (Principia, 1687). William Harvey described blood circulation. Francis Bacon advocated empiricism — knowledge through observation and experiment. Descartes introduced analytic geometry and rationalist philosophy ("I think, therefore I am"). The printing press spread these ideas across Europe, challenging Church authority and laying the groundwork for the Enlightenment.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-history-industrial-revolution',
+    title: 'The Industrial Revolution',
+    category: 'History',
+    keywords: ['industrial revolution', 'steam engine', 'factory', 'coal', 'railways', 'Watt', 'urbanisation', 'Britain', 'manufacturing'],
+    content: `The Industrial Revolution began in Britain in the 1760s–1840s, transforming economies from agricultural and handcraft to machine-based manufacturing. Key innovations: James Watt's improved steam engine (1769) powered factories, mines, and locomotives. The spinning jenny and power loom mechanised textile production. The Bessemer process (1856) enabled mass production of steel. Railways connected cities, enabling fast movement of goods and people; the Stockton–Darlington (1825) and Liverpool–Manchester (1830) railways were first. Britain's advantages included coal and iron ore deposits, a stable political system, colonial markets, and navigable rivers. Urbanisation exploded as people moved to factory towns (Manchester, Birmingham). Working conditions were often brutal — long hours, child labour, dangerous machinery. This spurred reform movements, trade unions, and legislation like the Factory Acts. The revolution spread to Western Europe and the US by mid-19th century. A second Industrial Revolution (1870–1914) brought electricity (Edison, Tesla), the internal combustion engine, chemicals, and steel on a larger scale. It fundamentally changed society, family structure, class relations, and the global economy.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-history-world-war-1',
+    title: 'World War I: 1914–1918',
+    category: 'History',
+    keywords: ['World War I', 'WW1', 'trench warfare', 'Franz Ferdinand', 'Versailles', 'Germany', 'allies', 'armistice', '1914', '1918'],
+    content: `World War I (1914–1918), the 'Great War', was triggered by the assassination of Austro-Hungarian Archduke Franz Ferdinand in Sarajevo on 28 June 1914. The underlying causes were a complex web of alliances (Triple Alliance vs. Triple Entente), imperial rivalries, nationalism (especially in the Balkans), an arms race, and rigid military mobilisation plans. Austria-Hungary declared war on Serbia; alliances dragged in Russia, Germany, France, and Britain within weeks. The Western Front became a brutal stalemate of trench warfare, with millions dying for minimal territorial gains at battles like the Somme (1916, ~1 million casualties) and Verdun. New weapons — poison gas, tanks, aircraft, machine guns, artillery barrages — caused unprecedented slaughter. The Eastern Front was more mobile. The USA entered in 1917 after German unrestricted submarine warfare and the Zimmermann Telegram. Russia collapsed into revolution (1917) and withdrew. Germany's Spring Offensive (1918) failed; allied counteroffensives forced the Armistice on 11 November 1918. The Treaty of Versailles (1919) blamed Germany, imposed reparations and territorial losses, and created conditions for World War II.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-history-world-war-2',
+    title: 'World War II: 1939–1945',
+    category: 'History',
+    keywords: ['World War II', 'WW2', 'Hitler', 'Holocaust', 'D-Day', 'atomic bomb', 'Hiroshima', 'Japan', 'Germany', '1939', '1945'],
+    content: `World War II (1939–1945) was the deadliest conflict in history, killing ~70–85 million people. Hitler's rise in Germany (1933) brought fascism and aggressive expansion: rearmament, remilitarisation of the Rhineland, annexation of Austria and Czechoslovakia. Britain and France's policy of appeasement at Munich (1938) failed. Germany invaded Poland on 1 September 1939; Britain and France declared war. Germany conquered France in six weeks (1940). The Battle of Britain was the RAF's successful defence against Luftwaffe bombing. Germany invaded the Soviet Union (Operation Barbarossa, 1941) — the largest military operation in history. Japan attacked Pearl Harbor (7 December 1941), bringing the USA into the war. The Holocaust was Nazi Germany's systematic genocide of six million Jews and millions of others. Key turning points: Stalingrad (1942–43), El Alamein (1942), and Midway (1942). D-Day (6 June 1944) was the allied invasion of Normandy. Germany surrendered 8 May 1945 (VE Day). The US dropped atomic bombs on Hiroshima (6 August) and Nagasaki (9 August); Japan surrendered 2 September 1945 (VJ Day). The war led to the UN, NATO, the Cold War, and decolonisation.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-history-space-race-moon-landing',
+    title: 'The Space Race and Moon Landing',
+    category: 'History',
+    keywords: ['space race', 'Moon landing', 'Apollo', 'NASA', 'Armstrong', 'Gagarin', 'Sputnik', 'ISS', 'Kennedy', 'astronaut'],
+    content: `The Space Race was a Cold War competition between the USA and USSR to achieve superiority in spaceflight and space exploration. The USSR launched Sputnik — the first artificial satellite — on 4 October 1957, shocking America and triggering massive investment in science and education. In 1961, Yuri Gagarin became the first human in space aboard Vostok 1. President Kennedy announced in 1961: 'We choose to go to the Moon… not because it is easy, but because it is hard.' NASA's Apollo program, employing 400,000 people, achieved the first crewed lunar landing on 20 July 1969. Neil Armstrong descended the Eagle lunar module ladder and said: 'That's one small step for man, one giant leap for mankind.' Buzz Aldrin joined him on the surface; Michael Collins orbited above. Five more Apollo missions landed on the Moon (the last, Apollo 17, in December 1972). The Space Race drove advances in computing (Apollo guidance computers), materials science, telecommunications, and weather satellites. The International Space Station (ISS), operational since 2000, has hosted continuous human habitation.`,
+    createdAt: Date.now(),
+  },
+];

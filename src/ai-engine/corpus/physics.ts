@@ -1,0 +1,68 @@
+import { KnowledgeItem } from '../../types';
+
+export const PHYSICS_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-physics-newton-laws',
+    title: "Newton's Laws of Motion",
+    category: 'Physics',
+    keywords: ['newton', 'force', 'motion', 'inertia', 'acceleration', 'classical mechanics', 'physics', 'F=ma'],
+    content: `Isaac Newton formulated three fundamental laws of motion in 1687 in his work Principia Mathematica. The first law, the law of inertia, states that an object at rest remains at rest and an object in motion continues moving at constant velocity unless acted upon by a net external force. This explains why you slide forward when a car brakes suddenly. The second law defines force: F = ma, where F is the net force in Newtons, m is mass in kilograms, and a is acceleration in m/s². A larger force produces greater acceleration, and heavier objects require more force to accelerate equally. The third law states that for every action there is an equal and opposite reaction. When you push against a wall, the wall pushes back with the same force. These three laws form the foundation of classical mechanics, accurately describing everyday motion at speeds far below the speed of light. They break down only at relativistic speeds or quantum scales. Newton's laws enabled the prediction of planetary orbits, the design of engines, and the engineering of every vehicle ever built.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-physics-special-relativity',
+    title: "Einstein's Special Theory of Relativity",
+    category: 'Physics',
+    keywords: ['einstein', 'relativity', 'special relativity', 'E=mc2', 'time dilation', 'light speed', 'spacetime', 'physics'],
+    content: `Albert Einstein published the special theory of relativity in 1905, fundamentally changing our understanding of space and time. The theory rests on two postulates: the laws of physics are the same in all inertial reference frames, and the speed of light in a vacuum (c ≈ 299,792,458 m/s) is constant for all observers regardless of the motion of the source or observer. These postulates lead to profound consequences. Time dilation means moving clocks run slower — a clock on a fast-moving spacecraft ticks more slowly than one on Earth, confirmed by GPS satellites that must correct for this effect. Length contraction means objects moving at high speeds appear shorter along the direction of motion. Mass-energy equivalence is expressed by the famous equation E = mc², meaning mass and energy are interconvertible. A tiny amount of mass contains enormous energy — the foundation of nuclear power and atomic weapons. The theory also establishes that nothing with mass can reach or exceed the speed of light, as it would require infinite energy. Special relativity has been verified to extraordinary precision in particle accelerators and atomic clocks.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-physics-general-relativity',
+    title: 'General Theory of Relativity',
+    category: 'Physics',
+    keywords: ['general relativity', 'gravity', 'spacetime', 'curvature', 'gravitational waves', 'black holes', 'einstein'],
+    content: `Einstein's general theory of relativity (1915) extends special relativity to include gravity and non-inertial reference frames. Its central idea is that gravity is not a force but a curvature of spacetime caused by mass and energy. Massive objects like stars warp the fabric of spacetime, and other objects follow curved paths (geodesics) through this warped spacetime — what we perceive as gravitational attraction. The theory predicts gravitational time dilation: clocks run slower in stronger gravitational fields. GPS satellites run faster than ground clocks due to being higher up, so corrections must account for this. General relativity predicted the bending of light around massive objects (gravitational lensing), confirmed during the 1919 solar eclipse by Arthur Eddington. It also predicted the precession of Mercury's orbit, gravitational waves (detected by LIGO in 2015), and the existence of black holes. Einstein's field equations G_μν = 8πG/c⁴ × T_μν relate the geometry of spacetime to the energy and momentum of matter. General relativity is our best description of gravity on large scales.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-physics-quantum-mechanics',
+    title: 'Quantum Mechanics',
+    category: 'Physics',
+    keywords: ['quantum mechanics', 'wave function', 'uncertainty principle', 'superposition', 'entanglement', 'photon', 'electron', 'atom'],
+    content: `Quantum mechanics is the branch of physics describing the behaviour of matter and energy at the smallest scales — atoms, electrons, photons, and subatomic particles. Unlike classical physics, quantum mechanics is fundamentally probabilistic. The wave function ψ describes the quantum state of a particle; its squared magnitude |ψ|² gives the probability of finding the particle at a given location. The Schrödinger equation governs how wave functions evolve over time. Key principles include the Heisenberg uncertainty principle: it is impossible to simultaneously know both the exact position and momentum of a particle (Δx·Δp ≥ ℏ/2). Superposition allows a quantum system to exist in multiple states simultaneously until measured. Entanglement links particles so that measuring one instantly determines the state of the other, regardless of distance. Wave-particle duality means entities like electrons exhibit both wave and particle behaviour depending on how they are observed. Quantum mechanics underlies all of chemistry, semiconductors, lasers, MRI machines, and modern electronics. Its Copenhagen, many-worlds, and other interpretations remain philosophically debated.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-physics-thermodynamics-entropy',
+    title: 'Thermodynamics and Entropy',
+    category: 'Physics',
+    keywords: ['thermodynamics', 'entropy', 'heat', 'energy', 'laws of thermodynamics', 'Carnot', 'temperature', 'Kelvin'],
+    content: `Thermodynamics is the study of heat, work, and energy transfer between systems. It is built on four laws. The zeroth law establishes thermal equilibrium: if system A is in equilibrium with B, and B with C, then A is in equilibrium with C. The first law is energy conservation: energy cannot be created or destroyed, only converted between forms (ΔU = Q − W). The second law introduces entropy: in any closed system, entropy — a measure of disorder — tends to increase or remain constant, never decrease. This explains why heat flows from hot to cold, why engines cannot be 100% efficient, and why time has a preferred direction (the arrow of time). The third law states that as temperature approaches absolute zero (0 Kelvin, −273.15°C), the entropy of a perfect crystal approaches zero. Carnot's theorem defines the maximum theoretical efficiency of a heat engine as 1 − T_cold/T_hot. Thermodynamics governs steam engines, refrigerators, chemical reactions, stars, and the entire universe's long-term fate (heat death).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-physics-electromagnetism-maxwell',
+    title: "Electromagnetism and Maxwell's Equations",
+    category: 'Physics',
+    keywords: ['electromagnetism', 'Maxwell', 'electric field', 'magnetic field', 'light', 'electromagnetic waves', 'photon', 'Faraday'],
+    content: `Electromagnetism describes the interactions between electric charges and currents and the electromagnetic fields they produce. James Clerk Maxwell unified electricity and magnetism in 1865 through four equations. Gauss's law for electricity states that the electric flux through a closed surface equals the enclosed charge divided by ε₀. Gauss's law for magnetism states there are no magnetic monopoles. Faraday's law of induction states that a changing magnetic field induces an electric field (the basis of generators and transformers). Ampère-Maxwell law states that a changing electric field and electric currents produce magnetic fields. Maxwell's great insight was that these equations predict electromagnetic waves — oscillating electric and magnetic fields — that travel at c ≈ 3×10⁸ m/s. He recognised this as the speed of light, unifying optics with electromagnetism. The electromagnetic spectrum includes radio waves, microwaves, infrared, visible light, ultraviolet, X-rays, and gamma rays, all differing only in frequency. Electromagnetism governs chemistry, light, electronics, motors, generators, and wireless communication.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-physics-standard-model',
+    title: 'The Standard Model of Particle Physics',
+    category: 'Physics',
+    keywords: ['standard model', 'quarks', 'leptons', 'bosons', 'Higgs boson', 'gluon', 'photon', 'strong force', 'weak force', 'particle physics'],
+    content: `The Standard Model is the theoretical framework describing the fundamental particles and forces of nature (excluding gravity). Matter is made of fermions: six quarks (up, down, charm, strange, top, bottom) and six leptons (electron, muon, tau, and their neutrinos). Quarks combine to form hadrons; protons contain two up and one down quark, neutrons two down and one up quark, held together by the strong force. Forces are mediated by bosons: photons carry the electromagnetic force, W and Z bosons carry the weak force responsible for radioactive decay, and gluons carry the strong nuclear force binding quarks. The Higgs boson, discovered at CERN in 2012, is associated with the Higgs field that gives particles mass. The Standard Model has been tested to extraordinary precision but is known to be incomplete: it does not include gravity, and cannot explain dark matter, dark energy, or the matter-antimatter asymmetry of the universe. Extensions like supersymmetry and string theory attempt to go beyond it.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-physics-wave-physics',
+    title: 'Wave Physics: Interference, Diffraction, and Sound',
+    category: 'Physics',
+    keywords: ['waves', 'interference', 'diffraction', 'sound', 'Doppler effect', 'resonance', 'wavelength', 'frequency', 'amplitude'],
+    content: `A wave is a disturbance that transfers energy through a medium or space without transferring matter. Waves are characterised by wavelength (λ), frequency (f), amplitude, and wave speed (v = fλ). Mechanical waves require a medium — sound travels through air at ~343 m/s at 20°C. Electromagnetic waves need no medium and travel at c. The principle of superposition states that when two waves meet, their amplitudes add. Constructive interference occurs when wave crests align, producing larger amplitude. Destructive interference occurs when a crest meets a trough, potentially cancelling both. Diffraction is the bending of waves around obstacles or through apertures; it explains why sound wraps around corners and light spreads through narrow slits. The double-slit experiment demonstrates that even single electrons produce interference patterns, confirming wave-particle duality. The Doppler effect describes the change in observed frequency when source or observer moves — the pitch of an approaching ambulance rises, then falls. Resonance occurs when a system is driven at its natural frequency, enabling musical instruments.`,
+    createdAt: Date.now(),
+  },
+];

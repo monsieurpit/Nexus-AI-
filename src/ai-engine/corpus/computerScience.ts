@@ -1,0 +1,60 @@
+import { KnowledgeItem } from '../../types';
+
+export const COMPUTER_SCIENCE_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-cs-algorithms-complexity',
+    title: 'Algorithms and Computational Complexity',
+    category: 'Computer Science',
+    keywords: ['algorithms', 'Big-O', 'complexity', 'sorting', 'searching', 'P vs NP', 'dynamic programming', 'computer science', 'recursion'],
+    content: `An algorithm is a finite sequence of well-defined instructions to solve a problem. Algorithm analysis measures efficiency using Big-O notation, describing how runtime or space grows with input size n. O(1) is constant time (array access). O(log n) is logarithmic (binary search). O(n) is linear (linear search). O(n log n) is quasi-linear (mergesort, heapsort). O(n²) is quadratic (bubble sort). O(2ⁿ) is exponential (brute-force subset enumeration). Sorting: quicksort averages O(n log n), worst O(n²); mergesort is O(n log n) worst-case; heapsort is O(n log n). Searching: linear search O(n), binary search O(log n) on sorted arrays. The P vs NP problem asks whether every problem whose solution can be verified quickly can also be solved quickly — the most important open question in computer science. NP-complete problems (like the travelling salesman problem and Boolean satisfiability) are the hardest in NP. Dynamic programming solves problems by breaking them into overlapping subproblems and caching results. Greedy algorithms make locally optimal choices. Divide and conquer splits problems recursively.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-cs-data-structures',
+    title: 'Data Structures',
+    category: 'Computer Science',
+    keywords: ['data structures', 'array', 'linked list', 'hash table', 'tree', 'graph', 'stack', 'queue', 'heap', 'computer science'],
+    content: `Data structures organise and store data for efficient access and modification. An array stores elements in contiguous memory with O(1) access by index. A linked list is a chain of nodes, each pointing to the next; insertions are O(1) but access is O(n). A stack (LIFO) supports push and pop in O(1) — used in function call stacks and undo operations. A queue (FIFO) supports enqueue and dequeue in O(1) — used in breadth-first search. A hash table maps keys to values using a hash function, achieving O(1) average-case lookup and insertion; collisions are handled by chaining or open addressing. A binary search tree (BST) stores sorted data; search, insert, delete are O(log n) average, O(n) worst case. A balanced BST (AVL tree, Red-Black tree) guarantees O(log n) always. A heap is a complete binary tree satisfying the heap property; it supports O(log n) insert/delete and O(1) min/max access — used in priority queues and heapsort. A graph (adjacency list or matrix) represents networks. Choosing the right data structure for a problem is fundamental to efficient programming.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-cs-operating-systems',
+    title: 'Operating Systems: Processes, Memory, and Files',
+    category: 'Computer Science',
+    keywords: ['operating system', 'process', 'memory', 'thread', 'scheduling', 'virtual memory', 'file system', 'Linux', 'kernel', 'OS'],
+    content: `An operating system (OS) manages hardware resources and provides services to applications. The kernel is the core, running in privileged mode; applications run in user mode, using system calls to request OS services. A process is a running program with its own address space, registers, and resources. Threads are lighter-weight execution units within a process, sharing memory. Scheduling algorithms allocate CPU time: First-Come-First-Served (FCFS), Shortest Job First (SJF), Round Robin (time slicing), and Priority Scheduling. Memory management uses virtual memory — each process sees a large private address space. The OS translates virtual to physical addresses via the MMU. Paging divides memory into fixed-size pages; page faults trigger loading from disk. File systems organise persistent storage: FAT32, NTFS (Windows), ext4 (Linux), APFS (macOS/iOS) use hierarchical directories, inodes, and allocation tables. Inter-process communication (IPC) methods include pipes, sockets, shared memory, and message queues. Synchronisation (mutexes, semaphores) prevents race conditions. Deadlock occurs when processes each hold resources the other needs. Modern OS examples: Linux, macOS, Windows, iOS, Android.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-cs-networks-internet',
+    title: 'Computer Networks and the Internet',
+    category: 'Computer Science',
+    keywords: ['internet', 'network', 'TCP', 'IP', 'HTTP', 'DNS', 'router', 'wifi', 'protocol', 'bandwidth', 'computer science'],
+    content: `A computer network enables devices to communicate by exchanging data. The internet is a global network of networks using the TCP/IP protocol suite. The OSI model has seven layers (physical, data link, network, transport, session, presentation, application); TCP/IP collapses these to four. IP (Internet Protocol) routes packets across networks using IP addresses (IPv4: 32-bit, e.g. 192.168.1.1; IPv6: 128-bit). TCP (Transmission Control Protocol) provides reliable, ordered, error-checked delivery with connection establishment (three-way handshake) and flow control. UDP is connectionless and faster, used for video streaming and gaming. DNS (Domain Name System) translates domain names (google.com) to IP addresses — the internet's phonebook. HTTP/HTTPS is the application-layer protocol for the web; HTTPS adds TLS encryption. A router forwards packets between networks; a switch connects devices within a LAN. Wi-Fi uses radio waves (802.11 standards); Ethernet uses cables. Firewalls, NAT, and VPNs provide security and privacy. Bandwidth measures data transfer rate (bits per second). Latency is the delay from source to destination.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-cs-cryptography-security',
+    title: 'Cryptography: Securing Information',
+    category: 'Computer Science',
+    keywords: ['cryptography', 'encryption', 'AES', 'RSA', 'hash', 'TLS', 'public key', 'symmetric', 'asymmetric', 'security', 'blockchain'],
+    content: `Cryptography transforms information to keep it confidential, authentic, and unalterable. Symmetric encryption uses the same key for encryption and decryption; AES (Advanced Encryption Standard) is the gold standard, using 128/192/256-bit keys. Asymmetric (public-key) encryption uses a key pair: a public key to encrypt (shareable), a private key to decrypt (secret). RSA relies on the difficulty of factoring large primes. Elliptic curve cryptography (ECC) achieves similar security with shorter keys. The Diffie-Hellman key exchange allows two parties to establish a shared secret over an insecure channel without prior contact. A cryptographic hash function (SHA-256, SHA-3) maps data to a fixed-size digest; it's one-way (preimage resistant), collision-resistant, and deterministic. Hashes are used for password storage, digital signatures, and blockchain. TLS (Transport Layer Security) secures HTTPS by combining asymmetric key exchange, symmetric encryption, and message authentication. Digital signatures prove authenticity and integrity. Zero-knowledge proofs allow proving knowledge of a secret without revealing the secret itself. Quantum computing threatens RSA/ECC; post-quantum cryptography standards are being developed.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-cs-software-engineering-solid',
+    title: 'Software Engineering and Design Principles',
+    category: 'Computer Science',
+    keywords: ['software engineering', 'SOLID', 'design patterns', 'agile', 'scrum', 'git', 'testing', 'TDD', 'architecture', 'programming'],
+    content: `Software engineering applies systematic, disciplined methods to software development. The SOLID principles guide object-oriented design: Single Responsibility (a class does one thing), Open/Closed (open for extension, closed for modification), Liskov Substitution (subtypes must be substitutable), Interface Segregation (prefer specific interfaces), Dependency Inversion (depend on abstractions). Design patterns are reusable solutions to common problems: Singleton (one instance), Observer (publish-subscribe), Factory (create objects without specifying class), Strategy (interchangeable algorithms), Decorator (add behaviour dynamically). Software development methodologies include Waterfall (sequential phases), Agile (iterative, collaborative, adaptive), Scrum (sprints, daily standups, retrospectives), and Kanban (continuous flow). Version control (Git) tracks changes, enables collaboration, and maintains history. Testing: unit tests check individual functions, integration tests check component interaction, end-to-end tests simulate user workflows. Test-driven development (TDD) writes tests before code. Code review, continuous integration (CI), and continuous delivery (CD) ensure quality. Technical debt accumulates when shortcuts are taken, requiring future refactoring.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-cs-ai-machine-learning',
+    title: 'Artificial Intelligence and Machine Learning',
+    category: 'Computer Science',
+    keywords: ['AI', 'machine learning', 'neural network', 'deep learning', 'supervised', 'unsupervised', 'reinforcement learning', 'transformer', 'LLM'],
+    content: `Artificial intelligence (AI) builds systems that perform tasks requiring human-like intelligence. Traditional AI used explicit rules and knowledge bases. Machine learning (ML) enables systems to learn from data without being explicitly programmed. Supervised learning trains a model on labelled input-output pairs to predict outputs for new inputs — used in image classification, spam detection, price prediction. Common algorithms: linear/logistic regression, decision trees, random forests, support vector machines (SVM), and neural networks. Unsupervised learning finds patterns in unlabelled data: k-means clustering, principal component analysis (PCA), autoencoders. Reinforcement learning trains agents through rewards and penalties — enabling AlphaGo, game-playing AIs, and robotics. Deep learning uses multi-layer neural networks (deep neural networks) that learn hierarchical representations. Convolutional neural networks (CNNs) excel at images; recurrent neural networks (RNNs) and transformers handle sequential data and natural language. Large language models (LLMs) like GPT learn to predict and generate text. Challenges include interpretability (black-box models), bias, hallucination in language models, and alignment (ensuring AI goals match human values).`,
+    createdAt: Date.now(),
+  },
+];

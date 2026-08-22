@@ -1,0 +1,68 @@
+import { KnowledgeItem } from '../../types';
+
+export const MATHEMATICS_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-math-calculus-derivatives-integrals',
+    title: 'Calculus: Derivatives and Integrals',
+    category: 'Mathematics',
+    keywords: ['calculus', 'derivative', 'integral', 'differentiation', 'integration', 'limit', 'slope', 'area', 'fundamental theorem', 'mathematics'],
+    content: `Calculus, developed independently by Newton and Leibniz in the 17th century, is the mathematics of continuous change. The derivative measures instantaneous rate of change: f'(x) = lim_{h→0} (f(x+h)−f(x))/h. Geometrically, it is the slope of the tangent line to a curve at a point. Common rules: the power rule (d/dx[xⁿ] = nxⁿ⁻¹), product rule, quotient rule, and chain rule for composite functions. The integral is the antiderivative and also measures accumulation (area under a curve). The fundamental theorem of calculus connects the two: if F'(x) = f(x), then ∫_a^b f(x)dx = F(b) − F(a). Indefinite integrals yield a family of antiderivatives (plus a constant C). Common integrals: ∫xⁿdx = xⁿ⁺¹/(n+1)+C, ∫eˣdx = eˣ+C, ∫sin(x)dx = −cos(x)+C. Multivariable calculus extends to partial derivatives and multiple integrals. Differential equations involve derivatives and model physical systems. Calculus underlies physics (F=ma is a differential equation), engineering, economics (marginal cost), statistics, and computer graphics.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-math-linear-algebra',
+    title: 'Linear Algebra: Vectors and Matrices',
+    category: 'Mathematics',
+    keywords: ['linear algebra', 'vector', 'matrix', 'eigenvalue', 'determinant', 'transformation', 'dot product', 'mathematics'],
+    content: `Linear algebra studies vector spaces and linear transformations between them. A vector is an object with magnitude and direction, represented as an ordered list of numbers (e.g., [3, 4] in 2D). Vector operations include addition, scalar multiplication, dot product (a·b = |a||b|cos θ, giving a scalar), and cross product (giving a perpendicular vector). A matrix is a rectangular array of numbers representing a linear transformation. Matrix multiplication AB applies transformation B then A. The identity matrix I leaves vectors unchanged. The inverse matrix A⁻¹ reverses the transformation (exists only for square non-singular matrices with det(A) ≠ 0). Eigenvalues λ and eigenvectors v satisfy Av = λv — the transformation only scales these special vectors. The determinant of a matrix indicates how the transformation scales areas/volumes and whether the matrix is invertible. Gaussian elimination solves systems of linear equations. Linear algebra is fundamental to machine learning (neural networks use matrix operations), computer graphics (transformations, projections), signal processing, quantum mechanics, and data science (PCA, SVD).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-math-number-theory-primes',
+    title: 'Number Theory and Prime Numbers',
+    category: 'Mathematics',
+    keywords: ['number theory', 'prime numbers', 'modular arithmetic', 'Fermat', 'Riemann hypothesis', 'integers', 'mathematics', 'GCD', 'RSA'],
+    content: `Number theory studies the properties of integers. A prime number is a natural number greater than 1 with no divisors except 1 and itself: 2, 3, 5, 7, 11, 13…. The fundamental theorem of arithmetic states every integer > 1 is uniquely expressible as a product of primes. There are infinitely many primes (Euclid's proof: assume a finite list, multiply them all and add 1, getting a number not divisible by any listed prime). The prime number theorem approximates the count of primes up to n as n/ln(n). The Riemann hypothesis, the greatest unsolved problem in mathematics, concerns the distribution of primes via the zeta function. Modular arithmetic (clock arithmetic) studies remainders: 17 mod 5 = 2. Fermat's little theorem: if p is prime and gcd(a,p)=1, then a^(p-1) ≡ 1 (mod p). The extended Euclidean algorithm finds the greatest common divisor (GCD) and is key to RSA cryptography. Perfect numbers equal the sum of their proper divisors (6 = 1+2+3). Goldbach's conjecture (unproven since 1742): every even integer > 2 is the sum of two primes.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-math-probability-statistics',
+    title: 'Probability and Statistics',
+    category: 'Mathematics',
+    keywords: ['probability', 'statistics', 'normal distribution', 'Bayes', 'p-value', 'hypothesis testing', 'mean', 'variance', 'random variable'],
+    content: `Probability theory quantifies uncertainty. The probability P(A) of an event A is a number in [0,1], where 0 means impossible and 1 means certain. For equally likely outcomes, P(A) = (favourable outcomes) / (total outcomes). Conditional probability P(A|B) = P(A∩B)/P(B) — probability of A given B has occurred. Bayes' theorem: P(A|B) = P(B|A)·P(A)/P(B), fundamental to updating beliefs with evidence. Random variables have probability distributions: discrete (Bernoulli, Binomial, Poisson) or continuous (uniform, normal/Gaussian, exponential). The central limit theorem states that the sum of many independent random variables approaches a normal distribution regardless of the original distribution — explaining why the bell curve appears everywhere. Statistics applies probability to data. Descriptive statistics summarise data (mean, median, mode, variance, standard deviation). Inferential statistics draws conclusions about populations from samples via hypothesis testing (p-values, confidence intervals) and regression. Correlation measures linear association; causation requires controlled experiments. Statistics is essential in science, medicine (clinical trials), social science, finance, and machine learning.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-math-geometry-euclidean',
+    title: 'Geometry: Euclidean and Beyond',
+    category: 'Mathematics',
+    keywords: ['geometry', 'Euclidean', 'Pythagorean theorem', 'trigonometry', 'non-Euclidean', 'circle', 'triangle', 'topology', 'mathematics'],
+    content: `Euclidean geometry, codified by Euclid (~300 BCE) in Elements, describes properties of flat (plane) space. Five postulates, including the parallel postulate (exactly one line through a point parallel to another), define Euclidean space. Key results: the Pythagorean theorem (a²+b²=c² for right triangles), sum of triangle angles = 180°, area formulas (triangle = ½bh, circle = πr²), and circle theorems. Trigonometry relates angles to side ratios: sin, cos, tan, and their inverses. Non-Euclidean geometries arise by altering the parallel postulate. On a sphere (elliptic geometry), great circles are geodesics and triangle angles sum to more than 180°. In hyperbolic geometry (negatively curved space), angles sum to less than 180°. These were considered abstract until Einstein showed that spacetime is curved — general relativity uses Riemannian geometry. Analytic geometry (Descartes) represents geometric figures algebraically using coordinates. Fractal geometry (Mandelbrot) studies self-similar shapes at all scales, found in coastlines, snowflakes, and biological structures. Topology studies properties preserved under continuous deformation (no tearing).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-math-set-theory-logic',
+    title: 'Set Theory and Mathematical Logic',
+    category: 'Mathematics',
+    keywords: ['set theory', 'logic', 'Cantor', 'Gödel', 'infinity', 'proof', 'mathematics', 'boolean', 'formal systems'],
+    content: `Set theory, founded by Georg Cantor in the 1870s, is the mathematical study of collections of objects. A set is a well-defined collection: {1, 2, 3} or {x : x is a prime number}. Operations include union (A∪B), intersection (A∩B), difference (A\\B), and complement. The empty set ∅ contains no elements. Cantor proved that infinite sets have different sizes (cardinalities): the natural numbers ℕ and rational numbers ℚ are countably infinite (same cardinality ℵ₀), but the real numbers ℝ are uncountably infinite (larger). Cantor's diagonal argument proves this. Gödel's incompleteness theorems (1931) shook mathematics: any consistent formal system capable of arithmetic contains true statements that cannot be proven within the system. Propositional logic studies truth values of statements connected by AND, OR, NOT, →, ↔. Predicate logic adds quantifiers ∀ (for all) and ∃ (there exists). Proof techniques include direct proof, proof by contradiction, and mathematical induction. Set theory serves as the foundation for most of mathematics and is central to computer science (databases, type theory, algorithms).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-math-complex-numbers-euler',
+    title: "Complex Numbers and Euler's Formula",
+    category: 'Mathematics',
+    keywords: ['complex numbers', 'imaginary unit', 'Euler formula', 'mathematics', 'polar form', 'Mandelbrot', 'complex analysis'],
+    content: `Complex numbers extend the real numbers by adding the imaginary unit i, where i² = −1. A complex number z = a + bi has a real part a and imaginary part b. They can be visualised as points in the complex plane (Argand diagram) with real and imaginary axes. Arithmetic: (a+bi)+(c+di) = (a+c)+(b+d)i; multiplication uses the identity i² = −1. The modulus (magnitude) is |z| = √(a²+b²); the argument (angle) is arg(z). Polar form: z = r(cos θ + i·sin θ). Euler's extraordinary formula: e^(iθ) = cos θ + i·sin θ, connecting the five most important constants in mathematics. Setting θ = π gives Euler's identity: e^(iπ) + 1 = 0. Complex numbers are geometrically powerful: multiplication rotates and scales in the plane. The fundamental theorem of algebra states every polynomial of degree n has exactly n complex roots. Complex analysis (functions of complex variables) is essential in physics, engineering (signal processing, impedance in AC circuits), fluid dynamics, and quantum mechanics. The Mandelbrot set, defined via complex iteration, is a famous example of fractal geometry.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-math-graph-theory-combinatorics',
+    title: 'Graph Theory and Combinatorics',
+    category: 'Mathematics',
+    keywords: ['graph theory', 'combinatorics', 'vertices', 'edges', 'Dijkstra', 'algorithm', 'permutation', 'combination', 'network', 'tree'],
+    content: `Graph theory studies networks of nodes (vertices) connected by edges. Euler solved the Königsberg bridge problem in 1736 — the origin of graph theory — by showing no Eulerian path exists when more than two nodes have odd degree. A tree is a connected acyclic graph; a spanning tree connects all vertices with fewest edges. Directed graphs (digraphs) have one-way edges. Weighted graphs assign values to edges. Shortest-path algorithms include Dijkstra's (non-negative weights), Bellman-Ford (handles negatives), and A* (heuristic). The four-colour theorem (proved by computer in 1976) states any map can be coloured with four colours so no adjacent regions share a colour. Combinatorics counts configurations: permutations (ordered, nPr = n!/(n−r)!), combinations (unordered, nCr = n!/(r!(n−r)!)). Pascal's triangle gives binomial coefficients. The pigeonhole principle: if n+1 items fill n containers, at least one container has ≥2 items. Graph theory models social networks, road systems, the internet, molecular structures, and many algorithm problems (travelling salesman, graph colouring).`,
+    createdAt: Date.now(),
+  },
+];
