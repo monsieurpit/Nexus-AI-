@@ -390,7 +390,13 @@ export function computeEmbedding(text: string): number[] {
     'summary of',
     'fact about',
     'facts about',
-  ]);
+    'tell me about',
+    'tell me',
+    'list of',
+    'name some',
+    'examples of',
+    'best known',
+  ]) + (/\btop\s+\d/.test(lower) ? 1 : 0);
   if (factualMatches > 0) vec[13] = Math.min(1.0, 0.2 + factualMatches * 0.25);
 
   // 15: Decision Analysis (pros/cons, trade-offs, multi-criteria)

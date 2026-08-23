@@ -250,7 +250,10 @@ export async function searchDuckDuckGoDirect(query: string, maxResults: number =
       const block = match[1];
 
       // Extract title and URL
-      const titleMatch = block.match(/<a class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+      // Attribute order on the DDG-served anchor is `<a rel="nofollow" class="result__a" href="...">`,
+      // not class-then-href — a regex anchored on "<a class=..." right after "<a " never matched a
+      // single real result, silently dropping every DuckDuckGo response.
+      const titleMatch = block.match(/<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
       const snippetMatch = block.match(/<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
 
       if (titleMatch) {
