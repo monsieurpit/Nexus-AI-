@@ -43,6 +43,19 @@ export function solveFootballKnowledge(prompt: string, isSuperChill: boolean = f
   const p = prompt.trim();
   const lower = p.toLowerCase().replace(/[?!.,'"]/g, '');
 
+  // Live/current data requests (scores, fixtures, standings "right now") can NEVER be answered
+  // correctly by this static offline module — it has no idea what happened in today's match. Left
+  // unguarded, a query like "score of Barca against Elche" matched the generic FC Barcelona club
+  // history section instead (any club mention here scores decently against club-profile content),
+  // confidently answering with team history instead of admitting it doesn't have live scores. This
+  // returns null so the caller falls through to an actual live web search instead.
+  const isLiveDataRequest =
+    /\b(?:score|scoreline|result)\s+(?:of|for|between)\b/i.test(lower) ||
+    /\bwhat(?:'?s| is| was)\s+the\s+score\b/i.test(lower) ||
+    /\b(?:today'?s|tonight'?s|current|live|right now)\s+(?:score|match|fixture|game|result)\b/i.test(lower) ||
+    /\b(?:did|has)\s+\w+\s+(?:won|win|beat|lost|lose)\s+(?:today|tonight|yet)\b/i.test(lower);
+  if (isLiveDataRequest) return null;
+
   // ==========================================
   // POLISH FOOTBALL & EKSTRAKLASA SPECIALTIES
   // ==========================================
@@ -696,7 +709,15 @@ What went down:
   }
 
   // 20. THE OFFSIDE RULE & VAR EXPLAINED
-  if (/(offside rule explained|how does offside work in soccer|offside rule|var in football|\bvar\b|handball rule in soccer|red card rules)/i.test(lower)) {
+  // Bare "VAR" only counts case-sensitively (real uppercase) — a lowercase "var" is virtually
+  // always the JavaScript keyword, not the football acronym ("explain let const and var" should
+  // never land here; same collision fixed in knowledgeBase.ts's findRelevantKnowledge).
+  if (
+    /(offside rule explained|how does offside work in soccer|offside rule|var in football|handball rule in soccer|red card rules)/i.test(
+      lower
+    ) ||
+    /\bVAR\b/.test(p)
+  ) {
     return {
       matched: true,
       title: 'Football Rules: Offside, VAR & Disciplinary Laws',

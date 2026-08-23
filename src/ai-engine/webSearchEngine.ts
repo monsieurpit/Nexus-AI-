@@ -44,6 +44,7 @@ export function extractSearchQuery(prompt: string): string {
     /^(?:search on google for|search google for|google search for|search google|search for|look up on google|look up|google)\s+/i,
     /^(?:tell me about|tell me who|tell me what|tell me when|tell me where|tell me how|tell me why)\s+/i,
     /^(?:what is the latest on|what's the latest on|what do you know about|what is|whats|what's)\s+/i,
+    /^(?:who\s+is|who\s+was|whos|who's)\s+/i,
     /^(?:do you know|can you find|find out|give me info on|give me information about)\s+/i,
     /^(?:i told him|i asked|someone asked|tell me)\s+/i,
   ];
@@ -552,7 +553,15 @@ export function shouldTriggerLiveWebSearch(
     /^(?:who\s+are\s+you|what\s+are\s+you|what\s+is\s+your\s+name|who\s+made\s+you|who\s+created\s+you|tell\s+me\s+about\s+yourself|are\s+you\s+real|are\s+you\s+an\s+ai|what\s+can\s+you\s+do|help\s+me)\b/i.test(q) ||
     /^(?:thanks|thank\s+you|thx|ty|appreciate\s+it|much\s+appreciated|bye|goodbye|cya|see\s+ya|see\s+you)\b/i.test(q) ||
     /^(?:lol|lmao|lmfao|haha|hahaha|xd|fr|fr\s+fr|no\s+cap|ong|facts|ok|okay|nice|cool)\b/i.test(q) ||
-    /(?:tell\s+me\s+a\s+joke|make\s+me\s+laugh|roast\s+me|can\s+you\s+swear|say\s+fuck)\b/i.test(q);
+    /(?:tell\s+me\s+a\s+joke|make\s+me\s+laugh|roast\s+me|can\s+you\s+swear|say\s+fuck)\b/i.test(q) ||
+    // Personal questions/banter directed AT the bot ("why are you here", "are you gay", "do you
+    // like X", "you freak") aren't factual lookups — there's nothing on the web that answers them,
+    // so a corpus miss here should fall through to a normal conversational reply, not a web search
+    // for whatever topic word happens to be in the sentence (e.g. searching for the literal song
+    // "Right Now" because someone asked "do you like the songs playing right now").
+    /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you)\b/i.test(q) ||
+    /\bdo\s+you\s+(?:like|love|hate|think|believe|even)\b/i.test(q) ||
+    /\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i.test(q);
 
   if (isConversational) return false;
 

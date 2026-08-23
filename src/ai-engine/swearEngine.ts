@@ -459,9 +459,14 @@ export function enhanceNaturalSwearPhrasing(
     enhanced = enhanced.replace(`__CODE_BLOCK_${idx}__`, code);
   });
 
-  // Clean up any double punctuation or awkward spacing
+  // Clean up any double punctuation or awkward spacing. The replacement phrases above already
+  // end their own clause with a comma ("no bullshit,", "real talk,") — if the original text had
+  // punctuation immediately after the replaced word ("Honestly? Yeah..."), that terminal mark
+  // survives the replace() untouched and lands right after the new comma, producing "no
+  // bullshit,? Yeah...". That stray mark is always redundant once the comma's there, so strip it.
   enhanced = enhanced
     .replace(/,\s*,/g, ',')
+    .replace(/,\s*([?!.])/g, ',')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -506,9 +511,13 @@ export function infuseSwearyHumanVoice(
   // English Swear Engine
   let processed = enhanceNaturalSwearPhrasing(text, intensity);
 
-  // If text already has natural profanity, do NOT double-insert clunky intros
+  // If text already has natural profanity, do NOT double-insert clunky intros — but the bar for
+  // "enough already" scales with intensity, since a flat threshold of 2 meant "heavy"/"unhinged"
+  // settings capped out at the same swear density as everything else the moment two profanities
+  // showed up anywhere in the response.
   const currentCount = getSwearCount(processed);
-  if (currentCount >= 2 && !forceSwear) {
+  const swearCeiling = intensity === 'unhinged' ? 6 : intensity === 'heavy' ? 4 : intensity === 'moderate' ? 2 : 1;
+  if (currentCount >= swearCeiling && !forceSwear) {
     return processed;
   }
 

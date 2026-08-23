@@ -66,6 +66,14 @@ const VC_JOIN_REGEX =
 const PHONE_NUMBER_REGEX =
   /\b(?:phone\s*number|telephone\s*number|(?:what(?:'s| is|\s+is)?|give\s+me|tell\s+me|whats)\s+(?:your|his|the\s+ai(?:'s)?)\s+(?:phone\s+)?number|(?:his|your|the\s+ai(?:'s)?)\s+phone\s+number|(?:what(?:'s| is|\s+is)?|whats)\s+(?:his|your)\s+number)\b/i;
 
+// Personal banter/questions directed AT the bot ("why are you here", "are you gay", "do you like
+// X", "you freak") — these were falling through to corpus/web search, which either returns
+// nonsense (nothing in a knowledge corpus or on the web actually answers "why are you here") or,
+// worse, searches the web for whatever topic word happens to be in the sentence (e.g. searching
+// for the song "Right Now" because someone asked "do you like the songs playing right now").
+const PERSONAL_QUESTION_REGEX =
+  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i;
+
 export function detectQueryIntent(query: string): QueryIntent {
   const q = query.toLowerCase().trim();
 
@@ -88,7 +96,8 @@ export function detectQueryIntent(query: string): QueryIntent {
     ) ||
     /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q) ||
     VC_JOIN_REGEX.test(q) ||
-    PHONE_NUMBER_REGEX.test(q)
+    PHONE_NUMBER_REGEX.test(q) ||
+    PERSONAL_QUESTION_REGEX.test(q)
   ) {
     return 'conversational';
   }
@@ -399,6 +408,22 @@ function conversationalReply(
     return `(367) 763-0275`;
   }
 
+  // Personal banter/questions directed at the bot itself
+  if (PERSONAL_QUESTION_REGEX.test(q)) {
+    if (q.includes('gay') || q.includes('straight') || q.includes('single') || q.includes('boyfriend') || q.includes('girlfriend')) {
+      return `Bro I'm a pile of BM25 scores and if-statements, I don't have a sexuality or a dating life. Ask me something I can actually help with!`;
+    }
+    if (/^why\s+are\s+you\s+here/.test(q)) {
+      return isSuperChill
+        ? `I'm here to look out for you and this server, my favorite homie! What's on your mind?`
+        : `I'm here to answer your questions, keep this server running clean, and roast Casseurt on sight. What do you need?`;
+    }
+    if (/\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/.test(q)) {
+      return `LMAO takes one to know one, bro. What's up?`;
+    }
+    return `Honestly? Yeah, kind of — depends what we're talking about. What made you ask?`;
+  }
+
   // Common modern internet conversational openers & queries
   if (q.includes('wyd') || q.includes('what are you doing') || q.includes('what r u doing')) {
     return `Just chilling here in Discord, crunching queries, optimizing BM25 weights, and keeping the server running clean as hell. What about you bro, what are you up to rn?`;
@@ -473,6 +498,9 @@ function crashoutConversational(query: string): string {
   }
   if (VC_JOIN_REGEX.test(q)) {
     return `SAY LESS. Pulling up to the VC RIGHT NOW, let's fucking vibe!`;
+  }
+  if (PERSONAL_QUESTION_REGEX.test(q)) {
+    return `CRASHOUT MODE doesn't have time for an existential crisis right now. Ask me something real.`;
   }
   if (q.includes('how are you') || q.includes('hru')) {
     return `CRASHOUT MODE so I'm at 150% emotional capacity. Ask me something before I start having opinions unprompted.`;
@@ -1510,33 +1538,39 @@ export function synthesiseWebSearchResults(
     intro = `Here is what I found from searching the live web for **"${query}"**:\n`;
   }
 
-  // 2. Synthesize key snippets into structured points
+  // 2. Synthesize key snippets into a flowing, conversational summary — not a per-source
+  // Wikipedia-article-style dump. Pasting the full snippet under a "### Title" header per result
+  // reads exactly like copy-pasting Wikipedia paragraphs (because that's largely what it was),
+  // and stacking several of those headers in one Discord message just looks like wall-of-text
+  // clutter rather than an actual answer. Trimming to the lead sentence or two per source and
+  // dropping the per-source headers keeps it sounding like the bot talking, not quoting a page.
   const points: string[] = [];
-  for (let i = 0; i < top.length; i++) {
+  for (let i = 0; i < Math.min(top.length, 2); i++) {
     const item = top[i];
     let cleanedSnippet = item.snippet
       .replace(/^(?:Wikipedia\s*[-—:]*|\bSource:.*$)/gi, '')
       .replace(/\s+/g, ' ')
       .trim();
-
     if (!cleanedSnippet) continue;
 
-    // Apply natural conversational / swear phrasing to the points
+    // Keep just the first sentence or two — a full paragraph reads as a lifted excerpt, one or
+    // two sentences reads as a quick answer.
+    const sentences = cleanedSnippet.match(/[^.!?]+[.!?]+/g) || [cleanedSnippet];
+    cleanedSnippet = sentences.slice(0, 2).join(' ').trim();
+
     if (settings.swearEngineEnabled !== false && !isPolish) {
       cleanedSnippet = enhanceNaturalSwearPhrasing(cleanedSnippet, settings.swearIntensity || 'moderate');
     }
 
-    // Format clean bullet
-    const cleanTitle = item.title.replace(/\s*-\s*(?:Wikipedia|Google|YouTube|Reddit|GitHub).*$/i, '').trim();
-    points.push(`### 🔹 ${cleanTitle}\n${cleanedSnippet}`);
+    points.push(cleanedSnippet);
   }
 
-  // 3. Synthesis body
+  // 3. Synthesis body — a short paragraph, not a bulleted source-by-source breakdown
   let body = '';
   if (points.length > 0) {
-    body = points.join('\n\n');
+    body = points.join(' ');
   } else {
-    body = top.map((t) => `• **${t.title}**: ${t.snippet}`).join('\n\n');
+    body = top[0]?.snippet || '';
   }
 
   // 4. Punchline
@@ -1548,22 +1582,17 @@ export function synthesiseWebSearchResults(
     ? '*Boom. Live data, zero cap, pure chaos.*'
     : `*${SWEAR_DICTIONARY.english.punchlines[Math.floor(Math.random() * SWEAR_DICTIONARY.english.punchlines.length)]}*`;
 
-  // 5. Append Verified Live Web Sources
-  const sourcesBlock = [
-    '\n\n---\n**🌐 Live Web Sources (Google & Web — 0 APIs, Infinite Quota):**',
-    ...top.map((t) => {
-      const domain = t.domain || 'web';
-      const badge = t.source === 'wikipedia' ? '📚 Wikipedia' : t.source === 'google' ? '🌐 Google' : '🔍 DuckDuckGo';
-      return `• [${t.title}](${t.url}) — \`${badge}\` *(${domain})*`;
-    }),
-  ].join('\n');
+  // Source links used to be appended here as text ("Live Web Sources: [title](url) ..."), but the
+  // caller (server.ts) already returns the same data as a separate structured `webSources` field
+  // on every response — the Discord bot uses that to build its own embed. Repeating it inline as
+  // plain-text markdown links just duplicated what Discord already shows in the embed.
 
   // 6. Suggest follow-ups
   const followUpQueries = [
     `*Want to know more about **${top[0]?.title.slice(0, 40) || query}**? Just ask!*`,
   ].join('\n');
 
-  return `${intro}\n${body}\n\n${punchline}${sourcesBlock}\n\n${followUpQueries}`;
+  return `${intro}\n${body}\n\n${punchline}\n\n${followUpQueries}`;
 }
 
 function synthesiseStandard(
