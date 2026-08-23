@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { AttentionScore } from '../types';
 import { tokenize, estimateEntropy } from '../ai-engine/tokenizer';
-import { computeEmbedding, SEMANTIC_DIMENSIONS } from '../ai-engine/semanticEngine';
+import { computeEmbedding, SEMANTIC_DIMENSIONS, SEMANTIC_DIMENSION_LABELS } from '../ai-engine/semanticEngine';
 
 interface AttentionVisualizerModalProps {
   isOpen: boolean;
@@ -155,8 +155,8 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
                 const val = semanticVec[i] || 0;
                 return (
                   <div key={dim} className="bg-white p-2.5 rounded-lg border border-stone-200 space-y-1">
-                    <div className="flex justify-between text-[11px] text-stone-600 capitalize font-medium">
-                      <span>{dim}</span>
+                    <div className="flex justify-between text-[11px] text-stone-600 font-medium">
+                      <span>{SEMANTIC_DIMENSION_LABELS[dim] || dim}</span>
                       <span className="font-mono text-stone-900 font-bold">{(val * 100).toFixed(0)}%</span>
                     </div>
                     <div className="w-full bg-stone-100 rounded-full h-1.5 overflow-hidden">

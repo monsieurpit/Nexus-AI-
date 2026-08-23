@@ -29,6 +29,39 @@ export const SEMANTIC_DIMENSIONS = [
   'meta_cognition', // 23: Identity, Prompt introspection, Safety
 ];
 
+/**
+ * Human-readable display labels for SEMANTIC_DIMENSIONS. The raw keys are snake_case
+ * identifiers meant for code, not UI — rendering them directly (even with CSS `capitalize`)
+ * just shows "Coding_ts_js" verbatim, since CSS only capitalizes the first letter of a string
+ * with no whitespace in it; underscores aren't word boundaries to CSS.
+ */
+export const SEMANTIC_DIMENSION_LABELS: Record<string, string> = {
+  mathematics: 'Mathematics',
+  coding_ts_js: 'Coding (TS/JS)',
+  coding_py_algo: 'Coding (Python/Algorithms)',
+  coding_sys_db: 'Systems & Databases',
+  deep_learning: 'Deep Learning',
+  physics_space: 'Physics & Space',
+  bio_chemistry: 'Biology & Chemistry',
+  logic_deduction: 'Logic & Deduction',
+  philosophy_ethics: 'Philosophy & Ethics',
+  creative_writing: 'Creative Writing',
+  rhetoric_strategy: 'Rhetoric & Strategy',
+  business_economics: 'Business & Economics',
+  conversational: 'Conversational',
+  factual_qa: 'Factual Q&A',
+  debugging_review: 'Debugging & Review',
+  decision_analysis: 'Decision Analysis',
+  emotional_warmth: 'Emotional Warmth',
+  teaching_socratic: 'Teaching (Socratic)',
+  conciseness_focus: 'Conciseness Focus',
+  multistep_cot: 'Multi-Step Reasoning',
+  user_memory_query: 'User Memory Query',
+  architecture_design: 'Architecture & Design',
+  data_visualization: 'Data Visualization',
+  meta_cognition: 'Meta-Cognition',
+};
+
 export interface IntentAnalysis {
   primaryIntent:
     | 'math'
@@ -81,28 +114,31 @@ export function computeEmbedding(text: string): number[] {
   ]) > 0;
 
   // 0: Mathematics
-  const mathMatches = matchCount([
-    'equation',
-    'integral',
-    'derivative',
-    'algebra',
-    'sqrt',
-    'factorial',
-    'percentage',
-    'percent',
-    'average',
-    'mean',
-    'median',
-    'radius',
-    'solve for',
-    'arithmetic',
-    'pi',
-    '+',
-    '-',
-    '*',
-    '/',
-    '^',
-  ]) + (!isDeepLearning ? matchCount(['calculate', 'compute', 'solve']) : 0);
+  // Real arithmetic operators only count when they actually sit between two numbers
+  // ("5 + 3") — checking bare '+'/'-'/'*'/'/'/'^' via plain substring match (as this list
+  // used to) false-positives on any hyphenated word ("self-attention", "state-of-the-art")
+  // or markdown emphasis, none of which have anything to do with math.
+  const hasArithmeticExpression = /\d+\s*[+\-*/^%]\s*\d+/.test(lower);
+  const mathMatches =
+    matchCount([
+      'equation',
+      'integral',
+      'derivative',
+      'algebra',
+      'sqrt',
+      'factorial',
+      'percentage',
+      'percent',
+      'average',
+      'mean',
+      'median',
+      'radius',
+      'solve for',
+      'arithmetic',
+      'pi',
+    ]) +
+    (hasArithmeticExpression ? 3 : 0) +
+    (!isDeepLearning ? matchCount(['calculate', 'compute', 'solve']) : 0);
   if (mathMatches > 0) vec[0] = Math.min(1.0, 0.2 + mathMatches * 0.22);
 
   // 1: TypeScript / JavaScript / Frontend
