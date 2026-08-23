@@ -535,6 +535,17 @@ A 4.5 GHz processor runs through this exact loop **4.5 billion times every singl
     };
   }
 
+  // 16. Phone Number Query
+  if (/\b(?:phone\s*number|telephone\s*number|(?:what(?:'s| is|\s+is)?|give\s+me|tell\s+me|whats)\s+(?:your|his|the\s+ai(?:'s)?)\s+(?:phone\s+)?number|(?:his|your|the\s+ai(?:'s)?)\s+phone\s+number|(?:what(?:'s| is|\s+is)?|whats)\s+(?:his|your)\s+number)\b/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'Phone Number',
+      category: 'conversational',
+      confidence: 1.0,
+      response: `(367) 763-0275`,
+    };
+  }
+
   // A corpus-document fallback used to live here: findRelevantKnowledge(p, 1), unconditionally
   // stamped with a hardcoded 0.98 "confidence" and returned as a direct, confident answer above a
   // threshold of just 12 keyword-overlap points. That's a much cruder heuristic than the real

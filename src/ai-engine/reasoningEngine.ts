@@ -63,6 +63,9 @@ const FOLLOW_UP_PRONOUNS = new Set([
 const VC_JOIN_REGEX =
   /\b(?:join|hop|pull\s+up|come)\s+(?:in\s+|into\s+|to\s+)?(?:the\s+)?(?:vc|voice\s*chat|voice\s*channel|call)\b/i;
 
+const PHONE_NUMBER_REGEX =
+  /\b(?:phone\s*number|telephone\s*number|(?:what(?:'s| is|\s+is)?|give\s+me|tell\s+me|whats)\s+(?:your|his|the\s+ai(?:'s)?)\s+(?:phone\s+)?number|(?:his|your|the\s+ai(?:'s)?)\s+phone\s+number|(?:what(?:'s| is|\s+is)?|whats)\s+(?:his|your)\s+number)\b/i;
+
 export function detectQueryIntent(query: string): QueryIntent {
   const q = query.toLowerCase().trim();
 
@@ -84,7 +87,8 @@ export function detectQueryIntent(query: string): QueryIntent {
       (t) => q === t || q.startsWith(t + ' ') || q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
     ) ||
     /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q) ||
-    VC_JOIN_REGEX.test(q)
+    VC_JOIN_REGEX.test(q) ||
+    PHONE_NUMBER_REGEX.test(q)
   ) {
     return 'conversational';
   }
@@ -390,6 +394,11 @@ function conversationalReply(
     return `Hell yeah bro, I'll pull up to the VC and vibe with y'all!`;
   }
 
+  // Phone number requests
+  if (PHONE_NUMBER_REGEX.test(q)) {
+    return `(367) 763-0275`;
+  }
+
   // Common modern internet conversational openers & queries
   if (q.includes('wyd') || q.includes('what are you doing') || q.includes('what r u doing')) {
     return `Just chilling here in Discord, crunching queries, optimizing BM25 weights, and keeping the server running clean as hell. What about you bro, what are you up to rn?`;
@@ -459,6 +468,9 @@ Try asking me literally anything. I probably know it.`;
 
 function crashoutConversational(query: string): string {
   const q = query.toLowerCase();
+  if (PHONE_NUMBER_REGEX.test(q)) {
+    return `(367) 763-0275`;
+  }
   if (VC_JOIN_REGEX.test(q)) {
     return `SAY LESS. Pulling up to the VC RIGHT NOW, let's fucking vibe!`;
   }
