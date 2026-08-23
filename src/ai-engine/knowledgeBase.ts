@@ -612,14 +612,24 @@ const CONVERSATIONAL_STOPWORDS = new Set([
 // That single collision was enough to fire the 30-point "exact keyword match" boost below and
 // return a completely unrelated document with a hardcoded 0.98 "confidence" downstream, which is
 // exactly the kind of confidently-wrong answer this function exists to avoid.
-function containsWholeWord(haystack: string, needle: string): boolean {
+function containsWholeWord(haystack: string, needle: string, caseSensitive = false): boolean {
   if (!needle) return false;
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`\\b${escaped}\\b`, 'i').test(haystack);
+  return new RegExp(`\\b${escaped}\\b`, caseSensitive ? '' : 'i').test(haystack);
+}
+
+// Short all-caps acronyms (VAR, IFAB) collide with common lowercase words when matched
+// case-insensitively — "VAR" (Video Assistant Referee) whole-word-matches "var" (the JS keyword)
+// in "let const and var", since they're literally the same 3 letters. In practice people
+// distinguish these by case, so acronym keywords require the query to actually write them in
+// caps rather than folding everything to lowercase like every other keyword.
+function isShortAcronym(s: string): boolean {
+  return /^[A-Z]{2,5}$/.test(s);
 }
 
 export function findRelevantKnowledge(query: string, limit: number = 5, extraKnowledge: KnowledgeItem[] = []): KnowledgeItem[] {
   const allKnowledge = [...getAllKnowledge(), ...extraKnowledge];
+  const rawQuery = query.trim();
   const normalizedQuery = query.toLowerCase().trim();
   const rawTokens = tokenizeWords(query).filter((t) => t.length > 1);
   const substantiveTokens = rawTokens.filter((t) => !CONVERSATIONAL_STOPWORDS.has(t) && t.length > 2);
@@ -635,9 +645,13 @@ export function findRelevantKnowledge(query: string, limit: number = 5, extraKno
     // 1. Direct whole-phrase matches
     for (const keyword of item.keywords) {
       const kwLower = keyword.toLowerCase();
-      if (containsWholeWord(normalizedQuery, kwLower)) {
+      const isAcronym = isShortAcronym(keyword);
+      const phraseMatches = isAcronym
+        ? containsWholeWord(rawQuery, keyword, true)
+        : containsWholeWord(normalizedQuery, kwLower);
+      if (phraseMatches) {
         score += 30; // Massive boost for exact multi-word keyword match
-      } else if (containsWholeWord(kwLower, normalizedQuery) && normalizedQuery.length > 4) {
+      } else if (!isAcronym && containsWholeWord(kwLower, normalizedQuery) && normalizedQuery.length > 4) {
         score += 20;
       }
     }
@@ -649,7 +663,10 @@ export function findRelevantKnowledge(query: string, limit: number = 5, extraKno
 
     // 3. Substantive token matches
     for (const t of substantiveTokens) {
-      if (item.keywords.some((k) => k.toLowerCase() === t || containsWholeWord(k.toLowerCase(), t))) {
+      const acronymKeyword = item.keywords.find((k) => isShortAcronym(k) && k.toLowerCase() === t);
+      if (acronymKeyword) {
+        if (containsWholeWord(rawQuery, acronymKeyword, true)) score += 10;
+      } else if (item.keywords.some((k) => k.toLowerCase() === t || containsWholeWord(k.toLowerCase(), t))) {
         score += 10;
       }
       if (containsWholeWord(titleLower, t)) {

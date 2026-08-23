@@ -6,7 +6,6 @@
  */
 
 import { solveFootballKnowledge } from './footballIntelligence';
-import { findRelevantKnowledge } from './knowledgeBase';
 import {
   SWEAR_DICTIONARY,
   infuseSwearyHumanVoice as swearEngineInfuse,
@@ -536,26 +535,16 @@ A 4.5 GHz processor runs through this exact loop **4.5 billion times every singl
     };
   }
 
-  // 16. Comprehensive Corpus Document Retrieval & Synthesis (High relevance only)
-  const corpusMatches = findRelevantKnowledge(p, 1);
-  if (corpusMatches && corpusMatches.length > 0) {
-    const topCorpus = corpusMatches[0];
-    const intro = isSuperChill
-      ? `Hell fucking yeah bro, I got the complete breakdown on **${topCorpus.title}** for you:`
-      : `Fuck yeah bro, here is the real-world, verified breakdown on **${topCorpus.title}**:`;
-
-    return {
-      matched: true,
-      title: topCorpus.title,
-      category: topCorpus.category,
-      confidence: 0.98,
-      response: `${intro}
-
-${topCorpus.content}
-
-Clean, accurate, and straight to the point! Got any questions about it?`,
-    };
-  }
-
+  // A corpus-document fallback used to live here: findRelevantKnowledge(p, 1), unconditionally
+  // stamped with a hardcoded 0.98 "confidence" and returned as a direct, confident answer above a
+  // threshold of just 12 keyword-overlap points. That's a much cruder heuristic than the real
+  // corpus search reasoningEngine.ts runs afterward (BM25 + semantic scoring with genuine
+  // confidence-based hedging, honest "I don't have anything on that" for weak/zero matches) — and
+  // it ran BEFORE that better search ever got a chance, on every query none of the curated
+  // sections above matched. It's what caused two real bugs this session: a JS "let const and var"
+  // question confidently "answered" with unrelated corpus content because "var" collided with
+  // football's "VAR" keyword, and (after that fix) the same query landing on DNA vs RNA content
+  // via ordinary keyword-overlap noise. Removed so unmatched queries now correctly fall through to
+  // the real, better-calibrated corpus search instead of a shakier duplicate short-circuiting it.
   return null;
 }

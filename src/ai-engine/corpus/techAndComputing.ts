@@ -171,4 +171,33 @@ export const TECH_AND_COMPUTING_CORPUS: KnowledgeItem[] = [
    - **Key-Value / In-Memory (Redis)**: Sub-millisecond $O(1)$ reads and writes for session caches, leaderboards, and rate limiters.`,
     createdAt: Date.now(),
   },
+
+  // 6. Race Conditions, Deadlocks & Concurrency Control
+  {
+    id: 'kb-race-conditions-concurrency-deadlocks',
+    title: 'Race Conditions, Deadlocks & Concurrency Control',
+    category: 'coding',
+    keywords: [
+      'race condition',
+      'data race',
+      'deadlock',
+      'concurrency',
+      'thread safety',
+      'mutex',
+      'semaphore',
+      'critical section',
+      'atomic operation',
+      'lock',
+    ],
+    content: `A **race condition** happens when two or more threads (or processes) access shared data at the same time, and the final outcome depends on the unpredictable order in which their operations happen to interleave.
+1. **Classic Example**: Two threads both run \`balance = balance + 10\`. Each reads the current value, adds 10, then writes it back. If both threads read the same starting value before either writes, one of the +10 updates gets silently lost the final balance is wrong, and it happens non-deterministically, making these bugs notoriously hard to reproduce.
+2. **Critical Section**: The block of code that touches the shared resource. The fix is making it execute atomically only one thread inside it at a time.
+3. **Concurrency Control Tools**:
+   - **Mutex (mutual exclusion lock)**: Only the thread holding the lock may enter the critical section; others block until it's released.
+   - **Semaphore**: Like a mutex but allows up to N concurrent holders useful for limiting access to a pool of N resources.
+   - **Atomic operations**: Hardware-guaranteed single-instruction read-modify-write (e.g. compare-and-swap), avoiding the need for a lock entirely for simple counters.
+4. **Deadlock**: A different failure mode where two or more threads each hold a lock the other needs and wait forever classic cause: acquiring multiple locks in inconsistent order across different code paths. Fixed by always acquiring locks in the same global order, or using a lock-free/timeout-based approach.
+5. **Data Race vs Race Condition**: A *data race* is specifically simultaneous unsynchronized access to the same memory (at least one write) technically undefined behavior in languages like C++/Rust. A *race condition* is the broader logic bug where correctness depends on timing, which can happen even without a technical data race (e.g. two separate database transactions racing).`,
+    createdAt: Date.now(),
+  },
 ];

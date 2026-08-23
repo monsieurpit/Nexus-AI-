@@ -238,10 +238,11 @@ export function solveFootballKnowledge(prompt: string, isSuperChill: boolean = f
 
   // 4.8. PREMIER LEAGUE GIANTS (Arsenal, Liverpool, Chelsea, Man Utd, Man City)
   if (
-    /(arsenal|liverpool|chelsea|manchester united|man united|man city|manchester city|tottenham|spurs)/i.test(
+    (/(arsenal|liverpool|chelsea|manchester united|man united|man city|manchester city|tottenham|spurs)/i.test(
       lower
     ) &&
-    /(great|good|club|team|history|think of|opinion)/i.test(lower)
+      /(great|good|club|team|history|think of|opinion)/i.test(lower)) ||
+    /(most premier league titles|who has won the most (?:english )?league titles)/i.test(lower)
   ) {
     return {
       matched: true,
@@ -250,13 +251,13 @@ export function solveFootballKnowledge(prompt: string, isSuperChill: boolean = f
       confidence: 0.98,
       response: `The English Premier League produces some of the most competitive, high-stakes football on Earth! Here is the lowdown:
 
-- 🔴 **Liverpool FC**: 6x Champions League winners, 19 league titles. Famous for Anfield's legendary Kop atmosphere, *"You'll Never Walk Alone"*, Shankly, Paisley, and Jürgen Klopp's high-pressing Mentality Monsters.
-- 🔴 **Manchester United**: 20 league titles, 3 Champions Leagues. Sir Alex Ferguson's 26-year dynasty, the 1999 Treble, and global cultural domination.
-- 🔴⚪ **Arsenal**: 13 league titles. Arsène Wenger's 2003-04 **"Invincibles"** (went an entire 38-game Premier League season undefeated: 26W 12D 0L), flowing passing football, and Mikel Arteta's modern resurgence.
+- 🔴 **Liverpool FC**: 6x Champions League winners, 19 English top-flight titles (2 since the 1992 Premier League rebrand: 2019-20 and 2024-25). Famous for Anfield's legendary Kop atmosphere, *"You'll Never Walk Alone"*, Shankly, Paisley, and Jürgen Klopp's high-pressing Mentality Monsters.
+- 🔴 **Manchester United**: 20 English top-flight titles overall — the most of any club — but **13 of those are specifically Premier League-era titles (since 1992)**, which is itself the outright Premier League record. Sir Alex Ferguson's 26-year dynasty, the 1999 Treble, and global cultural domination.
+- 🔴⚪ **Arsenal**: 13 league titles (3 in the Premier League era). Arsène Wenger's 2003-04 **"Invincibles"** (went an entire 38-game Premier League season undefeated: 26W 12D 0L), flowing passing football, and Mikel Arteta's modern resurgence.
 - 🔵 **Chelsea**: 2x Champions League winners (2012 in Munich & 2021). Revolutionized the Premier League in 2004-05 under José Mourinho conceding only 15 goals in 38 games.
 - 🔵 **Manchester City**: 2023 Treble winners, 4-in-a-row Premier League champions (2021–2024), and the 100-point "Centurions" under Pep Guardiola.
 
-Which club is your squad? Let's talk tactics and transfers!`,
+So: **Manchester United** hold both the all-time English top-flight record (20) and the Premier League-specific-era record (13). Which club is your squad? Let's talk tactics and transfers!`,
     };
   }
 
@@ -338,7 +339,7 @@ Which specific club are you claiming as the GOAT? Tell me who you're backing and
   }
 
   // 6. LIONEL MESSI SPECIFIC PROFILE
-  if (/(tell me about messi|lionel messi|messi stats|messi career|how good was messi|messi 91 goals|messi barcelona|messi inter miami)/i.test(lower)) {
+  if (/\bmessi\b/i.test(lower)) {
     return {
       matched: true,
       title: 'Lionel Messi: Career, Records & Legacy',
@@ -362,7 +363,10 @@ Here is why his career is completely absurd:
   }
 
   // 7. CRISTIANO RONALDO SPECIFIC PROFILE
-  if (/(tell me about ronaldo|cristiano ronaldo|cr7 stats|ronaldo career|how good was ronaldo|cr7 records|ronaldo real madrid|ronaldo al nassr)/i.test(lower)) {
+  if (
+    /(cristiano|cr7|ronaldo al nassr|champions league (?:all.time )?top scorer|top scorer in champions league history)/i.test(lower) ||
+    (/\bronaldo\b/i.test(lower) && !/nazario|el fenomeno|\br9\b|brazilian ronaldo|ronaldo brazil/i.test(lower))
+  ) {
     return {
       matched: true,
       title: 'Cristiano Ronaldo (CR7): Career, Records & Legacy',
@@ -412,7 +416,11 @@ Here's how the insane drama went down:
   }
 
   // 9. ALL WORLD CUP WINNERS & TOURNAMENT HISTORY
-  if (/(list of world cup winners|who won the most world cups|all world cup winners|world cup history|world cup tournaments)/i.test(lower)) {
+  if (
+    /(list of world cup winners|who won the most world cups|all world cup winners|world cup history|world cup tournaments|who won the \d{4} world cup\b|how many world cups (?:has|have|did)\s+\w+\s+(?:win|won)|world cups? (?:has|have)\s+\w+\s+won)/i.test(
+      lower
+    )
+  ) {
     return {
       matched: true,
       title: 'FIFA World Cup All-Time Champions & Records',
@@ -653,7 +661,7 @@ What went down:
 
   // 19. FOOTBALL TACTICS & FORMATIONS
   if (
-    /(football tactics|explain tiki taka|what is gegenpressing|explain catenaccio|false 9 explained|4-3-3 vs 4-2-3-1|inverted fullbacks|total football|low block)/i.test(
+    /(football tactics|tiki(?:-|\s)?taka|what is gegenpressing|catenaccio|false 9|4-3-3 vs 4-2-3-1|inverted fullbacks|total football|low block)/i.test(
       lower
     )
   ) {
@@ -688,7 +696,7 @@ What went down:
   }
 
   // 20. THE OFFSIDE RULE & VAR EXPLAINED
-  if (/(offside rule explained|how does offside work in soccer|offside rule|var in football|handball rule in soccer|red card rules)/i.test(lower)) {
+  if (/(offside rule explained|how does offside work in soccer|offside rule|var in football|\bvar\b|handball rule in soccer|red card rules)/i.test(lower)) {
     return {
       matched: true,
       title: 'Football Rules: Offside, VAR & Disciplinary Laws',
@@ -722,13 +730,16 @@ VAR can only intervene in 4 match-changing situations (under the **"Clear and Ob
   }
 
   // 21. BALLON D'OR CONTROVERSIES & WINNERS
-  if (/(ballon d'or|who won the ballon d'or|ballon dor robbery|ballon d'or winners|2024 ballon d'or|2020 ballon d'or|2023 ballon d'or)/i.test(lower)) {
+  if (/ballon\s*d'?ors?\b/i.test(lower)) {
     return {
       matched: true,
       title: 'Ballon d\'Or History, Top Winners & Major Controversies',
       topic: 'ballon_dor',
       confidence: 0.99,
       response: `The **Ballon d'Or** (created by *France Football* in 1956) is the most prestigious individual award in global football.
+
+### 🆕 Most Recent Winner (2025): Ousmane Dembélé
+Dembélé won the **2025 Ballon d'Or**, the driving attacking force behind Paris Saint-Germain's historic treble (Ligue 1, Coupe de France, and their first-ever Champions League title — a 5-0 demolition of Inter Milan in the Munich final). After years of being written off as an injury-prone talent who never fully delivered on his early Barcelona/Dortmund hype, his 2024-25 season under Luis Enrique — repositioned as a false-9 focal point of PSG's pressing system — finally translated raw ability into a genuine Ballon d'Or-winning campaign. *(Note: as an offline knowledge base, this is the most recent winner I have solid detail on — worth double-checking if a newer one has since been awarded.)*
 
 ### 🏅 Top All-Time Winners:
 - 🇦🇷 **Lionel Messi**: 8 (2009, 2010, 2011, 2012, 2015, 2019, 2021, 2023)
@@ -778,7 +789,11 @@ VAR can only intervene in 4 match-changing situations (under the **"Clear and Ob
   }
 
   // 23. ICONIC PLAYERS ENCYCLOPEDIA (R9, Ronaldinho, Zidane, Henry, Haaland, Mbappe, Yamal, etc.)
-  if (/(ronaldo nazario|r9|el fenomeno|ronaldinho|zinedine zidane|thierry henry|erling haaland|kylian mbappe|lamine yamal|jude bellingham|luka modric|neymar)/i.test(lower)) {
+  if (
+    /(ronaldo nazario|el fenomeno|\br9\b|\bronaldinho\b|zinedine zidane|\bzidane\b|thierry henry|\bhaaland\b|\bmbappe\b|\byamal\b|\bbellingham\b|\bmodric\b|\bneymar\b)/i.test(
+      lower
+    )
+  ) {
     return {
       matched: true,
       title: 'Football Legends & Next-Gen Superstars',
@@ -834,6 +849,29 @@ Here is the exact breakdown of the drama that went down in that final:
 - **Record 6 European Cups**: Luka Modrić, Dani Carvajal, Toni Kroos, and Nacho matched Paco Gento's all-time record of **6 European Cup titles**.
 - **Carlo Ancelotti**: Won his **5th Champions League title as a manager** (more than anyone in history).
 - **Vinícius Júnior**: Scored in his second Champions League final (after also scoring the winner in the 2022 final vs Liverpool).`,
+    };
+  }
+
+  // 24.5. 2025 UEFA CHAMPIONS LEAGUE FINAL (PSG VS INTER MILAN)
+  if (
+    /(2025 (?:uefa )?champions league|who won the 2025 (?:uefa )?champions league|2025 ucl final|psg vs inter( milan)? 2025|inter( milan)? vs psg 2025|what happened in the 2025 (?:ucl|champions league) final|champions league final 2025|current champions league (?:champion|holder|winner)|latest champions league winner)/i.test(
+      lower
+    )
+  ) {
+    return {
+      matched: true,
+      title: '2025 UEFA Champions League Final: Paris Saint-Germain 5 - 0 Inter Milan',
+      topic: 'ucl_2025_final',
+      confidence: 0.95,
+      response: `**Paris Saint-Germain** demolished **Inter Milan 5-0** in the 2025 UEFA Champions League Final at the Allianz Arena in Munich, winning their first-ever Champions League title.
+
+### 🏆 Historic Context:
+- **PSG's first Champions League title**: After more than a decade of Qatari-backed investment (QSI era) and repeated heartbreak in finals and semifinals with superstar-laden squads (Neymar, Mbappé, Messi eras), PSG finally broke through — with a squad built on collective pressing and young talent (Ousmane Dembélé, Vitinha, Désiré Doué) rather than one single galáctico.
+- **Biggest margin of victory in a Champions League/European Cup final**: A 5-0 scoreline is the most lopsided final in the competition's history, a stunning result against an Inter side that had reached the final via a dramatic extra-time semifinal win over Barcelona.
+- **Treble Winners**: PSG completed a domestic Ligue 1 + Coupe de France + Champions League treble in the 2024-25 season under manager Luis Enrique.
+- **Ousmane Dembélé's Ballon d'Or Case**: His performances throughout the treble-winning campaign made him the clear favorite for, and eventual winner of, the 2025 Ballon d'Or.
+
+Note: as an offline knowledge base, treat anything beyond this as the most recent season I have solid detail on — always worth double-checking the very latest transfers/results independently.`,
     };
   }
 
@@ -1227,7 +1265,11 @@ Here is the exact breakdown of the drama that went down in that final:
   }
 
   // 44. UEFA EUROPEAN CHAMPIONSHIP (EURO) HISTORY
-  if (/(euro history|european championship history|italy euro 2020|euro 2020 winner|denmark euro 1992|greece euro 2004)/i.test(lower)) {
+  if (
+    /(euro history|european championship history|who won euro (?:19|20)\d{2}|euro (?:19|20)\d{2} winner|denmark euro 1992|greece euro 2004)/i.test(
+      lower
+    )
+  ) {
     return {
       matched: true,
       title: 'UEFA European Championship: History\'s Biggest Shocks & Dynasties',
