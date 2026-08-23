@@ -119,6 +119,9 @@ export function computeEmbedding(text: string): number[] {
   // used to) false-positives on any hyphenated word ("self-attention", "state-of-the-art")
   // or markdown emphasis, none of which have anything to do with math.
   const hasArithmeticExpression = /\d+\s*[+\-*/^%]\s*\d+/.test(lower);
+  // 'pi' and 'mean' need word boundaries — plain substring matching false-positives on
+  // "pizza" (contains "pi") and "meaning"/"meantime" (contain "mean").
+  const hasStandalonePiOrMean = /\b(pi|mean)\b/.test(lower);
   const mathMatches =
     matchCount([
       'equation',
@@ -130,13 +133,12 @@ export function computeEmbedding(text: string): number[] {
       'percentage',
       'percent',
       'average',
-      'mean',
       'median',
       'radius',
       'solve for',
       'arithmetic',
-      'pi',
     ]) +
+    (hasStandalonePiOrMean ? 1 : 0) +
     (hasArithmeticExpression ? 3 : 0) +
     (!isDeepLearning ? matchCount(['calculate', 'compute', 'solve']) : 0);
   if (mathMatches > 0) vec[0] = Math.min(1.0, 0.2 + mathMatches * 0.22);
@@ -344,6 +346,14 @@ export function computeEmbedding(text: string): number[] {
     'what',
     'cool',
     'haha',
+    'do you like',
+    'do you love',
+    'do you enjoy',
+    'do you hate',
+    'what do you think of',
+    'your opinion on',
+    'your favorite',
+    'your favourite',
   ]);
   if (convMatches > 0) vec[12] = Math.min(1.0, 0.2 + convMatches * 0.3);
 
