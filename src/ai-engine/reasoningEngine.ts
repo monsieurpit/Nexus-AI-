@@ -28,6 +28,9 @@ import {
 import { solveGeneralKnowledge } from './generalIntelligence';
 import { trySolveCode } from './codeSolver';
 import { trySolveLogic } from './logicSolver';
+import { decomposeCompoundQuestion } from './questionDecomposer';
+import { extractRelationFacts, findInferenceChains, formatInferenceChain } from './inferenceEngine';
+import { verifyAnswer } from './answerVerifier';
 
 export type QueryIntent =
   | 'definition'
@@ -650,6 +653,7 @@ export function generateReasoningPath(
   // 3. Intent Detection (using normalized text for maximum accuracy)
   const intent = detectQueryIntent(effectivePrompt);
   const queryTerms = processForSearch(effectivePrompt);
+  const entities = extractQueryEntities(prompt);
 
   thoughtSteps.push({
     id: 'step-1-intent',
@@ -894,7 +898,6 @@ export function generateReasoningPath(
 
   // DEEP THINK MODE
   if (isDeepThink) {
-    const entities = extractQueryEntities(prompt);
     const subQuestions = decomposeQuery(prompt, intent, queryTerms, entities);
 
     thoughtSteps.push({
@@ -976,7 +979,7 @@ export function generateReasoningPath(
     });
 
     const confidence = computeConfidence(topDocs, queryTerms);
-    const isConfident = topDocs[0].score >= CONFIDENT_MATCH_SCORE;
+    let isConfident = topDocs[0].score >= CONFIDENT_MATCH_SCORE;
     thoughtSteps.push({
       id: 'step-deep-synth',
       type: 'synthesis',
@@ -986,8 +989,37 @@ export function generateReasoningPath(
       }`,
     });
 
+    // Multi-hop inference across the gathered documents, same reasoning applied in standard mode.
+    let deepInferenceNote = '';
+    const deepSeed = entities[0] || queryTerms[0];
+    if (deepSeed) {
+      const facts = extractRelationFacts(allKnowledge);
+      const chains = findInferenceChains(deepSeed, facts, { maxHops: 2, maxChains: 1 });
+      const crossDocChain = chains.find((c) => c.spansMultipleDocuments);
+      if (crossDocChain) {
+        thoughtSteps.push({
+          id: 'step-deep-inference-chain',
+          type: 'reasoning',
+          title: '🔗 Cross-document inference chain found',
+          description: formatInferenceChain(crossDocChain),
+        });
+        deepInferenceNote = `\n\n*Also worth connecting: ${formatInferenceChain(crossDocChain)}*`;
+      }
+    }
+
     const synthesisedDeep = synthesiseDeep(prompt, intent, topDocs);
-    const text = isConfident ? synthesisedDeep : hedgeAnswer(synthesisedDeep, isSuperChill);
+    const deepVerification = verifyAnswer(synthesisedDeep, intent, queryTerms, entities);
+    if (!deepVerification.passed) {
+      thoughtSteps.push({
+        id: 'step-deep-self-check',
+        type: 'verification',
+        title: '⚠️ Self-check flagged the answer',
+        description: deepVerification.issues.join('\n'),
+      });
+      isConfident = false;
+    }
+
+    const text = (isConfident ? synthesisedDeep : hedgeAnswer(synthesisedDeep, isSuperChill)) + deepInferenceNote;
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(text, prompt, settings.userCustomDirectives, {
@@ -1000,6 +1032,63 @@ export function generateReasoningPath(
   }
 
   // STANDARD MODE
+
+  // 8a. Compound question splitting — answer each independent sub-question separately
+  // rather than letting one bag-of-words search only ever surface whichever half wins.
+  // Skipped when live web results already grounded the (combined) query above.
+  const decomposed = decomposeCompoundQuestion(effectivePrompt);
+  if (decomposed.isCompound) {
+    thoughtSteps.push({
+      id: 'step-compound-split',
+      type: 'intent',
+      title: `🔀 Compound question — split into ${decomposed.parts.length} parts`,
+      description: decomposed.parts.map((p, i) => `  ${i + 1}. ${p}`).join('\n'),
+    });
+
+    const sectionResults: { heading: string; body: string; hits: string[] }[] = [];
+    for (const part of decomposed.parts) {
+      const partIntent = detectQueryIntent(part);
+      const partTerms = processForSearch(part);
+      const { results: partResults } = searchWithReformulation(part, partTerms, allKnowledge, memory.citedDocIds, 5);
+
+      if (partResults.length === 0 || partResults[0].score < WEAK_MATCH_SCORE) {
+        sectionResults.push({ heading: part, body: unknownResponse(), hits: [] });
+        continue;
+      }
+
+      const partTop = partResults.slice(0, 2);
+      const partConfident = partResults[0].score >= CONFIDENT_MATCH_SCORE;
+      const partSynthesised = synthesiseStandard(part, partIntent, partTop);
+      sectionResults.push({
+        heading: part,
+        body: partConfident ? partSynthesised : hedgeAnswer(partSynthesised, isSuperChill),
+        hits: partTop.map((t) => t.item.title),
+      });
+    }
+
+    thoughtSteps.push({
+      id: 'step-compound-synth',
+      type: 'synthesis',
+      title: 'Answering each part independently',
+      description: `${sectionResults.length} sub-answers synthesised and combined.`,
+    });
+
+    const combined = sectionResults
+      .map((s, i) => `### ${i + 1}. ${s.heading}\n\n${s.body}`)
+      .join('\n\n---\n\n');
+    const allHits = Array.from(new Set(sectionResults.flatMap((s) => s.hits)));
+
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(combined, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+      }),
+      knowledgeHits: allHits,
+    };
+  }
+
   const { results, reformulatedQuery } = searchWithReformulation(
     memory.augmentedQuery,
     queryTerms,
@@ -1041,7 +1130,7 @@ export function generateReasoningPath(
 
   const top = results.slice(0, 3);
   const confidence = computeConfidence(results, queryTerms);
-  const isConfident = results[0].score >= CONFIDENT_MATCH_SCORE;
+  let isConfident = results[0].score >= CONFIDENT_MATCH_SCORE;
 
   thoughtSteps.push({
     id: 'step-reasoning',
@@ -1052,6 +1141,26 @@ export function generateReasoningPath(
     }`,
   });
 
+  // 8b. Multi-hop inference — look for a chain of facts connecting this document to a
+  // DIFFERENT document via a shared subject, surfacing a genuine cross-document connection
+  // the top document alone doesn't state.
+  let inferenceNote = '';
+  const inferenceSeed = entities[0] || queryTerms[0];
+  if (inferenceSeed) {
+    const facts = extractRelationFacts(allKnowledge);
+    const chains = findInferenceChains(inferenceSeed, facts, { maxHops: 2, maxChains: 1 });
+    const crossDocChain = chains.find((c) => c.spansMultipleDocuments);
+    if (crossDocChain) {
+      thoughtSteps.push({
+        id: 'step-inference-chain',
+        type: 'reasoning',
+        title: '🔗 Cross-document inference chain found',
+        description: formatInferenceChain(crossDocChain),
+      });
+      inferenceNote = `\n\n*Also worth connecting: ${formatInferenceChain(crossDocChain)}*`;
+    }
+  }
+
   thoughtSteps.push({
     id: 'step-writing-response',
     type: 'synthesis',
@@ -1060,7 +1169,23 @@ export function generateReasoningPath(
   });
 
   const synthesised = synthesiseStandard(prompt, intent, top);
-  const mainText = isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill);
+
+  // 8c. Self-verification — check the synthesized answer's shape actually matches what the
+  // intent demands, rather than trusting the retrieval score alone. A confident-scoring match
+  // can still produce a thin/off-shape answer (e.g. a "comparison" that never mentions the
+  // second entity); demote it to a hedge instead of presenting it with false certainty.
+  const verification = verifyAnswer(synthesised, intent, queryTerms, entities);
+  if (!verification.passed) {
+    thoughtSteps.push({
+      id: 'step-self-check',
+      type: 'verification',
+      title: '⚠️ Self-check flagged the answer',
+      description: verification.issues.join('\n'),
+    });
+    isConfident = false;
+  }
+
+  const mainText = (isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill)) + inferenceNote;
   const followUps = suggestFollowUps(prompt, intent, results);
 
   return {
