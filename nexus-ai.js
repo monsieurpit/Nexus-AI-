@@ -920,6 +920,23 @@ export class NexusAI {
   }
 
   /**
+   * Update an existing key's label, status, or capabilities — persisted to disk, so it survives
+   * restarts and redeploys. Pass `capabilities: 'latest'` instead of an explicit array to refresh
+   * a key to the server's current full feature set.
+   * @param {string} key
+   * @param {{ label?: string, status?: 'active'|'revoked', capabilities?: string[]|'latest' }} updates
+   */
+  async updateKey(key, updates = {}) {
+    const res = await fetch(`${this.baseUrl}/keys/${encodeURIComponent(key)}`, {
+      method: 'PATCH',
+      headers: this._getHeaders(),
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error(`Failed to update key: HTTP ${res.status}`);
+    return await res.json();
+  }
+
+  /**
    * Check FIFO queue waitlist metrics.
    */
   async getQueueStatus() {

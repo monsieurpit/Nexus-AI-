@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from './src/ai-engine/memoryStore';
 import {
@@ -152,12 +153,15 @@ const registeredApiKeys = new Set<string>([
   'nexus_sk_discord_bot_master',
 ]);
 
-// Initialize with environment key if present
+// Initialize with environment key if present. NEXUS_API_KEY is this app's own key — not
+// process.env.API_KEY, which Google AI Studio auto-provisions (and silently rotates) only when
+// a project declares MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API. This project never actually calls
+// the Gemini API anywhere, so that capability has been dropped from metadata.json; consuming
+// API_KEY here would have kept accepting a key Google could change out from under this server at
+// any time, with the new value only reaching a running process on the next manual AI Studio
+// redeploy.
 if (process.env.NEXUS_API_KEY) {
   registeredApiKeys.add(process.env.NEXUS_API_KEY.trim());
-}
-if (process.env.API_KEY) {
-  registeredApiKeys.add(process.env.API_KEY.trim());
 }
 
 // ----------------------------------------------------
@@ -344,7 +348,9 @@ app.get('/api/health', (req, res) => {
       'POST /api/v1/chat/completions',
       'GET /api/v1/models',
       'GET /api/v1/queue/status',
+      'GET /api/v1/keys',
       'POST /api/v1/keys/generate',
+      'PATCH /api/v1/keys/:key',
     ],
   });
 });
@@ -662,6 +668,44 @@ const keyMetadataMap = new Map<string, ApiKeyInfo>([
   ],
 ]);
 
+// ----------------------------------------------------
+// API KEY PERSISTENCE (Disk-Backed, Survives Restarts & Redeploys)
+// ----------------------------------------------------
+// Previously keyMetadataMap only ever held the hardcoded seed list above: any key generated via
+// POST /keys/generate, or any capability change, lived purely in process memory and vanished on
+// the next restart — including every redeploy. That made a "custom Nexus API key" not actually
+// persistent, and gave no way to update a key's capabilities at all once created. This file-backed
+// store fixes both: keys created or updated at runtime are written to disk immediately and
+// reloaded on startup, layered on top of the hardcoded seed above (which stays as a fallback floor,
+// never removed).
+const API_KEYS_FILE = path.join(process.cwd(), 'data', 'apiKeys.json');
+
+function loadPersistedApiKeys(): void {
+  try {
+    if (!fs.existsSync(API_KEYS_FILE)) return;
+    const raw = fs.readFileSync(API_KEYS_FILE, 'utf-8');
+    const persisted: ApiKeyInfo[] = JSON.parse(raw);
+    for (const info of persisted) {
+      keyMetadataMap.set(info.key, info);
+      registeredApiKeys.add(info.key);
+    }
+  } catch (err) {
+    console.warn('[API Keys] Failed to load persisted keys, starting from seed defaults only:', err);
+  }
+}
+
+function persistApiKeys(): void {
+  try {
+    const dir = path.dirname(API_KEYS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(API_KEYS_FILE, JSON.stringify(Array.from(keyMetadataMap.values()), null, 2));
+  } catch (err) {
+    console.warn('[API Keys] Failed to persist keys to disk:', err);
+  }
+}
+
+loadPersistedApiKeys();
+
 // Auth Verification Endpoint (Used by SDK ai.verifyAuth())
 app.all(['/api/v1/auth/verify', '/api/v1/keys/validate', '/api/v1/auth/validate'], (req, res) => {
   const auth = authenticateApiKey(req);
@@ -685,6 +729,25 @@ app.all(['/api/v1/auth/verify', '/api/v1/keys/validate', '/api/v1/auth/validate'
   });
 });
 
+// Single source of truth for "every capability this server currently supports" — referenced by
+// both the /keys listing below and PATCH /keys/:key's `capabilities: "latest"` shortcut, so a
+// key's capability list can actually be refreshed to match new features as they ship, instead of
+// staying frozen at whatever was hardcoded the day the key was generated.
+const LATEST_FEATURE_SET = [
+  'internal_autonomous_vision_engine',
+  'multi_document_cognitive_search',
+  'zero_refusal_deep_reasoning',
+  'best_club_and_sports_intelligence',
+  'strict_sdk_rule_enforcement',
+  'swear_engine_polish_english',
+  'raidshield_21_hard_security_rules',
+  'super_chill_vip_mode_1394001641899954368',
+  'fifo_waitlist_request_queue',
+  'casseurt_roast_rule',
+  'web_search_google_ddg_wikipedia',
+  'typo_tolerant_semantic_engine',
+];
+
 app.get('/api/v1/keys', (req, res) => {
   authenticateApiKey(req);
   const keysList = Array.from(keyMetadataMap.values()).map(k => ({
@@ -698,18 +761,7 @@ app.get('/api/v1/keys', (req, res) => {
     // so counting it would report a total larger than the list actually returned below.
     totalKeys: keysList.length,
     keys: keysList,
-    latestFeaturesSupported: [
-      'internal_autonomous_vision_engine',
-      'multi_document_cognitive_search',
-      'zero_refusal_deep_reasoning',
-      'best_club_and_sports_intelligence',
-      'strict_sdk_rule_enforcement',
-      'swear_engine_polish_english',
-      'raidshield_21_hard_security_rules',
-      'super_chill_vip_mode_1394001641899954368',
-      'fifo_waitlist_request_queue',
-      'casseurt_roast_rule',
-    ],
+    latestFeaturesSupported: LATEST_FEATURE_SET,
   });
 });
 
@@ -736,6 +788,7 @@ app.post('/api/v1/keys/generate', (req, res) => {
     ],
   };
   keyMetadataMap.set(newKey, keyInfo);
+  persistApiKeys();
 
   res.json({
     apiKey: newKey,
@@ -744,6 +797,43 @@ app.post('/api/v1/keys/generate', (req, res) => {
     status: 'active',
     capabilities: keyInfo.capabilities,
     latestUpdatesIncluded: true,
+  });
+});
+
+// Update an existing key's label, status, or capabilities without a redeploy — capabilities can
+// also be refreshed to the server's full current feature set at any time by passing
+// { capabilities: "latest" } instead of an explicit list, so a key stays current as features ship
+// instead of staying frozen at whatever was hardcoded on the day it was generated.
+app.patch('/api/v1/keys/:key', (req, res) => {
+  authenticateApiKey(req);
+  const { key } = req.params;
+  const existing = keyMetadataMap.get(key);
+  if (!existing) {
+    return res.status(404).json({ error: `No key found matching "${key}".` });
+  }
+
+  const { label, status, capabilities } = req.body || {};
+  if (typeof label === 'string' && label.trim()) {
+    existing.label = label.trim().replace(/[^a-zA-Z0-9_]/g, '');
+  }
+  if (status === 'active' || status === 'revoked') {
+    existing.status = status;
+  }
+  if (capabilities === 'latest') {
+    existing.capabilities = [...LATEST_FEATURE_SET];
+  } else if (Array.isArray(capabilities) && capabilities.every((c) => typeof c === 'string')) {
+    existing.capabilities = capabilities;
+  }
+
+  keyMetadataMap.set(key, existing);
+  persistApiKeys();
+
+  res.json({
+    updated: true,
+    key: existing.key,
+    label: existing.label,
+    status: existing.status,
+    capabilities: existing.capabilities,
   });
 });
 

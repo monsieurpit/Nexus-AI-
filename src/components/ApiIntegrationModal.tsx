@@ -581,6 +581,15 @@ export class NexusAI {
     return await res.json();
   }
 
+  async updateKey(key, updates = {}) {
+    const res = await fetch(\`\${this.baseUrl}/keys/\${encodeURIComponent(key)}\`, {
+      method: 'PATCH',
+      headers: this._getHeaders(),
+      body: JSON.stringify(updates),
+    });
+    return await res.json();
+  }
+
   async getQueueStatus() {
     const res = await fetch(\`\${this.baseUrl}/queue/status\`, { headers: this._getHeaders() });
     return await res.json();
