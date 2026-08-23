@@ -161,8 +161,14 @@ if (process.env.API_KEY) {
 }
 
 // ----------------------------------------------------
-// FIFO WAITLIST REQUEST QUEUE (Concurrency & Crash Protection)
+// BOUNDED-CONCURRENCY REQUEST QUEUE (Throughput + Crash Protection)
 // ----------------------------------------------------
+// Previously this ran strictly one task at a time process-wide: every request — even ones
+// just waiting on a live web search fetch, which doesn't block Node's event loop — froze every
+// other request in the queue until it fully finished. Most of that wait was pure I/O idle time,
+// not CPU work, so serializing everything bought crash-protection at the cost of throughput.
+// This keeps the same protection (bounded work in flight, per-task timeouts, FIFO ordering
+// among waiting tasks) but lets up to `maxConcurrency` requests actually run at once.
 interface QueuedTask<T> {
   id: string;
   endpoint: string;
@@ -175,19 +181,34 @@ interface QueuedTask<T> {
 
 class RequestQueue {
   private queue: QueuedTask<any>[] = [];
-  private isProcessing: boolean = false;
+  private activeTasks: Map<string, { id: string; endpoint: string; startedAt: number }> = new Map();
   public totalProcessed: number = 0;
   public peakQueueLength: number = 0;
+  public peakConcurrency: number = 0;
   private totalWaitTimeMs: number = 0;
   private totalProcessingTimeMs: number = 0;
-  public currentActiveTask: { id: string; endpoint: string; startedAt: number } | null = null;
+
+  // How many requests may run truly concurrently. Kept well below "unbounded" — same
+  // crash-protection intent as the original single-slot queue — so a traffic burst still
+  // can't exhaust memory or overwhelm the process. Configurable via env var for tuning
+  // per host without a code change.
+  private readonly maxConcurrency: number = Math.max(1, Number(process.env.REQUEST_QUEUE_CONCURRENCY) || 5);
 
   public get pendingCount(): number {
     return this.queue.length;
   }
 
+  public get runningCount(): number {
+    return this.activeTasks.size;
+  }
+
   public get isBusy(): boolean {
-    return this.isProcessing;
+    return this.activeTasks.size >= this.maxConcurrency;
+  }
+
+  public get currentActiveTask(): { id: string; endpoint: string; startedAt: number } | null {
+    const first = this.activeTasks.values().next();
+    return first.done ? null : first.value;
   }
 
   public get avgProcessingTimeMs(): number {
@@ -209,7 +230,6 @@ class RequestQueue {
   ): Promise<{ data: T; queuePosition: number; waitTimeMs: number; processTimeMs: number }> {
     return new Promise((resolve, reject) => {
       const enqueuedAt = Date.now();
-      const currentPosition = this.queue.length + (this.isProcessing ? 1 : 0);
 
       if (this.queue.length + 1 > this.peakQueueLength) {
         this.peakQueueLength = this.queue.length + 1;
@@ -226,36 +246,40 @@ class RequestQueue {
       };
 
       this.queue.push(task);
-      this.processNext();
+      this.pumpQueue();
     });
   }
 
-  private async processNext(): Promise<void> {
-    if (this.isProcessing || this.queue.length === 0) {
-      return;
+  // Synchronous by design: reads and increments activeTasks in the same tick with no `await`
+  // in between, so concurrent calls (from enqueue() and from tasks finishing) can never both
+  // slip past the capacity check and overshoot maxConcurrency — JS's single-threaded event
+  // loop guarantees nothing else runs between the check and the reservation below.
+  private pumpQueue(): void {
+    while (this.activeTasks.size < this.maxConcurrency && this.queue.length > 0) {
+      const task = this.queue.shift()!;
+      this.runTask(task);
     }
+  }
 
-    this.isProcessing = true;
-    const task = this.queue.shift()!;
+  private async runTask<T>(task: QueuedTask<T>): Promise<void> {
     const waitTimeMs = Date.now() - task.enqueuedAt;
     const startExec = Date.now();
 
-    this.currentActiveTask = {
-      id: task.id,
-      endpoint: task.endpoint,
-      startedAt: startExec,
-    };
+    this.activeTasks.set(task.id, { id: task.id, endpoint: task.endpoint, startedAt: startExec });
+    if (this.activeTasks.size > this.peakConcurrency) {
+      this.peakConcurrency = this.activeTasks.size;
+    }
 
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     try {
-      // Execute with per-task timeout protection so stalled upstream calls never freeze the queue
-      const dataPromise = task.fn();
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Waitlist task timed out after ${task.timeoutMs}ms`)), task.timeoutMs)
-      );
+      // Per-task timeout protection so one stalled upstream call never freezes its slot forever
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error(`Waitlist task timed out after ${task.timeoutMs}ms`)), task.timeoutMs);
+      });
 
-      const data = await Promise.race([dataPromise, timeoutPromise]);
+      const data = await Promise.race([task.fn(), timeoutPromise]);
       const processTimeMs = Date.now() - startExec;
-      
+
       this.totalProcessed++;
       this.totalWaitTimeMs += waitTimeMs;
       this.totalProcessingTimeMs += processTimeMs;
@@ -264,10 +288,10 @@ class RequestQueue {
     } catch (error) {
       task.reject(error);
     } finally {
-      this.isProcessing = false;
-      this.currentActiveTask = null;
-      // Immediately pull the next queued task from the waitlist
-      setImmediate(() => this.processNext());
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      this.activeTasks.delete(task.id);
+      // A slot just freed up — immediately pull the next queued task, if any.
+      this.pumpQueue();
     }
   }
 }
@@ -308,6 +332,7 @@ app.get('/api/health', (req, res) => {
     version: '2.0.0',
     queue: {
       pendingRequests: globalRequestQueue.pendingCount,
+      runningNow: globalRequestQueue.runningCount,
       isBusy: globalRequestQueue.isBusy,
       totalProcessed: globalRequestQueue.totalProcessed,
       avgProcessingTimeMs: globalRequestQueue.avgProcessingTimeMs,
@@ -330,9 +355,11 @@ app.get('/api/v1/queue/status', (req, res) => {
     status: 'online',
     queueActive: true,
     pendingInWaitlist: globalRequestQueue.pendingCount,
+    runningNow: globalRequestQueue.runningCount,
     isProcessing: globalRequestQueue.isBusy,
     totalProcessed: globalRequestQueue.totalProcessed,
     peakQueueLength: globalRequestQueue.peakQueueLength,
+    peakConcurrency: globalRequestQueue.peakConcurrency,
     avgProcessingTimeMs: globalRequestQueue.avgProcessingTimeMs,
     timestamp: new Date().toISOString(),
   });
@@ -1072,8 +1099,10 @@ app.post('/api/v1/queue/test-burst', async (req, res) => {
     })),
     queueStatus: {
       pendingInWaitlist: globalRequestQueue.pendingCount,
+      runningNow: globalRequestQueue.runningCount,
       totalProcessed: globalRequestQueue.totalProcessed,
       peakQueueLength: globalRequestQueue.peakQueueLength,
+      peakConcurrency: globalRequestQueue.peakConcurrency,
       avgWaitTimeMs: globalRequestQueue.avgWaitTimeMs,
       avgProcessingTimeMs: globalRequestQueue.avgProcessingTimeMs,
     },
