@@ -428,7 +428,13 @@ if __name__ == "__main__":
   }
 
   // 6. SQL Query builder / Complex Aggregations
-  if (lower.includes('sql') || lower.includes('query') || lower.includes('join') || lower.includes('group by')) {
+  // Bare "join" and "query" are ordinary English words outside a database context ("can you join
+  // the VC?", "I have a query about..."), so they only count here alongside an explicit SQL/table/
+  // database signal — or as a real "inner/left/right/outer join" phrase, which is unambiguous.
+  const hasSqlContext = /\b(sql|postgres|mysql|database|table)\b/i.test(lower);
+  const hasJoinPhrase = /\b(?:inner|left|right|outer|full|cross)\s+join\b/i.test(lower) || (lower.includes('join') && hasSqlContext);
+  const hasQueryInSqlContext = lower.includes('query') && hasSqlContext;
+  if (lower.includes('sql') || hasQueryInSqlContext || hasJoinPhrase || lower.includes('group by')) {
     return {
       isCode: true,
       language: 'sql',

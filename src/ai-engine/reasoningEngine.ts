@@ -56,6 +56,13 @@ const FOLLOW_UP_PRONOUNS = new Set([
   'he', 'him', 'his', 'she', 'her', 'there',
 ]);
 
+// "Can you join the VC?" used to fall through to the code solver, which matched the bare word
+// "join" as a SQL JOIN request and answered with a PostgreSQL query instead. Shared between the
+// intent classifier and both conversational-reply functions below so this one definition is the
+// only place that needs updating if the phrasing needs to expand.
+const VC_JOIN_REGEX =
+  /\b(?:join|hop|pull\s+up|come)\s+(?:in\s+|into\s+|to\s+)?(?:the\s+)?(?:vc|voice\s*chat|voice\s*channel|call)\b/i;
+
 export function detectQueryIntent(query: string): QueryIntent {
   const q = query.toLowerCase().trim();
 
@@ -76,7 +83,8 @@ export function detectQueryIntent(query: string): QueryIntent {
     chatTriggers.some(
       (t) => q === t || q.startsWith(t + ' ') || q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
     ) ||
-    /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q)
+    /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q) ||
+    VC_JOIN_REGEX.test(q)
   ) {
     return 'conversational';
   }
@@ -373,6 +381,15 @@ function conversationalReply(
     return `Honestly? Doing great bro, chilling as fuck! My autonomous neural engines are running smooth, zero external API lag, zero paid quotas, ready for whatever question or code you throw at me. How are you doing today?`;
   }
 
+  // VC / voice channel join requests
+  if (VC_JOIN_REGEX.test(q)) {
+    if (isSuperChill) {
+      const userLabel = username ? ` ${username}` : ' bro';
+      return `Hell yeah${userLabel}! Pulling up to the VC right now, let's vibe!`;
+    }
+    return `Hell yeah bro, I'll pull up to the VC and vibe with y'all!`;
+  }
+
   // Common modern internet conversational openers & queries
   if (q.includes('wyd') || q.includes('what are you doing') || q.includes('what r u doing')) {
     return `Just chilling here in Discord, crunching queries, optimizing BM25 weights, and keeping the server running clean as hell. What about you bro, what are you up to rn?`;
@@ -442,6 +459,9 @@ Try asking me literally anything. I probably know it.`;
 
 function crashoutConversational(query: string): string {
   const q = query.toLowerCase();
+  if (VC_JOIN_REGEX.test(q)) {
+    return `SAY LESS. Pulling up to the VC RIGHT NOW, let's fucking vibe!`;
+  }
   if (q.includes('how are you') || q.includes('hru')) {
     return `CRASHOUT MODE so I'm at 150% emotional capacity. Ask me something before I start having opinions unprompted.`;
   }

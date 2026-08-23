@@ -323,14 +323,28 @@ export function parseSdkRules(
   systemInstruction: string = ''
 ): ParsedSdkRules {
   const rulesList: string[] = [];
+  // Caller-supplied custom directives only — deliberately excludes systemInstruction. A built-in
+  // persona's own system prompt permanently describes ITS OWN behavior ("If anyone asks about
+  // Casseurt... Roast him"), which is instructional text ABOUT a trigger, not the trigger itself.
+  // Folding it into the same bare-word checks used below meant isCasseurtCheck/isRoastRequested
+  // were true on every single query sent with a persona whose prompt happens to mention
+  // "Casseurt" or "roast" — silently routing every message through a completely different,
+  // less complete reply pipeline (generateNexusHomieResponse) instead of ever reaching intent
+  // detection, domain intelligence, or web search.
+  const userSuppliedRules: string[] = [];
 
   // 1. Gather rules from array or string
   if (Array.isArray(rawInput)) {
     rawInput.forEach((r) => {
-      if (typeof r === 'string' && r.trim()) rulesList.push(r.trim());
+      if (typeof r === 'string' && r.trim()) {
+        rulesList.push(r.trim());
+        userSuppliedRules.push(r.trim());
+      }
     });
   } else if (typeof rawInput === 'string' && rawInput.trim()) {
-    rulesList.push(...rawInput.split(/\r?\n/).map((l) => l.trim()).filter(Boolean));
+    const lines = rawInput.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    rulesList.push(...lines);
+    userSuppliedRules.push(...lines);
   }
 
   if (systemInstruction && systemInstruction.trim()) {
@@ -339,14 +353,19 @@ export function parseSdkRules(
 
   // Extract rules embedded in the prompt itself (e.g. "Rule 1: ...", "Constraints: ...", "Must ...")
   const promptRuleLines = promptText.match(/(?:rule\s*\d*|must|always|never|do not|format as|respond in|strictly)\s*:[^\n]+/gi) || [];
-  promptRuleLines.forEach((pr) => rulesList.push(pr.trim()));
+  promptRuleLines.forEach((pr) => {
+    rulesList.push(pr.trim());
+    userSuppliedRules.push(pr.trim());
+  });
 
   const allRulesText = (rulesList.join(' ') + ' ' + promptText + ' ' + systemInstruction).toLowerCase();
-  // Configured directives only (no live prompt text) — used for the roast/crashout/chill mode
-  // checks below, where scanning the raw user message for bare words like "burn" or "rage"
-  // would hijack an ordinary question ("how do I roast garlic?", "managing my anger and rage")
-  // into a canned savage-insult or all-caps rage response instead of answering it.
-  const directivesOnlyText = (rulesList.join(' ') + ' ' + systemInstruction).toLowerCase();
+  // Configured directives only (no live prompt text, no built-in persona system prompt) — used for
+  // the Casseurt/roast/crashout/chill mode checks below, where scanning the raw user message (or
+  // the persona's own always-present system prompt) for bare words like "burn", "rage", or
+  // "Casseurt" would hijack an ordinary question ("how do I roast garlic?", "managing my anger
+  // and rage") — or literally every query — into a canned savage-insult or all-caps rage response
+  // instead of answering it.
+  const directivesOnlyText = userSuppliedRules.join(' ').toLowerCase();
   const promptLower = promptText.toLowerCase();
 
   // Swear directives
@@ -416,7 +435,9 @@ export function parseSdkRules(
     maxSentences = 2;
   }
 
-  const isCasseurtCheck = isCasseurtMention(allRulesText);
+  // Whether the user is actually asking about Casseurt right now — not whether a persona's
+  // system prompt happens to describe how to handle that case (see directivesOnlyText comment).
+  const isCasseurtCheck = isCasseurtMention(promptLower);
   // Configured directives can use bare words freely (they're deliberately written personas,
   // e.g. "Deliver sharp, unfiltered roasts..."); live prompt text needs a much more specific,
   // clearly-imperative match so an unrelated question doesn't get hijacked into roast/crashout
