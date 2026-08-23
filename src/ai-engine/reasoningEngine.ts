@@ -109,6 +109,14 @@ export function detectQueryIntent(query: string): QueryIntent {
     q.includes('compute') ||
     q.includes('solve ') ||
     q.includes('convert ') ||
+    // Named math operations phrased as "what is the X of N" ("what is the square root of 81")
+    // need their own explicit check — the generic "what is X" math heuristic below deliberately
+    // excludes "what is the ..." to avoid misreading plain definition questions ("what is the
+    // capital of France") as arithmetic, but that same exclusion was also swallowing genuine math
+    // questions that happen to start with "what is the".
+    /\b(?:square|cube)\s*root\s+of\b|\babsolute\s+value\s+of\b|\bfactorial\b|\b(?:average|mean)\s+of\b|\d+\s*(?:factorial|squared|cubed)\b|\d+\s*mod\s*\d+/i.test(
+      q
+    ) ||
     (q.includes('what is') && /\d/.test(q) && !q.includes('what is a ') && !q.includes('what is the ') && !q.includes('what is an '))
   ) {
     return 'mathematical';
@@ -1570,7 +1578,9 @@ export function synthesiseWebSearchResults(
   if (points.length > 0) {
     body = points.join(' ');
   } else {
-    body = top[0]?.snippet || '';
+    // Some results genuinely have no snippet text at all (see webSearchEngine.ts) — fall back to
+    // the title itself rather than risking an empty reply body.
+    body = top[0]?.snippet || (top[0]?.title ? `Found: **${top[0].title}**` : '');
   }
 
   // 4. Punchline

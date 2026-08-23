@@ -1536,6 +1536,62 @@ Note: as an offline knowledge base, treat anything beyond this as the most recen
     };
   }
 
+  // 60. FOOTBALL TERMINOLOGY (BRACE, TREBLE, CLEAN SHEET, ETC.)
+  if (
+    /(what is a brace|what does brace mean|what is a treble( in football)?|what is a clean sheet|what is a hat.?trick|what is a nutmeg|what is a cap in football|what does capped mean)/i.test(
+      lower
+    )
+  ) {
+    return {
+      matched: true,
+      title: 'Football Terminology Glossary',
+      topic: 'terminology',
+      confidence: 0.98,
+      response: `Quick glossary of common football terms:
+
+- **Brace**: Scoring exactly 2 goals in a single match.
+- **Hat-trick**: Scoring exactly 3 goals in a single match (some purists insist on 3 *consecutive* unanswered goals, but 3 goals total is the accepted modern usage).
+- **Treble**: Winning 3 major trophies in a single season — classically the domestic league, domestic cup, and a continental trophy (e.g. Man United 1999, Barcelona 2009/2015, Bayern 2013/2020, Man City 2023, PSG 2025).
+- **Clean sheet**: A goalkeeper/team conceding zero goals in a match.
+- **Nutmeg**: Passing or dribbling the ball through an opponent's legs — a classic humiliation move.
+- **Cap**: One appearance for your national team — "50 caps" means 50 international appearances. Being "capped" means selected to play for your country.
+- **Golden Boot**: Award for the top goalscorer of a tournament or league season.
+- **Clásico/Derby**: A match between fierce rivals, often geographic (same city) or historic (El Clásico: Real Madrid vs Barcelona).`,
+    };
+  }
+
+  // 61. LEAGUE STRUCTURE: PROMOTION, RELEGATION & FINANCIAL FAIR PLAY
+  if (
+    /(what is relegation|promotion and relegation|how does relegation work|what is financial fair play|what is ffp|what is psr|profit and sustainability)/i.test(
+      lower
+    )
+  ) {
+    return {
+      matched: true,
+      title: 'Promotion, Relegation & Financial Fair Play Explained',
+      topic: 'league_structure',
+      confidence: 0.97,
+      response: `### ⬆️⬇️ Promotion & Relegation
+Most football leagues worldwide (unlike closed American sports leagues) use a pyramid system: the bottom 2-3 teams in a division get **relegated** down to the league below at season's end, while the top 2-3 teams from that lower league get **promoted** up to replace them. In the Premier League, the bottom 3 of 20 teams drop to the Championship (England's 2nd tier) every season, with the top 2 Championship teams promoted automatically and a 3rd spot decided by playoffs between teams ranked 3rd-6th. This creates constant jeopardy even for mid-table teams and massive financial incentive to survive (a relegated Premier League club can lose well over £100 million in broadcast revenue).
+
+### 💰 Financial Fair Play (FFP) / Profit and Sustainability Rules (PSR)
+UEFA introduced Financial Fair Play in 2011, requiring clubs to roughly break even over a rolling period (spending not wildly exceeding revenue from tickets, sponsorship, and broadcasting) rather than relying on unlimited owner bailouts. The Premier League runs its own version called **Profit and Sustainability Rules (PSR)**, limiting clubs to a maximum loss of £105 million over a rolling 3-year period. Breaches carry real consequences — points deductions (Everton and Nottingham Forest were docked points in 2023-24) or transfer bans, and PSG, Manchester City, and Chelsea have all faced FFP scrutiny or sanctions over the years for creative accounting around sponsorship deals and player amortization.`,
+    };
+  }
+
+  // 62. THE EUROPEAN SUPER LEAGUE COLLAPSE (2021)
+  if (/(super league|european super league|esl collapse|super league collapse)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'The European Super League: The 48-Hour Football Civil War',
+      topic: 'super_league',
+      confidence: 0.98,
+      response: `In April 2021, 12 of Europe's biggest clubs (the "Big Six" Premier League clubs — Arsenal, Chelsea, Liverpool, Man City, Man United, Tottenham — plus Real Madrid, Barcelona, Atlético Madrid, Juventus, Inter Milan, and AC Milan) announced a breakaway **European Super League**: a closed competition with permanent founding members immune from relegation, explicitly designed to guarantee them enormous revenue regardless of on-pitch performance.
+
+The backlash was instant and brutal — fans staged furious protests outside stadiums, pundits and legends (including Gary Neville's now-iconic on-air takedown) tore into the plan live on TV, UEFA and FIFA threatened to ban participating players from World Cups and Euros, and even the UK Prime Minister publicly condemned it. Within **48 hours**, all 6 Premier League clubs withdrew, collapsing the entire project almost as fast as it was announced. Real Madrid president Florentino Pérez and a handful of Spanish/Italian clubs kept pursuing a legal case for years afterward (eventually winning an EU Court of Justice ruling in 2023 that UEFA's blanket veto power was anti-competitive), but the actual competition never got off the ground. It remains one of the most spectacular own-goals in football administration history — a plan that alienated the very fanbases the clubs needed to sell it to.`,
+    };
+  }
+
   return null;
 }
 

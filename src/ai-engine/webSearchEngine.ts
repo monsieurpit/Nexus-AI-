@@ -268,9 +268,13 @@ export async function searchDuckDuckGoDirect(query: string, maxResults: number =
         }
 
         const title = stripHtmlTags(titleMatch[2]);
+        // Some DDG result types (list-page/disambiguation-style results in particular) simply
+        // don't render a result__snippet element at all — requiring one to be non-empty silently
+        // dropped an otherwise perfectly good title+URL match entirely, sometimes discarding the
+        // single most relevant result on the page.
         const snippet = snippetMatch ? stripHtmlTags(snippetMatch[1]) : '';
 
-        if (title && snippet && rawUrl.startsWith('http')) {
+        if (title && rawUrl.startsWith('http')) {
           let domain = '';
           try {
             domain = new URL(rawUrl).hostname.replace(/^www\./, '');

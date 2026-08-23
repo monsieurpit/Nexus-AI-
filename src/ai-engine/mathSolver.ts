@@ -92,6 +92,15 @@ export class RecursiveDescentParser {
       t = t.replace(new RegExp(`\\b${word}\\b`, 'g'), digit);
     }
 
+    // Natural-language function forms — rewritten to real function-call/expression syntax before
+    // the parser ever sees them. "square root of 144" isn't valid expression syntax on its own,
+    // even though the parser already fully supports sqrt(144); nothing was ever converting one
+    // into the other, so this extremely basic question had zero coverage.
+    t = t
+      .replace(/(?:the\s+)?square\s*root\s+of\s+(-?[\d.]+)/gi, 'sqrt($1)')
+      .replace(/(?:the\s+)?cube\s*root\s+of\s+(-?[\d.]+)/gi, '($1^(1/3))')
+      .replace(/(?:the\s+)?absolute\s+value\s+of\s+(-?[\d.]+)/gi, 'abs($1)');
+
     // Operators
     t = t
       .replace(/\s+plus\s+/g, '+')
@@ -100,7 +109,8 @@ export class RecursiveDescentParser {
       .replace(/\s+multiplied by\s+/g, '*')
       .replace(/\s+divided by\s+/g, '/')
       .replace(/\s+over\s+/g, '/')
-      .replace(/\s+to the power of\s+/g, '^')
+      .replace(/\s+mod\s+/g, '%')
+      .replace(/\s+to the power(?: of)?\s+/g, '^')
       .replace(/\s+squared\b/g, '^2')
       .replace(/\s+cubed\b/g, '^3')
       .replace(/×/g, '*')
@@ -427,6 +437,26 @@ export function trySolveMath(prompt: string): MathSolution | null {
     };
   }
 
+  // 2b. Average / mean of a list of numbers: e.g. "average of 4 8 15 16 23 42"
+  if (/\b(?:average|mean)\s+of\b/i.test(lower)) {
+    const numbers = (lower.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+    if (numbers.length >= 2) {
+      const sum = numbers.reduce((a, b) => a + b, 0);
+      const avg = sum / numbers.length;
+      return {
+        isMath: true,
+        expression: `average of ${numbers.join(', ')}`,
+        result: `${avg}`,
+        steps: [
+          `Sum: ${numbers.join(' + ')} = ${sum}`,
+          `Count: ${numbers.length} numbers`,
+          `Average: ${sum} / ${numbers.length} = ${avg}`,
+        ],
+        explanation: `The average of **${numbers.join(', ')}** is **${avg}**.`,
+      };
+    }
+  }
+
   // 3. Percentage calculation: e.g. "what is 15% of 850?" or "20 percent of 1500"
   const percentMatch = lower.match(/(?:what is|calculate|find)?\s*([0-9.]+)\s*(?:%|percent)\s*(?:of)\s*([0-9.]+)/i);
   if (percentMatch) {
@@ -445,10 +475,10 @@ export function trySolveMath(prompt: string): MathSolution | null {
     };
   }
 
-  // 4. Factorial: e.g. "factorial of 6" or "6!"
-  const factMatch = lower.match(/(?:factorial of\s*(\d+)|(\d+)\s*!)/i);
+  // 4. Factorial: e.g. "factorial of 6", "6 factorial" (the more natural phrasing), or "6!"
+  const factMatch = lower.match(/(?:factorial of\s*(\d+)|(\d+)\s*factorial|(\d+)\s*!)/i);
   if (factMatch) {
-    const n = parseInt(factMatch[1] || factMatch[2], 10);
+    const n = parseInt(factMatch[1] || factMatch[2] || factMatch[3], 10);
     if (n >= 0 && n <= 170) {
       let res = 1;
       const terms: number[] = [];
