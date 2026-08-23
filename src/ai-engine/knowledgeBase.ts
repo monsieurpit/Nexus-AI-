@@ -607,6 +607,17 @@ const CONVERSATIONAL_STOPWORDS = new Set([
   'please', 'thanks', 'thank', 'good', 'morning', 'night', 'bye',
 ]);
 
+// Plain .includes() lets a short keyword match as a substring of an unrelated longer word —
+// the keyword "space" matches inside "spacex", "cell" inside "cellphone", "art" inside "start".
+// That single collision was enough to fire the 30-point "exact keyword match" boost below and
+// return a completely unrelated document with a hardcoded 0.98 "confidence" downstream, which is
+// exactly the kind of confidently-wrong answer this function exists to avoid.
+function containsWholeWord(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`, 'i').test(haystack);
+}
+
 export function findRelevantKnowledge(query: string, limit: number = 5, extraKnowledge: KnowledgeItem[] = []): KnowledgeItem[] {
   const allKnowledge = [...getAllKnowledge(), ...extraKnowledge];
   const normalizedQuery = query.toLowerCase().trim();
@@ -624,27 +635,27 @@ export function findRelevantKnowledge(query: string, limit: number = 5, extraKno
     // 1. Direct whole-phrase matches
     for (const keyword of item.keywords) {
       const kwLower = keyword.toLowerCase();
-      if (normalizedQuery.includes(kwLower)) {
+      if (containsWholeWord(normalizedQuery, kwLower)) {
         score += 30; // Massive boost for exact multi-word keyword match
-      } else if (kwLower.includes(normalizedQuery) && normalizedQuery.length > 4) {
+      } else if (containsWholeWord(kwLower, normalizedQuery) && normalizedQuery.length > 4) {
         score += 20;
       }
     }
 
     // 2. Title phrase check
-    if (titleLower.includes(normalizedQuery) && normalizedQuery.length > 4) {
+    if (containsWholeWord(titleLower, normalizedQuery) && normalizedQuery.length > 4) {
       score += 25;
     }
 
     // 3. Substantive token matches
     for (const t of substantiveTokens) {
-      if (item.keywords.some((k) => k.toLowerCase() === t || k.toLowerCase().includes(t))) {
+      if (item.keywords.some((k) => k.toLowerCase() === t || containsWholeWord(k.toLowerCase(), t))) {
         score += 10;
       }
-      if (titleLower.includes(t)) {
+      if (containsWholeWord(titleLower, t)) {
         score += 6;
       }
-      if (contentLower.includes(t)) {
+      if (containsWholeWord(contentLower, t)) {
         score += 3;
       }
     }

@@ -721,43 +721,18 @@ export function generateReasoningPath(
     }
   }
 
-  // 5. Check Live Web Search Grounding
-  if (webSearchResults && webSearchResults.length > 0) {
-    thoughtSteps.push({
-      id: 'step-web-grounding',
-      type: 'web_search',
-      title: `🌐 Live Web Search: "${prompt}"`,
-      description: `Retrieved ${webSearchResults.length} live search sources from Google & the Web.\nTop: ${webSearchResults[0]?.title} (${webSearchResults[0]?.domain || 'web'})`,
-    });
-
-    thoughtSteps.push({
-      id: 'step-web-synth',
-      type: 'synthesis',
-      title: isCrashout ? 'Writing sweary crashout web response' : 'Synthesising live web knowledge',
-      description: `Reformulating ${webSearchResults.length} search sources in custom voice.`,
-    });
-
-    const webReply = synthesiseWebSearchResults(
-      prompt,
-      intent,
-      webSearchResults,
-      persona,
-      settings,
-      isSuperChill
-    );
-
-    return {
-      thoughtSteps,
-      content: enforceStrictSdkRules(webReply, prompt, settings.userCustomDirectives, {
-        isSuperChill,
-        username: settings.userName,
-        systemInstruction: persona.systemPrompt,
-      }),
-      knowledgeHits: webSearchResults.map((w) => w.title),
-    };
-  }
-
-  // 6. Coding & Logic Problem Solvers
+  // 5. Coding & Logic Problem Solvers
+  //
+  // These offline solvers (and the Domain Intelligence check right after) run BEFORE live web
+  // search grounding is consumed, even though web search was decided further upstream (in
+  // server.ts, based on assessCorpusConfidence). That confidence score only reflects the
+  // BM25-indexed knowledge base — it has no visibility into these hand-authored solver modules
+  // (football, science, code, logic, etc.), which exist precisely to answer things the indexed
+  // corpus doesn't cover. So a query these solvers would nail correctly can still score low
+  // corpus confidence and get a live web search queued up for it; if web search consumption were
+  // checked first, that (often empty or irrelevant, since Google's scraper gets blocked) web
+  // synthesis would win and preempt the actually-correct offline answer. Checking these solvers
+  // first means the wasted web fetch is simply discarded when a solver matches.
   const codeSolution = trySolveCode(effectivePrompt) || trySolveCode(prompt);
   if (codeSolution && codeSolution.isCode) {
     thoughtSteps.push({
@@ -804,7 +779,7 @@ export function generateReasoningPath(
     };
   }
 
-  // 7. General & Specialised Domain Intelligence (Science, Football, History, Everyday How-Tos)
+  // 6. General & Specialised Domain Intelligence (Science, Football, History, Everyday How-Tos)
   const gkResult = solveGeneralKnowledge(effectivePrompt, isSuperChill) || solveGeneralKnowledge(prompt, isSuperChill);
   if (gkResult && gkResult.matched) {
     thoughtSteps.push({
@@ -821,6 +796,42 @@ export function generateReasoningPath(
         systemInstruction: persona.systemPrompt,
       }),
       knowledgeHits: gkResult.title ? [gkResult.title] : [],
+    };
+  }
+
+  // 7. Check Live Web Search Grounding (only reached once every offline solver above has passed)
+  if (webSearchResults && webSearchResults.length > 0) {
+    thoughtSteps.push({
+      id: 'step-web-grounding',
+      type: 'web_search',
+      title: `🌐 Live Web Search: "${prompt}"`,
+      description: `Retrieved ${webSearchResults.length} live search sources from Google & the Web.\nTop: ${webSearchResults[0]?.title} (${webSearchResults[0]?.domain || 'web'})`,
+    });
+
+    thoughtSteps.push({
+      id: 'step-web-synth',
+      type: 'synthesis',
+      title: isCrashout ? 'Writing sweary crashout web response' : 'Synthesising live web knowledge',
+      description: `Reformulating ${webSearchResults.length} search sources in custom voice.`,
+    });
+
+    const webReply = synthesiseWebSearchResults(
+      prompt,
+      intent,
+      webSearchResults,
+      persona,
+      settings,
+      isSuperChill
+    );
+
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(webReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+      }),
+      knowledgeHits: webSearchResults.map((w) => w.title),
     };
   }
 
