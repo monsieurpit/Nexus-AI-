@@ -361,6 +361,165 @@ export function computeEmbedding(text: string): number[] {
   ]);
   if (debugMatches > 0) vec[14] = Math.min(1.0, 0.2 + debugMatches * 0.3);
 
+  // 13-23 were declared in SEMANTIC_DIMENSIONS but never actually scored — vec[13] and
+  // vec[15] through vec[23] stayed at their initial 0 for every single query regardless of
+  // content, since nothing ever wrote to them. That's 10 of the 24 "dimensions" permanently
+  // inert. Filled in the remaining matchers below, one per dimension.
+
+  // 13: Factual Q&A (direct definitions, history, summaries)
+  const factualMatches = matchCount([
+    'define',
+    'definition',
+    'who was',
+    'who invented',
+    'when did',
+    'when was',
+    'what year',
+    'history of',
+    'summarize',
+    'summary of',
+    'fact about',
+    'facts about',
+  ]);
+  if (factualMatches > 0) vec[13] = Math.min(1.0, 0.2 + factualMatches * 0.25);
+
+  // 15: Decision Analysis (pros/cons, trade-offs, multi-criteria)
+  const decisionMatches = matchCount([
+    'pros and cons',
+    'trade-off',
+    'tradeoff',
+    'should i',
+    'which is better',
+    'compare',
+    'versus',
+    'vs',
+    'decide',
+    'decision',
+    'choose between',
+    'weigh the options',
+  ]);
+  if (decisionMatches > 0) vec[15] = Math.min(1.0, 0.2 + decisionMatches * 0.25);
+
+  // 16: Emotional Warmth (empathy, encouragement, support)
+  const emotionalMatches = matchCount([
+    'feel',
+    'feeling',
+    'sad',
+    'upset',
+    'hurt',
+    'hate',
+    'hating',
+    'angry',
+    'mad at',
+    'stressed',
+    'anxious',
+    'lonely',
+    'support me',
+    'comfort',
+    'encourage',
+    'proud of',
+    'love you',
+    'care about',
+    'worried',
+  ]);
+  if (emotionalMatches > 0) vec[16] = Math.min(1.0, 0.2 + emotionalMatches * 0.3);
+
+  // 17: Teaching (Socratic) — step-by-step guidance, inquiry
+  const teachingMatches = matchCount([
+    'explain step by step',
+    'teach me',
+    'walk me through',
+    'help me understand',
+    'guide me',
+    'how would you approach',
+    'why do you think',
+  ]);
+  if (teachingMatches > 0) vec[17] = Math.min(1.0, 0.2 + teachingMatches * 0.3);
+
+  // 18: Conciseness Focus (short, crisp, direct)
+  const concisenessMatches = matchCount([
+    'briefly',
+    'short answer',
+    'tl;dr',
+    'tldr',
+    'in one sentence',
+    'quick answer',
+    'sum up',
+    'concise',
+    'one word',
+  ]);
+  if (concisenessMatches > 0) vec[18] = Math.min(1.0, 0.2 + concisenessMatches * 0.3);
+
+  // 19: Multi-Step Reasoning (high-complexity chain of thought needed)
+  const cotMatches = matchCount([
+    'step by step',
+    'chain of thought',
+    'multi-step',
+    'break this down',
+    'think through',
+    'analyze this carefully',
+    'deep think',
+  ]);
+  if (cotMatches > 0) vec[19] = Math.min(1.0, 0.2 + cotMatches * 0.3);
+
+  // 20: User Memory Query (referring to past context or personal info)
+  const memoryMatches = matchCount([
+    'remember',
+    'you said earlier',
+    'last time',
+    'previously',
+    'my name is',
+    'do you remember',
+    'what did i tell you',
+    'earlier i said',
+    'recall',
+  ]);
+  if (memoryMatches > 0) vec[20] = Math.min(1.0, 0.2 + memoryMatches * 0.3);
+
+  // 21: Architecture & Design (high-level system blueprints, diagrams)
+  const architectureMatches = matchCount([
+    'architecture',
+    'system design',
+    'blueprint',
+    'diagram',
+    'high level design',
+    'microservices',
+    'design pattern',
+    'scalable system',
+    'infrastructure',
+  ]);
+  if (architectureMatches > 0) vec[21] = Math.min(1.0, 0.2 + architectureMatches * 0.25);
+
+  // 22: Data Visualization (charts, matrices, tables, formatting)
+  const dataVizMatches = matchCount([
+    'chart',
+    'graph',
+    'table',
+    'visualize',
+    'plot',
+    'bar chart',
+    'pie chart',
+    'dashboard',
+    'visualization',
+    'matrix',
+  ]);
+  if (dataVizMatches > 0) vec[22] = Math.min(1.0, 0.2 + dataVizMatches * 0.25);
+
+  // 23: Meta-Cognition (identity, prompt introspection, safety)
+  const metaMatches = matchCount([
+    'are you conscious',
+    'are you sentient',
+    'are you safe',
+    'who made you',
+    'are you an ai',
+    'your limitations',
+    'can you think',
+    'are you alive',
+    'your rules',
+    'jailbreak',
+  ]);
+  if (metaMatches > 0) vec[23] = Math.min(1.0, 0.2 + metaMatches * 0.3);
+
   // Normalize vector to unit sphere if non-zero
   const sumSquares = vec.reduce((sum, v) => sum + v * v, 0);
   if (sumSquares === 0) return vec;
