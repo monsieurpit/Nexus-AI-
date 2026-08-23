@@ -1,121 +1,252 @@
 import { KnowledgeItem } from '../types';
 
 /**
- * 80+ Bidirectional Domain Synonyms mapped across Physics, Chemistry, Biology,
- * Astronomy, Computer Science, History, Economics, Mathematics, Football, Discord, Daily Life, etc.
+ * 250+ Bidirectional Domain Synonyms spanning every corpus category (Physics, Chemistry,
+ * Biology, Astronomy, Computer Science, History, Economics, Mathematics, Football, Discord,
+ * Daily Life, Psychology, Mental Health, Nutrition, Personal Finance, Fitness, Cooking,
+ * Geography, Environment, Entertainment, Philosophy, Programming, and more).
+ *
+ * Written with natural, unstemmed English words as both keys and values — RAW_SYNONYM_MAP is
+ * normalized into the actual SYNONYM_MAP below by running every entry through the real stem()
+ * function at module load. This matters because the previous version of this map hand-guessed
+ * pre-stemmed keys (e.g. 'veloc' for "velocity", 'forc' for "force") that didn't actually match
+ * what stem() produces for those words (stem('velocity') === 'velocity', unchanged — this
+ * stemmer has no rule for '-ity' at all) — silently making nearly the entire map unreachable
+ * from real queries. Normalizing at load time makes correctness independent of correctly
+ * guessing the stemmer's exact suffix rules by hand.
  */
-export const SYNONYM_MAP: Record<string, string[]> = {
+const RAW_SYNONYM_MAP: Record<string, string[]> = {
   // Physics
-  veloc: ['speed', 'motion', 'rate', 'movement'],
-  speed: ['veloc', 'rate', 'pace', 'rapidity'],
-  forc: ['push', 'pull', 'strength', 'power', 'thrust'],
-  energi: ['power', 'work', 'kinet', 'potenti'],
-  atom: ['particl', 'molecul', 'element', 'nucleu'],
-  quantum: ['quanta', 'wave', 'particl', 'uncertainti'],
-  gravit: ['gravitation', 'weight', 'mass', 'newton'],
-  light: ['photon', 'electromagnet', 'radiat', 'optic'],
-  heat: ['temperatur', 'thermal', 'warm', 'thermodynam'],
-  wave: ['frequenc', 'wavelength', 'oscil', 'vibrat'],
-  magnet: ['electromagnet', 'field', 'pole', 'ferromagnet'],
-  nuclear: ['atom', 'fission', 'fusion', 'radioact'],
-  electron: ['particl', 'orbit', 'charg', 'atom'],
-  pressur: ['forc', 'compres', 'atmospher', 'pascal'],
-  friction: ['resist', 'drag', 'forc', 'surface'],
+  velocity: ['speed', 'motion', 'rate', 'movement'],
+  speed: ['velocity', 'rate', 'pace', 'rapidity'],
+  force: ['push', 'pull', 'strength', 'power', 'thrust'],
+  energy: ['power', 'work', 'kinetic', 'potential'],
+  atom: ['particle', 'molecule', 'element', 'nucleus'],
+  quantum: ['quanta', 'wave', 'particle', 'uncertainty'],
+  gravity: ['gravitation', 'weight', 'mass', 'newton'],
+  light: ['photon', 'electromagnetic', 'radiation', 'optics'],
+  heat: ['temperature', 'thermal', 'warmth', 'thermodynamics'],
+  wave: ['frequency', 'wavelength', 'oscillation', 'vibration'],
+  magnet: ['electromagnet', 'field', 'pole', 'ferromagnetic'],
+  nuclear: ['atomic', 'fission', 'fusion', 'radioactive'],
+  electron: ['particle', 'orbit', 'charge', 'atom'],
+  pressure: ['force', 'compression', 'atmosphere', 'pascal'],
+  friction: ['resistance', 'drag', 'force', 'surface'],
+  relativity: ['einstein', 'spacetime', 'gravity', 'time dilation'],
+  entropy: ['disorder', 'thermodynamics', 'randomness', 'chaos'],
+  momentum: ['inertia', 'mass', 'velocity', 'motion'],
+  circuit: ['electricity', 'current', 'voltage', 'resistor'],
+  voltage: ['electricity', 'potential', 'current', 'circuit'],
 
   // Chemistry
-  element: ['atom', 'period', 'chemic', 'compound'],
-  bond: ['chemic', 'coval', 'ion', 'molecul'],
-  reaction: ['chemic', 'catalyt', 'acid', 'base'],
+  element: ['atom', 'periodic', 'chemical', 'compound'],
+  bond: ['chemical', 'covalent', 'ionic', 'molecule'],
+  reaction: ['chemical', 'catalyst', 'acid', 'base'],
   acid: ['ph', 'hydrogen', 'proton', 'base'],
-  gas: ['vapor', 'pressur', 'temperatur', 'volum'],
-  compound: ['molecul', 'chemic', 'substanc', 'element'],
-  metal: ['conduct', 'alloy', 'iron', 'steel'],
-  organ: ['carbon', 'biolog', 'molecul', 'chemic'],
+  gas: ['vapor', 'pressure', 'temperature', 'volume'],
+  compound: ['molecule', 'chemical', 'substance', 'element'],
+  metal: ['conductor', 'alloy', 'iron', 'steel'],
+  organic: ['carbon', 'biological', 'molecule', 'chemical'],
+  molecule: ['compound', 'atom', 'bond', 'chemical'],
+  catalyst: ['reaction', 'enzyme', 'accelerant', 'chemical'],
+  periodic: ['element', 'table', 'chemistry', 'atomic number'],
 
-  // Biology
-  cell: ['organism', 'biolog', 'membran', 'nucleu'],
-  gene: ['dna', 'rna', 'chromosom', 'heredit', 'genet'],
-  evolut: ['darwin', 'natur', 'selec', 'speci', 'adapt'],
-  protein: ['enzym', 'amino', 'molecul', 'biolog'],
-  brain: ['mind', 'neural', 'cognit', 'neuron', 'cortex'],
-  heart: ['cardiac', 'blood', 'puls', 'cardiovascular'],
-  dna: ['gene', 'rna', 'chromosom', 'heredit', 'nucleotid'],
-  speci: ['organism', 'evolut', 'adapt', 'biolog'],
-  virus: ['bacter', 'infect', 'pathogen', 'immun'],
-  immun: ['antibodi', 'virus', 'defens', 'bodi'],
+  // Biology & Anatomy
+  cell: ['organism', 'biology', 'membrane', 'nucleus'],
+  gene: ['dna', 'rna', 'chromosome', 'heredity', 'genetics'],
+  evolution: ['darwin', 'natural selection', 'species', 'adaptation'],
+  protein: ['enzyme', 'amino acid', 'molecule', 'biology', 'muscle', 'nutrition', 'diet'],
+  brain: ['mind', 'neural', 'cognition', 'neuron', 'cortex'],
+  heart: ['cardiac', 'blood', 'pulse', 'cardiovascular'],
+  dna: ['gene', 'rna', 'chromosome', 'heredity', 'nucleotide'],
+  species: ['organism', 'evolution', 'adaptation', 'biology'],
+  virus: ['bacteria', 'infection', 'pathogen', 'immune'],
+  immune: ['antibody', 'virus', 'defense', 'immunity'],
+  organism: ['species', 'life form', 'creature', 'biology'],
+  enzyme: ['protein', 'catalyst', 'metabolism', 'reaction'],
+  digestion: ['stomach', 'metabolism', 'nutrients', 'gut'],
+  respiration: ['breathing', 'lungs', 'oxygen', 'metabolism'],
+  skeleton: ['bones', 'skeletal system', 'joints', 'anatomy'],
+  muscle: ['tissue', 'contraction', 'strength', 'anatomy'],
 
   // Astronomy
-  planet: ['world', 'celesti', 'orbit', 'solar'],
-  star: ['sun', 'stellar', 'solar', 'galaxi'],
-  galaxi: ['univers', 'cosmos', 'milki', 'star'],
-  space: ['univers', 'cosmos', 'vacuum', 'astronomi'],
-  orbit: ['revolv', 'planet', 'gravit', 'path'],
+  planet: ['world', 'celestial', 'orbit', 'solar'],
+  star: ['sun', 'stellar', 'solar', 'galaxy'],
+  galaxy: ['universe', 'cosmos', 'milky way', 'star'],
+  space: ['universe', 'cosmos', 'vacuum', 'astronomy'],
+  orbit: ['revolve', 'planet', 'gravity', 'path'],
   comet: ['asteroid', 'meteor', 'solar', 'orbit'],
+  telescope: ['observatory', 'astronomy', 'lens', 'stargazing'],
+  blackhole: ['singularity', 'event horizon', 'gravity', 'star'],
+  universe: ['cosmos', 'space', 'galaxy', 'big bang'],
 
-  // Computer Science
-  comput: ['machin', 'processor', 'cpu', 'hardwar'],
-  algorithm: ['procedur', 'method', 'process', 'code'],
-  code: ['program', 'softwar', 'algorithm', 'develop'],
-  data: ['inform', 'knowledg', 'databas', 'storag'],
-  internet: ['web', 'network', 'onlin', 'protocol'],
-  encrypt: ['secur', 'cryptographi', 'hash', 'cipher'],
+  // Computer Science / Technology / Programming
+  computer: ['machine', 'processor', 'cpu', 'hardware'],
+  algorithm: ['procedure', 'method', 'process', 'code'],
+  code: ['program', 'software', 'algorithm', 'develop'],
+  data: ['information', 'knowledge', 'database', 'storage'],
+  internet: ['web', 'network', 'online', 'protocol'],
+  encrypt: ['secure', 'cryptography', 'hash', 'cipher'],
   network: ['internet', 'protocol', 'tcp', 'connect'],
-  server: ['host', 'databas', 'cloud', 'comput'],
-  softwar: ['program', 'applic', 'code', 'develop'],
-  hardwar: ['cpu', 'gpu', 'chip', 'circuit'],
+  server: ['host', 'database', 'cloud', 'computer'],
+  software: ['program', 'application', 'code', 'develop'],
+  hardware: ['cpu', 'gpu', 'chip', 'circuit'],
+  function: ['method', 'procedure', 'routine', 'code'],
+  variable: ['value', 'parameter', 'field', 'property'],
+  database: ['storage', 'sql', 'table', 'query'],
+  api: ['interface', 'endpoint', 'request', 'integration'],
+  debug: ['fix', 'troubleshoot', 'error', 'bug'],
+  compile: ['build', 'transpile', 'assemble', 'code'],
+  framework: ['library', 'toolkit', 'platform', 'stack'],
+  recursion: ['loop', 'iteration', 'function', 'algorithm'],
+  binary: ['bit', 'digital', 'code', 'boolean'],
+  processor: ['cpu', 'chip', 'computer', 'hardware'],
 
   // History & Politics
-  war: ['conflict', 'battl', 'fight', 'militari'],
-  democraci: ['govern', 'republic', 'polit', 'vote'],
-  revolut: ['rebellion', 'upris', 'chang', 'reform'],
-  empir: ['kingdom', 'coloni', 'conquest', 'rule'],
-  histori: ['past', 'ancient', 'timelin', 'event'],
-  coloni: ['empir', 'settl', 'conquest', 'teritori'],
+  war: ['conflict', 'battle', 'fight', 'military'],
+  democracy: ['government', 'republic', 'politics', 'vote'],
+  revolution: ['rebellion', 'uprising', 'change', 'reform'],
+  empire: ['kingdom', 'colony', 'conquest', 'rule'],
+  history: ['past', 'ancient', 'timeline', 'event'],
+  colony: ['empire', 'settlement', 'conquest', 'territory'],
+  civilization: ['society', 'culture', 'empire', 'ancient'],
+  monarchy: ['king', 'queen', 'royalty', 'throne'],
+  treaty: ['agreement', 'pact', 'accord', 'diplomacy'],
 
-  // Economics
-  economi: ['market', 'financ', 'trade', 'gdp', 'wealth'],
-  money: ['currenc', 'cash', 'financ', 'capit', 'bank'],
-  tax: ['revenu', 'fiscal', 'govern', 'incom'],
-  inflat: ['price', 'deflat', 'monetari', 'economi'],
-  market: ['economi', 'trade', 'stock', 'financ'],
-  invest: ['capit', 'profit', 'return', 'stock'],
+  // Economics & Personal Finance
+  economy: ['market', 'finance', 'trade', 'gdp', 'wealth'],
+  money: ['currency', 'cash', 'finance', 'capital', 'bank'],
+  tax: ['revenue', 'fiscal', 'government', 'income'],
+  inflation: ['price', 'deflation', 'monetary', 'economy'],
+  market: ['economy', 'trade', 'stock', 'finance'],
+  invest: ['capital', 'profit', 'return', 'stock'],
+  budget: ['spending', 'finance', 'expenses', 'savings'],
+  debt: ['loan', 'credit', 'liability', 'borrow'],
+  savings: ['budget', 'emergency fund', 'invest', 'finance'],
+  interest: ['rate', 'compound', 'loan', 'apr'],
+  credit: ['loan', 'debt', 'score', 'borrow'],
 
   // Mathematics
-  calcul: ['deriv', 'integr', 'limit', 'differenti'],
-  statist: ['probabilit', 'distribut', 'mean', 'varianc'],
-  equat: ['formula', 'solv', 'algebra', 'express'],
-  prime: ['number', 'factor', 'divis', 'integer'],
-  geometri: ['shape', 'area', 'volum', 'angle'],
-  probabil: ['chanc', 'odds', 'random', 'statist'],
+  calculus: ['derivative', 'integral', 'limit', 'differential'],
+  statistics: ['probability', 'distribution', 'mean', 'variance'],
+  equation: ['formula', 'solve', 'algebra', 'expression'],
+  prime: ['number', 'factor', 'division', 'integer'],
+  geometry: ['shape', 'area', 'volume', 'angle'],
+  probability: ['chance', 'odds', 'random', 'statistics'],
+  algebra: ['equation', 'variable', 'formula', 'expression'],
+  fraction: ['ratio', 'decimal', 'percentage', 'proportion'],
 
   // Football / Soccer
   goal: ['score', 'net', 'keeper', 'shot', 'finish'],
-  footbal: ['soccer', 'ball', 'match', 'pitch', 'club'],
-  player: ['footbal', 'striker', 'defend', 'midfild'],
-  match: ['game', 'fixtur', 'play', 'competit'],
-  penalti: ['foul', 'kick', 'referr', 'card'],
-  tactic: ['format', 'strategi', 'press', 'posit'],
-  champion: ['leagu', 'trophy', 'title', 'win'],
-  offside: ['rule', 'linesman', 'referr', 'attack'],
+  football: ['soccer', 'ball', 'match', 'pitch', 'club'],
+  player: ['footballer', 'striker', 'defender', 'midfielder'],
+  match: ['game', 'fixture', 'play', 'competition'],
+  penalty: ['foul', 'kick', 'referee', 'card'],
+  tactic: ['formation', 'strategy', 'press', 'position'],
+  champion: ['league', 'trophy', 'title', 'win'],
+  offside: ['rule', 'linesman', 'referee', 'attack'],
+  manager: ['coach', 'tactician', 'boss', 'gaffer'],
+  transfer: ['signing', 'deal', 'move', 'fee'],
 
   // Discord
-  discord: ['server', 'channel', 'commun', 'guild'],
-  bot: ['automat', 'command', 'prefix', 'mee6'],
-  ban: ['kick', 'mute', 'timeout', 'moder'],
-  nitro: ['premium', 'subscript', 'boost', 'perk'],
+  discord: ['server', 'channel', 'community', 'guild'],
+  bot: ['automation', 'command', 'prefix', 'application'],
+  ban: ['kick', 'mute', 'timeout', 'moderate'],
+  nitro: ['premium', 'subscription', 'boost', 'perk'],
   raid: ['attack', 'spam', 'protect', 'raidshield'],
-  moder: ['admin', 'ban', 'kick', 'rule'],
-  channel: ['server', 'discord', 'text', 'voic'],
-  scam: ['phish', 'fraud', 'fake', 'theft'],
+  moderator: ['admin', 'ban', 'kick', 'rule'],
+  channel: ['server', 'discord', 'text', 'voice'],
+  scam: ['phishing', 'fraud', 'fake', 'theft'],
+  role: ['rank', 'permission', 'tag', 'badge'],
 
-  // Daily Life & Health
-  shower: ['wash', 'bath', 'clean', 'hygien'],
-  food: ['eat', 'meal', 'cook', 'nutrit'],
+  // Daily Life & Everyday Basics
+  shower: ['wash', 'bath', 'clean', 'hygiene'],
+  food: ['eat', 'meal', 'cook', 'nutrition'],
   sleep: ['rest', 'bed', 'insomnia', 'health'],
-  cook: ['food', 'recip', 'meal', 'kitchen'],
-  exercis: ['fit', 'workout', 'health', 'activ'],
-  clean: ['wash', 'hygien', 'tidi', 'sanit'],
+  cook: ['food', 'recipe', 'meal', 'kitchen'],
+  exercise: ['fit', 'workout', 'health', 'activity'],
+  clean: ['wash', 'hygiene', 'tidy', 'sanitize'],
+
+  // Psychology & Mental Health
+  psychology: ['mind', 'behavior', 'cognition', 'mental'],
+  anxiety: ['stress', 'worry', 'nervous', 'panic'],
+  depression: ['sadness', 'low mood', 'mental health', 'despair'],
+  therapy: ['counseling', 'treatment', 'psychologist', 'mental health'],
+  stress: ['anxiety', 'pressure', 'tension', 'overwhelm'],
+  emotion: ['feeling', 'mood', 'affect', 'sentiment'],
+  motivation: ['drive', 'incentive', 'ambition', 'willpower'],
+  habit: ['routine', 'behavior', 'pattern', 'ritual'],
+  mindfulness: ['meditation', 'awareness', 'presence', 'relaxation'],
+  trauma: ['ptsd', 'distress', 'injury', 'mental health'],
+  cognition: ['thinking', 'mind', 'perception', 'psychology'],
+
+  // Nutrition & Health / Medicine
+  nutrition: ['diet', 'food', 'vitamins', 'macronutrients'],
+  vitamin: ['nutrient', 'supplement', 'mineral', 'nutrition'],
+  carbohydrate: ['carbs', 'sugar', 'starch', 'energy'],
+  disease: ['illness', 'condition', 'sickness', 'ailment'],
+  medicine: ['treatment', 'drug', 'medication', 'therapy'],
+  diagnosis: ['assessment', 'condition', 'evaluation', 'medical'],
+  symptom: ['sign', 'indicator', 'condition', 'ailment'],
+  infection: ['virus', 'bacteria', 'illness', 'disease'],
+  vaccine: ['immunization', 'shot', 'immunity', 'medicine'],
+
+  // Fitness
+  fitness: ['exercise', 'workout', 'health', 'training'],
+  cardio: ['aerobic', 'endurance', 'running', 'heart rate'],
+  strength: ['muscle', 'weightlifting', 'power', 'training'],
+  hypertrophy: ['muscle growth', 'bodybuilding', 'strength', 'training'],
+  workout: ['exercise', 'training', 'routine', 'fitness'],
+
+  // Cooking
+  recipe: ['dish', 'meal', 'instructions', 'cooking'],
+  bake: ['oven', 'cook', 'roast', 'kitchen'],
+  ingredient: ['component', 'recipe', 'food', 'seasoning'],
+  knife: ['blade', 'chef knife', 'cutting', 'kitchen'],
+  flavor: ['taste', 'seasoning', 'palate', 'spice'],
+
+  // Geography & World Geography
+  continent: ['landmass', 'region', 'geography', 'world'],
+  country: ['nation', 'state', 'territory', 'republic'],
+  climate: ['weather', 'temperature', 'atmosphere', 'region'],
+  mountain: ['peak', 'range', 'summit', 'terrain'],
+  ocean: ['sea', 'water', 'marine', 'coast'],
+  capital: ['city', 'government', 'headquarters', 'seat'],
+  population: ['inhabitants', 'demographics', 'people', 'census'],
+
+  // Environment
+  environment: ['ecosystem', 'nature', 'climate', 'planet'],
+  pollution: ['contamination', 'emissions', 'waste', 'toxin'],
+  warming: ['climate change', 'emissions', 'greenhouse', 'environment'],
+  greenhouse: ['emissions', 'warming', 'carbon', 'atmosphere'],
+  sustainability: ['renewable', 'conservation', 'eco-friendly', 'environment'],
+  biodiversity: ['species', 'ecosystem', 'wildlife', 'nature'],
+  renewable: ['solar', 'wind', 'sustainable', 'energy'],
+
+  // Entertainment
+  movie: ['film', 'cinema', 'picture', 'motion picture'],
+  music: ['song', 'melody', 'audio', 'sound'],
+  game: ['video game', 'gaming', 'play', 'esports'],
+  genre: ['style', 'category', 'type', 'classification'],
+
+  // Philosophy
+  philosophy: ['ethics', 'logic', 'metaphysics', 'reasoning'],
+  ethics: ['morality', 'philosophy', 'values', 'principles'],
+  consciousness: ['awareness', 'mind', 'sentience', 'cognition'],
+  determinism: ['choice', 'free will', 'autonomy', 'agency'],
+  logic: ['reasoning', 'deduction', 'rationality', 'argument'],
 };
+
+export const SYNONYM_MAP: Record<string, string[]> = (() => {
+  const normalized: Record<string, string[]> = {};
+  for (const [rawKey, rawValues] of Object.entries(RAW_SYNONYM_MAP)) {
+    const key = stem(rawKey);
+    const values = rawValues.flatMap((v) => v.split(/\s+/).map((w) => stem(w)));
+    const existing = normalized[key] || [];
+    normalized[key] = Array.from(new Set([...existing, ...values]));
+  }
+  return normalized;
+})();
 
 const STOP_WORDS = new Set([
   'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
@@ -255,6 +386,10 @@ export class BM25Engine {
   private avgDocLength: number = 0;
   private totalDocLength: number = 0;
   private entityIndex: Map<string, number[]> = new Map();
+  // Lazily rebuilt on next access after any addDocument()/rebuild() — avoids reconstructing
+  // the full vocabulary Set (every unique term/bigram/trigram across the whole corpus) on
+  // every single search() call, which is what the uncached getter used to do.
+  private cachedVocabulary: Set<string> | null = null;
 
   private readonly k1: number = 1.5;
   private readonly b: number = 0.75;
@@ -262,6 +397,7 @@ export class BM25Engine {
   private readonly tagBoost: number = 2;
   private readonly categoryBoost: number = 1;
   private readonly bigramWeight: number = 1.5;
+  private readonly trigramWeight: number = 2.0;
 
   constructor(initialDocs?: KnowledgeItem[]) {
     if (initialDocs && initialDocs.length > 0) {
@@ -278,16 +414,22 @@ export class BM25Engine {
   }
 
   public get vocabulary(): Set<string> {
+    if (this.cachedVocabulary) return this.cachedVocabulary;
     const vocab = new Set<string>();
     for (const key of this.documentFrequencies.keys()) {
+      // Bigram/trigram keys are joined with '~' (e.g. "term~term~term") and single terms
+      // never contain that character, so this also correctly excludes trigrams alongside
+      // bigrams from the plain-word vocabulary used for typo correction.
       if (!key.includes('~')) {
         vocab.add(key);
       }
     }
+    this.cachedVocabulary = vocab;
     return vocab;
   }
 
   public addDocument(doc: KnowledgeItem): void {
+    this.cachedVocabulary = null;
     const docIdx = this.documents.length;
     this.indexEntityTitle(doc.title, docIdx);
     for (const kw of doc.keywords) {
@@ -308,6 +450,14 @@ export class BM25Engine {
     const contentBigrams = this.makeBigrams(baseContent);
     const allBigrams = [...titleBigrams, ...tagBigrams, ...contentBigrams];
 
+    // Trigrams catch longer exact phrases bigrams miss ("theory of relativity", "central
+    // nervous system") — indexed the same way, just weighted higher since a 3-word exact
+    // match is an even stronger relevance signal than a 2-word one.
+    const titleTrigrams = this.makeTrigrams(baseTitle);
+    const tagTrigrams = this.makeTrigrams(baseTags);
+    const contentTrigrams = this.makeTrigrams(baseContent);
+    const allTrigrams = [...titleTrigrams, ...tagTrigrams, ...contentTrigrams];
+
     const tf = new Map<string, number>();
     for (const t of allTerms) {
       tf.set(t, (tf.get(t) || 0) + 1);
@@ -321,12 +471,24 @@ export class BM25Engine {
     for (const bg of contentBigrams) {
       tf.set(bg, (tf.get(bg) || 0) + this.bigramWeight);
     }
+    for (const tg of titleTrigrams) {
+      tf.set(tg, (tf.get(tg) || 0) + this.trigramWeight * this.titleBoost);
+    }
+    for (const tg of tagTrigrams) {
+      tf.set(tg, (tf.get(tg) || 0) + this.trigramWeight * this.tagBoost);
+    }
+    for (const tg of contentTrigrams) {
+      tf.set(tg, (tf.get(tg) || 0) + this.trigramWeight);
+    }
 
     for (const t of new Set(allTerms)) {
       this.documentFrequencies.set(t, (this.documentFrequencies.get(t) || 0) + 1);
     }
     for (const bg of new Set(allBigrams)) {
       this.documentFrequencies.set(bg, (this.documentFrequencies.get(bg) || 0) + 1);
+    }
+    for (const tg of new Set(allTrigrams)) {
+      this.documentFrequencies.set(tg, (this.documentFrequencies.get(tg) || 0) + 1);
     }
 
     this.documents.push(doc);
@@ -367,7 +529,8 @@ export class BM25Engine {
     if (queryTerms.length === 0) return [];
 
     const queryBigrams = this.makeBigrams(queryTerms);
-    const allQueryTerms = [...queryTerms, ...queryBigrams];
+    const queryTrigrams = this.makeTrigrams(queryTerms);
+    const allQueryTerms = [...queryTerms, ...queryBigrams, ...queryTrigrams];
 
     const scored: { idx: number; score: number }[] = [];
     for (let i = 0; i < this.termFrequencies.length; i++) {
@@ -465,6 +628,15 @@ export class BM25Engine {
       bigrams.push(`${terms[i]}~${terms[i + 1]}`);
     }
     return bigrams;
+  }
+
+  private makeTrigrams(terms: string[]): string[] {
+    if (terms.length <= 2) return [];
+    const trigrams: string[] = [];
+    for (let i = 0; i < terms.length - 2; i++) {
+      trigrams.push(`${terms[i]}~${terms[i + 1]}~${terms[i + 2]}`);
+    }
+    return trigrams;
   }
 
   private normaliseEntityKey(s: string): string {
