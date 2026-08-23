@@ -111,21 +111,23 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
             </div>
 
             <div className="flex flex-wrap gap-1.5 p-3 bg-white rounded-lg border border-stone-200 min-h-[60px]">
-              {tokens.map((token, idx) => {
-                const isSelected = selectedToken === token.text;
-                return (
-                  <button
-                    key={`${token.id}-${idx}`}
-                    onClick={() => setSelectedToken(token.text)}
-                    className={`px-2 py-1 rounded text-xs transition cursor-pointer ${getHeatmapColor(
-                      token.weight
-                    )} ${isSelected ? 'ring-2 ring-stone-900 scale-105' : 'hover:opacity-90'}`}
-                    title={`Token ID: ${token.id} | Weight: ${(token.weight * 100).toFixed(0)}%`}
-                  >
-                    {token.text}
-                  </button>
-                );
-              })}
+              {tokens
+                .filter((token) => token.type !== 'whitespace' && token.text.trim().length > 0)
+                .map((token, idx) => {
+                  const isSelected = selectedToken === token.text;
+                  return (
+                    <button
+                      key={`${token.id}-${idx}`}
+                      onClick={() => setSelectedToken(token.text)}
+                      className={`px-2 py-1 rounded text-xs transition cursor-pointer ${getHeatmapColor(
+                        token.weight
+                      )} ${isSelected ? 'ring-2 ring-stone-900 scale-105' : 'hover:opacity-90'}`}
+                      title={`Token ID: ${token.id} | Weight: ${(token.weight * 100).toFixed(0)}%`}
+                    >
+                      {token.text}
+                    </button>
+                  );
+                })}
             </div>
 
             {selectedToken && (

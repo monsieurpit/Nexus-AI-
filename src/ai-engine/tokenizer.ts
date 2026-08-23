@@ -29,25 +29,99 @@ export function tokenize(text: string): TokenItem[] {
   const matches = text.match(regex) || [];
   let currentPos = 0;
 
-  return matches.map((chunk, index) => {
+  const rawTokens: { text: string; position: number; type: TokenItem['type']; isWhitespace: boolean }[] = [];
+  for (const chunk of matches) {
+    const isWhitespace = /^\s+$/.test(chunk);
     let type: TokenItem['type'] = 'word';
-    if (/^\s+$/.test(chunk)) {
+    if (isWhitespace) {
       type = 'whitespace';
     } else if (/^[^\s\w]+$/.test(chunk)) {
       type = 'punct';
     } else if (chunk.length > 8) {
       type = 'subword';
     }
-
-    const token: TokenItem = {
-      id: simpleHash(chunk.trim() || 'ws') + 100,
-      text: chunk,
-      position: currentPos,
-      type,
-      weight: 0.5 + (Math.sin(index * 1.3) * 0.4 + 0.1),
-    };
+    rawTokens.push({ text: chunk, position: currentPos, type, isWhitespace });
     currentPos += chunk.length;
-    return token;
+  }
+
+  // Filter out whitespace for self-attention dot-product matrix calculation
+  const contentTokens = rawTokens.filter((t) => !t.isWhitespace);
+  const n = contentTokens.length;
+
+  const stopWords = new Set([
+    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'to', 'for', 'of',
+    'with', 'by', 'about', 'and', 'or', 'but', 'so', 'it', 'this', 'that', 'how', 'does',
+    'what', 'why', 'can', 'could', 'would', 'do', 'did'
+  ]);
+
+  // Scaled dot-product self-attention simulation across token embeddings
+  const attentionWeights = new Array(n).fill(0);
+  if (n > 0) {
+    const d_k = 4;
+    // Generate pseudo embedding vectors
+    const embeddings = contentTokens.map((t) => {
+      const lower = t.text.toLowerCase();
+      const vec = [0, 0, 0, 0];
+      for (let i = 0; i < lower.length; i++) {
+        vec[i % 4] += lower.charCodeAt(i);
+      }
+      const norm = Math.sqrt(vec.reduce((sum, v) => sum + v * v, 0)) || 1;
+      return vec.map((v) => v / norm);
+    });
+
+    for (let i = 0; i < n; i++) {
+      const rowScores: number[] = [];
+      for (let j = 0; j < n; j++) {
+        const dot = embeddings[i].reduce((sum, val, idx) => sum + val * embeddings[j][idx], 0);
+        let score = dot / Math.sqrt(d_k);
+        const lowerJ = contentTokens[j].text.toLowerCase();
+        if (contentTokens[j].type === 'punct') {
+          score *= 0.1;
+        } else if (stopWords.has(lowerJ)) {
+          score *= 0.3;
+        } else {
+          score *= 1.4;
+          if (lowerJ.length >= 6) score += 0.3;
+        }
+        rowScores.push(score);
+      }
+      // Softmax
+      const maxScore = Math.max(...rowScores);
+      const exps = rowScores.map((s) => Math.exp(s - maxScore));
+      const sumExps = exps.reduce((a, b) => a + b, 0) || 1;
+      for (let j = 0; j < n; j++) {
+        attentionWeights[j] += exps[j] / sumExps;
+      }
+    }
+  }
+
+  const maxAttn = Math.max(...attentionWeights, 0.001);
+  const minAttn = Math.min(...attentionWeights);
+  const range = maxAttn - minAttn || 1;
+
+  let contentIdx = 0;
+  return rawTokens.map((t) => {
+    let weight = 0.1;
+    if (!t.isWhitespace && n > 0) {
+      const raw = attentionWeights[contentIdx++];
+      const norm = (raw - minAttn) / range;
+      const lower = t.text.toLowerCase();
+      if (t.type === 'punct') {
+        weight = 0.08;
+      } else if (stopWords.has(lower)) {
+        weight = Math.min(0.25, 0.1 + norm * 0.2);
+      } else {
+        weight = Math.max(0.45, Math.min(1.0, 0.4 + norm * 0.6));
+      }
+    }
+
+    return {
+      id: simpleHash(t.text.trim() || 'ws') + 100,
+      text: t.text,
+      position: t.position,
+      type: t.type,
+      weight: parseFloat(weight.toFixed(3)),
+    };
   });
 }
 

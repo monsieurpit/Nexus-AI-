@@ -67,10 +67,21 @@ export function computeEmbedding(text: string): number[] {
     return count;
   };
 
+  // Check if query is about deep learning / neural networks
+  const isDeepLearning = matchCount([
+    'transformer',
+    'self-attention',
+    'attention',
+    'query key value',
+    'query, key',
+    'key and value',
+    'latent space',
+    'neural network',
+    'deep learning',
+  ]) > 0;
+
   // 0: Mathematics
   const mathMatches = matchCount([
-    'calculate',
-    'compute',
     'equation',
     'integral',
     'derivative',
@@ -83,7 +94,7 @@ export function computeEmbedding(text: string): number[] {
     'mean',
     'median',
     'radius',
-    'solve',
+    'solve for',
     'arithmetic',
     'pi',
     '+',
@@ -91,7 +102,7 @@ export function computeEmbedding(text: string): number[] {
     '*',
     '/',
     '^',
-  ]);
+  ]) + (!isDeepLearning ? matchCount(['calculate', 'compute', 'solve']) : 0);
   if (mathMatches > 0) vec[0] = Math.min(1.0, 0.2 + mathMatches * 0.22);
 
   // 1: TypeScript / JavaScript / Frontend
@@ -140,7 +151,6 @@ export function computeEmbedding(text: string): number[] {
     'sql',
     'postgres',
     'database',
-    'query',
     'join',
     'group by',
     'table',
@@ -151,7 +161,7 @@ export function computeEmbedding(text: string): number[] {
     'cache',
     'redis',
     'api endpoint',
-  ]);
+  ]) + (!isDeepLearning ? matchCount(['query']) : 0);
   if (sysMatches > 0) vec[3] = Math.min(1.0, 0.2 + sysMatches * 0.22);
 
   // 4: Deep Learning / Gemini / Attention
@@ -162,6 +172,8 @@ export function computeEmbedding(text: string): number[] {
     'attention',
     'self-attention',
     'query key value',
+    'query, key',
+    'key, and value',
     'neural network',
     'llm',
     'embedding',
