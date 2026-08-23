@@ -48,10 +48,18 @@ export function tokenize(text: string): TokenItem[] {
   const contentTokens = rawTokens.filter((t) => !t.isWhitespace);
   const n = contentTokens.length;
 
+  // WH-question words determine the *type* of question being asked, not just filler around
+  // it — "how are you doing" is a greeting, "what are you doing" asks about a current activity,
+  // and the only thing that distinguishes them is this one word. Lumping "how"/"what"/"why" in
+  // with true low-information filler ("the", "a", "of") meant both questions produced nearly
+  // identical heatmaps, with the actually-distinguishing word buried at the bottom of the scale
+  // right alongside "are". They get their own mid-tier weight instead.
+  const questionWords = new Set(['how', 'what', 'why', 'who', 'when', 'where', 'which']);
+
   const stopWords = new Set([
     'a', 'an', 'the', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'to', 'for', 'of',
-    'with', 'by', 'about', 'and', 'or', 'but', 'so', 'it', 'this', 'that', 'how', 'does',
-    'what', 'why', 'can', 'could', 'would', 'do', 'did'
+    'with', 'by', 'about', 'and', 'or', 'but', 'so', 'it', 'this', 'that', 'does',
+    'can', 'could', 'would', 'do', 'did'
   ]);
 
   // Scaled dot-product self-attention simulation across token embeddings
@@ -77,6 +85,8 @@ export function tokenize(text: string): TokenItem[] {
         const lowerJ = contentTokens[j].text.toLowerCase();
         if (contentTokens[j].type === 'punct') {
           score *= 0.1;
+        } else if (questionWords.has(lowerJ)) {
+          score *= 1.1;
         } else if (stopWords.has(lowerJ)) {
           score *= 0.3;
         } else {
@@ -108,6 +118,10 @@ export function tokenize(text: string): TokenItem[] {
       const lower = t.text.toLowerCase();
       if (t.type === 'punct') {
         weight = 0.08;
+      } else if (questionWords.has(lower)) {
+        // Distinct mid-tier: clearly above true filler stopwords, since this word alone can
+        // change what's being asked, but generally below a full topic/content word.
+        weight = Math.max(0.4, Math.min(0.85, 0.35 + norm * 0.5));
       } else if (stopWords.has(lower)) {
         weight = Math.min(0.25, 0.1 + norm * 0.2);
       } else {
