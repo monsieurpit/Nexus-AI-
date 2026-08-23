@@ -7,8 +7,8 @@ import {
   UserMemory,
   WebSearchResult,
 } from '../types';
-import { generateReasoningPath } from './reasoningEngine';
-import { calculateAttentionMatrix, searchKnowledgeGraph } from './semanticEngine';
+import { generateReasoningPath, assessCorpusConfidence } from './reasoningEngine';
+import { calculateAttentionMatrix } from './semanticEngine';
 import { countTokens, tokenize } from './tokenizer';
 import {
   executeUnifiedWebSearch,
@@ -96,9 +96,9 @@ export async function generateAIResponse(
   let webSearchExecuted = false;
   let webSearchQuery = '';
 
-  const knowledgeScore = userPrompt ? searchKnowledgeGraph(userPrompt, knowledgeBase, 1)[0]?.score : undefined;
+  const knowledgeConfidence = userPrompt ? assessCorpusConfidence(userPrompt, knowledgeBase) : undefined;
   const searchTriggerReason =
-    !imageUrl && userPrompt ? shouldTriggerLiveWebSearch(userPrompt, settings, knowledgeScore) : false;
+    !imageUrl && userPrompt ? shouldTriggerLiveWebSearch(userPrompt, settings, knowledgeConfidence) : false;
 
   if (searchTriggerReason) {
     const searchQuery = buildWebSearchQuery(userPrompt, searchTriggerReason);

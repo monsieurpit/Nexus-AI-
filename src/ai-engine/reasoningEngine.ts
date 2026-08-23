@@ -1212,7 +1212,7 @@ function deduplicateResults(
   return Array.from(map.values()).sort((a, b) => b.score - a.score);
 }
 
-function computeConfidence(
+export function computeConfidence(
   results: { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }[],
   queryTerms: string[]
 ): number {
@@ -1241,6 +1241,19 @@ function computeConfidence(
   const raw =
     0.25 * gapSignal + 0.23 * coverageSignal + 0.2 * magnitudeSignal + 0.14 * supportSignal + 0.18 * titleSignal;
   return Math.max(0.15, Math.min(raw, 0.97));
+}
+
+/**
+ * Composed confidence check for callers deciding whether to trigger a live web search fallback
+ * (server.ts routes, the client generator). Raw BM25 score alone can't be used for this: on a
+ * corpus this size, even irrelevant queries ("what does yeet mean", random gibberish) land a
+ * top score of 4-8 against some unrelated document, well above what looks like a "confident"
+ * cutoff — the score reflects generic word overlap, not whether the match is actually relevant.
+ * computeConfidence()'s title/coverage-aware signals correctly separate the two.
+ */
+export function assessCorpusConfidence(query: string, allKnowledge: KnowledgeItem[]): number {
+  const results = searchKnowledgeGraph(query, allKnowledge, 5);
+  return computeConfidence(results, processForSearch(query));
 }
 
 function decomposeQuery(

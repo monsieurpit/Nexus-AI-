@@ -518,11 +518,17 @@ export type WebSearchTriggerReason =
  * event lookups, or as a last-resort fallback when the local corpus has no confident match.
  * The returned reason is falsy when no search should happen, and truthy (a non-empty string)
  * otherwise, so `if (shouldTriggerLiveWebSearch(...))` still works as a plain boolean check.
+ *
+ * `matchedConfidence` must be a 0-1 confidence score (see reasoningEngine.ts's
+ * assessCorpusConfidence/computeConfidence), NOT a raw BM25 score. Raw scores don't work here:
+ * on a corpus this size, even irrelevant queries ("what does yeet mean", random gibberish) land
+ * a top BM25 score of 4-8 against some unrelated document — the number reflects generic word
+ * overlap, not whether the match is actually relevant, so a raw-score threshold never fires.
  */
 export function shouldTriggerLiveWebSearch(
   query: string,
   settings?: AISettings,
-  matchedKnowledgeScore?: number
+  matchedConfidence?: number
 ): WebSearchTriggerReason {
   if (settings?.webSearchMode === 'disabled') return false;
   if (settings?.webSearchMode === 'always') return 'always';
@@ -573,8 +579,10 @@ export function shouldTriggerLiveWebSearch(
     /(?:latest\s+news|breaking\s+news|what\s+happened\s+in|who\s+won\s+the\s+202|release\s+date\s+of|stock\s+price\s+of|price\s+of\s+bitcoin|weather\s+in|who\s+played\s+in|2024\s+ucl\s+final|2024\s+champions\s+league)/i.test(q);
   if (isCurrentEventOrLiveLookup) return 'current-events';
 
-  // 7. FALLBACK: Local corpus has no confident match — reach for the web instead of giving up
-  if (typeof matchedKnowledgeScore === 'number' && matchedKnowledgeScore < 1.0) {
+  // 7. FALLBACK: Local corpus has no confident match — reach for the web instead of giving up.
+  // Threshold calibrated against real corpus data: genuinely relevant matches average ~0.6,
+  // irrelevant ones ~0.3, with the boundary sitting around 0.4.
+  if (typeof matchedConfidence === 'number' && matchedConfidence < 0.42) {
     return 'low-confidence-fallback';
   }
 
