@@ -254,8 +254,17 @@ export function analyzeMessageSafety(text: string): SafetyAnalysisResult {
   let threatType: SafetyAnalysisResult['threatType'] = raid.classification;
   let safetyScore = raid.classification === 'safe' ? 0.98 : 0.05;
   let confidence = raid.confidence;
+  // Tiered by threat severity, not a blanket ban — matches the confidence-tiered policy
+  // used by the /api/v1/raidshield endpoint, instead of recommending an instant permanent
+  // ban for every non-safe classification regardless of how severe it actually is.
   let recommendedAction: SafetyAnalysisResult['recommendedAction'] =
-    raid.classification === 'safe' ? 'ALLOW' : 'DELETE_AND_BAN';
+    raid.classification === 'safe'
+      ? 'ALLOW'
+      : raid.classification === 'scam' && raid.confidence >= 0.95
+      ? 'DELETE_AND_BAN'
+      : raid.classification === 'spam'
+      ? 'FLAG_FOR_REVIEW'
+      : 'DELETE_AND_TIMEOUT';
   let reason = raid.reason;
   let helpResponse: string | undefined = undefined;
 
@@ -333,6 +342,12 @@ export function parseSdkRules(
   promptRuleLines.forEach((pr) => rulesList.push(pr.trim()));
 
   const allRulesText = (rulesList.join(' ') + ' ' + promptText + ' ' + systemInstruction).toLowerCase();
+  // Configured directives only (no live prompt text) — used for the roast/crashout/chill mode
+  // checks below, where scanning the raw user message for bare words like "burn" or "rage"
+  // would hijack an ordinary question ("how do I roast garlic?", "managing my anger and rage")
+  // into a canned savage-insult or all-caps rage response instead of answering it.
+  const directivesOnlyText = (rulesList.join(' ') + ' ' + systemInstruction).toLowerCase();
+  const promptLower = promptText.toLowerCase();
 
   // Swear directives
   let swearDirective: ParsedSdkRules['swearDirective'] = 'natural';
@@ -402,9 +417,21 @@ export function parseSdkRules(
   }
 
   const isCasseurtCheck = isCasseurtMention(allRulesText);
-  const isRoastRequested = /(?:roast|savage|burn|diss)/i.test(allRulesText);
-  const isCrashoutRequested = /(?:crash\s*out|rage|unhinged)/i.test(allRulesText);
-  const isChillRequested = /(?:be\s+chill|stay\s+chill|laid\s+back)/i.test(allRulesText);
+  // Configured directives can use bare words freely (they're deliberately written personas,
+  // e.g. "Deliver sharp, unfiltered roasts..."); live prompt text needs a much more specific,
+  // clearly-imperative match so an unrelated question doesn't get hijacked into roast/crashout
+  // mode just for containing a common word like "roast", "burn", "rage", or "unhinged".
+  const isRoastRequested =
+    /(?:roast|savage|burn|diss)/i.test(directivesOnlyText) ||
+    /(?:roast\s+(?:me|him|her|them|this|that|it)\b|give\s+me\s+a\s+(?:savage\s+)?roast|savage\s+roast|roast\s+mode)/i.test(
+      promptLower
+    );
+  const isCrashoutRequested =
+    /(?:crash\s*out|rage|unhinged)/i.test(directivesOnlyText) ||
+    /(?:crash\s*out\s+mode|go\s+unhinged|activate\s+crashout|crashout\s+mode)/i.test(promptLower);
+  const isChillRequested =
+    /(?:be\s+chill|stay\s+chill|laid\s+back)/i.test(directivesOnlyText) ||
+    /(?:be\s+chill|stay\s+chill|chill\s+mode|relax\s+mode)/i.test(promptLower);
 
   return {
     rawRules: rulesList,

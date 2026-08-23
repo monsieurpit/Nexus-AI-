@@ -317,43 +317,66 @@ export async function searchWikipediaKnowledge(query: string, maxResults: number
 
     const data = await resp.json();
     const searchItems = data?.query?.search || [];
-    const results: WebSearchResult[] = [];
 
-    for (const item of searchItems.slice(0, maxResults)) {
-      const title = item.title;
-      const snippet = stripHtmlTags(item.snippet || '');
-      const pageUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/\s+/g, '_'))}`;
+    // Fetch each result's full summary in parallel instead of one-at-a-time — sequential
+    // awaits here meant 3 results took 3x as long as necessary for zero benefit, since the
+    // summary fetches are fully independent of each other.
+    const results = await Promise.all(
+      searchItems.slice(0, maxResults).map(async (item: any): Promise<WebSearchResult> => {
+        const title = item.title;
+        const snippet = stripHtmlTags(item.snippet || '');
+        const pageUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/\s+/g, '_'))}`;
 
-      // Try to fetch full summary for rich context
-      let summaryText = snippet;
-      try {
-        const sumResp = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, {
-          headers: { 'User-Agent': 'CustomNexusAI/2.0' },
-        });
-        if (sumResp.ok) {
-          const sumData = await sumResp.json();
-          if (sumData.extract) {
-            summaryText = sumData.extract;
+        let summaryText = snippet;
+        try {
+          const sumResp = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, {
+            headers: { 'User-Agent': 'CustomNexusAI/2.0' },
+          });
+          if (sumResp.ok) {
+            const sumData = await sumResp.json();
+            if (sumData.extract) {
+              summaryText = sumData.extract;
+            }
           }
+        } catch {
+          // use basic snippet
         }
-      } catch {
-        // use basic snippet
-      }
 
-      results.push({
-        title: `${title} (Wikipedia)`,
-        url: pageUrl,
-        snippet: summaryText,
-        source: 'wikipedia',
-        domain: 'wikipedia.org',
-      });
-    }
+        return {
+          title: `${title} (Wikipedia)`,
+          url: pageUrl,
+          snippet: summaryText,
+          source: 'wikipedia',
+          domain: 'wikipedia.org',
+        };
+      })
+    );
 
     return results;
   } catch (err: any) {
     console.warn('[Wikipedia Search] Failed:', err?.message || err);
     return [];
   }
+}
+
+// Short-lived cache so a burst of near-identical questions (common in a busy Discord channel)
+// doesn't re-scrape Google/DuckDuckGo/Wikipedia for the same query within a few minutes.
+const SEARCH_CACHE_TTL_MS = 3 * 60 * 1000;
+const searchResultCache = new Map<string, { expiresAt: number; value: UnifiedSearchResponse }>();
+
+function normalizeTitleForDedup(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/\s*[-|–—]\s*(?:wikipedia|the free encyclopedia).*$/i, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+interface UnifiedSearchResponse {
+  query: string;
+  results: WebSearchResult[];
+  totalSources: number;
+  engineUsed: string;
 }
 
 /**
@@ -368,15 +391,16 @@ export async function executeUnifiedWebSearch(
     provider?: 'all' | 'google' | 'duckduckgo' | 'wikipedia';
     includeWikipedia?: boolean;
   } = {}
-): Promise<{
-  query: string;
-  results: WebSearchResult[];
-  totalSources: number;
-  engineUsed: string;
-}> {
+): Promise<UnifiedSearchResponse> {
   const query = extractSearchQuery(rawPrompt);
   const limit = options.limit || 5;
   const provider = options.provider || 'all';
+
+  const cacheKey = `${provider}::${limit}::${query.toLowerCase()}`;
+  const cached = searchResultCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
 
   const promises: Promise<WebSearchResult[]>[] = [];
 
@@ -393,13 +417,24 @@ export async function executeUnifiedWebSearch(
   const settled = await Promise.allSettled(promises);
   const allResults: WebSearchResult[] = [];
   const seenUrls = new Set<string>();
+  const seenTitles = new Set<string>();
 
   for (const s of settled) {
     if (s.status === 'fulfilled' && Array.isArray(s.value)) {
       for (const item of s.value) {
         const cleanUrl = item.url.replace(/[?#].*$/, '').toLowerCase();
-        if (!seenUrls.has(cleanUrl) && item.snippet && item.title) {
+        const normalizedTitle = normalizeTitleForDedup(item.title);
+        // Skip exact URL repeats and near-duplicate titles (different engines frequently
+        // surface the same page via different URLs — e.g. with/without a trailing slash,
+        // a mobile subdomain, or a tracking-parameter variant that the URL-only check misses).
+        if (
+          !seenUrls.has(cleanUrl) &&
+          !(normalizedTitle && seenTitles.has(normalizedTitle)) &&
+          item.snippet &&
+          item.title
+        ) {
           seenUrls.add(cleanUrl);
+          if (normalizedTitle) seenTitles.add(normalizedTitle);
           allResults.push(item);
         }
       }
@@ -428,12 +463,24 @@ export async function executeUnifiedWebSearch(
   scored.sort((a, b) => (b.score || 0) - (a.score || 0));
   const finalResults = scored.slice(0, limit);
 
-  return {
+  const response: UnifiedSearchResponse = {
     query,
     results: finalResults,
     totalSources: finalResults.length,
     engineUsed: provider === 'all' ? 'Google Web + DuckDuckGo + Wikipedia (Free Infinite Engine)' : provider,
   };
+
+  // Only cache genuine hits — an empty result (e.g. a transient scrape failure) shouldn't be
+  // remembered for 3 minutes and starve a retry that might actually succeed.
+  if (finalResults.length > 0) {
+    if (searchResultCache.size > 200) {
+      const oldestKey = searchResultCache.keys().next().value;
+      if (oldestKey) searchResultCache.delete(oldestKey);
+    }
+    searchResultCache.set(cacheKey, { expiresAt: Date.now() + SEARCH_CACHE_TTL_MS, value: response });
+  }
+
+  return response;
 }
 
 /**
