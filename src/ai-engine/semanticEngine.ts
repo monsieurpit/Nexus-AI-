@@ -397,13 +397,14 @@ export function analyzePromptIntent(prompt: string): IntentAnalysis {
     primaryIntent = 'fact';
   }
 
-  // Memory extraction
+  // Memory extraction — matched against the original-case `prompt`, not `lower`, so a
+  // captured name like "Patrick" isn't permanently stored/displayed back as "patrick".
   const extractedMemories: { key: string; fact: string }[] = [];
-  const nameMatch = lower.match(/(?:my name is|i am called|call me)\s+([a-zA-Z]+)/i);
+  const nameMatch = prompt.match(/(?:my name is|i am called|call me)\s+([a-zA-Z]+)/i);
   if (nameMatch) {
     extractedMemories.push({ key: 'user_name', fact: `User's name is ${nameMatch[1]}` });
   }
-  const interestMatch = lower.match(/(?:i like|i love|i am interested in|i am building|i am learning)\s+([^.!?]+)/i);
+  const interestMatch = prompt.match(/(?:i like|i love|i am interested in|i am building|i am learning)\s+([^.!?]+)/i);
   if (interestMatch) {
     extractedMemories.push({ key: 'user_interest', fact: `User is interested in: ${interestMatch[1].trim()}` });
   }

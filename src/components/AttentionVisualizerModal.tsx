@@ -143,7 +143,7 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-bold text-stone-900">
                 <BarChart3 className="w-4 h-4 text-emerald-600" />
-                <span>10-Dimensional Latent Semantic Projection</span>
+                <span>{SEMANTIC_DIMENSIONS.length}-Dimensional Latent Semantic Projection</span>
               </div>
               <span className="text-[11px] text-stone-500 font-mono">Normalized Vector Space</span>
             </div>

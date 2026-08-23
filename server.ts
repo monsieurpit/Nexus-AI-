@@ -666,7 +666,10 @@ app.get('/api/v1/keys', (req, res) => {
   }));
   res.json({
     object: 'list',
-    totalKeys: registeredApiKeys.size,
+    // Matches keysList.length, not registeredApiKeys.size — that set also grows for any
+    // ad-hoc key a caller presents via authenticateApiKey(), which never gets metadata here,
+    // so counting it would report a total larger than the list actually returned below.
+    totalKeys: keysList.length,
     keys: keysList,
     latestFeaturesSupported: [
       'internal_autonomous_vision_engine',
@@ -1380,7 +1383,7 @@ app.delete(['/api/v1/documents/:id', '/api/v1/knowledge/:id'], (req, res) => {
   });
 });
 
-app.post(['/api/v1/documents/search', '/api/v1/knowledge/search', '/api/v1/search'], (req, res) => {
+app.post(['/api/v1/documents/search', '/api/v1/knowledge/search'], (req, res) => {
   authenticateApiKey(req);
   const query = req.body.query || req.body.prompt || req.body.q || '';
   const limit = Math.min(Math.max(Number(req.body.limit || req.body.topK || 5), 1), 20);

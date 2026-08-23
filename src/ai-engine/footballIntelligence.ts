@@ -21,8 +21,14 @@
  * - AFCON & African legends (Weah, Drogba, Eto'o, Salah, Mané), FIFA Club World Cup, domestic cups (FA Cup, Copa del Rey, DFB-Pokal, Coppa Italia)
  * - Midfield maestros (Xavi, Iniesta, Busquets, Pirlo, De Bruyne), Premier League legends (Gerrard, Lampard, Beckham, Shearer, Rooney)
  * - Strikers hall of fame (Ibrahimović, Van Nistelrooy, Van Basten, Müller), more managers (Simeone, Conte, Bielsa, Michels, Del Bosque)
- * - More World Cup finals (1990, 2002, 2010, 2018), Euro Championship history (Denmark 1992, Greece 2004, Italy 2020)
+ * - More World Cup finals (1966, 1978, 1990, 1994, 2002, 2010, 2018), Euro Championship history (Denmark 1992, Greece 2004, Italy 2020)
  * - Women's football (USWNT dynasty, Marta, Lionesses Euro 2022, Women's Champions League)
+ * - World Cup all-time records (Klose's 16 goals, Fontaine's 13 in one tournament, Matthäus' 25 caps, 1950 Maracanã crowd)
+ * - World Cup individual awards history (Golden Boot/Ball/Glove/Young Player winners 2006-2022)
+ * - World Cup format evolution (13→48 teams, 2026 tri-nation expansion, 2030 centenary hosts)
+ * - World Cup's biggest shocks (USA 1950, North Korea 1966, Cameroon/Senegal/S.Korea, Saudi Arabia 2022)
+ * - World Cup immortal moments (Carlos Alberto 1970, Hand of God/Goal of Century, Baggio miss, Zidane headbutt, Suárez handball)
+ * - World Cup host controversies (2010 vuvuzelas, 2014 Brazil protests, 2022 Qatar migrant workers/winter WC, 2026/2030 hosts)
  */
 
 export interface FootballKnowledgeResult {
@@ -1266,6 +1272,204 @@ Here is the exact breakdown of the drama that went down in that final:
 
 ### 🏆 Growth of the Women's Champions League & NWSL/WSL:
 - Lyon's dominance (8 Women's Champions League titles) mirrors Barcelona's current era (with Alexia Putellas and Aitana Bonmatí both winning Ballon d'Or Féminin back-to-back), while England's WSL and the USA's NWSL have become the two most-watched domestic women's leagues on Earth.`,
+    };
+  }
+
+  // 46. WORLD CUP ALL-TIME RECORDS (SCORERS, APPEARANCES, HAT-TRICKS, BIGGEST WINS)
+  if (/(world cup records|world cup top scorer|world cup most appearances|world cup hat-tricks|world cup biggest win|most world cup goals|world cup attendance record)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'FIFA World Cup: All-Time Records & Statistical Milestones',
+      topic: 'world_cup_records',
+      confidence: 0.98,
+      response: `The World Cup's 90+ year history is packed with statistical landmarks that separate the merely great from the immortal.
+
+### ⚽ All-Time Top Scorers (Across All Tournaments):
+1. 🇩🇪 **Miroslav Klose — 16 goals** (2002, 2006, 2010, 2014) — the current record, set with clinical consistency across four consecutive tournaments rather than one explosive run.
+2. 🇧🇷 **Ronaldo Nazário — 15 goals** (1998, 2002, 2006) — held the record before Klose broke it in 2014.
+3. 🇩🇪 **Gerd Müller — 14 goals** (1970, 1974).
+4. 🇦🇷 **Lionel Messi — 13 goals + a record 8 assists** (2006, 2014, 2018, 2022) — the only man with a genuine claim to both scoring and playmaking supremacy.
+5. 🇫🇷 **Just Fontaine — 13 goals in a SINGLE tournament** (1958, France) — still the all-time single-tournament scoring record almost 70 years later, and he only played in that one World Cup.
+6. 🇫🇷 **Kylian Mbappé — 12 goals in just 2 tournaments** (2018, 2022), including a World Cup final hat-trick in 2022 (only the second ever, after Geoff Hurst in 1966).
+
+### 🧢 Most Appearances & Tournaments Played:
+- 🇩🇪 **Lothar Matthäus** played a record **25 World Cup matches** across 5 tournaments (1982–1998).
+- 🇲🇽 **Antonio Carbajal** and 🇲🇽 **Rafael Márquez** are among the few players to appear in **5 different World Cups**.
+- 🇦🇷 **Lionel Messi** became the first player to appear in **5 World Cups AND win a Golden Ball more than once** (2014 runner-up, 2022 winner).
+
+### 🎩 Hat-Trick Club Highlights:
+- 🇫🇷 **Just Fontaine** scored 4 goals in a single match (vs West Germany, 1958) — still a World Cup single-match record shared with a handful of others.
+- 🇫🇷 **Kylian Mbappé (2022 final)** and 🏴󠁧󠁢󠁥󠁮󠁧󠁿 **Geoff Hurst (1966 final)** are the only two players in history to score a hat-trick in a World Cup **final**.
+
+### 🏟️ Biggest Wins & Attendance:
+- **Biggest win in World Cup history**: Hungary 10-1 El Salvador (1982).
+- **Highest-attendance World Cup match**: The 1950 final (Uruguay 2-1 Brazil) at the Maracanã, unofficially estimated at nearly **200,000 spectators** — the largest crowd to ever watch a football match, a record that will never be broken under modern stadium safety regulations.`,
+    };
+  }
+
+  // 47. WORLD CUP GOLDEN BOOT, GOLDEN BALL & INDIVIDUAL AWARDS HISTORY
+  if (/(world cup golden boot|world cup golden ball|world cup golden glove|world cup best young player|world cup player awards)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'World Cup Individual Awards: Golden Boot, Golden Ball & Golden Glove',
+      topic: 'world_cup_awards',
+      confidence: 0.98,
+      response: `Beyond the trophy itself, FIFA hands out individual honors at every tournament recognizing the standout performers.
+
+### 👟 Golden Boot (Top Scorer) — Recent Winners:
+- **2022**: Kylian Mbappé (France) — 8 goals, including a final hat-trick, yet his team still lost on penalties.
+- **2018**: Harry Kane (England) — 6 goals.
+- **2014**: James Rodríguez (Colombia) — 6 goals, including the tournament's most spectacular goal (a chest-controlled volley vs Uruguay).
+- **2010**: Thomas Müller (Germany) — 5 goals, launching his career at just 20 years old.
+- **2006**: Miroslav Klose (Germany) — 5 goals.
+
+### ⚽ Golden Ball (Best Overall Player) — Recent Winners:
+- **2022**: Lionel Messi (Argentina) — his second Golden Ball (also runner-up in 2014), cementing the 2022 title as the missing piece of his legacy.
+- **2018**: Luka Modrić (Croatia) — reward for dragging tiny Croatia to the final, breaking the Messi-Ronaldo decade-long Ballon d'Or duopoly that same year.
+- **2014**: Lionel Messi (Argentina) — controversially awarded despite Argentina losing the final, with many pundits feeling Germany's Müller or Kroos deserved it more.
+- **2010**: Diego Forlán (Uruguay) — Uruguay's surprise semi-finalist run, Forlán finished as joint-top scorer too.
+
+### 🧤 Golden Glove (Best Goalkeeper):
+- **2022**: Emiliano "Dibu" Martínez (Argentina) — his shootout save and 123rd-minute reflex stop on Kolo Muani were instrumental in Argentina's title.
+- **2018**: Thibaut Courtois (Belgium).
+- **2014**: Manuel Neuer (Germany) — for his revolutionary sweeper-keeper role throughout Germany's title run.
+
+### 🌟 Best Young Player:
+- **2022**: Enzo Fernández (Argentina).
+- **2018**: Kylian Mbappé (France) — at just 19, already a World Cup winner and household name.`,
+    };
+  }
+
+  // 48. WORLD CUP FORMAT EVOLUTION & 2026 EXPANSION
+  if (/(world cup format|how many teams in the world cup|world cup 2026|2026 world cup|world cup expansion|48 team world cup|world cup qualification)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'World Cup Format Evolution: From 13 Teams to 48',
+      topic: 'world_cup_format',
+      confidence: 0.97,
+      response: `The World Cup's structure has dramatically expanded over its 90+ year history to accommodate football's explosive global growth.
+
+### 📈 Team Count Evolution:
+- **1930 (Uruguay)**: Just **13 teams**, all invited (no qualification existed yet) — many European nations skipped it entirely due to the long, expensive boat journey to South America.
+- **1934–1978**: Fluctuated between **13 and 16 teams**.
+- **1982 (Spain) – 1994 (USA)**: Expanded to **24 teams**.
+- **1998 (France) – 2022 (Qatar)**: Expanded to **32 teams** — 8 groups of 4, top 2 advance to a 16-team knockout bracket. This format lasted an entire generation and is what most modern fans grew up watching.
+- **2026 (USA/Canada/Mexico)**: A massive jump to **48 teams** — the largest expansion in tournament history, using 12 groups of 4 with an extra knockout round (Round of 32) added before the traditional Round of 16. The first men's World Cup ever hosted by **three nations simultaneously**.
+
+### 🌍 2026: A New Era:
+- Will span **16 host cities** across the United States, Canada, and Mexico.
+- Mexico becomes the **first country to host 3 men's World Cups** (1970, 1986, 2026).
+- The expanded 48-team format guarantees far more nations (particularly from Africa, Asia, and CONCACAF) a shot at World Cup football, though critics worry it dilutes group-stage quality with more mismatched fixtures.
+
+### 🔮 Looking Further Ahead — 2030:
+- The 2030 World Cup will be jointly hosted by **Spain, Portugal, and Morocco**, with a unique twist: Uruguay, Argentina, and Paraguay will each host a single centenary celebration match, marking exactly 100 years since the first-ever World Cup was held in Uruguay in 1930.`,
+    };
+  }
+
+  // 49. WORLD CUP BIGGEST SHOCKS & UPSETS
+  if (/(world cup upsets|world cup shocks|world cup biggest upset|usa beats england 1950|north korea 1966 world cup|cameroon 1990 world cup|senegal beat france 2002|south korea 2002 world cup|saudi arabia beat argentina 2022)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'The Biggest Shocks & Upsets in World Cup History',
+      topic: 'world_cup_upsets',
+      confidence: 0.98,
+      response: `The World Cup has produced some of the most seismic underdog shocks in the history of organized sport.
+
+### 🇺🇸 1950: The Miracle on Grass (USA 1-0 England)
+- A team of part-time American amateurs (including a dishwasher and a hearse driver) beat England — inventors of the sport and pre-tournament favorites — in Belo Horizonte. English newspapers initially thought the scoreline was a typo for 10-1 or 10-0.
+
+### 🇰🇵 1966: North Korea 1-0 Italy
+- North Korea, playing in their first-ever World Cup, eliminated two-time champions Italy at Ayresome Park in Middlesbrough, sending the Italian team home to be pelted with rotten tomatoes by furious fans.
+
+### 🇨🇲 1990: Cameroon 1-0 Argentina (Opening Match)
+- Reigning champions Argentina (with Maradona) were stunned by Cameroon in the tournament opener despite Cameroon finishing the match with 9 men. Cameroon went on to reach the quarter-finals, the best-ever finish by an African nation at that point.
+
+### 🇸🇳 2002: Senegal 1-0 France (Opening Match)
+- Defending champions France, unchanged from their 1998 winning squad plus Euro 2000 glory, were stunned by Senegal (playing in their first-ever World Cup) in the tournament opener. France went on to be eliminated in the group stage without scoring a single goal.
+
+### 🇰🇷 2002: South Korea's Run to the Semi-Finals
+- Co-hosts South Korea, ranked 40th in the world, beat Portugal, Italy, and Spain (both knockout wins on penalties/golden goal) to reach the semi-finals — still the best-ever finish by an Asian nation.
+
+### 🇸🇦 2022: Saudi Arabia 2-1 Argentina
+- Eventual champions Argentina lost their opening match to Saudi Arabia (ranked 51st in the world) despite Messi opening the scoring — one of the biggest ranking-gap upsets in World Cup history, and a national holiday was declared in Saudi Arabia.`,
+    };
+  }
+
+  // 50. WORLD CUP ICONIC GOALS & UNFORGETTABLE MOMENTS
+  if (/(world cup iconic goals|greatest world cup goal|hand of god|goal of the century|carlos alberto 1970 goal|roberto baggio penalty miss|zidane headbutt|luis suarez handball|james rodriguez goal)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'World Cup Immortal Moments: Goals, Miracles & Villains',
+      topic: 'world_cup_moments',
+      confidence: 0.98,
+      response: `The single moments that define World Cup folklore forever:
+
+### ⚽ 1970: Carlos Alberto's Goal (Brazil vs Italy Final)
+- The culmination of a mesmerizing team move involving nearly every outfield Brazilian player, finished by captain Carlos Alberto's thunderous first-time strike. Regularly voted **the greatest team goal in football history**.
+
+### 🖐️ 1986: The Hand of God & The Goal of the Century (Maradona vs England, 4 Minutes Apart)
+- **51'**: Maradona punched the ball into the net with his fist, later claiming it was scored "a little with the head of Maradona, and a little with the hand of God."
+- **55'**: Four minutes later, Maradona picked up the ball in his own half and dribbled past **5 English players** (Beardsley, Reid, Butcher, Fenwick, and Shilton) before slotting home — voted the greatest solo goal in World Cup history.
+
+### 💔 1994: Roberto Baggio's Penalty Miss
+- Italy's talisman, carrying the team almost single-handedly to the final, skied the decisive penalty over the bar in the shootout against Brazil — one of the most heartbreaking individual moments in World Cup final history.
+
+### 🤕 2006: Zinedine Zidane's Headbutt (His Final Match)
+- In his literal final match before retirement, Zidane headbutted Marco Materazzi in the chest during extra time of the final and was sent off, unable to take part in the penalty shootout France ultimately lost to Italy.
+
+### ✋ 2010: Luis Suárez's Handball (Uruguay vs Ghana, Quarter-Final)
+- With the last kick of extra time, Suárez deliberately punched a certain goal off the line, was sent off, but Ghana missed the resulting penalty (Asamoah Gyan hit the crossbar) and Uruguay won the shootout — one of the most controversial "professional foul" moments ever, celebrated wildly by Suárez.
+
+### 🎯 2014: James Rodríguez's Chest-and-Volley (Colombia vs Uruguay)
+- A perfectly controlled chest touch followed by an instant, dipping left-footed volley into the top corner — widely regarded as the single best individual goal of the 2014 tournament.`,
+    };
+  }
+
+  // 51. WORLD CUP HOST CONTROVERSIES & CULTURAL FLASHPOINTS
+  if (/(world cup controversies|qatar world cup controversy|2022 world cup controversy|south africa 2010 vuvuzela|world cup human rights|world cup migrant workers|winter world cup)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'World Cup Host Controversies & Cultural Flashpoints',
+      topic: 'world_cup_controversies',
+      confidence: 0.97,
+      response: `Hosting the World Cup has repeatedly thrust host nations into intense global political and cultural scrutiny.
+
+### 🇿🇦 2010 South Africa: The First African World Cup
+- A historic milestone — the first World Cup ever hosted on African soil. Remembered globally for the deafening, controversial drone of **vuvuzela horns** that dominated broadcast audio throughout the tournament, dividing fans between "part of the authentic experience" and "unbearable background noise."
+
+### 🇧🇷 2014 Brazil: Protests & National Trauma
+- Massive public protests erupted before the tournament over the billions spent on stadiums while public services suffered. The home nation's catastrophic 7-1 semi-final loss to Germany (the Mineirazo) became a genuine national trauma, discussed in Brazil with the same gravity as a historical tragedy.
+
+### 🇷🇺 2018 Russia: Geopolitical Tension
+- Hosted amid heavy international scrutiny over Russia's geopolitical conduct, though the tournament itself ran smoothly and was widely praised for its organization and atmosphere.
+
+### 🇶🇦 2022 Qatar: The Most Controversial World Cup Ever
+- **First Middle Eastern host nation**, and the first World Cup ever moved to **November-December** instead of the traditional June-July, due to Qatar's extreme summer heat.
+- Faced sustained international criticism over the treatment and deaths of **migrant construction workers** who built the stadiums, and over Qatar's laws regarding LGBTQ+ rights, sparking "OneLove" armband protests from several European captains (which FIFA threatened to sanction).
+- Despite the controversy, the tournament produced arguably the greatest final in World Cup history (Argentina's 2022 triumph over France).
+
+### 🇺🇸🇨🇦🇲🇽 2026: The Commercial Mega-Tournament
+- The 48-team, 3-nation format is partly driven by maximizing commercial revenue and stadium capacity (many NFL stadiums being repurposed), representing the World Cup's evolution into an even larger global commercial spectacle.`,
+    };
+  }
+
+  // 52. 1966, 1978, 1994 & OTHER WORLD CUP FINALS NOT YET COVERED
+  if (/(1966 world cup final|england 1966 world cup|1978 world cup final|argentina 1978 world cup|1994 world cup final|usa 1994 world cup|brazil vs italy 1994)/i.test(lower)) {
+    return {
+      matched: true,
+      title: 'More Legendary World Cup Finals: 1966, 1978 & 1994',
+      topic: 'world_cup_finals_extra',
+      confidence: 0.97,
+      response: `Rounding out the legendary World Cup finals not covered elsewhere:
+
+### 🏴󠁧󠁢󠁥󠁮󠁧󠁿 1966: England 4 - 2 West Germany (Wembley, extra time)
+- England's only World Cup title, won on home soil. **Geoff Hurst** scored a hat-trick in the final (still the only hat-trick in a World Cup final until Mbappé matched it in 2022), including the famously disputed "did-it-cross-the-line" goal in extra time that Soviet linesman Tofiq Bahramov controversially awarded.
+
+### 🇦🇷 1978: Argentina 3 - 1 Netherlands (Buenos Aires, extra time)
+- Argentina's first World Cup title, won at home under a controversial military dictatorship, with Mario Kempes scoring twice. The Netherlands, in their second consecutive final loss (after 1974), remain the best team never to win a World Cup.
+
+### 🇧🇷 1994: Brazil 0 - 0 Italy (Pasadena, decided on penalties)
+- The only World Cup final ever to be scoreless after extra time, decided entirely on penalties. Brazil won 3-2 in the shootout after **Roberto Baggio** — Italy's best player all tournament — skied the decisive penalty over the bar, sealing Brazil's record 4th World Cup title.`,
     };
   }
 

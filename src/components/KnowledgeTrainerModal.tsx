@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Database,
@@ -36,6 +36,15 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
   const [testResults, setTestResults] = useState<{ item: KnowledgeItem; score: number }[]>([]);
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // Re-sync the local draft from the live knowledge list every time the modal opens, so it
+  // can't silently diverge from (and later overwrite) knowledge changed elsewhere while closed.
+  useEffect(() => {
+    if (isOpen) {
+      setItems(knowledgeList);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

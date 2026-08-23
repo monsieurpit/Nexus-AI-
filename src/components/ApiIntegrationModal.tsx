@@ -115,9 +115,15 @@ export const ApiIntegrationModal: React.FC<ApiIntegrationModalProps> = ({
   const apiBaseUrl = `${currentOrigin}/api/v1`;
 
   const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedSection(id);
-    setTimeout(() => setCopiedSection(null), 2000);
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setCopiedSection(id);
+        setTimeout(() => setCopiedSection(null), 2000);
+      },
+      () => {
+        alert('Could not copy to clipboard — your browser may have blocked clipboard access.');
+      }
+    );
   };
 
   const handleGenerateNewKey = async (labelToUse?: string) => {

@@ -54,10 +54,13 @@ export function trySolveLogic(prompt: string): LogicSolution | null {
       title: 'River Crossing Constraint Satisfaction Solution',
       verdict: 'Complete safe crossing achieved in 7 steps.',
       formalSteps: [
-        'Step 1: Take the Goat across to the east bank (leaves Wolf and Cabbage safely together on west bank). Return alone to west bank.',
-        'Step 2: Take the Wolf across to the east bank. Leave the Wolf on east bank, but take the Goat BACK to the west bank.',
-        'Step 3: Leave the Goat on the west bank, take the Cabbage across to the east bank (Wolf and Cabbage are now safely together on east bank). Return alone to west bank.',
-        'Step 4: Take the Goat across to the east bank. All items are safely across without any predation violations.',
+        'Step 1: Take the Goat across to the east bank (Wolf and Cabbage are safely left together on the west bank — a wolf won\'t eat a cabbage).',
+        'Step 2: Return alone to the west bank.',
+        'Step 3: Take the Wolf across to the east bank, leaving it there.',
+        'Step 4: Take the Goat back with you to the west bank (can\'t leave Wolf and Goat alone together on the east bank).',
+        'Step 5: Take the Cabbage across to the east bank, leaving it safely with the Wolf.',
+        'Step 6: Return alone to the west bank.',
+        'Step 7: Take the Goat across to the east bank. All three — Wolf, Goat, and Cabbage — are now safely on the east bank.',
       ],
       explanation: `### Constraint Graph Analysis\n\n- Forbidden States: $\\{\\text{Wolf}, \\text{Goat}\\}$ without farmer, and $\\{\\text{Goat}, \\text{Cabbage}\\}$ without farmer.\n- Key Insight: The Goat is the mutual conflicting element. Transporting it back on the return leg breaks the deadlock.`,
     };

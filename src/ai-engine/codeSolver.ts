@@ -383,7 +383,7 @@ export function useLocalStorage<T>(
   }
 
   // 5. Python Data Science / Async / Fast Algorithms
-  if (lower.includes('python') && (lower.includes('decorator') || lower.includes('fibonacci') || lower.includes('decorator'))) {
+  if (lower.includes('python') && (lower.includes('decorator') || lower.includes('fibonacci') || lower.includes('async'))) {
     return {
       isCode: true,
       language: 'python',

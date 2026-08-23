@@ -92,9 +92,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
   }, [inputText]);
 
   // Image file handler
+  const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // base64 inflates ~4/3x; server caps the JSON body at 25MB total
+
   const processImageFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
       alert('Please upload a valid image (PNG, JPEG, WebP, GIF).');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      alert(`Image is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Please use an image under 15 MB.`);
       return;
     }
     const reader = new FileReader();
@@ -179,9 +185,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedMsgId(id);
-    setTimeout(() => setCopiedMsgId(null), 2000);
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setCopiedMsgId(id);
+        setTimeout(() => setCopiedMsgId(null), 2000);
+      },
+      () => {
+        alert('Could not copy to clipboard — your browser may have blocked clipboard access.');
+      }
+    );
   };
 
   const toggleThought = (msgId: string) => {

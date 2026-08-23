@@ -29,7 +29,9 @@ export const ABBREVIATIONS_MAP: Record<string, { expansion: string; category: st
   frfr: { expansion: 'for real for real', category: 'slang' },
   bc: { expansion: 'because', category: 'abbreviation' },
   'b/c': { expansion: 'because', category: 'abbreviation' },
-  w: { expansion: 'with', category: 'abbreviation' },
+  // Deliberately no bare "w" → "with" entry: "w" is extremely common Gen-Z shorthand for
+  // "win" ("that's a w"), and blindly expanding it to "with" corrupts that into "that's a
+  // with". The slash in "w/" is unambiguous, so only that form is auto-expanded.
   'w/': { expansion: 'with', category: 'abbreviation' },
   wo: { expansion: 'without', category: 'abbreviation' },
   'w/o': { expansion: 'without', category: 'abbreviation' },
@@ -104,7 +106,7 @@ export const SLANG_LEXICON: Record<string, string> = {
   opps: 'opposition, rivals, or enemies in the streets or online',
   rizz: 'charisma and romantic charm, ability to attract someone effortlessly',
   rizzler: 'someone who has master-level charisma and flirtation skills',
-  unspoken_rizz: 'attracting someone without saying a single word',
+  'unspoken rizz': 'attracting someone without saying a single word',
   mewing: 'pressing the tongue against the roof of the mouth to sculpt the jawline',
   looksmaxxing: 'the practice of maximizing your physical facial and body attractiveness',
   mogging: 'looking significantly more attractive or imposing than someone standing next to you',
@@ -158,6 +160,34 @@ export function normalizeInternetSlang(text: string): SlangNormalizationResult {
 
   const normalizedText = normalizedTokens.join('');
 
+  // Detect (but don't substitute) SLANG_LEXICON terms — unlike abbreviations these are full
+  // definitions, not drop-in replacements, so inlining one into normalizedText would wreck the
+  // sentence's grammar ("that's bussin" → "that's extremely delicious, high quality, or..." is
+  // not a valid replacement). Longest phrases are checked first so "no cap" is caught whole
+  // rather than only ever matching the shorter "cap" entry.
+  const lowerText = text.toLowerCase();
+  const slangKeys = Object.keys(SLANG_LEXICON).sort((a, b) => b.length - a.length);
+  const alreadyDetected = new Set(detectedSlangs.map((d) => d.slang.toLowerCase()));
+  const claimedRanges: [number, number][] = [];
+  for (const key of slangKeys) {
+    if (alreadyDetected.has(key)) continue;
+    const pattern = new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    const match = pattern.exec(lowerText);
+    if (!match) continue;
+
+    const start = match.index;
+    const end = start + match[0].length;
+    // Skip if this match sits inside a span already claimed by a longer phrase — e.g. once
+    // "no cap" matches, the shorter "cap" entry shouldn't also fire for the same "cap" and
+    // report a contradictory standalone meaning right next to it.
+    const overlapsClaimed = claimedRanges.some(([s, e]) => start < e && end > s);
+    if (overlapsClaimed) continue;
+
+    claimedRanges.push([start, end]);
+    detectedSlangs.push({ slang: key, meaning: SLANG_LEXICON[key], category: 'slang' });
+    alreadyDetected.add(key);
+  }
+
   // Evaluate 67 & Brainrot contexts
   const brainrotEval = evaluateBrainrotContext(text);
 
@@ -188,6 +218,33 @@ export function evaluateBrainrotContext(query: string): {
   // If user says "I have 67 apples rn", "what is 67 * 2", "page 67", "67 years old", etc.
   // We MUST NOT flag it as the brainrot joke!
   // ----------------------------------------------------
+  // ----------------------------------------------------
+  // 2. Explicit 67 Brainrot Meme Detection
+  // Triggered ONLY if the user is explicitly making the 67 joke or asking what 67 means.
+  // Checked BEFORE the literal-numeric patterns below: those patterns are broad catch-alls
+  // (e.g. "what is ... 67" with a greedy match) that would otherwise swallow an explicit,
+  // narrowly-phrased question like "what is the 67 meme" and misclassify it as literal usage.
+  // ----------------------------------------------------
+  const explicit67MemePatterns = [
+    /^(?:67|six\s+seven|6\s+7|6-7)[\s!?💀😭🔥]*$/i,
+    /\b(?:bro\s+said\s+67|why\s+(?:everyone\s+saying\s+|do\s+people\s+say\s+)?67|what\s+is\s+(?:the\s+)?(?:67|six\s+seven)\s+(?:joke|meme|brainrot)|67\s+meme|six\s+seven\s+meme|67\s+brainrot|skibidi\s+67|67\s+on\s+top|67\s+in\s+the\s+chat)\b/i,
+  ];
+
+  if (explicit67MemePatterns.some((pattern) => pattern.test(q))) {
+    return {
+      isBrainrot: true,
+      brainrotType: 'six_seven',
+      isLiteralNumeric67: false,
+      explanation:
+        "The '67' (six seven) meme is pure French drill rap / TikTok brainrot. Originating from French rap collectives (like the 67 / 667 crews) and viral TikTok soundbites, Gen-Z and Alpha turned '67' into an absurd spam meme repeated on Discord and TikTok comment sections with skull emojis for zero logical reason.",
+    };
+  }
+
+  // ----------------------------------------------------
+  // 1. Literal 67 / "Six Seven" Detection
+  // If user says "I have 67 apples rn", "what is 67 * 2", "page 67", "67 years old", etc.
+  // We MUST NOT flag it as the brainrot joke!
+  // ----------------------------------------------------
   const literal67Patterns = [
     // Count / items: "67 apples", "67 items", "67 dollars", "67 users", "67 robux", "67 mb"
     /\b67\s*(?:apples|oranges|bananas|items|things|objects|dollars|\$|€|£|coins|users|members|people|percent|%|fps|hz|kg|lbs|mph|km|km\/h|meters|cm|mm|pages|years|days|hours|mins|minutes|secs|seconds|msgs|messages|lines|pts|points|kills|deaths|xp|gold|dmg|damage|robux|vbucks|subscribers|subs|views|followers|rn|right now|left|total)\b/i,
@@ -211,25 +268,6 @@ export function evaluateBrainrotContext(query: string): {
     return {
       isBrainrot: false,
       isLiteralNumeric67: true,
-    };
-  }
-
-  // ----------------------------------------------------
-  // 2. Explicit 67 Brainrot Meme Detection
-  // Triggered ONLY if the user is explicitly making the 67 joke or asking what 67 means
-  // ----------------------------------------------------
-  const explicit67MemePatterns = [
-    /^(?:67|six\s+seven|6\s+7|6-7)[\s!?💀😭🔥]*$/i,
-    /\b(?:bro\s+said\s+67|why\s+(?:everyone\s+saying\s+|do\s+people\s+say\s+)?67|what\s+is\s+(?:the\s+)?(?:67|six\s+seven)\s+(?:joke|meme|brainrot)|67\s+meme|six\s+seven\s+meme|67\s+brainrot|skibidi\s+67|67\s+on\s+top|67\s+in\s+the\s+chat)\b/i,
-  ];
-
-  if (explicit67MemePatterns.some((pattern) => pattern.test(q))) {
-    return {
-      isBrainrot: true,
-      brainrotType: 'six_seven',
-      isLiteralNumeric67: false,
-      explanation:
-        "The '67' (six seven) meme is pure French drill rap / TikTok brainrot. Originating from French rap collectives (like the 67 / 667 crews) and viral TikTok soundbites, Gen-Z and Alpha turned '67' into an absurd spam meme repeated on Discord and TikTok comment sections with skull emojis for zero logical reason.",
     };
   }
 
@@ -350,6 +388,12 @@ export function generateBrainrotResponse(
 
     case 'ohio':
       return `The **'Only in Ohio' meme** basically turned Ohio into the Bermuda Triangle of the internet. If there's a video of an alien invasion, an eldritch monster walking down the highway, or a cursed glitch in reality, the comments will automatically say 'Normal day in Ohio 💀'.\n\nOhio took the biggest collective L on the internet for no reason.`;
+
+    case 'baby_gronk':
+      return `**Baby Gronk** (real name Madden San Miguel) is a viral youth football kid whose dad turned his highlight clips into a full-blown internet phenomenon. 😂\n\nHe got immortalized in brainrot lore when TikTok collectively decided that "Baby Gronk rizzed up Livvy Dunne" (LSU gymnast) to become "the new Rizzler" — a completely made-up storyline the internet ran with as if it were breaking news.\n\nPeak parasocial internet chaos, honestly.`;
+
+    case 'grimace_shake':
+      return `The **Grimace Shake trend** was a summer 2023 TikTok phenomenon around McDonald's purple birthday milkshake (named after the mascot Grimace). 💀\n\nThe joke: people would film themselves drinking it, then the video would abruptly cut to fake found-footage horror aftermath — smashed rooms, "missing" title cards, chaos — implying the shake turned them feral or straight-up killed them.\n\nMcDonald's marketing team somehow let a mascot beverage become a horror-movie meme and it worked.`;
 
     default:
       return `Bro, this is pure internet brainrot at its finest. It's essentially viral TikTok and Discord slang that escaped containment. Entertaining as hell, but definitely fried everyone's attention span.`;

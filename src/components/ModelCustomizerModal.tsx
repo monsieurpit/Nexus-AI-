@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Sliders,
@@ -40,6 +40,16 @@ export const ModelCustomizerModal: React.FC<ModelCustomizerModalProps> = ({
   const [activeTab, setActiveTab] = useState<'persona' | 'parameters' | 'tone' | 'system'>('persona');
   const [savedToast, setSavedToast] = useState(false);
 
+  // Re-sync local draft from the live settings every time the modal opens — otherwise a
+  // persona switched elsewhere (e.g. the Header dropdown) while this modal was closed would be
+  // invisible here, and clicking Save would silently revert that change back to stale state.
+  useEffect(() => {
+    if (isOpen) {
+      setLocalSettings(settings);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const currentPersona =
@@ -66,6 +76,26 @@ export const ModelCustomizerModal: React.FC<ModelCustomizerModalProps> = ({
         ...updates,
       },
     }));
+  };
+
+  // Tone sliders display currentPersona.toneSettings, which for any built-in persona is the
+  // shared DEFAULT_PERSONAS object, not customPersona. Writing tone edits through
+  // handleCustomPersonaUpdate() (which only ever touches customPersona) would silently go
+  // nowhere the sliders read from — and mutating DEFAULT_PERSONAS in place would corrupt that
+  // shared preset for every persona. So editing a tone slider forks whichever persona is
+  // currently active into the custom slot, the same pattern used by "customize a preset" UIs.
+  const handleToneUpdate = (updates: Partial<ModelPersona['toneSettings']>) => {
+    setLocalSettings((prev) => {
+      const basePersona = prev.activePersonaId === 'custom' ? prev.customPersona : DEFAULT_PERSONAS[prev.activePersonaId];
+      return {
+        ...prev,
+        activePersonaId: 'custom',
+        customPersona: {
+          ...basePersona,
+          toneSettings: { ...basePersona.toneSettings, ...updates },
+        },
+      };
+    });
   };
 
   const handleApplyPreset = (
@@ -553,12 +583,7 @@ Tone guidelines:
                   min="0"
                   max="100"
                   value={currentPersona.toneSettings.warmth}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    handleCustomPersonaUpdate({
-                      toneSettings: { ...currentPersona.toneSettings, warmth: val },
-                    });
-                  }}
+                  onChange={(e) => handleToneUpdate({ warmth: parseInt(e.target.value, 10) })}
                   className="w-full accent-indigo-600 cursor-pointer"
                 />
                 <div className="flex justify-between text-[11px] text-stone-400">
@@ -578,12 +603,7 @@ Tone guidelines:
                   min="0"
                   max="100"
                   value={currentPersona.toneSettings.technicality}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    handleCustomPersonaUpdate({
-                      toneSettings: { ...currentPersona.toneSettings, technicality: val },
-                    });
-                  }}
+                  onChange={(e) => handleToneUpdate({ technicality: parseInt(e.target.value, 10) })}
                   className="w-full accent-indigo-600 cursor-pointer"
                 />
                 <div className="flex justify-between text-[11px] text-stone-400">
@@ -603,12 +623,7 @@ Tone guidelines:
                   min="0"
                   max="100"
                   value={currentPersona.toneSettings.verbosity}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    handleCustomPersonaUpdate({
-                      toneSettings: { ...currentPersona.toneSettings, verbosity: val },
-                    });
-                  }}
+                  onChange={(e) => handleToneUpdate({ verbosity: parseInt(e.target.value, 10) })}
                   className="w-full accent-indigo-600 cursor-pointer"
                 />
                 <div className="flex justify-between text-[11px] text-stone-400">
@@ -628,12 +643,7 @@ Tone guidelines:
                   min="0"
                   max="100"
                   value={currentPersona.toneSettings.creativity}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    handleCustomPersonaUpdate({
-                      toneSettings: { ...currentPersona.toneSettings, creativity: val },
-                    });
-                  }}
+                  onChange={(e) => handleToneUpdate({ creativity: parseInt(e.target.value, 10) })}
                   className="w-full accent-indigo-600 cursor-pointer"
                 />
                 <div className="flex justify-between text-[11px] text-stone-400">
