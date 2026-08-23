@@ -1,5 +1,6 @@
 import { KnowledgeItem, AttentionScore, UserMemory } from '../types';
 import { tokenize } from './tokenizer';
+import { levenshteinDistance } from './bm25Engine';
 
 // 24-Dimensional Semantic Latent Representation
 export const SEMANTIC_DIMENSIONS = [
@@ -87,14 +88,81 @@ export interface IntentAnalysis {
   extractedMemories?: { key: string; fact: string }[];
 }
 
+// Every matchCount() call below runs unconditionally on every computeEmbedding() invocation
+// (the arrays aren't gated behind any early return), so the very first call harvests every
+// trigger word out of every dimension's real keyword list into this cache — no separate
+// hand-maintained word list to fall out of sync with the matchers above.
+let semanticHarvestedVocabularyCache: Set<string> | null = null;
+// Question words never appear standalone in any matcher phrase (only inside longer phrases like
+// "who invented"), so they'd never get harvested — and they're exactly what a chatbot most needs
+// typo tolerance for. This tiny, hand-reviewed list is trusted for any single edit; see below for
+// why the much larger harvested vocabulary is held to a stricter standard.
+const SEMANTIC_SEED_VOCABULARY = new Set(['how', 'what', 'why', 'who', 'when', 'where', 'which', 'like', 'love', 'hate']);
+
+function isAdjacentTransposition(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const diffPositions: number[] = [];
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) diffPositions.push(i);
+  }
+  return (
+    diffPositions.length === 2 &&
+    diffPositions[1] === diffPositions[0] + 1 &&
+    a[diffPositions[0]] === b[diffPositions[1]] &&
+    a[diffPositions[1]] === b[diffPositions[0]]
+  );
+}
+
+function correctSemanticTypos(text: string, harvestedVocabulary: Set<string>): string {
+  return text
+    .split(/(\s+)/)
+    .map((tok) => {
+      const stripped = tok.replace(/[^a-zA-Z]/g, '');
+      if (stripped.length < 3) return tok;
+      const lowerStripped = stripped.toLowerCase();
+      if (SEMANTIC_SEED_VOCABULARY.has(lowerStripped) || harvestedVocabulary.has(lowerStripped)) return tok;
+
+      // Seed words are few, reviewed, and exactly what a chatbot expects to see typo'd, so any
+      // single edit (substitution, insertion, deletion, or adjacent transposition) is trusted.
+      // The much larger auto-harvested jargon vocabulary is a different risk: those words are
+      // one edit away from plenty of unrelated real words ("pros" -> "prose" by insertion, "rome"
+      // -> "rope" by substitution), so only an adjacent-letter transposition — a shape that's
+      // essentially always a genuine typo rather than a coincidental real-word collision — is
+      // trusted there.
+      for (const v of SEMANTIC_SEED_VOCABULARY) {
+        if (Math.abs(v.length - lowerStripped.length) > 1) continue;
+        if (levenshteinDistance(lowerStripped, v) <= 1 || isAdjacentTransposition(lowerStripped, v)) {
+          return tok.replace(stripped, v);
+        }
+      }
+      for (const v of harvestedVocabulary) {
+        if (isAdjacentTransposition(lowerStripped, v)) return tok.replace(stripped, v);
+      }
+      return tok;
+    })
+    .join('');
+}
+
 export function computeEmbedding(text: string): number[] {
-  const lower = text.toLowerCase();
+  const buildingVocabulary = semanticHarvestedVocabularyCache === null;
+  const vocabWords = buildingVocabulary ? new Set<string>() : null;
+  const correctedText = semanticHarvestedVocabularyCache
+    ? correctSemanticTypos(text, semanticHarvestedVocabularyCache)
+    : text;
+  const lower = correctedText.toLowerCase();
   const vec = new Array(SEMANTIC_DIMENSIONS.length).fill(0);
 
   // Helper keyword matcher
   const matchCount = (words: string[]) => {
     let count = 0;
     for (const w of words) {
+      if (vocabWords) {
+        for (const sub of w.split(/[^a-zA-Z]+/)) {
+          // Only length>=5 jargon is harvested — anything shorter is one edit away from too many
+          // unrelated short real words to correct toward safely (see correctSemanticTypos above).
+          if (sub.length >= 5) vocabWords.add(sub.toLowerCase());
+        }
+      }
       if (lower.includes(w)) count++;
     }
     return count;
@@ -536,12 +604,20 @@ export function computeEmbedding(text: string): number[] {
   ]);
   if (metaMatches > 0) vec[23] = Math.min(1.0, 0.2 + metaMatches * 0.3);
 
+  if (buildingVocabulary && vocabWords) {
+    semanticHarvestedVocabularyCache = vocabWords;
+  }
+
   // Normalize vector to unit sphere if non-zero
   const sumSquares = vec.reduce((sum, v) => sum + v * v, 0);
   if (sumSquares === 0) return vec;
   const norm = Math.sqrt(sumSquares);
   return vec.map((v) => parseFloat((v / norm).toFixed(4)));
 }
+
+// Warm the typo-correction vocabulary at module load so the very first real query is already
+// corrected, instead of only every call after it.
+computeEmbedding('');
 
 export function cosineSimilarity(v1: number[], v2: number[]): number {
   if (v1.length !== v2.length) return 0;
