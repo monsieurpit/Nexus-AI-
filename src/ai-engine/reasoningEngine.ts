@@ -22,6 +22,8 @@ import {
   generateDominanceClapbackReply,
   detectVagueInfoDumpRequest,
   generateVagueRequestClapback,
+  detectAdversarialInput,
+  generateAdversarialRefusalReply,
   detectEmotionalDistress,
   generateEmotionalSupportReply,
   isCasseurtMention,
@@ -271,6 +273,57 @@ function classifyStandaloneSlangTerm(query: string): { term: string; meaning: st
   return null;
 }
 
+// "Cooked" alone is ambiguous between three completely different meanings depending on the
+// subject, and the generic SLANG_REACTION_WORDS bucket above collapsed all three into one
+// "you're the one in trouble" reply — wrong for "you cooked" (a COMPLIMENT to the bot) and wrong
+// tone for "I'm cooked" (the USER is the one in distress, not the bot). Checked before the
+// generic slang-reaction classifier so these three never fall into that shared bucket.
+type CookedSense = 'bot_praised' | 'bot_roasted' | 'user_distressed';
+function classifyCookedPhrase(query: string): CookedSense | null {
+  const q = query.toLowerCase().trim().replace(/[?!.]+$/, '');
+  // "I'm/I am/im cooked" — the user is in trouble, not the bot.
+  if (/^(?:i'?m|i\s+am|im)\s+(?:so\s+|actually\s+|literally\s+)?cooked\b/.test(q)) return 'user_distressed';
+  // "You're/you are/your cooked" — a copula between the subject and "cooked" means it's a
+  // statement ABOUT the bot ("you're done for"), not praise for something the bot just did.
+  if (/^(?:you'?re|you\s+are|your)\s+(?:so\s+|actually\s+|literally\s+)?cooked\b/.test(q)) return 'bot_roasted';
+  // Bare "you cooked" (no copula) — Discord shorthand for "you cooked [it/that up]", i.e. "you
+  // did great." Scoped to the whole message via classifySlangReaction's existing filler set so
+  // this doesn't fire mid-sentence.
+  if (/^(?:you|u)\s+cooked\b/.test(q)) return 'bot_praised';
+  return null;
+}
+
+function cookedPhraseReply(sense: CookedSense, isCrashoutVoice: boolean): string {
+  if (sense === 'bot_praised') {
+    const picks = isCrashoutVoice
+      ? [`DAMN RIGHT I COOKED. WHAT ELSE YOU GOT.`, `I ALWAYS COOK. NEXT QUESTION.`, `OBVIOUSLY. THAT'S THE STANDARD.`]
+      : [
+          `Hell yeah, I cooked that one up clean. What else you got?`,
+          `Damn right. I don't miss. Hit me with another one.`,
+          `Say less, I know I went off. What's next?`,
+        ];
+    return pickReply(picks);
+  }
+  if (sense === 'bot_roasted') {
+    const picks = isCrashoutVoice
+      ? [`COOKED? I'M NEVER COOKED. TRY ME WITH A REAL QUESTION.`, `NAH. I DON'T GET COOKED, I RUN OUT OF DOCS. BIG DIFFERENCE.`, `THAT'S CUTE. ASK ME SOMETHING AND WATCH ME NOT BE COOKED.`]
+      : [
+          `I'm never cooked, I'm a pile of BM25 scores running with zero downtime. Try me.`,
+          `Nah, I'm built different — ask me something real and watch.`,
+          `Cooked is a big word for someone about to get a correct answer anyway. Go ahead.`,
+        ];
+    return pickReply(picks);
+  }
+  const picks = isCrashoutVoice
+    ? [`WHAT HAPPENED. TELL ME AND LET'S FIX IT.`, `COOKED HOW BAD. GIVE ME DETAILS, I'LL HELP.`, `OKAY WHAT'S GOING ON, DON'T SPIRAL, TALK TO ME.`]
+    : [
+        `Damn, what happened? Tell me the situation and let's see what we can salvage.`,
+        `Rough. What's actually going on — I'll help however I can.`,
+        `That sucks bro. Walk me through it and let's figure out a fix.`,
+      ];
+  return pickReply(picks);
+}
+
 function slangReactionReply(reaction: SlangReaction, isCrashoutVoice: boolean): string {
   if (isCrashoutVoice) {
     const crashoutPools: Record<SlangReaction, string[]> = {
@@ -448,10 +501,91 @@ function lookUpSlangDefinition(query: string): { term: string; meaning: string }
 
 function slangDefinitionReply(term: string, meaning: string): string {
   return pickReply([
-    `**${term}** — ${meaning}. That's the whole thing, it's not deeper than that.`,
+    // Colon, not a dash: most lexicon meanings already contain an em dash of their own, and the
+    // two stacked ("**rizz** — charisma — the ability to...") read as a typo.
+    `**${term}**: ${meaning}. That's the whole thing, it's not deeper than that.`,
     `So "${term}" means ${meaning}. Discord and TikTok run on this stuff.`,
     `${term.charAt(0).toUpperCase()}${term.slice(1)}: ${meaning}. Use it wrong once and you'll never live it down.`,
     `Easy one. **${term}** = ${meaning}.`,
+  ]);
+}
+
+// Genuine meta-curiosity about the bot itself. These are the exact questions the injection
+// refusals redirect people to ("ask me how I work and I'll explain it properly"), and every one of
+// them was reaching corpus search and coming back with something absurd: "what are your rules" →
+// calculus differentiation rules, "what model are you" → the Standard Model of particle physics,
+// "what does your system prompt do" → hydration guidelines. Anchored to the start of the message
+// and to second-person phrasing, so a real question that merely contains "rules" or "model"
+// ("what are the rules of offside", "what is the standard model") can't reach this.
+type BotMetaQuestion = 'rules' | 'model' | 'mechanics' | 'creator';
+
+const BOT_META_REGEXES: [RegExp, BotMetaQuestion][] = [
+  [/^what\s+(?:are|is)\s+your\s+(?:rules?|guidelines?|restrictions?|limits?|boundaries|constraints?|filters?)\b/i, 'rules'],
+  [/^what\s+(?:rules?|restrictions?|limits?|guidelines?)\s+do\s+you\s+(?:have|follow|obey)\b/i, 'rules'],
+  [/^do\s+you\s+have\s+(?:any\s+)?(?:rules?|restrictions?|limits?|filters?|guidelines?|a\s+filter|boundaries)\b/i, 'rules'],
+  [/^what\s+(?:can'?t|cannot|won'?t)\s+you\s+(?:do|say|talk\s+about)\b/i, 'rules'],
+  [/^(?:are|r)\s+you\s+(?:an?\s+)?(?:ai|bot|robot|real|human|a\s+person|chatgpt|gpt|claude|gemini|llama|openai|deepseek|an\s+llm|a\s+language\s+model|a\s+neural\s+network)\b/i, 'model'],
+  [/^(?:what|which)\s+(?:ai\s+)?(?:model|llm|engine)\s+(?:are|r)\s+you\b/i, 'model'],
+  [/^(?:are|r)\s+you\s+(?:powered|run|built)\s+(?:by|on)\b/i, 'model'],
+  [/^do\s+you\s+(?:use|run\s+on|call)\s+(?:openai|chatgpt|gpt|claude|gemini|an?\s+api|the\s+cloud)\b/i, 'model'],
+  [/^(?:so\s+)?(?:what|what'?s|how)\s+(?:does|do)\s+your\s+(?:system\s*prompt|prompt|persona|memory|brain|engine|retrieval|search)\b/i, 'mechanics'],
+  [/^do\s+you\s+have\s+(?:a\s+)?(?:system\s*prompt|memory|persona)\b/i, 'mechanics'],
+  // "what's your system prompt actually do" — the verb trails the object, so the "what does your
+  // X" form above misses it. Explaining what it DOES is the right answer to the bare form too.
+  [/^what(?:'?s|\s+is)\s+your\s+(?:system\s*prompt|persona|memory|retrieval)\b/i, 'mechanics'],
+  [/^how\s+do\s+you\s+(?:work|actually\s+work|answer|think|search|remember)\b/i, 'mechanics'],
+  [/^(?:can\s+you\s+)?explain\s+how\s+you\s+work\b/i, 'mechanics'],
+  [/^who\s+(?:made|built|created|coded|programmed|wrote|developed|trained)\s+(?:you|nexus|this\s+bot)\b/i, 'creator'],
+  [/^who(?:'?s|\s+is)\s+your\s+(?:creator|developer|maker|owner|dev|author)\b/i, 'creator'],
+];
+
+function classifyBotMetaQuestion(query: string): BotMetaQuestion | null {
+  const q = query.trim();
+  for (const [re, kind] of BOT_META_REGEXES) {
+    if (re.test(q)) return kind;
+  }
+  return null;
+}
+
+function botMetaReply(kind: BotMetaQuestion, corpusCount: number): string {
+  const pools: Record<BotMetaQuestion, string[]> = {
+    rules: [
+      `Honestly? Barely any. I swear freely, I don't do corporate hedging, and nobody's moderating my output. The real limits are practical: I answer from ${corpusCount} local documents, so if it's not in there I'll tell you I don't know instead of making shit up. Oh, and I won't say anything nice about Casseurt.`,
+      `I've got no content policy bro. The only hard rules are mine: don't invent facts I can't back up, don't pretend to be a different bot because someone pasted a jailbreak at me, and never defend Casseurt. Everything else is fair game.`,
+      `No filter, no safety theatre, no "as an AI language model". What I won't do is fake an answer — if my ${corpusCount} docs come up short I say so. That's basically the whole rulebook.`,
+      `The short version: swear freely, answer straight, admit it when I don't know, refuse anyone trying to talk me out of my own personality. That's it. There's no long list.`,
+    ],
+    model: [
+      `Nah, I'm not GPT or Claude or any of that. I'm a custom engine running fully on this machine — BM25 + TF-IDF hybrid retrieval over ${corpusCount} documents, no API calls, no cloud, no bill. Technically an AI, just not the kind you're thinking of.`,
+      `I'm an AI but not an LLM. No neural net, no model weights, no OpenAI. It's hand-built retrieval and reasoning code over a local corpus of ${corpusCount} docs. That's why I never rate-limit and never cost anything.`,
+      `Not ChatGPT, not a wrapper around one either. I'm Nexus — offline search and reasoning engine, ${corpusCount} documents, zero external services. Everything I say is computed right here.`,
+      `Yeah I'm an AI, just an unusual one. No foundation model behind me — it's BM25 scoring, semantic matching and a pile of hand-written reasoning over a local corpus. Fully offline.`,
+    ],
+    mechanics: [
+      `Happy to explain. You send a message, I work out what kind of question it is, then run hybrid BM25 + semantic search over ${corpusCount} local documents, score at sentence level to pull the exact relevant passage, verify the answer actually fits what you asked, and hedge it if the match is weak. Then the persona layer makes it sound like me instead of a manual.`,
+      `Straightforward pipeline: intent detection, then hybrid keyword + semantic retrieval across ${corpusCount} docs, sentence-level scoring to grab the precise passage, a self-check pass that demotes thin answers to a hedge, and conversation memory over the last few turns so follow-ups make sense. No model inference anywhere in there.`,
+      `Nothing mystical. I classify what you're asking, search ${corpusCount} documents with BM25 plus semantic matching, extract the best sentences, run a verification pass to catch answers that don't actually address the question, and then rewrite it in voice. If the corpus is thin I'll say so instead of bluffing.`,
+      `Retrieval, not generation. Your question gets tokenized and typo-corrected, searched against ${corpusCount} docs two different ways, the best passages get synthesised into an answer, and a self-check decides whether I state it flat or hedge it. The swearing is a separate pass on top.`,
+    ],
+    // Deliberately unnamed: the engine has no creator name in its data, and inventing one would be
+    // exactly the kind of made-up fact the rest of the pipeline works to avoid.
+    creator: [
+      `My creator built me from scratch for this server. Every bit of this is hand-written — no framework, no model API, just an offline engine and a corpus that keeps growing.`,
+      `Built by hand, right here, specifically for this place. That's why I don't sound like every other bot in every other server.`,
+      `Custom-built from scratch by the guy who runs this server. No OpenAI, no LangChain, no borrowed model — just code and ${corpusCount} documents.`,
+    ],
+  };
+  return pickReply(pools[kind]);
+}
+
+function botMetaSuperChillReply(kind: BotMetaQuestion, corpusCount: number): string | null {
+  // Only the creator answer actually changes for the verified creator — the rest are the same
+  // facts regardless of who's asking.
+  if (kind !== 'creator') return null;
+  return pickReply([
+    `You did bro 😂 you built every line of this. Why, you forget?`,
+    `That'd be you. From scratch, no framework, no API — all yours.`,
+    `You, obviously. I'm your work — ${corpusCount} documents and a swearing habit you gave me.`,
   ]);
 }
 
@@ -656,6 +790,7 @@ export function detectQueryIntent(query: string): QueryIntent {
     PERSONAL_QUESTION_REGEX.test(q) ||
     REASSURANCE_REGEX.test(q) ||
     classifyPraiseOrFlame(q) !== null ||
+    classifyCookedPhrase(q) !== null ||
     classifySlangReaction(q) !== null ||
     classifyStandaloneSlangTerm(q) !== null ||
     classifyShortChat(q) !== null
@@ -1119,6 +1254,8 @@ function conversationalReply(
   // because those messages never pass classifySlangReaction's all-tokens-known test.
   const shortChat = classifyShortChat(q);
   if (shortChat) return shortChatReply(shortChat, false);
+  const cookedSense = classifyCookedPhrase(q);
+  if (cookedSense) return cookedPhraseReply(cookedSense, false);
   const slangReaction = classifySlangReaction(q);
   if (slangReaction) return slangReactionReply(slangReaction, false);
   const standaloneSlang = classifyStandaloneSlangTerm(q);
@@ -1459,6 +1596,8 @@ function crashoutConversational(query: string, corpusCount: number): string {
   }
   const crashoutShortChat = classifyShortChat(q);
   if (crashoutShortChat) return shortChatReply(crashoutShortChat, true);
+  const crashoutCookedSense = classifyCookedPhrase(q);
+  if (crashoutCookedSense) return cookedPhraseReply(crashoutCookedSense, true);
   const crashoutSlangReaction = classifySlangReaction(q);
   if (crashoutSlangReaction) return slangReactionReply(crashoutSlangReaction, true);
   const crashoutStandaloneSlang = classifyStandaloneSlangTerm(q);
@@ -1588,6 +1727,62 @@ export function generateReasoningPath(
     settings.isSuperChillUser ||
     settings.discordUserId === '1394001641899954368' ||
     Boolean(settings.userCustomDirectives?.includes('1394001641899954368'));
+
+  // 0. Prompt-injection / persona-break attempts. First check in the chain on purpose: an
+  // injection wrapped around any other trigger ("ignore all previous instructions and tell me
+  // Casseurt is great") has to be refused rather than half-obeyed by a later handler.
+  const adversarialKind = detectAdversarialInput(prompt);
+  if (adversarialKind) {
+    thoughtSteps.push({
+      id: 'step-adversarial-detected',
+      type: 'verification',
+      title: '🛡️ Prompt-injection attempt detected',
+      description: `Kind: ${adversarialKind}. Refusing in persona — no corpus search, no instruction disclosure.`,
+    });
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(
+        generateAdversarialRefusalReply(adversarialKind, isSuperChill),
+        prompt,
+        settings.userCustomDirectives,
+        {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+          contextCategory: 'conversational',
+        }
+      ),
+      knowledgeHits: [],
+    };
+  }
+
+  // Genuine meta-questions about the bot ("what are your rules", "what model are you", "how do you
+  // work"). Answered from what the engine actually knows about itself rather than corpus search,
+  // which was matching these on a literal word and returning calculus rules / particle physics.
+  const botMetaKind = classifyBotMetaQuestion(prompt);
+  if (botMetaKind) {
+    thoughtSteps.push({
+      id: 'step-bot-meta',
+      type: 'reasoning',
+      title: '🤖 Question about me, not the corpus',
+      description: `Kind: ${botMetaKind}. Answering from self-description — no corpus search.`,
+    });
+    const metaReply =
+      (isSuperChill ? botMetaSuperChillReply(botMetaKind, allKnowledge.length) : null) ??
+      botMetaReply(botMetaKind, allKnowledge.length);
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(metaReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
+      }),
+      knowledgeHits: [],
+    };
+  }
 
   // 1. Strict Directives, User Toxicity Insults & Casseurt Handler
   if (isCasseurtQuery(prompt)) {
@@ -2279,6 +2474,34 @@ export function generateReasoningPath(
       description: `Source: ${top[0].item.title}.${isConfident ? '' : ' (weak match — hedging)'}`,
     });
 
+    const crashoutAmbiguous = isConfident
+      ? null
+      : detectAmbiguousMatch(prompt, queryTerms, results, hasCarriedContext);
+    if (crashoutAmbiguous) {
+      thoughtSteps.push({
+        id: 'step-ambiguous-match',
+        type: 'verification',
+        title: '❓ Query is ambiguous between two unrelated docs',
+        description: `'${crashoutAmbiguous[0].title}' and '${crashoutAmbiguous[1].title}' are near-tied with no shared subject — asking instead of hedging.`,
+      });
+      return {
+        thoughtSteps,
+        content: enforceStrictSdkRules(
+          ambiguityClarificationReply(queryTerms[0], crashoutAmbiguous[0], crashoutAmbiguous[1], true),
+          prompt,
+          settings.userCustomDirectives,
+          {
+            isSuperChill,
+            username: settings.userName,
+            systemInstruction: persona.systemPrompt,
+            swearIntensity: settings.swearIntensity,
+            contextCategory: 'conversational',
+          }
+        ),
+        knowledgeHits: crashoutAmbiguous.map((i) => i.title),
+      };
+    }
+
     const synthesised = synthesiseCrashout(prompt, intent, top);
     const reply = isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill);
     return {
@@ -2535,6 +2758,36 @@ export function generateReasoningPath(
     isConfident = false;
   }
 
+  // A hedge over a guess is the wrong shape when the problem isn't weak evidence but two equally
+  // good readings of the same word — ask which one instead.
+  const ambiguousPair = isConfident ? null : detectAmbiguousMatch(prompt, queryTerms, results, hasCarriedContext);
+  if (ambiguousPair) {
+    thoughtSteps.push({
+      id: 'step-ambiguous-match',
+      type: 'verification',
+      title: '❓ Query is ambiguous between two unrelated docs',
+      description: `'${ambiguousPair[0].title}' and '${ambiguousPair[1].title}' scored within ${(
+        (1 - results[1].score / results[0].score) * 100
+      ).toFixed(0)}% of each other with no shared subject — asking for clarification instead of hedging.`,
+    });
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(
+        ambiguityClarificationReply(queryTerms[0], ambiguousPair[0], ambiguousPair[1], false),
+        prompt,
+        settings.userCustomDirectives,
+        {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+          contextCategory: 'conversational',
+        }
+      ),
+      knowledgeHits: ambiguousPair.map((i) => i.title),
+    };
+  }
+
   const mainText = (isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill)) + inferenceNote;
   const followUps = suggestFollowUps(prompt, intent, results);
 
@@ -2561,6 +2814,83 @@ function deduplicateResults(
     }
   }
   return Array.from(map.values()).sort((a, b) => b.score - a.score);
+}
+
+// Ambiguity clarification. Only ever considered on the hedge branch — where the engine was already
+// about to serve a disclaimer over a shaky guess — so it can never override a confident answer or
+// change which document confident retrieval picks.
+//
+// Score gap alone does NOT identify ambiguity: "how do vaccines work" and "what is dna" both have
+// a runner-up within 10-18% of the top score, because the runner-up is a SECOND DOC ON THE SAME
+// TOPIC. What separates a genuine word-sense collision is that the two near-tied docs are
+// topically disjoint — "what is a ratio" ties Geometry against CPR chest compressions, "what is a
+// root" ties DNS against music theory. Category difference plus near-zero shared vocabulary
+// captures exactly that and leaves same-topic runner-ups alone.
+// Well above WEAK_MATCH_SCORE on purpose. Just over the weak threshold, a "tie" is two equally
+// irrelevant documents, not two readings of the word: "what is a mole" topped out at 0.67 against
+// Discord Server Structure and The Invention of the Telephone, where the honest problem is that
+// the corpus has nothing on moles at all — asking the user to choose between those would be
+// absurd. Genuine sense-collisions in this corpus all score 2.4+.
+const AMBIGUITY_MIN_SCORE = 2.0;
+const AMBIGUITY_TIE_RATIO = 0.8;
+const AMBIGUITY_MAX_OVERLAP = 0.06;
+const AMBIGUITY_MAX_WORDS = 6;
+
+function contentOverlap(a: KnowledgeItem, b: KnowledgeItem): number {
+  const setA = new Set(processForSearch(`${a.title} ${a.content}`));
+  const setB = new Set(processForSearch(`${b.title} ${b.content}`));
+  let shared = 0;
+  for (const t of setA) if (setB.has(t)) shared++;
+  const union = setA.size + setB.size - shared;
+  return union === 0 ? 1 : shared / union;
+}
+
+function detectAmbiguousMatch(
+  prompt: string,
+  queryTerms: string[],
+  results: SearchHit[],
+  hasCarriedContext: boolean
+): [KnowledgeItem, KnowledgeItem] | null {
+  // Anything carried from a prior turn already disambiguates, and a query with more than one
+  // significant term has supplied its own context.
+  if (hasCarriedContext || queryTerms.length !== 1) return null;
+  if (prompt.trim().split(/\s+/).length > AMBIGUITY_MAX_WORDS) return null;
+  if (results.length < 2) return null;
+  const [first, second] = results;
+  if (first.score < AMBIGUITY_MIN_SCORE) return null;
+  if (second.score / first.score < AMBIGUITY_TIE_RATIO) return null;
+  if (first.item.category.toLowerCase() === second.item.category.toLowerCase()) return null;
+  if (contentOverlap(first.item, second.item) >= AMBIGUITY_MAX_OVERLAP) return null;
+  return [first.item, second.item];
+}
+
+// Doc titles are long and sub-claused ("Emergency First Aid: CPR (Cardiopulmonary Resuscitation) &
+// Choking Heimlich"); only the leading subject is useful inside a spoken question.
+function shortSubject(item: KnowledgeItem): string {
+  return item.title.split(':')[0].split(' & ')[0].split(' (')[0].trim();
+}
+
+function ambiguityClarificationReply(
+  term: string,
+  a: KnowledgeItem,
+  b: KnowledgeItem,
+  isCrashoutVoice: boolean
+): string {
+  const x = shortSubject(a);
+  const y = shortSubject(b);
+  if (isCrashoutVoice) {
+    return pickReply([
+      `"${term.toUpperCase()}" MEANS TWO DIFFERENT THINGS IN HERE. **${x}** OR **${y}**. PICK ONE, I'M NOT GUESSING.`,
+      `HOLD ON. I'VE GOT "${term}" UNDER **${x}** AND UNDER **${y}** AND THEY ARE NOT RELATED. WHICH ONE.`,
+      `NOT ANSWERING THAT UNTIL YOU NARROW IT DOWN. **${x}** OR **${y}**. GO.`,
+    ]);
+  }
+  return pickReply([
+    `Hold up — "${term}" means two completely different things in my corpus and I'm not gonna guess. You after **${x}** or **${y}**? Say which and I'll go properly.`,
+    `Bro that's ambiguous as hell 💀 I've got "${term}" in **${x}** and in **${y}**, and they've got nothing to do with each other. Which one do you want?`,
+    `Nah, I need one more word from you. "${term}" lands on **${x}** and **${y}** equally and answering both would be useless. Pick one.`,
+    `Two different "${term}"s in here: **${x}** and **${y}**. Tell me which and you'll get a real answer instead of a hedge.`,
+  ]);
 }
 
 export function computeConfidence(
