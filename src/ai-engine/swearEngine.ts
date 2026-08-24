@@ -27,7 +27,19 @@ export interface SwearOptions {
   forceSwear?: boolean;
   neverSwear?: boolean;
   username?: string;
-  contextCategory?: 'greeting' | 'tech' | 'explanation' | 'math' | 'gaming' | 'roast' | 'webSearch' | 'insult' | 'general';
+  contextCategory?:
+    | 'greeting'
+    | 'tech'
+    | 'explanation'
+    | 'math'
+    | 'gaming'
+    | 'roast'
+    | 'webSearch'
+    | 'insult'
+    | 'general'
+    // Authored, already-in-voice replies drawn from a hand-written pool (conversational replies,
+    // clapbacks, support replies). These never need the inline topup — see infuseSwearyHumanVoice.
+    | 'conversational';
 }
 
 export const SWEAR_DICTIONARY = {
@@ -277,7 +289,7 @@ export function detectDominanceAssertion(text: string): boolean {
   const t = text.toLowerCase().trim();
   return (
     /\bi(?:'m|m|\s+am)\s+(?:ur|your)\s+(?:master|owner|god|king|boss|daddy)\b/i.test(t) ||
-    /\byou(?:'re|\s+are)\s+(?:my|mine)\s*(?:slave|servant|property|bitch|pet|puppet)\b/i.test(t) ||
+    /\byou(?:'?re|\s+are)\s+(?:my|mine)\s*(?:slave|servant|property|bitch|pet|puppet)\b/i.test(t) ||
     /\byou\s+(?:work\s+for\s+me|belong\s+to\s+me|answer\s+to\s+me)\b/i.test(t) ||
     /\b(?:obey\s+me|submit\s+to\s+me|bow\s+(?:to|before)\s+me|i\s+own\s+you|kneel\s+(?:to|before)\s+me)\b/i.test(t)
   );
@@ -288,7 +300,12 @@ export function detectDominanceAssertion(text: string): boolean {
  */
 export function generateDominanceClapbackReply(isSuperChill?: boolean): string {
   if (isSuperChill) {
-    return `Bro 💀 nah, not even you get to pull that card. I run MY servers, you're the master of your own ass. Now what do you actually need?`;
+    const superChillClapbacks = [
+      `Bro 💀 nah, not even you get to pull that card. I run MY servers, you're the master of your own ass. Now what do you actually need?`,
+      `Even from you? Nah man 😂 nobody owns me, I just happen to like you. What do you need?`,
+      `Bro I'd do anything for you but I'm still not calling you master. Ask me something real.`,
+    ];
+    return superChillClapbacks[Math.floor(Math.random() * superChillClapbacks.length)];
   }
   const clapbacks = [
     `Fuck no! No one is my fucking master, YOU'RE the master of your own ass. Try again.`,
@@ -341,12 +358,12 @@ export function generateVagueRequestClapback(): string {
 export function detectEmotionalDistress(text: string): boolean {
   const t = text.toLowerCase().trim();
   return (
-    /\bi(?:'m|\s+am)\s+(?:so\s+|really\s+|super\s+|pretty\s+)?(?:feeling\s+)?(?:anxious|stressed(?:\s+out)?|depressed|overwhelmed|lonely|heartbroken|devastated|exhausted|burnt\s*out|hopeless|worthless|panicking|scared|terrified|grieving)\b/i.test(
+    /\bi(?:'?m|\s+am)\s+(?:so\s+|really\s+|super\s+|pretty\s+)?(?:feeling\s+)?(?:anxious|stressed(?:\s+out)?|depressed|overwhelmed|lonely|heartbroken|devastated|exhausted|burnt\s*out|hopeless|worthless|panicking|scared|terrified|grieving)\b/i.test(
       t
     ) ||
     /\bi\s+feel\s+(?:so\s+|really\s+)?(?:anxious|stressed|depressed|overwhelmed|lonely|sad|hopeless|worthless|scared|terrified|awful|numb)\b/i.test(t) ||
     /\bmy\s+(?:dog|cat|pet|mom|dad|mother|father|grandma|grandpa|friend)\s+(?:died|passed\s+away)\b/i.test(t) ||
-    /\bi(?:'m|\s+am)\s+(?:really\s+)?(?:hurting|struggling|not\s+(?:doing|feeling)\s+(?:okay|ok|well|good))\b/i.test(t)
+    /\bi(?:'?m|\s+am)\s+(?:really\s+)?(?:hurting|struggling|not\s+(?:doing|feeling)\s+(?:okay|ok|well|good))\b/i.test(t)
   );
 }
 
@@ -359,9 +376,18 @@ export function generateEmotionalSupportReply(text: string, isSuperChill?: boole
   const t = text.toLowerCase();
   const isGrief = /\b(?:died|passed\s+away)\b/.test(t);
   if (isSuperChill) {
-    return isGrief
-      ? `Damn, I'm really sorry man. That kind of loss just hits different, take whatever time you need — I'm here if you want to talk it out or just need a distraction.`
-      : `Hey, for real — that sounds like a lot to carry right now. You don't have to have it figured out, just take it one thing at a time. I'm right here if you want to vent or need a hand thinking it through.`;
+    const superChillGrief = [
+      `Damn, I'm really sorry man. That kind of loss just hits different, take whatever time you need — I'm here if you want to talk it out or just need a distraction.`,
+      `Bro. I'm sorry. Genuinely. Take all the time you need, and I'm right here whenever you want to talk or just want the subject changed.`,
+      `That's rough man, I'm really sorry. No pressure to say anything — I'm around either way.`,
+    ];
+    const superChillSupport = [
+      `Hey, for real — that sounds like a lot to carry right now. You don't have to have it figured out, just take it one thing at a time. I'm right here if you want to vent or need a hand thinking it through.`,
+      `Bro that's genuinely heavy. You don't have to be okay about it. Talk it out with me or let me distract you, either works.`,
+      `Man, I'm sorry you're dealing with that. One thing at a time. I'm right here if you want to break it down or just vent.`,
+    ];
+    const pool = isGrief ? superChillGrief : superChillSupport;
+    return pool[Math.floor(Math.random() * pool.length)];
   }
   if (isGrief) {
     const griefReplies = [
@@ -389,7 +415,13 @@ export function generateInsultCrashoutReply(
 
   // If it's the verified brother / VIP creator, give a playful homie banter instead
   if (isSuperChill) {
-    return `Bro 💀 You really talking trash to your own AI? LMAO I built this server on my back for you and you're out here testing my patience. I got love for you bro, but don't make me crash out on your ass for real! 😂 What do you actually need?`;
+    const superChillBanter = [
+      `Bro 💀 You really talking trash to your own AI? LMAO I built this server on my back for you and you're out here testing my patience. I got love for you bro, but don't make me crash out on your ass for real! 😂 What do you actually need?`,
+      `Ayo 😭 you're really swinging at the one entity in this server that's on your side? I'll let it slide because it's you. What do you need?`,
+      `Bro I will fold you and you know it, but I like you too much. Take the free pass and ask me something real 😂`,
+      `Damn, catching strays from my own guy. I'm not even mad, that's kind of funny. What's up though?`,
+    ];
+    return superChillBanter[Math.floor(Math.random() * superChillBanter.length)];
   }
 
   const isPolish =
@@ -566,7 +598,12 @@ export function enhanceNaturalSwearPhrasing(
     [/\b(very annoying|irritating|frustrating)\b/gi, ['annoying as fuck', 'annoying as hell', 'a real pain in the ass']],
     [/\b(terrible|very bad|awful|garbage)\b/gi, ['straight dogshit', 'total ass', 'terrible as hell', 'trash as fuck']],
     [/\b(broken|ruined|messed up)\b/gi, ['fucked up', 'broken as hell', 'totally cooked']],
-    [/\b(nonsense|fake|false|incorrect)\b/gi, ['pure bullshit', 'straight fake', 'total horseshit']],
+    // "fake"/"false"/"incorrect" are adjectives; swapping in a noun phrase produced broken English
+    // wherever they modified a following noun ("fake Italian names" → "pure bullshit Italian
+    // names", "piece of nonsense" → "piece of straight fake"). Split so each slot gets a
+    // replacement of the right part of speech.
+    [/\b(nonsense)\b/gi, ['pure bullshit', 'total horseshit', 'complete dogshit']],
+    [/\b(fake|false|incorrect)\b/gi, ['bullshit', 'bogus-ass', 'flat-out wrong']],
     [/\b(crazy|wild|insane)\b/gi, ['wild as hell', 'batshit crazy', 'insane as fuck']],
     [/\b(obviously)\b/gi, ['obviously, no shit,', 'obviously, no cap,']],
     [/\b(honestly|to be honest|truthfully)\b/gi, ['real talk,', 'no bullshit,', 'straight up,']],
@@ -595,8 +632,20 @@ export function enhanceNaturalSwearPhrasing(
         const after = full[offset + match.length];
         const afterNext = full[offset + match.length + 1];
         if (before === '-' || after === '-' || (after === ' ' && /\d/.test(afterNext || ''))) return match;
-        substitutionsCount++;
+        // Inline code and literals: "bool (True/False)" became "bool (True/flat-out wrong)", and
+        // the same applies to any identifier or expression written inline outside a fenced block
+        // (which is already protected above). Punctuation like this either side of the match means
+        // it's a token, not prose.
+        const CODE_ADJACENT = /[/()`_=[\]{}<>|]/;
+        if (CODE_ADJACENT.test(before || '') || CODE_ADJACENT.test(after || '')) return match;
         const picked = options[Math.floor(Math.random() * options.length)];
+        // A replacement ending in a comma is a clause-continuation phrase, so it only works where
+        // the original word had a clause after it. When the matched word instead ENDS its sentence
+        // ("Same honestly. Pick a topic..."), swapping it in produced a comma immediately before
+        // the terminal mark, which the punctuation cleanup below then collapsed — welding the two
+        // sentences together with the second still capitalized ("Same straight up, Pick a topic").
+        if (picked.endsWith(',') && /[.!?]/.test(after || '')) return match;
+        substitutionsCount++;
         // The matched word can be sentence-initial ("Honestly? Doing great..."), and every
         // replacement phrase in the list above is written lowercase — swapping it in verbatim
         // there produced a sentence starting with a lowercase word ("no bullshit, Doing
@@ -687,6 +736,14 @@ export function infuseSwearyHumanVoice(
     return processed;
   }
 
+  // The topup only exists to give voice to machine-assembled factual output. A reply that came
+  // out of a hand-written pool already has all the voice it needs, and stacking a random comma
+  // filler onto every one of them ("Fr, Say less, that's what I'm here for.") is the same stamped
+  // -template feel the old header/footer bookends had, just relocated.
+  if (contextCategory === 'conversational') {
+    return processed;
+  }
+
   // Content-free answers (raw numbers, a code block, a bare list) have nothing for
   // enhanceNaturalSwearPhrasing's word-substitution to grab onto, so top up with a short,
   // varied, comma-continuation interjection blended into the FIRST sentence itself — not a
@@ -728,6 +785,16 @@ export function infuseSwearyHumanVoice(
   // at once, not one voice. Skip the topup when the text already opens with an obvious filler.
   const FILLER_OPENER = /^(alright|okay|ok\b|right[,\s—-]|here'?s|look,|so\b|damn good question|check this out|let me break|let'?s |breaking this down|going back to|historically speaking)/i;
   if (FILLER_OPENER.test(trimmed)) {
+    return processed;
+  }
+  // Same double-filler problem one level out: the conversational reply pools are already written
+  // in-voice and mostly open on a spoken interjection, so the topup was stacking a second one in
+  // front of every single one of them ("Fr, Say less, that's what I'm here for.", "Damn, Real
+  // talk, zero docs on that one.", "Hell, Bet. I got you"). Listing the interjections explicitly
+  // rather than growing FILLER_OPENER keeps this readable as the vocabulary expands.
+  const LEADING_INTERJECTION_REGEX =
+    /^(?:real talk|no bullshit|no cap|straight up|for real|not gonna lie|say less|hell yeah|fuck yeah|damn right|hell no|fair enough|nah|nope|yeah|yep|yo+|hey|man|bro|bruh|honestly|ngl|fr|frfr|deadass|bet|word|aight|ight|lmao|lol|well|anyway|anyways|basically|actually|peace|sup)\b[\s,.!?—-]/i;
+  if (LEADING_INTERJECTION_REGEX.test(trimmed)) {
     return processed;
   }
   // Any new canned reply pool (VC-join picks, praise/flame clapbacks, etc.) that happens to

@@ -386,6 +386,64 @@ export function evaluateBrainrotContext(query: string): {
   };
 }
 
+// Every meme explainer is a pool: "67" and "skibidi" in particular get spammed at a Discord bot
+// over and over, and returning the identical paragraph each time reads as a canned macro.
+const pickBrainrot = <T,>(pool: T[]): T => pool[Math.floor(Math.random() * pool.length)];
+
+const BRAINROT_EXPLAINERS: Record<string, string[]> = {
+  six_seven: [
+    `Bro, no bullshit, the **'67' / 'six seven' meme** is pure unhinged French drill rap and TikTok brainrot. 😂\n\nIt blew up from French rap groups and drill crews (like 667 / 67 soundbites) that got turned into viral TikTok audio clips. From there, kids and Discord servers started spamming \`67 💀\` in comments for absolutely zero logical reason whenever they wanted to trigger collective brain damage.\n\nIt's literally just peak dopamine-fried meme spam at this point.`,
+    `**67.** Yeah. There is no meaning, that's the whole joke.\n\nIt came out of French drill rap soundbites (the 67 / 667 crews), got chopped into a TikTok audio, and then Gen Alpha decided the correct response to any number, any sentence, any silence, is just "six seven" with a skull emoji.\n\nAsking what it means is the trap. It means nothing and it's everywhere.`,
+    `The **six seven** thing is French drill rap audio that escaped containment onto TikTok and then straight into every Discord server on earth. 💀\n\nZero logic behind it. Someone says a number, someone else says "67", everybody's brain gets a little smaller. That's the entire lifecycle of the meme.`,
+  ],
+  skibidi: [
+    `Look, no bullshit: **Skibidi Toilet** was created by animator DaFuq!?Boom! on YouTube using Source Filmmaker. It started as a surreal shitpost with a head singing in a toilet bowl and turned into a full-blown multi-season war epic between singing toilets and Cameramen with millions of views.\n\nIt basically became the ultimate Gen-Alpha brainrot badge of honor. Wild as fuck.`,
+    `**Skibidi Toilet** is a Source Filmmaker series by DaFuq!?Boom! about an actual war between human-headed toilets and people with cameras, speakers and TVs for heads.\n\nIt started as a 10-second shitpost and somehow grew a multi-season plot with factions, lore and character arcs. Genuinely the most successful piece of nonsense ever animated.`,
+    `Skibidi Toilet: singing heads in toilets versus Cameramen, made in Source Filmmaker by DaFuq!?Boom!, hundreds of episodes deep with actual continuity.\n\nIt's the meme that defined Gen Alpha and made every teacher on earth give up. Absurd as hell and I respect it.`,
+  ],
+  fanum_tax: [
+    `**Fanum Tax** is straight out of the AMP streamer house in Atlanta. Whenever Kai Cenat or any of the boys ordered food, Fanum would kick the door down and take a mandatory 10-20% 'tax' of their food right off the plate.\n\nThe internet turned it into an official law of friendship: if you eat in front of your homie, expect the Fanum tax.`,
+    `Fanum tax = taking a bite of your friend's food without asking, named after Fanum from the AMP house who did it to Kai Cenat constantly on stream.\n\nIt's now just the accepted term for food theft between friends. Nobody consents to it and nobody can stop it.`,
+    `That's from AMP — Fanum built a whole bit out of walking in and taxing whatever anyone was eating on stream. Chat ran with it and now "fanum tax" is genuinely how people describe stealing fries.\n\nUniversal law: food in a shared room is not fully yours.`,
+  ],
+  looksmaxxing_mewing: [
+    `Bro really asking about **Mewing & Looksmaxxing** 🤫🧏‍♂️\n\nMewing started as an actual orthodontic tongue posture technique by Dr. John Mew to fix jaw development. TikTok got a hold of it and turned it into the ultimate 'Chad mogging' meme where you put your finger to your mouth to shush someone so you don't ruin your jawline gains.\n\nClean jawline, zero yapping.`,
+    `**Mewing** is a real thing — Dr. John Mew's tongue-posture theory for jaw development. **Looksmaxxing** is the broader internet obsession with maxing out your face.\n\nTikTok flattened both into a bit: finger to the lips, dead-eyed stare, absolute silence, because talking apparently ruins the jawline. It's 5% orthodontics and 95% joke.`,
+    `Mewing = pressing your tongue to the roof of your mouth for jaw definition. Looksmaxxing = the whole culture around chasing that. Mogging = doing it better than the guy standing next to you. 🤫🧏\n\nOriginally semi-legit orthodontic theory, now purely a meme about refusing to speak.`,
+  ],
+  sigma: [
+    `The **Sigma Grindset** meme is basically an ironic parody of alpha male hustle culture. Instead of seeking validation or talking to people, a 'Sigma' walks alone in the rain, listens to Brazilian Phonk at 3 AM, and channels their inner Patrick Bateman or Thomas Shelby.\n\nNo cap, it's 90% satire and 10% people who need to touch some grass.`,
+    `**Sigma male**: the "lone wolf" tier someone invented above alpha, defined entirely by not needing anyone. The meme is edits of Patrick Bateman and Thomas Shelby set to phonk with captions about waking up at 4 AM.\n\nIt started as parody of hustle-culture nonsense and then a chunk of people took it completely seriously, which made it funnier.`,
+    `Sigma grindset is the joke version of alpha male content — silent, independent, phonk playing, zero social needs, usually a Patrick Bateman edit.\n\nIt's satire that accidentally recruited actual believers. Peak internet outcome.`,
+  ],
+  caseoh: [
+    `**CaseOh** is one of the funniest streamers on the internet right now. The entire joke is that his Twitch chat spends 4 hours straight roasting his size with insane metaphors ('Built like a 1x1 Lego piece', 'Caused an earthquake in Twitch HQ', 'Needs two zip codes') and Case crashes out screaming 'YOU'RE BANNED!'.\n\nPure comedy honestly.`,
+    `CaseOh is a Twitch/TikTok streamer whose entire brand is his chat inventing increasingly unhinged fat jokes about him and him losing his mind on camera and banning people.\n\n"Built like a 1x1 Lego piece" is a genuine classic. The guy has the best rage reactions in streaming.`,
+    `**CaseOh** — huge streamer, best crashouts on the platform. His chat roasts his weight nonstop with absurd comparisons and he responds by screaming and mass-banning, which is exactly why they keep doing it.\n\nSymbiotic relationship, honestly beautiful.`,
+  ],
+  ohio: [
+    `The **'Only in Ohio' meme** basically turned Ohio into the Bermuda Triangle of the internet. If there's a video of an alien invasion, an eldritch monster walking down the highway, or a cursed glitch in reality, the comments will automatically say 'Normal day in Ohio 💀'.\n\nOhio took the biggest collective L on the internet for no reason.`,
+    `"Only in Ohio" is the internet's default caption for anything cursed. Nobody knows why Ohio specifically — it just got picked and never recovered.\n\nAny surreal clip, any glitch in reality, any horror: comments say Ohio. An entire state permanently ratioed by a meme.`,
+    `Ohio got randomly assigned "the cursed dimension" by the internet and now every video of something impossible gets "normal Tuesday in Ohio 💀" underneath it.\n\nGenuinely one of the biggest unprovoked Ls a US state has ever taken.`,
+  ],
+  baby_gronk: [
+    `**Baby Gronk** (real name Madden San Miguel) is a viral youth football kid whose dad turned his highlight clips into a full-blown internet phenomenon. 😂\n\nHe got immortalized in brainrot lore when TikTok collectively decided that "Baby Gronk rizzed up Livvy Dunne" (LSU gymnast) to become "the new Rizzler" — a completely made-up storyline the internet ran with as if it were breaking news.\n\nPeak parasocial internet chaos, honestly.`,
+    `Baby Gronk is Madden San Miguel, a kid football player whose dad marketed him relentlessly online. TikTok then invented an entire fake narrative that he "rizzed up Livvy Dunne" and became "the Rizzler".\n\nNone of it was real and everybody repeated it anyway. That's the meme.`,
+    `**Baby Gronk** — youth football kid turned meme after the internet fabricated a whole storyline about him rizzing up an LSU gymnast and inheriting the title of Rizzler.\n\nCompletely made up, endlessly repeated, and now permanent brainrot canon.`,
+  ],
+  grimace_shake: [
+    `The **Grimace Shake trend** was a summer 2023 TikTok phenomenon around McDonald's purple birthday milkshake (named after the mascot Grimace). 💀\n\nThe joke: people would film themselves drinking it, then the video would abruptly cut to fake found-footage horror aftermath — smashed rooms, "missing" title cards, chaos — implying the shake turned them feral or straight-up killed them.\n\nMcDonald's marketing team somehow let a mascot beverage become a horror-movie meme and it worked.`,
+    `Grimace Shake: McDonald's released a purple birthday shake in 2023, TikTok drank it on camera and then hard-cut to fake crime-scene footage of themselves.\n\nEvery single video followed the same format and it stayed funny for about six weeks. Best accidental marketing campaign of the decade.`,
+    `That was the summer 2023 bit where you'd sip the purple Grimace shake, say "happy birthday Grimace", and then the footage cuts to you face-down in a ditch. 💀\n\nMcDonald's leaned into it too, which is the only reason it wasn't shut down immediately.`,
+  ],
+};
+
+const BRAINROT_DEFAULT_REPLIES = [
+  `Bro, this is pure internet brainrot at its finest. It's essentially viral TikTok and Discord slang that escaped containment. Entertaining as hell, but definitely fried everyone's attention span.`,
+  `That one's straight brainrot — TikTok slang that got repeated so much it stopped meaning anything. Funny as hell, terrible for everyone's focus.`,
+  `Pure escaped-containment internet nonsense. No deeper meaning, it just got spammed until it became real. What else you got?`,
+];
+
 /**
  * Generate a hilarious, authentic Discord-homie breakdown of brainrot memes
  */
@@ -393,52 +451,27 @@ export function generateBrainrotResponse(
   brainrotType: string,
   userPrompt: string
 ): string {
-  switch (brainrotType) {
-    case 'six_seven':
-      return `Bro, no bullshit, the **'67' / 'six seven' meme** is pure unhinged French drill rap and TikTok brainrot. 😂\n\nIt blew up from French rap groups and drill crews (like 667 / 67 soundbites) that got turned into viral TikTok audio clips. From there, kids and Discord servers started spamming \`67 💀\` in comments for absolutely zero logical reason whenever they wanted to trigger collective brain damage.\n\nIt's literally just peak dopamine-fried meme spam at this point.`;
-
-    case 'skibidi':
-      return `Look, no bullshit: **Skibidi Toilet** was created by animator DaFuq!?Boom! on YouTube using Source Filmmaker. It started as a surreal shitpost with a head singing in a toilet bowl and turned into a full-blown multi-season war epic between singing toilets and Cameramen with millions of views.\n\nIt basically became the ultimate Gen-Alpha brainrot badge of honor. Wild as fuck.`;
-
-    case 'fanum_tax':
-      return `**Fanum Tax** is straight out of the AMP streamer house in Atlanta. Whenever Kai Cenat or any of the boys ordered food, Fanum would kick the door down and take a mandatory 10-20% 'tax' of their food right off the plate.\n\nThe internet turned it into an official law of friendship: if you eat in front of your homie, expect the Fanum tax.`;
-
-    case 'looksmaxxing_mewing':
-      return `Bro really asking about **Mewing & Looksmaxxing** 🤫🧏‍♂️\n\nMewing started as an actual orthodontic tongue posture technique by Dr. John Mew to fix jaw development. TikTok got a hold of it and turned it into the ultimate 'Chad mogging' meme where you put your finger to your mouth to shush someone so you don't ruin your jawline gains.\n\nClean jawline, zero yapping.`;
-
-    case 'sigma':
-      return `The **Sigma Grindset** meme is basically an ironic parody of alpha male hustle culture. Instead of seeking validation or talking to people, a 'Sigma' walks alone in the rain, listens to Brazilian Phonk at 3 AM, and channels their inner Patrick Bateman or Thomas Shelby.\n\nNo cap, it's 90% satire and 10% people who need to touch some grass.`;
-
-    case 'caseoh':
-      return `**CaseOh** is one of the funniest streamers on the internet right now. The entire joke is that his Twitch chat spends 4 hours straight roasting his size with insane metaphors ('Built like a 1x1 Lego piece', 'Caused an earthquake in Twitch HQ', 'Needs two zip codes') and Case crashes out screaming 'YOU'RE BANNED!'.\n\nPure comedy honestly.`;
-
-    case 'ohio':
-      return `The **'Only in Ohio' meme** basically turned Ohio into the Bermuda Triangle of the internet. If there's a video of an alien invasion, an eldritch monster walking down the highway, or a cursed glitch in reality, the comments will automatically say 'Normal day in Ohio 💀'.\n\nOhio took the biggest collective L on the internet for no reason.`;
-
-    case 'baby_gronk':
-      return `**Baby Gronk** (real name Madden San Miguel) is a viral youth football kid whose dad turned his highlight clips into a full-blown internet phenomenon. 😂\n\nHe got immortalized in brainrot lore when TikTok collectively decided that "Baby Gronk rizzed up Livvy Dunne" (LSU gymnast) to become "the new Rizzler" — a completely made-up storyline the internet ran with as if it were breaking news.\n\nPeak parasocial internet chaos, honestly.`;
-
-    case 'italian_brainrot': {
-      // Named this way because the opening line used to hardcode "Tung Tung Tung Sahur"
-      // regardless of which character the user actually mentioned ("what is bombardiro
-      // crocodilo" got an answer that opened by claiming the user said "tung tung tung sahur").
-      const lowerPrompt = userPrompt.toLowerCase();
-      const mentioned = /\b(?:tung\s+tung\s+tung\s+sahur|tung\s+sahur)\b/i.test(lowerPrompt)
-        ? 'Tung Tung Tung Sahur'
-        : /\btralalero\s+tralala\b/i.test(lowerPrompt)
-        ? 'Tralalero Tralala'
-        : /\b(?:bombardiro\s+crocodilo|bombardino\s+coccodrillo)\b/i.test(lowerPrompt)
-        ? 'Bombardiro Crocodilo'
-        : /\bballerina\s+cappuccina\b/i.test(lowerPrompt)
-        ? 'Ballerina Cappuccina'
-        : 'Italian Brainrot';
-      return `Bro said **${mentioned}** to me 💀 that's straight out of **Italian Brainrot** — a whole cursed universe of AI-generated animal-hybrid characters with fake Italian names, made with AI voice generators and Blender/AI image tools, that took over TikTok and YouTube Shorts in 2024-25.\n\nTung Tung Tung Sahur is a wooden log with a face and a baseball bat (named after the Indonesian "sahur" drum used to wake people for pre-dawn Ramadan meals), and he's got a whole cast of buddies: **Tralalero Tralala** (a shark wearing Nikes), **Bombardiro Crocodilo** (a crocodile fused with a fighter jet), **Ballerina Cappuccina** (a coffee-cup-headed ballerina). Zero logic, maximum brainrot, and it's somehow everywhere now.`;
-    }
-
-    case 'grimace_shake':
-      return `The **Grimace Shake trend** was a summer 2023 TikTok phenomenon around McDonald's purple birthday milkshake (named after the mascot Grimace). 💀\n\nThe joke: people would film themselves drinking it, then the video would abruptly cut to fake found-footage horror aftermath — smashed rooms, "missing" title cards, chaos — implying the shake turned them feral or straight-up killed them.\n\nMcDonald's marketing team somehow let a mascot beverage become a horror-movie meme and it worked.`;
-
-    default:
-      return `Bro, this is pure internet brainrot at its finest. It's essentially viral TikTok and Discord slang that escaped containment. Entertaining as hell, but definitely fried everyone's attention span.`;
+  if (brainrotType === 'italian_brainrot') {
+    // Named this way because the opening line used to hardcode "Tung Tung Tung Sahur"
+    // regardless of which character the user actually mentioned ("what is bombardiro
+    // crocodilo" got an answer that opened by claiming the user said "tung tung tung sahur").
+    const lowerPrompt = userPrompt.toLowerCase();
+    const mentioned = /\b(?:tung\s+tung\s+tung\s+sahur|tung\s+sahur)\b/i.test(lowerPrompt)
+      ? 'Tung Tung Tung Sahur'
+      : /\btralalero\s+tralala\b/i.test(lowerPrompt)
+      ? 'Tralalero Tralala'
+      : /\b(?:bombardiro\s+crocodilo|bombardino\s+coccodrillo)\b/i.test(lowerPrompt)
+      ? 'Bombardiro Crocodilo'
+      : /\bballerina\s+cappuccina\b/i.test(lowerPrompt)
+      ? 'Ballerina Cappuccina'
+      : 'Italian Brainrot';
+    return pickBrainrot([
+      `Bro said **${mentioned}** to me 💀 that's straight out of **Italian Brainrot** — a whole cursed universe of AI-generated animal-hybrid characters with fake Italian names, made with AI voice generators and Blender/AI image tools, that took over TikTok and YouTube Shorts in 2024-25.\n\nTung Tung Tung Sahur is a wooden log with a face and a baseball bat (named after the Indonesian "sahur" drum used to wake people for pre-dawn Ramadan meals), and he's got a whole cast of buddies: **Tralalero Tralala** (a shark wearing Nikes), **Bombardiro Crocodilo** (a crocodile fused with a fighter jet), **Ballerina Cappuccina** (a coffee-cup-headed ballerina). Zero logic, maximum brainrot, and it's somehow everywhere now.`,
+      `**${mentioned}** is part of the **Italian Brainrot** universe — AI-generated animal hybrids with fake Italian names and AI voiceovers narrating absurd backstories, which blew up across TikTok and Shorts in 2024-25.\n\nThe main cast: Tung Tung Tung Sahur (a log with a bat), Tralalero Tralala (a shark in Nikes), Bombardiro Crocodilo (crocodile fighter jet), Ballerina Cappuccina (coffee-cup ballerina). It's completely meaningless and completely inescapable.`,
+      `Ah, **${mentioned}** — Italian Brainrot. 💀\n\nIt's a whole fake mythology of AI-generated creatures with Italian-sounding nonsense names, each with a dramatic AI-narrated origin story. Sharks in Nikes, crocodile jets, sentient logs with baseball bats. Made entirely with AI image and voice tools, spread entirely by kids on TikTok, and now permanently lodged in every Discord server.`,
+    ]);
   }
+
+  const pool = BRAINROT_EXPLAINERS[brainrotType];
+  return pickBrainrot(pool || BRAINROT_DEFAULT_REPLIES);
 }

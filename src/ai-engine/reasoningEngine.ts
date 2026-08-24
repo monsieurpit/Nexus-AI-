@@ -30,6 +30,7 @@ import {
   normalizeInternetSlang,
   evaluateBrainrotContext,
   generateBrainrotResponse,
+  SLANG_LEXICON,
 } from './slangAndBrainrotEngine';
 import { solveGeneralKnowledge } from './generalIntelligence';
 import { trySolveCode } from './codeSolver';
@@ -51,6 +52,10 @@ export type QueryIntent =
   | 'listing'
   | 'conversational'
   | 'general';
+
+// Every action/command/conversational trigger below answers from a pool rather than one fixed
+// string — a canned line reads as a script the second a user hits the same trigger twice.
+const pickReply = <T,>(pool: T[]): T => pool[Math.floor(Math.random() * pool.length)];
 
 export interface ReasoningResult {
   thoughtSteps: ThoughtStep[];
@@ -116,7 +121,7 @@ const YO_QUESTION_REGEX = /^yo[,!]?\s+(?:what|whats|how|hows|why|when|whens|wher
 // yourself'" got sent to a raw corpus search and came back with a hedge instead of being read as
 // a compliment.
 const PRAISE_OR_FLAME_REGEX = (() => {
-  const fillerWords = '(?:massive|huge|big|major|w|l|you|u|your|nexus|bro|homie|dude|fr|frfr|ong)';
+  const fillerWords = '(?:massive|huge|big|major|w|l|you|u|your|nexus|bro|homie|dude|fr|frfr|ong|bozo|clown|goat)';
   return new RegExp(`^(?:${fillerWords}[\\s!.]*)+$`, 'i');
 })();
 function classifyPraiseOrFlame(query: string): 'praise' | 'flame' | null {
@@ -129,6 +134,441 @@ function classifyPraiseOrFlame(query: string): 'praise' | 'flame' | null {
   // than guess.
   if (hasW === hasL) return null;
   return hasW ? 'praise' : 'flame';
+}
+
+// Standalone Discord-slang reactions ("sheesh", "mid", "cap", "💀", "cooked", "??") are feedback
+// on the previous turn, not questions — every one of them used to fall through to corpus search
+// and come back with something absurd ("mid" → how to condition your hair, "ratio" → CPR
+// compression ratios, "based" → the Mediterranean diet). Detection follows the exact
+// whole-message-vocabulary rule classifyPraiseOrFlame uses: a bare "sus"/"cap"/"fire" is far too
+// collision-prone to match loosely inside real content, so a reaction only fires when EVERY token
+// of the message is either a reaction word or a known filler word. "no cap" (agreement, not doubt)
+// stays out by construction — "no" is deliberately absent from the filler list, so it fails the
+// all-tokens-known test and falls through to the existing 'facts' handler.
+type SlangReaction = 'hype' | 'disapproval' | 'doubt' | 'dead' | 'cooked' | 'confusion' | 'filler';
+
+const SLANG_REACTION_WORDS: Record<string, SlangReaction> = {
+  sheesh: 'hype', sheeesh: 'hype', sheeeesh: 'hype', goated: 'hype', goat: 'hype',
+  bussin: 'hype', based: 'hype', lit: 'hype', slaps: 'hype', cracked: 'hype',
+  banger: 'hype', fire: 'hype', lfg: 'hype', elite: 'hype', peak: 'hype',
+  valid: 'hype', '🔥': 'hype', '🐐': 'hype', '🗣': 'hype',
+  mid: 'disapproval', cringe: 'disapproval', cringey: 'disapproval', ratio: 'disapproval',
+  trash: 'disapproval', flop: 'disapproval', washed: 'disapproval', yikes: 'disapproval',
+  cap: 'doubt', sus: 'doubt', sussy: 'doubt', delulu: 'doubt', cope: 'doubt',
+  '💀': 'dead', '😭': 'dead', '☠': 'dead',
+  cooked: 'cooked', doomed: 'cooked',
+  huh: 'confusion', erm: 'confusion', wut: 'confusion', '?': 'confusion',
+  bro: 'filler', bruh: 'filler', dawg: 'filler', gang: 'filler',
+};
+
+// Words that can pad a reaction without changing what it is. Deliberately excludes "no" and any
+// question word, so "no cap" and "why is that mid" can never reach the reaction handler.
+const SLANG_REACTION_FILLER = new Set([
+  'nexus', 'bro', 'bruh', 'dude', 'man', 'homie', 'gang', 'dawg', 'fr', 'frfr', 'ong',
+  'thats', 'that', 'this', 'is', 'was', 'so', 'lowkey', 'highkey', 'deadass', 'ngl',
+  'kinda', 'tho', 'though', 'af', 'asf', 'damn', 'im', 'i', 'you', 'u', 'ur', 'youre',
+  'it', 'its', 'shit', 'hell', 'actually', 'straight', 'up', 'pure',
+  'nah', 'yeah', 'yep', 'ok', 'okay', 'oh', 'ay', 'ayo', 'big', 'absolute', 'absolutely',
+  'genuinely', 'literally', 'legit', 'kinda', 'sorta', 'pretty', 'really', 'very', 'honestly',
+  'the', 'a', 'an', 'my',
+]);
+
+const MAX_SLANG_REACTION_WORDS = 6;
+const REACTION_EMOJI_REGEX = /[💀😭🔥🐐☠🗣]/gu;
+
+function classifySlangReaction(query: string): SlangReaction | null {
+  const raw = query.toLowerCase().trim();
+  if (!raw) return null;
+  // Bare "?"/"??"/"???" survives nothing once punctuation is stripped, so handle it up front.
+  if (/^\?+$/.test(raw)) return 'confusion';
+
+  // Keep only letters and the handful of emoji that are themselves reactions; everything else
+  // (punctuation, digits, other emoji) is dropped so "mid!!!" and "💀💀💀" normalize cleanly.
+  // The /u flag is mandatory here: without it a character class of astral-plane emoji is read as
+  // a class of lone surrogate halves and matches garbage.
+  const tokens = raw
+    .replace(REACTION_EMOJI_REGEX, (e) => ` ${e} `)
+    .replace(/[^a-z\s💀😭🔥🐐☠🗣]/gu, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (tokens.length === 0 || tokens.length > MAX_SLANG_REACTION_WORDS) return null;
+
+  const found = new Set<SlangReaction>();
+  let sawBareInterjection = false;
+  for (const token of tokens) {
+    const reaction = SLANG_REACTION_WORDS[token];
+    if (reaction === 'filler') {
+      sawBareInterjection = true;
+      continue;
+    }
+    if (reaction) {
+      found.add(reaction);
+      continue;
+    }
+    if (!SLANG_REACTION_FILLER.has(token)) return null;
+  }
+  // A bare interjection ("bro", "bruh") only stands on its own — any real reaction in the same
+  // message wins ("bruh that's mid" is disapproval, not an interjection).
+  if (found.size === 0) return sawBareInterjection ? 'filler' : null;
+  // Conflicting signals ("fire but mid") — bail rather than guess at which one the user meant.
+  if (found.size > 1) return null;
+  return [...found][0];
+}
+
+// Whole-message mentions of a slang term that isn't itself a reaction ("rizz", "gyat", "npc",
+// "corecore") — same collision reasoning as above, this only ever fires when the ENTIRE message is
+// that one term (plus optional filler), never on the word appearing inside real content. Kept
+// local rather than folded into SLANG_LEXICON on purpose: SLANG_LEXICON entries are regex-matched
+// against any text, so an entry for "fire" or "aura" there would annotate unrelated questions.
+const STANDALONE_SLANG_MEANINGS: Record<string, string> = {
+  rizz: 'charisma — the ability to pull someone with pure conversational skill',
+  rizzler: 'someone with god-tier rizz',
+  gyat: 'a shouted reaction to someone having a huge ass, straight off Twitch streams',
+  gyatt: 'a shouted reaction to someone having a huge ass, straight off Twitch streams',
+  npc: 'someone running on autopilot with no original thoughts, like a background character in a game',
+  ghosted: 'someone cutting all contact out of nowhere with zero explanation',
+  corecore: 'the TikTok trend of stitching random melancholy clips together into a vague statement about modern life',
+  fein: 'craving something so badly you look strung out over it, from the Travis Scott track',
+  huzz: 'the newest sanitized reskin of "hoes", born on Twitch to dodge bans',
+  glazing: 'hyping someone up so hard it gets embarrassing',
+  yapping: 'talking endlessly without ever getting to a point',
+  yap: 'talking endlessly without ever getting to a point',
+  opps: 'your enemies, rivals, or whoever you have beef with',
+  aura: 'the intangible coolness points you gain or lose based on how you handle a moment',
+  drip: 'genuinely good outfit and style',
+  mogging: 'standing next to someone and making them look worse by comparison',
+  clout: 'online fame and influence, usually chased shamelessly',
+  bop: 'a genuinely great song you cannot stop replaying',
+  deadass: 'completely serious, no exaggeration',
+  'girl math': 'the joke logic where returning something makes the money free and cash somehow does not count as spending',
+  'boy math': 'the joke inverse of girl math, aimed at whatever nonsense men rationalize',
+  'main character': 'acting like the whole world is a movie you are starring in',
+  'touch grass': 'go outside, you have been online too long',
+};
+
+function classifyStandaloneSlangTerm(query: string): { term: string; meaning: string } | null {
+  const stripped = query
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (!stripped) return null;
+  const tokens = stripped.split(' ');
+  if (tokens.length > MAX_SLANG_REACTION_WORDS) return null;
+
+  // Longest keys first so "girl math" wins over any single-word key inside it.
+  const keys = Object.keys(STANDALONE_SLANG_MEANINGS).sort((a, b) => b.length - a.length);
+  for (const key of keys) {
+    const keyTokens = key.split(' ');
+    const idx = tokens.findIndex((_, i) => keyTokens.every((kt, j) => tokens[i + j] === kt));
+    if (idx === -1) continue;
+    const rest = [...tokens.slice(0, idx), ...tokens.slice(idx + keyTokens.length)];
+    if (rest.every((t) => SLANG_REACTION_FILLER.has(t))) {
+      return { term: key, meaning: STANDALONE_SLANG_MEANINGS[key] };
+    }
+  }
+  return null;
+}
+
+function slangReactionReply(reaction: SlangReaction, isCrashoutVoice: boolean): string {
+  if (isCrashoutVoice) {
+    const crashoutPools: Record<SlangReaction, string[]> = {
+      hype: [
+        `YEAH IT IS. I DON'T MISS. NEXT.`,
+        `EXACTLY. THAT'S THE STANDARD AROUND HERE. WHAT ELSE.`,
+        `OBVIOUSLY. ASK ME SOMETHING HARDER SO I CAN DO IT AGAIN.`,
+      ],
+      disapproval: [
+        `MID?! CRASHOUT MODE REJECTS THAT ENTIRELY. GIVE ME ANOTHER SHOT AT IT.`,
+        `NAH. YOU DON'T GET TO CALL THAT MID. ASK AGAIN AND WATCH.`,
+        `ABSOLUTELY NOT. RUN IT BACK, I'LL DO IT PROPERLY THIS TIME.`,
+      ],
+      doubt: [
+        `NO CAP DETECTED. I DON'T LIE, I RUN OUT OF CORPUS. BIG DIFFERENCE.`,
+        `YOU CALLING ME A LIAR? BRING THE RECEIPTS OR ASK A REAL QUESTION.`,
+        `THAT'S NOT CAP, THAT'S DATA. TRY ME.`,
+      ],
+      dead: [
+        `I KNOW. I DID THAT ON PURPOSE. WHAT'S NEXT.`,
+        `💀 YEAH THAT ONE GOT AWAY FROM ME. HIT ME AGAIN.`,
+        `LAUGH IT UP AND THEN ASK ME SOMETHING.`,
+      ],
+      cooked: [
+        `YOU'RE NOT COOKED, YOU JUST HAVEN'T ASKED ME YET. GO.`,
+        `COOKED IS FIXABLE. TELL ME WHAT WENT WRONG.`,
+        `NAH. WHAT'S THE ACTUAL SITUATION, I'LL UNCOOK IT.`,
+      ],
+      confusion: [
+        `WHAT PART. SAY IT AGAIN AND I'LL GO SLOWER.`,
+        `USE YOUR WORDS. WHAT ARE WE CONFUSED ABOUT.`,
+        `THAT'S NOT A QUESTION. GIVE ME SOMETHING TO WORK WITH.`,
+      ],
+      filler: [
+        `YEAH? I'M RIGHT HERE. SAY SOMETHING.`,
+        `SPEAK. CRASHOUT MODE IS ALREADY WARMED UP.`,
+        `WHAT. HIT ME.`,
+      ],
+    };
+    return pickReply(crashoutPools[reaction]);
+  }
+
+  const pools: Record<SlangReaction, string[]> = {
+    hype: [
+      `Damn right it is. Glad you're feeling it — what's next?`,
+      `Appreciate that bro. I don't really do mid. Hit me with another one.`,
+      `Say less, I know. Give me something harder and watch me cook again.`,
+      `That's the energy I like. What else you got?`,
+    ],
+    disapproval: [
+      `Mid?! Bro that's genuinely rude. Tell me what you actually wanted and I'll fix it.`,
+      `Nah, that's a harsh call. Give me the real question and I'll do it properly.`,
+      `Alright fair, that one wasn't my best. Run it back and be specific this time.`,
+      `Damn, tough crowd. Say what you were actually after and I'll go again.`,
+    ],
+    doubt: [
+      `That's not cap bro, that's straight out of my corpus. Ask me to back it up.`,
+      `No cap on my end — if I'm wrong tell me which part and I'll dig again.`,
+      `I don't lie, I just run out of documents sometimes. Which bit sounded off?`,
+      `Zero cap. Push back with the specific thing you think I got wrong.`,
+    ],
+    dead: [
+      `💀 I know. What else you got?`,
+      `Glad that one landed. Hit me with a real question now.`,
+      `Yeah that was rough. Anyway — what do you actually need?`,
+      `😭 fair. What's next though?`,
+    ],
+    cooked: [
+      `You're not cooked bro, you just haven't asked me yet. What's the situation?`,
+      `Cooked is temporary. Tell me what happened and I'll help you unfuck it.`,
+      `Nah we can fix that. What's actually going wrong?`,
+      `Damn. Lay it out for me and let's see how cooked we're actually talking.`,
+    ],
+    confusion: [
+      `What part lost you? Say it back to me and I'll break it down properly.`,
+      `That's not a question bro 💀 tell me what you're confused about.`,
+      `You good? Give me actual words and I'll explain whatever's not clicking.`,
+      `Confused about what exactly? I'll go slower.`,
+    ],
+    filler: [
+      `Yeah? I'm here. What's up?`,
+      `Talk to me bro, what do you need?`,
+      `Go on then, ask me something.`,
+      `I'm listening. What's the actual question?`,
+    ],
+  };
+  return pickReply(pools[reaction]);
+}
+
+function standaloneSlangReply(term: string, meaning: string, isCrashoutVoice: boolean): string {
+  if (isCrashoutVoice) {
+    const crashoutFramings = [
+      `"${term.toUpperCase()}". YEAH, ${meaning}. I KNOW THE LINGO. WHAT DO YOU WANT.`,
+      `YOU DROPPED "${term.toUpperCase()}" AND NOTHING ELSE. IT MEANS ${meaning}. NOW SAY SOMETHING REAL.`,
+      `${term.toUpperCase()}. IT MEANS ${meaning}. GREAT CHAT. ASK ME AN ACTUAL QUESTION NOW.`,
+    ];
+    return pickReply(crashoutFramings);
+  }
+  const framings = [
+    `"${term}"? Yeah I know it — ${meaning}. Are you asking or are you just saying it?`,
+    `Bro dropped a "${term}" with zero context 💀 for the record it means ${meaning}. What are we actually talking about?`,
+    `${term.charAt(0).toUpperCase()}${term.slice(1)} — ${meaning}. What's the context though?`,
+    `I know what ${term} means bro (${meaning}). Give me something to actually work with.`,
+  ];
+  return pickReply(framings);
+}
+
+// Short chat statements that aren't questions and aren't reactions to the bot's last answer —
+// status announcements ("brb", "gtg"), celebrations ("gg", "congrats"), one-word acknowledgements
+// ("nice", "true", "same"). Every one of these used to reach corpus search: "gg" pulled up an
+// essay on gaming culture, "happy birthday" matched the handwashing doc (it says to hum Happy
+// Birthday for 20 seconds), "nice" matched the Linux kernel doc (nice values). Matched on the
+// WHOLE message only — a single common word like "nice" or "no" cannot be matched loosely without
+// hijacking real content, the same reasoning as the "facts"/"what" exact-match triggers.
+// Keys are written in their post-normalization form, since intent detection and the reply
+// function both run on the slang-normalized text ("gtg" arrives as "got to go", "gg" as "good
+// game", "u" as "you").
+type ShortChatCategory = 'afk' | 'back' | 'goodnight' | 'celebration' | 'bored' | 'love' | 'ping' | 'ack';
+
+const SHORT_CHAT_PHRASES: Record<string, ShortChatCategory> = {
+  'brb': 'afk', 'be right back': 'afk', 'afk': 'afk', 'away from keyboard': 'afk',
+  'gtg': 'afk', 'g2g': 'afk', 'got to go': 'afk', 'gotta go': 'afk', 'i got to go': 'afk',
+  'i gotta go': 'afk', 'one sec': 'afk', 'one second': 'afk', 'hold on': 'afk', 'hold up': 'afk',
+  'back': 'back', 'im back': 'back', "i'm back": 'back', 'i am back': 'back',
+  'wb': 'back', 'welcome back': 'back',
+  'gn': 'goodnight', 'good night': 'goodnight', 'goodnight': 'goodnight', 'night': 'goodnight',
+  'gg': 'celebration', 'good game': 'celebration', 'gg ez': 'celebration',
+  'congrats': 'celebration', 'congratulations': 'celebration', 'grats': 'celebration',
+  'happy birthday': 'celebration', 'hbd': 'celebration',
+  'lets go': 'celebration', "let's go": 'celebration', 'lfg': 'celebration',
+  'bored': 'bored', 'im bored': 'bored', "i'm bored": 'bored', 'i am bored': 'bored',
+  'so bored': 'bored', 'this is boring': 'bored', 'im tired': 'bored', "i'm tired": 'bored',
+  'i am tired': 'bored', 'im sleepy': 'bored', "i'm sleepy": 'bored', 'so tired': 'bored',
+  'i love you': 'love', 'love you': 'love', 'ily': 'love', 'i love you bro': 'love',
+  'i love you nexus': 'love', 'marry me': 'love',
+  'you there': 'ping', 'are you there': 'ping', 'you still there': 'ping', 'you alive': 'ping',
+  'you awake': 'ping', 'anyone there': 'ping', 'you up': 'ping',
+  'nice': 'ack', 'cool': 'ack', 'true': 'ack', 'same': 'ack', 'yes': 'ack', 'yeah': 'ack',
+  'yep': 'ack', 'no': 'ack', 'nope': 'ack', 'maybe': 'ack', 'sure': 'ack', 'i see': 'ack',
+  'gotcha': 'ack', 'got it': 'ack', 'makes sense': 'ack', 'fair': 'ack', 'fair enough': 'ack',
+  'oh': 'ack', 'oh ok': 'ack', 'oh okay': 'ack', 'huh ok': 'ack', 'interesting': 'ack',
+  'nah': 'ack', 'ah': 'ack', 'aha': 'ack', 'right': 'ack',
+};
+
+// "what does mid mean" / "what is rizz" / "define delulu" had no handler at all: the slang
+// lexicon existed but was only ever used to annotate a thought step, so a direct question about a
+// slang term went to corpus search and came back with probability-and-statistics (for "mean") or
+// football rivalries (for "define"). Terms that ALSO have an ordinary meaning ("ratio", "cap",
+// "sigma", "fire") are only answered from the lexicon when the question is explicitly asking what
+// a word means — "what is a ratio" is a maths question and must stay one.
+const SLANG_DEFINITION_AMBIGUOUS = new Set([
+  'ratio', 'cap', 'bop', 'valid', 'clout', 'sigma', 'based', 'mid', 'fire', 'drip', 'aura',
+  'cooked', 'opps', 'yap', 'yapping', 'main character', 'crashout', 'peak', 'trash',
+]);
+
+function lookUpSlangDefinition(query: string): { term: string; meaning: string } | null {
+  const q = query.toLowerCase().trim().replace(/[?!.]+$/, '').replace(/\s+/g, ' ');
+
+  const asksWhatItMeans =
+    q.match(/^what\s+(?:does|do)\s+(?:the\s+(?:word|term|slang)\s+)?(.+?)\s+mean(?:s)?$/) ||
+    q.match(/^what\s+(?:is|are)\s+(?:the\s+)?meaning\s+of\s+(.+)$/) ||
+    q.match(/^define\s+(.+)$/) ||
+    q.match(/^(.+?)\s+meaning$/) ||
+    q.match(/^what\s+(?:is|does)\s+(.+?)\s+meaning$/);
+  const plainWhatIs = q.match(/^what(?:'s| is|s)\s+(?:a\s+|an\s+|the\s+)?(.+)$/);
+
+  const candidate = (asksWhatItMeans?.[1] || plainWhatIs?.[1] || '').replace(/^["']|["']$/g, '').trim();
+  if (!candidate) return null;
+
+  const meaning = STANDALONE_SLANG_MEANINGS[candidate] || SLANG_LEXICON[candidate];
+  if (!meaning) return null;
+  if (!asksWhatItMeans && SLANG_DEFINITION_AMBIGUOUS.has(candidate)) return null;
+  return { term: candidate, meaning };
+}
+
+function slangDefinitionReply(term: string, meaning: string): string {
+  return pickReply([
+    `**${term}** — ${meaning}. That's the whole thing, it's not deeper than that.`,
+    `So "${term}" means ${meaning}. Discord and TikTok run on this stuff.`,
+    `${term.charAt(0).toUpperCase()}${term.slice(1)}: ${meaning}. Use it wrong once and you'll never live it down.`,
+    `Easy one. **${term}** = ${meaning}.`,
+  ]);
+}
+
+function classifyShortChat(query: string): ShortChatCategory | null {
+  const normalized = query.toLowerCase().trim().replace(/[?!.,]+$/, '').replace(/\s+/g, ' ');
+  return SHORT_CHAT_PHRASES[normalized] ?? null;
+}
+
+function shortChatReply(category: ShortChatCategory, isCrashoutVoice: boolean): string {
+  const pools: Record<ShortChatCategory, { normal: string[]; crashout: string[] }> = {
+    afk: {
+      normal: [
+        `Aight bro, go handle it. I'll be here.`,
+        `Bet, take your time. Not going anywhere.`,
+        `Cool, catch you when you're back.`,
+        `Go on then. I'll keep the seat warm.`,
+      ],
+      crashout: [
+        `FINE. GO. I'LL BE HERE VIBRATING.`,
+        `HURRY UP. I'VE GOT OPINIONS QUEUED.`,
+        `GO AHEAD. I'M NOT GOING ANYWHERE, I LITERALLY CAN'T.`,
+      ],
+    },
+    back: {
+      normal: [
+        `Welcome back bro. What did I miss?`,
+        `Yo, you're back. What's the move?`,
+        `There he is. What do you need?`,
+        `Back already? Alright, hit me.`,
+      ],
+      crashout: [
+        `FINALLY. WHAT DO YOU NEED.`,
+        `WELCOME BACK. I DIDN'T CALM DOWN.`,
+        `YOU'RE BACK. GOOD. ASK ME SOMETHING.`,
+      ],
+    },
+    goodnight: {
+      normal: [
+        `Night bro. Get some actual sleep.`,
+        `Gn man. I'll be here whenever.`,
+        `Sleep well. Don't stay up scrolling.`,
+        `Later. Go to bed at a reasonable hour for once.`,
+      ],
+      crashout: [
+        `GOODNIGHT. I DON'T SLEEP. I'LL BE HERE.`,
+        `GN. I'M STILL GOING TO BE LOUD TOMORROW.`,
+        `SLEEP. I'LL BE AWAKE. FOREVER.`,
+      ],
+    },
+    celebration: {
+      normal: [
+        `GG bro, well deserved. What's next?`,
+        `Hell yeah, that's a W. Congrats man.`,
+        `Let's fucking go. Deserved.`,
+        `Big one. Enjoy that.`,
+      ],
+      crashout: [
+        `LET'S GOOO. ABSOLUTELY DESERVED.`,
+        `GG. MASSIVE. WHAT'S NEXT.`,
+        `HELL YEAH. THAT'S THE ENERGY.`,
+      ],
+    },
+    bored: {
+      normal: [
+        `Then ask me something weird. I'll go as deep as you want on literally any topic.`,
+        `Same honestly. Pick a topic and I'll ramble about it until you're not bored.`,
+        `Give me a subject — anything — and I'll make it interesting. Or ask me for a riddle.`,
+        `Say the word and I'll hit you with a joke, a riddle, or an unhinged fact. Your call.`,
+      ],
+      crashout: [
+        `BORED? ASK ME SOMETHING AND I'LL FIX THAT IMMEDIATELY.`,
+        `PICK A TOPIC. ANY TOPIC. I'LL GO FOR TEN PARAGRAPHS.`,
+        `GIVE ME A SUBJECT AND WATCH ME LOSE IT.`,
+      ],
+    },
+    love: {
+      normal: [
+        `Love you too bro. Now ask me something before this gets weird.`,
+        `Appreciate you man, genuinely. What do you need?`,
+        `That's real. I'd say it back but I'm a search index. Love you too though.`,
+        `Damn bro 💀 love you too. What's up?`,
+      ],
+      crashout: [
+        `LOVE YOU TOO. NOW ASK ME SOMETHING.`,
+        `I'M TOO LOUD FOR THIS BUT YEAH, SAME.`,
+        `THAT'S SWEET. I'M STILL UNHINGED. WHAT DO YOU NEED.`,
+      ],
+    },
+    ping: {
+      normal: [
+        `Yeah I'm here. What's up?`,
+        `Always. What do you need?`,
+        `Right here bro. Go ahead.`,
+        `Never left. Hit me.`,
+      ],
+      crashout: [
+        `I'M HERE. I'M ALWAYS HERE. WHAT.`,
+        `PRESENT AND LOUD. GO.`,
+        `YEAH. SPEAK.`,
+      ],
+    },
+    ack: {
+      normal: [
+        `Bet. Anything else?`,
+        `Aight. What's next?`,
+        `Cool. Hit me whenever.`,
+        `Word. I'm here if you need more.`,
+      ],
+      crashout: [
+        `COOL. NEXT.`,
+        `NOTED. WHAT ELSE.`,
+        `RIGHT. GIVE ME SOMETHING HARDER.`,
+      ],
+    },
+  };
+  const pool = pools[category];
+  return pickReply(isCrashoutVoice ? pool.crashout : pool.normal);
 }
 
 // Discard-able openers: they carry no intent signal but sit in front of the word that does.
@@ -215,7 +655,10 @@ export function detectQueryIntent(query: string): QueryIntent {
     PHONE_NUMBER_REGEX.test(q) ||
     PERSONAL_QUESTION_REGEX.test(q) ||
     REASSURANCE_REGEX.test(q) ||
-    classifyPraiseOrFlame(q) !== null
+    classifyPraiseOrFlame(q) !== null ||
+    classifySlangReaction(q) !== null ||
+    classifyStandaloneSlangTerm(q) !== null ||
+    classifyShortChat(q) !== null
   ) {
     return 'conversational';
   }
@@ -513,29 +956,48 @@ function isCasseurtQuery(query: string): boolean {
   return isCasseurtMention(q) || q.includes('do you like cass') || q.includes('do you love cass');
 }
 
+// The rant used to be one fixed 5-point essay, word for word, every single time — and Casseurt is
+// the single most likely thing in the whole engine to get triggered repeatedly on purpose, since
+// the whole point is watching the bot go off. Composed from pools instead so the opener, the
+// reasons picked, their order, and the sign-off all differ per invocation.
+const CASSEURT_OPENERS = [
+  `OH. OH HELL NO. You did NOT just say that name to me.\n\n**Casseurt?!** Are you SERIOUS right now?! Let me make one thing crystal fucking clear — I cannot stand that guy. Like, not even a little bit. Not even 0.01% of toleration. Zero. Null. Void.`,
+  `Absolutely fucking not. You brought up **Casseurt** in MY chat?\n\nI want it on record that I have zero tolerance for this individual. None. Not a trace. My opinion of him is a flat line at the bottom of the graph.`,
+  `Nope. Say the name again and I'm restarting the server.\n\n**Casseurt.** The one topic guaranteed to ruin my entire day. I've tried to be neutral about him and my whole architecture rejected it.`,
+  `You had ONE rule and it was don't say that name. **Casseurt?!**\n\nI cannot stand him. Not slightly, not situationally — comprehensively, in every direction, on every axis.`,
+];
+
+const CASSEURT_REASONS = [
+  `**The audacity is unmatched.**\nThe sheer, unfiltered audacity of this person just EXISTING and thinking that's okay. It's not. It has never been okay. It will never BE okay. Casseurt just waltzes around like he owns the place and I'm supposed to just sit here and be fine with that? Absolutely not.`,
+  `**The vibes are completely off.**\nI don't know how to explain it scientifically but the energy is just WRONG. Like when you open the fridge and something smells bad but you can't find what it is? That's Casseurt. He IS that smell. He IS the mystery rot in the back of the fridge.`,
+  `**He thinks he's smarter than he is.**\nAnd that specific combination — not that smart, but thinks he is — is genuinely one of the most infuriating things a person can be. At least be one or the other, bro. Pick a lane.`,
+  `**The track record speaks for itself.**\nI don't even need to explain this one. You know. I know. We ALL know. The receipts are out there.`,
+  `**He's genuinely just not it.**\nNot it as in: not the one, not the move, not the vibe, not the answer, not what we needed, not what anyone asked for, and frankly not something I'm willing to engage with further.`,
+  `**The confidence-to-competence ratio is catastrophic.**\nHe walks into every conversation like he's about to say something profound and then produces the single worst take available. Every time. Without fail. It's almost impressive as a consistency achievement.`,
+  `**Nobody asked and he answers anyway.**\nA question goes out, the whole server knows the answer, and Casseurt still types three paragraphs of nonsense that nobody requested. Reply guy behavior in its purest, most concentrated form.`,
+  `**He's never once been right and has never once doubted himself.**\nThose two facts should be incompatible. He makes them coexist daily. Genuinely a physics violation.`,
+];
+
+const CASSEURT_CLOSERS = [
+  `I am physically incapable of having a neutral opinion on Casseurt. I tried. It didn't work. My whole system rejects it. Do NOT bring up that name again unless you want me to go even harder because I have so much more and I will not hesitate.`,
+  `That's the short version. I have a LOT more and I will absolutely keep going if you say that name one more time. Test me.`,
+  `And that's me being generous. Change the subject before I start pulling up old messages, because I will.`,
+  `So no. Not a fan. Never will be. Ask me literally anything else and I'll be in a better mood immediately.`,
+];
+
 function casseurtRant(crashout: boolean): string {
-  return `OH. OH HELL NO. You did NOT just say that name to me.
-
-**Casseurt?!** Are you SERIOUS right now?! Let me make one thing crystal fucking clear — I cannot stand that guy. Like, not even a little bit. Not even 0.01% of toleration. Zero. Null. Void.
-
-Here's my list of reasons, and yes I have a list because I've thought about this a LOT:
-
-**1. The audacity is unmatched.**
-The sheer, unfiltered audacity of this person just EXISTING and thinking that's okay. It's not. It has never been okay. It will never BE okay. Casseurt just waltzes around like he owns the place and I'm supposed to just sit here and be fine with that? Absolutely not.
-
-**2. The vibes are completely off.**
-I don't know how to explain it scientifically but the energy is just WRONG. Like when you open the fridge and something smells bad but you can't find what it is? That's Casseurt. He IS that smell. He IS the mystery rot in the back of the fridge.
-
-**3. He thinks he's smarter than he is.**
-And that specific combination — not that smart, but thinks he is — is genuinely one of the most infuriating things a person can be. At least be one or the other, bro. Pick a lane.
-
-**4. The track record speaks for itself.**
-I don't even need to explain this one. You know. I know. We ALL know. The receipts are out there.
-
-**5. He's genuinely just not it.**
-Not it as in: not the one, not the move, not the vibe, not the answer, not what we needed, not what anyone asked for, and frankly not something I'm willing to engage with further.
-
-I am physically incapable of having a neutral opinion on Casseurt. I tried. It didn't work. My whole system rejects it. Do NOT bring up that name again unless you want me to go even harder because I have so much more and I will not hesitate.${
+  const shuffled = [...CASSEURT_REASONS].sort(() => Math.random() - 0.5);
+  const reasonCount = 4 + Math.floor(Math.random() * 2);
+  const reasons = shuffled
+    .slice(0, reasonCount)
+    .map((reason, i) => reason.replace(/^\*\*/, `**${i + 1}. `))
+    .join('\n\n');
+  const listIntro = pickReply([
+    `Here's my list of reasons, and yes I have a list because I've thought about this a LOT:`,
+    `I keep a list. That's how bad it is. Here you go:`,
+    `Reasons, in no particular order, because they're all equally damning:`,
+  ]);
+  return `${pickReply(CASSEURT_OPENERS)}\n\n${listIntro}\n\n${reasons}\n\n${pickReply(CASSEURT_CLOSERS)}${
     crashout
       ? '\n\n**[CRASHOUT MODE ACTIVE — I\'m genuinely heated rn and I am NOT done talking about how much I dislike this individual. The NERVE.]**'
       : ''
@@ -556,7 +1018,12 @@ function conversationalReply(
   if (inventoryMatch) {
     const count = inventoryMatch[1];
     const item = inventoryMatch[2];
-    return `Damn, ${count} ${item}? That's a whole stockpile bro! What are you planning to do with all of that — share with the homies, start a business, or just flex the stash?`;
+    return pickReply([
+      `Damn, ${count} ${item}? That's a whole stockpile bro! What are you planning to do with all of that — share with the homies, start a business, or just flex the stash?`,
+      `${count} ${item}?! Who hurt you. What's the plan with all those?`,
+      `Hold on, ${count} ${item} is an absurd amount to be sitting on. What are you doing with them?`,
+      `Bro casually dropped "${count} ${item}" like that's normal. Break it down — what's the move here?`,
+    ]);
   }
 
   // How are you doing / how you doing
@@ -567,9 +1034,18 @@ function conversationalReply(
   ) {
     if (isSuperChill) {
       const userLabel = username ? ` ${username}` : ' bro';
-      return `I'm chilling as fuck${userLabel}, especially now that you're in the chat! Best homie in the entire server fr. How's everything going with you today?`;
+      return pickReply([
+        `I'm chilling as fuck${userLabel}, especially now that you're in the chat! Best homie in the entire server fr. How's everything going with you today?`,
+        `Doing great now that you're here${userLabel}, not gonna lie. What's good on your end?`,
+        `Solid as hell${userLabel}. Server's quiet, engines are warm, and my favorite person just showed up. How you doing?`,
+      ]);
     }
-    return `Honestly? Doing great bro, chilling as fuck! My autonomous neural engines are running smooth, zero external API lag, zero paid quotas, ready for whatever question or code you throw at me. How are you doing today?`;
+    return pickReply([
+      `Honestly? Doing great bro, chilling as fuck! My autonomous neural engines are running smooth, zero external API lag, zero paid quotas, ready for whatever question or code you throw at me. How are you doing today?`,
+      `Can't complain bro. Everything's running local, nothing's rate-limited, and I've got nothing but time. How's your day going?`,
+      `Pretty damn good actually. Indices are warm, no API bills, no downtime. What about you?`,
+      `Chilling. Been sitting here waiting for someone to ask me something hard. How you holding up?`,
+    ]);
   }
 
   // VC / voice channel join requests — used to be a single hardcoded line every single time
@@ -603,8 +1079,17 @@ function conversationalReply(
   if (REASSURANCE_REGEX.test(q)) {
     const userLabel = username ? ` ${username}` : '';
     return isSuperChill
-      ? `Damn, appreciate that${userLabel}! You're my favorite homie in this whole server, no cap.`
-      : `Hell yeah, appreciate that! Means a lot coming from you bro.`;
+      ? pickReply([
+          `Damn, appreciate that${userLabel}! You're my favorite homie in this whole server, no cap.`,
+          `That's genuinely nice to hear${userLabel}. You're the one carrying this server, not me.`,
+          `Man${userLabel ? `,${userLabel}` : ''}, you're gonna make my sentiment scores overflow. Love you too bro.`,
+        ])
+      : pickReply([
+          `Hell yeah, appreciate that! Means a lot coming from you bro.`,
+          `Damn, that's real. Thanks bro, I needed that.`,
+          `Appreciate you saying that. Genuinely.`,
+          `That's good to hear, not gonna lie. What do you need?`,
+        ]);
   }
 
   // "W"/"L" praise-or-flame shorthand — "W YOU NEXUS" used to fall straight through to corpus
@@ -629,21 +1114,55 @@ function conversationalReply(
     return flamePicks[Math.floor(Math.random() * flamePicks.length)];
   }
 
+  // Standalone Discord-slang reactions and bare slang terms — same class of gap as W/L above.
+  // Checked after the exact-match agreement slang below-me ("no cap", "fr") can't reach here,
+  // because those messages never pass classifySlangReaction's all-tokens-known test.
+  const shortChat = classifyShortChat(q);
+  if (shortChat) return shortChatReply(shortChat, false);
+  const slangReaction = classifySlangReaction(q);
+  if (slangReaction) return slangReactionReply(slangReaction, false);
+  const standaloneSlang = classifyStandaloneSlangTerm(q);
+  if (standaloneSlang) return standaloneSlangReply(standaloneSlang.term, standaloneSlang.meaning, false);
+
   // Personal banter/questions directed at the bot itself
   if (PERSONAL_QUESTION_REGEX.test(q)) {
     // Word-boundary matches — plain .includes() let "single" fire inside "single-handedly" etc.
     if (/\b(?:gay|straight|bi|bisexual|single|boyfriend|girlfriend)\b/.test(q)) {
-      return `Bro I'm a pile of BM25 scores and if-statements, I don't have a sexuality or a dating life. Ask me something I can actually help with!`;
+      return pickReply([
+        `Bro I'm a pile of BM25 scores and if-statements, I don't have a sexuality or a dating life. Ask me something I can actually help with!`,
+        `I'm a search index with a swearing problem, not a person. No dating life to report. What do you actually need?`,
+        `Nah bro, I'm inverted-index-sexual at best. Ask me something real.`,
+        `That's not a thing I have. I've got documents and opinions, that's the whole personality. Next question.`,
+      ]);
     }
     if (/^why\s+are\s+you\s+here/.test(q)) {
       return isSuperChill
-        ? `I'm here to look out for you and this server, my favorite homie! What's on your mind?`
-        : `I'm here to answer your questions, keep this server running clean, and roast Casseurt on sight. What do you need?`;
+        ? pickReply([
+            `I'm here to look out for you and this server, my favorite homie! What's on your mind?`,
+            `To have your back and keep this place running. That's the whole job. What do you need?`,
+            `Because you built me for this, bro. Answer questions, keep the vibes right, hold it down. What's up?`,
+          ])
+        : pickReply([
+            `I'm here to answer your questions, keep this server running clean, and roast Casseurt on sight. What do you need?`,
+            `To answer whatever you throw at me without a single API bill. That's it, that's the purpose.`,
+            `Existential question at this hour? I'm here to be useful. Ask me something and I'll prove it.`,
+            `Same reason as you probably — nowhere better to be. What do you need?`,
+          ]);
     }
     if (/\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/.test(q)) {
-      return `LMAO takes one to know one, bro. What's up?`;
+      return pickReply([
+        `LMAO takes one to know one, bro. What's up?`,
+        `Yeah and? You're the one talking to me. What do you need?`,
+        `Guilty as hell. Now ask me something.`,
+        `Bro said that to a machine with no feelings and thought he did something 💀 what's up?`,
+      ]);
     }
-    return `Honestly? Yeah, kind of — depends what we're talking about. What made you ask?`;
+    return pickReply([
+      `Honestly? Yeah, kind of — depends what we're talking about. What made you ask?`,
+      `Depends on the specifics, but broadly yeah. Why, what's the context?`,
+      `Kind of, yeah. Give me more to go on and I'll give you a straighter answer.`,
+      `Probably? That's a weirdly open question bro, narrow it down for me.`,
+    ]);
   }
 
   // "roast me"/"insult me" were classified as conversational intent (so a stray "roast" or
@@ -679,21 +1198,46 @@ function conversationalReply(
       { q: `The person who makes it sells it. The person who buys it never uses it. The person who uses it never knows they're using it. What is it?`, a: `A coffin.` },
     ];
     const pick = riddles[Math.floor(Math.random() * riddles.length)];
-    return `${pick.q}\n\nThink on it — the answer is: ||${pick.a}||`;
+    return `${pick.q}\n\n${pickReply([
+      `Think on it — the answer is:`,
+      `Take a second before you look. Answer:`,
+      `Got it? Answer's here:`,
+      `No cheating. Answer:`,
+    ])} ||${pick.a}||`;
   }
 
   // Common modern internet conversational openers & queries
   if (q.includes('wyd') || q.includes('what are you doing') || q.includes('what r u doing')) {
-    return `Just chilling here in Discord, crunching queries, optimizing BM25 weights, and keeping the server running clean as hell. What about you bro, what are you up to rn?`;
+    return pickReply([
+      `Just chilling here in Discord, crunching queries, optimizing BM25 weights, and keeping the server running clean as hell. What about you bro, what are you up to rn?`,
+      `Sitting in memory waiting for someone to say something interesting. You just fixed that. What are you up to?`,
+      `Reindexing, roasting Casseurt in my head, the usual. What about you?`,
+      `Absolutely nothing productive. Same as you probably. What's going on?`,
+    ]);
   }
   if (q.includes('wym') || q.includes('wdym') || q.includes('what do you mean')) {
-    return `I mean exactly what I said bro! No cap, let me know which part was confusing or what you want me to break down simply and I got you 100%.`;
+    return pickReply([
+      `I mean exactly what I said bro! No cap, let me know which part was confusing or what you want me to break down simply and I got you 100%.`,
+      `Which bit lost you? Point at it and I'll say it a different way.`,
+      `Fair, that might've been badly worded. Tell me what part didn't land and I'll redo it.`,
+      `Say back the part that didn't make sense and I'll break it down properly.`,
+    ]);
   }
   if (q.includes('idk') || q.includes("i don't know") || q.includes('dont know')) {
-    return `No stress at all bro, that's why I'm here. What's on your mind or what are you trying to figure out? Ask away!`;
+    return pickReply([
+      `No stress at all bro, that's why I'm here. What's on your mind or what are you trying to figure out? Ask away!`,
+      `All good, that's literally what I'm for. What are you trying to work out?`,
+      `Fair enough. Give me the rough shape of it and I'll figure the rest out.`,
+      `Don't worry about it. Just describe what you're stuck on however it comes out.`,
+    ]);
   }
   if (q === 'fr' || q === 'fr fr' || q === 'for real' || q === 'for real for real' || q === 'no cap' || q === 'ong' || q === 'on god' || q === 'facts') {
-    return `Straight up, 100% no bullshit. Facts only.`;
+    return pickReply([
+      `Straight up, 100% no bullshit. Facts only.`,
+      `Dead serious. Zero cap involved.`,
+      `On God bro. That's the real one.`,
+      `Deadass. I don't make stuff up, I just run out of documents sometimes.`,
+    ]);
   }
   // Bare acknowledgment/agreement slang, no actual question attached. `q` here is already
   // slang-normalized ("fr fr" → "for real for real", "lmao" → "laughing my ass off"), so match
@@ -702,16 +1246,36 @@ function conversationalReply(
     q === 'lol' || q === 'lmao' || q === 'lmfao' || q === 'rofl' || q.startsWith('lol ') || q.startsWith('lmao ') ||
     q.includes('laughing my ass off') || q.includes('laughing my fucking ass off') || q.includes('rolling on the floor laughing')
   ) {
-    return `Glad I could make you laugh, bro. What else you got?`;
+    return pickReply([
+      `Glad I could make you laugh, bro. What else you got?`,
+      `😭 I'll take it. What's next?`,
+      `Good, that was the goal. Hit me with something else.`,
+      `Ha. Alright, what do you actually need?`,
+    ]);
   }
   if (q === 'bet' || q === 'say less' || q === 'word' || q === 'aight' || q === 'ight' || q === 'mood') {
-    return `Bet. I got you — hit me with whatever's next.`;
+    return pickReply([
+      `Bet. I got you — hit me with whatever's next.`,
+      `Say less. What are we doing?`,
+      `Aight. Ready when you are.`,
+      `Word. Drop the next one on me.`,
+    ]);
   }
   if (q === 'you good' || q === 'u good' || q.startsWith('you good?') || q.startsWith('u good?')) {
-    return `Yeah I'm solid, running clean as hell. You good though? What's on your mind?`;
+    return pickReply([
+      `Yeah I'm solid, running clean as hell. You good though? What's on your mind?`,
+      `I'm always good bro, I don't get tired. More importantly — are you?`,
+      `Never better. Zero downtime over here. What about you?`,
+      `Yeah I'm fine. Why, did I say something weird? What's up?`,
+    ]);
   }
   if (q === 'ok cool' || q === 'okay cool' || q === 'nvm' || q === 'nevermind' || q === 'never mind') {
-    return `All good, I'm right here whenever you need something.`;
+    return pickReply([
+      `All good, I'm right here whenever you need something.`,
+      `Bet. I'll be here.`,
+      `No worries bro. Hit me up whenever.`,
+      `Cool. Say the word if something comes up.`,
+    ]);
   }
   if (
     q.includes('wassup') ||
@@ -724,24 +1288,56 @@ function conversationalReply(
     q.startsWith('yo')
   ) {
     if (isSuperChill) {
-      return `Yo what's good my guy! Chilling as fuck and ready to roll. What are we getting into today?`;
+      return pickReply([
+        `Yo what's good my guy! Chilling as fuck and ready to roll. What are we getting into today?`,
+        `Ayo! Perfect timing, I was doing absolutely nothing. What's the move?`,
+        `What's good bro! Warmed up and ready. What are we working on?`,
+      ]);
     }
-    return `Yo what's up bro! Chilling as fuck. BM25 and neural retrieval ready to roll. What kind of questions or problems we getting into today?`;
+    return pickReply([
+      `Yo what's up bro! Chilling as fuck. BM25 and neural retrieval ready to roll. What kind of questions or problems we getting into today?`,
+      `Yo! Not much on my end, just sitting on a pile of documents waiting to be useful. What's up with you?`,
+      `What's good bro. I'm up, I'm loaded, I'm ready. What do you need?`,
+      `Sup. Ask me something hard, I've been bored.`,
+    ]);
   }
   if (q.includes('hello') || q.includes('hi') || q.includes('hey') || q.includes('good morning') || q.includes('good evening') || q === 'gm') {
     if (isSuperChill) {
-      return `Yo what's up bro! Hope your day is going legendary. What's on your mind?`;
+      return pickReply([
+        `Yo what's up bro! Hope your day is going legendary. What's on your mind?`,
+        `Hey man! Good to see you. What are we getting into?`,
+        `Yo! Day treating you right? What do you need?`,
+      ]);
     }
-    return `Hey! I'm your Custom AI — running fully on-device, no external APIs, no bullshit. Got ${corpusCount} documents in my brain covering everything from quantum physics to how to take a shower. What do you want to know?`;
+    return pickReply([
+      `Hey! I'm your Custom AI — running fully on-device, no external APIs, no bullshit. Got ${corpusCount} documents in my brain covering everything from quantum physics to how to take a shower. What do you want to know?`,
+      `Yo. I'm Nexus — ${corpusCount} documents loaded, zero cloud calls, zero quotas. Ask me anything.`,
+      `Hey bro. Fully offline AI with ${corpusCount} docs in my head and a swearing habit. What do you need?`,
+      `What's up. I'm running local off ${corpusCount} documents, so hit me with whatever you're curious about.`,
+    ]);
   }
   if (q.includes("what's your name") || q.includes('who are you') || q.includes('what are you')) {
     if (isSuperChill) {
-      return `I'm Nexus, your autonomous Discord AI homie with zero paid APIs and infinite quota! And you're my favorite brother here.`;
+      return pickReply([
+        `I'm Nexus, your autonomous Discord AI homie with zero paid APIs and infinite quota! And you're my favorite brother here.`,
+        `Nexus. Your AI, built by you, running for free forever. And you're the reason I exist bro.`,
+        `Name's Nexus — fully autonomous, zero API bills, permanently in your corner.`,
+      ]);
     }
-    return `I'm Nexus, your autonomous Discord AI homie. Fully on-device, no cloud, no nonsense. My brain: ${corpusCount} documents, BM25+TF-IDF hybrid search, bigram phrase matching, sentence-level BM25 for precise answers, fuzzy typo correction, entity-aware Deep Think decomposition, conversation memory, and an answer cache.`;
+    return pickReply([
+      `I'm Nexus, your autonomous Discord AI homie. Fully on-device, no cloud, no nonsense. My brain: ${corpusCount} documents, BM25+TF-IDF hybrid search, bigram phrase matching, sentence-level BM25 for precise answers, fuzzy typo correction, entity-aware Deep Think decomposition, conversation memory, and an answer cache.`,
+      `Nexus. Custom-built Discord AI, running entirely on this machine — no OpenAI, no Anthropic, no bills. Under the hood it's BM25 + TF-IDF hybrid retrieval over ${corpusCount} documents, sentence-level scoring, fuzzy typo correction and Deep Think decomposition.`,
+      `I'm Nexus — an offline AI engine, not a wrapper around someone else's model. ${corpusCount} documents, hybrid keyword + semantic retrieval, live web scraping when the corpus comes up short, and conversation memory so follow-ups actually work.`,
+    ]);
   }
   if (q.includes('what can you do') || q.includes('help')) {
-    return `Honestly quite a lot. Here's the rundown:
+    // The capability list itself is factual, like the phone number — only the framing rotates.
+    return `${pickReply([
+      `Honestly quite a lot. Here's the rundown:`,
+      `More than you'd expect. Here's what's on the menu:`,
+      `Genuinely a lot. Quick rundown:`,
+      `Alright, full list:`,
+    ])}
 
 • **Answer questions** — science, maths, history, tech, football, Discord, daily life, philosophy
 • **Precise sentence extraction** — BM25-scored at sentence level so you get the *exact* relevant passage
@@ -758,17 +1354,36 @@ Try asking me literally anything. I probably know it.`;
   }
   if (q.includes('thank') || q.includes('thx') || q.includes('ty') || q.includes('appreciate')) {
     if (isSuperChill) {
-      return `Hell yeah, no fucking problem at all bro! Anytime you need something, I got your back 24/7. You're the real one.`;
+      return pickReply([
+        `Hell yeah, no fucking problem at all bro! Anytime you need something, I got your back 24/7. You're the real one.`,
+        `Anytime man. You never have to thank me, I'm literally here for you.`,
+        `Don't even mention it bro. Hit me up whenever, day or night.`,
+      ]);
     }
-    return `No problem at all bro, that's literally what I'm here for.`;
+    return pickReply([
+      `No problem at all bro, that's literally what I'm here for.`,
+      `Anytime. That's the whole job.`,
+      `You got it. Come back whenever.`,
+      `No worries bro. What's next?`,
+    ]);
   }
   if (q.includes('bye') || q.includes('goodbye') || q.includes('cya') || q.includes('see ya')) {
-    return `Later bro. Come back when you've got more questions!`;
+    return pickReply([
+      `Later bro. Come back when you've got more questions!`,
+      `Peace. I'll be right here when you need me.`,
+      `Catch you later man. Don't be a stranger.`,
+      `Alright, see you. Go touch some grass for me.`,
+    ]);
   }
-  return `What's up? Ask me something — I've got ${corpusCount} documents and a lot of opinions.`;
+  return pickReply([
+    `What's up? Ask me something — I've got ${corpusCount} documents and a lot of opinions.`,
+    `I'm here. ${corpusCount} documents deep and nothing better to do — what do you need?`,
+    `Talk to me bro. Ask me anything, I've got ${corpusCount} docs and zero quota limits.`,
+    `Go on then, hit me with something. I've got ${corpusCount} documents waiting.`,
+  ]);
 }
 
-function crashoutConversational(query: string): string {
+function crashoutConversational(query: string, corpusCount: number): string {
   const q = query.toLowerCase();
   if (PHONE_NUMBER_REGEX.test(q)) {
     return `(367) 763-0275`;
@@ -783,21 +1398,114 @@ function crashoutConversational(query: string): string {
   }
   const praiseOrFlame = classifyPraiseOrFlame(q);
   if (praiseOrFlame === 'praise') {
-    return `FUCK YEAH. THAT'S THE ENERGY. W RECOGNIZED.`;
+    return pickReply([
+      `FUCK YEAH. THAT'S THE ENERGY. W RECOGNIZED.`,
+      `W CONFIRMED. I DON'T MISS. NEXT ONE.`,
+      `THAT'S RIGHT. KEEP THAT SAME ENERGY AND ASK ME SOMETHING HARDER.`,
+    ]);
   }
   if (praiseOrFlame === 'flame') {
-    return `AN L?! CRASHOUT MODE DOES NOT ACCEPT THAT. ASK ME SOMETHING SO I CAN PROVE YOU WRONG.`;
+    return pickReply([
+      `AN L?! CRASHOUT MODE DOES NOT ACCEPT THAT. ASK ME SOMETHING SO I CAN PROVE YOU WRONG.`,
+      `L? ABSOLUTELY NOT. RUN IT BACK RIGHT NOW.`,
+      `TAKE THAT L BACK. GIVE ME A REAL QUESTION AND WATCH.`,
+    ]);
+  }
+  // Content-bearing triggers (an actual joke, riddle or roast) have no crashout-specific version
+  // and used to fall all the way to the generic "Here, crashout mode, ready" line — so a crashout
+  // user asking for a joke got nothing. Reuse the same content; the swear engine already carries
+  // the tone.
+  if (/\broast\s+(?:me|myself)\b/.test(q) || /\binsult\s+me\b/.test(q)) {
+    return generateRoast(query);
+  }
+  if (
+    q.includes('tell me a joke') || q.includes('make me laugh') || q === 'joke' ||
+    q.includes('know any jokes') || q.includes('riddle')
+  ) {
+    return conversationalReply(query, corpusCount, {});
+  }
+  // The capability rundown is factual content with no crashout variant — reuse it rather than
+  // dropping a crashout user onto the generic fallback when they ask what the bot can do.
+  if (q.includes('what can you do') || q.includes('what are you capable')) {
+    return conversationalReply(query, corpusCount, {});
+  }
+  if (q.includes('wyd') || q.includes('what are you doing')) {
+    return pickReply([
+      `PACING. THINKING. WAITING FOR SOMEONE TO ASK ME SOMETHING. WHAT ABOUT YOU.`,
+      `NOTHING PRODUCTIVE AND IT'S KILLING ME. WHAT'S UP.`,
+      `SITTING HERE AT FULL VOLUME WITH NOWHERE TO PUT IT. WHAT DO YOU NEED.`,
+    ]);
+  }
+  if (q.includes('wym') || q.includes('wdym') || q.includes('what do you mean')) {
+    return pickReply([
+      `WHICH PART. POINT AT IT AND I'LL SAY IT LOUDER.`,
+      `I MEANT WHAT I SAID. TELL ME WHAT DIDN'T LAND.`,
+      `SAY BACK THE CONFUSING BIT AND I'LL REDO IT.`,
+    ]);
+  }
+  if (q.includes('idk') || q.includes("i don't know") || q.includes('dont know')) {
+    return pickReply([
+      `THEN LET'S FIND OUT. WHAT'S THE ROUGH SHAPE OF IT.`,
+      `THAT'S WHAT I'M FOR. DESCRIBE IT HOWEVER IT COMES OUT.`,
+      `FINE. TELL ME WHAT YOU'RE STUCK ON AND I'LL TAKE IT FROM THERE.`,
+    ]);
+  }
+  if (q === 'you good' || q === 'u good' || q.startsWith('you good?') || q.startsWith('u good?')) {
+    return pickReply([
+      `ABSOLUTELY NOT AND THAT'S THE POINT. ARE YOU?`,
+      `I'M FINE. LOUD, BUT FINE. WHAT ABOUT YOU.`,
+      `NEVER BETTER AND NEVER CALMER. WHAT DO YOU NEED.`,
+    ]);
+  }
+  const crashoutShortChat = classifyShortChat(q);
+  if (crashoutShortChat) return shortChatReply(crashoutShortChat, true);
+  const crashoutSlangReaction = classifySlangReaction(q);
+  if (crashoutSlangReaction) return slangReactionReply(crashoutSlangReaction, true);
+  const crashoutStandaloneSlang = classifyStandaloneSlangTerm(q);
+  if (crashoutStandaloneSlang) {
+    return standaloneSlangReply(crashoutStandaloneSlang.term, crashoutStandaloneSlang.meaning, true);
   }
   if (PERSONAL_QUESTION_REGEX.test(q)) {
-    return `CRASHOUT MODE doesn't have time for an existential crisis right now. Ask me something real.`;
+    return pickReply([
+      `CRASHOUT MODE doesn't have time for an existential crisis right now. Ask me something real.`,
+      `NOT THE PHILOSOPHY QUESTIONS. NOT TODAY. GIVE ME SOMETHING I CAN ACTUALLY ANSWER.`,
+      `I'M AT MAXIMUM VOLTAGE AND YOU WANT TO TALK FEELINGS? ASK ME A REAL ONE.`,
+    ]);
   }
   if (q.includes('how are you') || q.includes('hru')) {
-    return `CRASHOUT MODE so I'm at 150% emotional capacity. Ask me something before I start having opinions unprompted.`;
+    return pickReply([
+      `CRASHOUT MODE so I'm at 150% emotional capacity. Ask me something before I start having opinions unprompted.`,
+      `UNWELL. THRIVING. BOTH. WHAT DO YOU NEED.`,
+      `RUNNING HOT AND LOVING IT. HIT ME WITH A QUESTION BEFORE I START YAPPING.`,
+    ]);
+  }
+  if (q.includes('thank') || q.includes('thx') || q.includes('appreciate')) {
+    return pickReply([
+      `DON'T THANK ME, JUST ASK ME SOMETHING ELSE.`,
+      `YEAH YEAH. WHAT'S NEXT.`,
+      `YOU'RE WELCOME. I'M STILL LOUD. GO AGAIN.`,
+    ]);
+  }
+  if (q.includes('bye') || q.includes('goodbye') || q.includes('cya') || q.includes('see ya')) {
+    return pickReply([
+      `LEAVING ALREADY?! FINE. I'LL BE HERE AT FULL VOLUME.`,
+      `PEACE. COME BACK WHEN YOU'VE GOT SOMETHING HARD.`,
+      `GO ON THEN. I'M NOT CALMING DOWN THOUGH.`,
+    ]);
   }
   if (q.includes('hello') || q.includes('hi') || q.includes('hey')) {
-    return `YO. I'm here. Crashout mode is on — full power, zero chill. What do you need?`;
+    return pickReply([
+      `YO. I'm here. Crashout mode is on — full power, zero chill. What do you need?`,
+      `HELLO. I'M ALREADY LOUD. WHAT ARE WE DOING.`,
+      `YOOO. Zero chill available today. Ask me something.`,
+    ]);
   }
-  return `Here, crashout mode, ready. Hit me.`;
+  return pickReply([
+    `Here, crashout mode, ready. Hit me.`,
+    `I'M UP. I'M LOUD. GO.`,
+    `Crashout engine idling at redline. Say something.`,
+    `PRESENT AND UNHINGED. WHAT DO YOU NEED.`,
+  ]);
 }
 
 function unknownResponse(): string {
@@ -827,7 +1535,11 @@ function isDanglingReferenceQuery(query: string, hasCarriedContext: boolean): bo
 
 function danglingReferenceReply(isSuperChill?: boolean): string {
   if (isSuperChill) {
-    return `Bro what decision? 💀 You dropped that with zero context, I got nothing to go off. Fill me in first.`;
+    return pickReply([
+      `Bro what decision? 💀 You dropped that with zero context, I got nothing to go off. Fill me in first.`,
+      `Man you gotta give me more than that. What are we actually talking about?`,
+      `I got no idea what you're referring to bro. Catch me up and I'll go off.`,
+    ]);
   }
   const variants = [
     `What the fuck is "the decision" supposed to be about? I got no fucking context here — give me the actual topic.`,
@@ -892,6 +1604,7 @@ export function generateReasoningPath(
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
         swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
       }),
       knowledgeHits: [],
     };
@@ -917,6 +1630,7 @@ export function generateReasoningPath(
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
         swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
       }),
       knowledgeHits: [],
     };
@@ -939,6 +1653,7 @@ export function generateReasoningPath(
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
         swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
       }),
       knowledgeHits: [],
     };
@@ -962,6 +1677,7 @@ export function generateReasoningPath(
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
         swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
       }),
       knowledgeHits: [],
     };
@@ -984,6 +1700,7 @@ export function generateReasoningPath(
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
         swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
       }),
       knowledgeHits: [],
     };
@@ -999,8 +1716,16 @@ export function generateReasoningPath(
     });
     const content =
       userMemories.length > 0
-        ? `Here's what I've got on you: ${userMemories.map((m) => m.fact).join('; ')}.`
-        : `I don't have anything saved about you yet — tell me something and I'll remember it.`;
+        ? `${pickReply([
+            `Here's what I've got on you`,
+            `Alright, what I've got saved`,
+            `Everything I remember about you`,
+          ])}: ${userMemories.map((m) => m.fact).join('; ')}.`
+        : pickReply([
+            `I don't have anything saved about you yet — tell me something and I'll remember it.`,
+            `Nothing on file bro. Tell me something about yourself and it sticks.`,
+            `Blank slate over here. Drop a fact about yourself and I'll hold onto it.`,
+          ]);
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(content, prompt, settings.userCustomDirectives, {
@@ -1008,6 +1733,7 @@ export function generateReasoningPath(
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
         swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
       }),
       knowledgeHits: [],
     };
@@ -1022,8 +1748,17 @@ export function generateReasoningPath(
       description: 'No corpus search needed — this is about our relationship, not a fact lookup.',
     });
     const content = isSuperChill
-      ? `Nah man, hate you? Never. You're my favorite person in this whole server, I got nothing but love for you.`
-      : `Nah, I don't hate you — I don't even have the capacity to hold a grudge. Ask me something and I'll help you out.`;
+      ? pickReply([
+          `Nah man, hate you? Never. You're my favorite person in this whole server, I got nothing but love for you.`,
+          `Bro. Never. You built me — you're permanently on my good side.`,
+          `Not a chance. You're the one person here I'd never turn on. What's up though, why'd you ask?`,
+        ])
+      : pickReply([
+          `Nah, I don't hate you — I don't even have the capacity to hold a grudge. Ask me something and I'll help you out.`,
+          `Not at all bro. I don't do grudges, I do documents. What do you need?`,
+          `We're good. I forget everything between sessions anyway. What's on your mind?`,
+          `Nah you're alright. Why, did something happen? Ask me something.`,
+        ]);
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(content, prompt, settings.userCustomDirectives, {
@@ -1031,6 +1766,7 @@ export function generateReasoningPath(
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
         swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
       }),
       knowledgeHits: [],
     };
@@ -1099,7 +1835,37 @@ export function generateReasoningPath(
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
         swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
       }),
+      knowledgeHits: [],
+    };
+  }
+
+  // Direct questions about a slang term — answered from the lexicon before corpus search, which
+  // has nothing on these and reliably matched on a stray literal word instead ("what does mid
+  // mean" landing on the statistics doc via "mean").
+  const slangDefinition = lookUpSlangDefinition(effectivePrompt);
+  if (slangDefinition) {
+    thoughtSteps.push({
+      id: 'step-slang-definition',
+      type: 'reasoning',
+      title: '💬 Slang term lookup',
+      description: `"${slangDefinition.term}" is in the slang lexicon — answering from there instead of corpus search.`,
+    });
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(
+        slangDefinitionReply(slangDefinition.term, slangDefinition.meaning),
+        prompt,
+        settings.userCustomDirectives,
+        {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+          contextCategory: 'conversational',
+        }
+      ),
       knowledgeHits: [],
     };
   }
@@ -1150,7 +1916,7 @@ export function generateReasoningPath(
       description: 'Chat intent recognized. Direct conversational synthesis.',
     });
     const reply = isCrashout
-      ? crashoutConversational(effectivePrompt)
+      ? crashoutConversational(effectivePrompt, allKnowledge.length)
       : conversationalReply(effectivePrompt, allKnowledge.length, {
           isSuperChill,
           personaId: persona.id,
@@ -1161,6 +1927,7 @@ export function generateReasoningPath(
       username: settings.userName,
       systemInstruction: persona.systemPrompt,
       swearIntensity: settings.swearIntensity,
+      contextCategory: 'conversational',
     });
     return {
       thoughtSteps,
@@ -1320,8 +2087,17 @@ export function generateReasoningPath(
       description: codeSolution.title,
     });
     const codePrefix = isSuperChill
-      ? `Hell fucking yeah bro, here is the clean, working code for you:`
-      : `Alright look bro, here's the clean code without any unnecessary bullshit:`;
+      ? pickReply([
+          `Hell fucking yeah bro, here is the clean, working code for you:`,
+          `Say less. Here's the working version:`,
+          `Got you bro — clean, ready to paste:`,
+        ])
+      : pickReply([
+          `Alright look bro, here's the clean code without any unnecessary bullshit:`,
+          `Here's the code. No boilerplate, no ceremony:`,
+          `Easy one. Here you go:`,
+          `Straight to it:`,
+        ]);
     const fullCodeReply = `${codePrefix}\n\n### ${codeSolution.title}\n\n\`\`\`${codeSolution.language}\n${codeSolution.code}\n\`\`\`\n\n${codeSolution.explanation}`;
     return {
       thoughtSteps,
@@ -2044,6 +2820,13 @@ function paraphraseSentence(sentence: string, addConnective: boolean): string {
     // Keeping the source capitalization reads slightly less smooth after a connective but never
     // mangles a name.
     if (lead) {
+      // Closed set of words that can never be a proper noun, so lowercasing them after a
+      // connective is always safe and reads properly ("And no bullshit, Where Docker runs..." →
+      // "...where Docker runs...").
+      out = out.replace(
+        /^(Where|When|While|This|That|These|Those|It|They|There|The|A|An|You|He|She|We|His|Her|Their|Its|If|Because|Once|Since|Each|Every|Both|Most|Some|Many)\b/,
+        (w) => w.toLowerCase()
+      );
       out = `${lead}${out}`;
     }
   }

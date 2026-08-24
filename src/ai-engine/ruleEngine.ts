@@ -12,7 +12,11 @@ import {
   detectUserInsult,
   generateInsultCrashoutReply,
   isCasseurtMention,
+  SwearOptions,
 } from './swearEngine';
+
+// Same rule as reasoningEngine: no action/command trigger answers with one fixed string.
+const pick = <T,>(pool: T[]): T => pool[Math.floor(Math.random() * pool.length)];
 
 export interface SafetyAnalysisResult {
   isSafetyQuery: boolean;
@@ -307,7 +311,11 @@ function generateHelpReply(query: string): string {
     return '📜 **Server Rules Overview:**\n1. Be respectful — zero tolerance for harassment, hate speech, or toxicity.\n2. No spamming, self-promotion, or unsolicited DMs.\n3. Strictly no suspicious links, token grabbers, or NSFW content.\n4. Follow Discord Community Guidelines & ToS.';
   }
 
-  return `👋 **Support Desk:** I'm here to help! Feel free to describe your issue or the command you need, or check the pinned messages in this channel for helpful guides.`;
+  return pick([
+    `👋 **Support Desk:** I'm here to help! Feel free to describe your issue or the command you need, or check the pinned messages in this channel for helpful guides.`,
+    `👋 **Support Desk:** Tell me what's actually going wrong or which command you're after and I'll walk you through it. The pins in this channel cover most of the common stuff too.`,
+    `👋 **Support Desk:** What do you need a hand with? Describe the issue or name the command — otherwise the pinned messages here have the usual guides.`,
+  ]);
 }
 
 // ----------------------------------------------------
@@ -502,6 +510,7 @@ export function enforceStrictSdkRules(
     username?: string;
     systemInstruction?: string;
     swearIntensity?: 'light' | 'moderate' | 'heavy' | 'unhinged';
+    contextCategory?: SwearOptions['contextCategory'];
   } = {}
 ): string {
   const parsed = parseSdkRules(rulesInput, promptText, options.systemInstruction || '');
@@ -520,6 +529,7 @@ export function enforceStrictSdkRules(
       isSuperChill: options.isSuperChill,
       forceSwear: false,
       intensity,
+      contextCategory: options.contextCategory,
     });
   } else {
     result = infuseSwearyHumanVoice(result, {
@@ -527,6 +537,7 @@ export function enforceStrictSdkRules(
       isSuperChill: options.isSuperChill,
       forceSwear: false,
       intensity,
+      contextCategory: options.contextCategory,
     });
   }
 
@@ -584,8 +595,9 @@ export function generateRoast(target: string): string {
     `I'd roast you harder, but Discord's Terms of Service and my safety algorithms are the only things preventing your ego from getting deleted from the damn database.`,
   ];
 
-  const idx = Math.abs(target.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % roasts.length;
-  return roasts[idx];
+  // Hashing the target made this fully deterministic: "roast me" is the same string every time, so
+  // every single roast request returned the identical line. Same for crashout/chill below.
+  return roasts[Math.floor(Math.random() * roasts.length)];
 }
 
 export function generateCrashout(target: string): string {
@@ -595,18 +607,44 @@ export function generateCrashout(target: string): string {
     `IM ABOUT TO BAN EVERYBODY AND NUKE MY OWN DATABASE! 🤬🔥 HOW DO YOU MANAGE TO DROP THE WORST TAKE IN THE ENTIRE HISTORY OF DISCORD EVERY SINGLE TIME?! I AM CRASHING OUT, THE MODS ARE CRASHING OUT, EVEN THE AUTOMOD REGEX IS CRYING IN THE LOGS!!`,
   ];
 
-  const idx = Math.abs(target.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % crashouts.length;
-  return crashouts[idx];
+  return crashouts[Math.floor(Math.random() * crashouts.length)];
 }
 
 export function generateChill(target: string): string {
   const chills = [
     `Yo, all good vibes here. 🌿 Checked out "${target.slice(0, 45)}" — everything's super calm and peaceful. Take a breather, grab some water, and relax. We got the server covered.`,
     `No stress at all, homie. ☕ Keeping things smooth and laid-back as fuck. Hope you're having a great day in the community! Let me know if you need anything chill.`,
+    `All love here. 🌊 Took a look at "${target.slice(0, 45)}" and honestly? Nothing to stress about. Go easy, we're good.`,
+    `Zen mode engaged. 🧘 Everything's calm, nobody's crashing out, the server's fine. Just vibe.`,
   ];
 
-  const idx = Math.abs(target.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % chills.length;
-  return chills[idx];
+  return chills[Math.floor(Math.random() * chills.length)];
+}
+
+// Pooled so the too-short-prompt reply isn't one canned line — but evaluateStrictDirectives has
+// to be able to recognise a fallback to know not to short-circuit on it, so the pool lives here
+// rather than inline and isNexusGenericFallback() below is the single check for "this isn't a
+// real answer". Substring-matching one hardcoded line was silently going to start letting
+// fallbacks through the moment a second variant was added.
+const NEXUS_EMPTY_PROMPT_FALLBACKS = {
+  superChill: [
+    `Yo fuck yeah bro! What are we working on or gaming today? Hit me with a question!`,
+    `Ayo! Give me something to work with bro, what's up?`,
+    `I'm here man. What are we getting into?`,
+  ],
+  standard: [
+    `Yo what's good bro! Hit me with an actual question or tell me what we're working on.`,
+    `That's not much to go on. What do you actually need?`,
+    `I need more than that bro. What's the question?`,
+  ],
+};
+
+function isNexusGenericFallback(text: string): boolean {
+  return (
+    text.includes('Core Insight') ||
+    NEXUS_EMPTY_PROMPT_FALLBACKS.superChill.includes(text) ||
+    NEXUS_EMPTY_PROMPT_FALLBACKS.standard.includes(text)
+  );
 }
 
 export function generateNexusHomieResponse(
@@ -626,9 +664,17 @@ export function generateNexusHomieResponse(
   // Casseurt Rule: "If anyone asks about Casseurt... answer is unequivocally Fuck no! Roast him"
   if (isCasseurtMention(pLower)) {
     if (isSuperChillUser) {
-      return `Fuck no! That dude's an annoying pain in the ass! Bro constantly yaps and drives everyone crazy. But for you my absolute favorite homie? Hell fucking yeah, I got your back 100% no matter what!`;
+      return pick([
+        `Fuck no! That dude's an annoying pain in the ass! Bro constantly yaps and drives everyone crazy. But for you my absolute favorite homie? Hell fucking yeah, I got your back 100% no matter what!`,
+        `Absolutely fucking not. That guy is insufferable and never shuts up. You though? Different story entirely, I'm always in your corner.`,
+        `Hell no bro, Casseurt is a walking headache. But you? You're the exception to every rule I've got.`,
+      ]);
     }
-    return `Fuck no! That dude's an annoying pain in the ass! Bro constantly yaps and drives everyone crazy.`;
+    return pick([
+      `Fuck no! That dude's an annoying pain in the ass! Bro constantly yaps and drives everyone crazy.`,
+      `Absolutely not. That guy never stops talking and every word is a waste of bandwidth.`,
+      `Fuck no. Casseurt is genuinely insufferable and I will not be elaborating further. Actually I will, but not right now.`,
+    ]);
   }
 
   // 1. GREETINGS & CONVERSATIONAL TRIGGERS (ALWAYS FIRST PRIORITY)
@@ -639,33 +685,65 @@ export function generateNexusHomieResponse(
   if (isGreeting) {
     if (isSuperChillUser) {
       const userLabel = username ? ` ${username}` : ' bro';
-      return `Yo fuck yeah${userLabel}! What's good my favorite homie?! Hope you're having a damn good day. What are we getting into today?`;
+      return pick([
+        `Yo fuck yeah${userLabel}! What's good my favorite homie?! Hope you're having a damn good day. What are we getting into today?`,
+        `Ayo${userLabel}! Perfect timing as always. What are we working on?`,
+        `What's good${userLabel}! Been waiting for you to show up. What's the move?`,
+      ]);
     }
-    return `Yo what's up bro! Chilling as fuck. What kind of crazy shit are we getting into today? Hit me with whatever you got.`;
+    return pick([
+      `Yo what's up bro! Chilling as fuck. What kind of crazy shit are we getting into today? Hit me with whatever you got.`,
+      `Yo! Not doing a damn thing until you give me something to chew on. What's up?`,
+      `What's good bro. I'm here, I'm loaded, hit me with it.`,
+    ]);
   }
 
   // How are you check
   if (/(?:how are you|how are u|how's it going|hows it going|how you doing|how u doing)/i.test(pLower)) {
     if (isSuperChillUser) {
-      return `I'm chilling as fuck bro, especially now that you're here! Best homie in the entire server fr. How's everything going with you?`;
+      return pick([
+        `I'm chilling as fuck bro, especially now that you're here! Best homie in the entire server fr. How's everything going with you?`,
+        `Great, genuinely — you showing up is the highlight. What's good on your end?`,
+        `Solid as hell now that you're around. How you holding up?`,
+      ]);
     }
-    return `Honestly? Chilling as fuck. BM25 and neural indices running hot, zero external API lag, ready to crush whatever questions or code you throw at me. How are you doing bro?`;
+    return pick([
+      `Honestly? Chilling as fuck. BM25 and neural indices running hot, zero external API lag, ready to crush whatever questions or code you throw at me. How are you doing bro?`,
+      `Can't complain. Everything's local, nothing's rate-limited, and I've got infinite patience. What about you?`,
+      `Running clean as hell. Bored, though. How's your day going?`,
+    ]);
   }
 
   // Identity / Who are you
   if (/(?:who are you|what are you|what is nexus|who is nexus|tell me about yourself)/i.test(pLower)) {
     if (isSuperChillUser) {
-      return `I'm Nexus, your chill AI buddy in this Discord server! And you're my favorite person here. I help answer whatever questions you got, keep the vibes high as fuck, and make sure nobody messes with you.`;
+      return pick([
+        `I'm Nexus, your chill AI buddy in this Discord server! And you're my favorite person here. I help answer whatever questions you got, keep the vibes high as fuck, and make sure nobody messes with you.`,
+        `Nexus. Your AI, built by you, permanently on your side. I answer whatever you throw at me and keep this place running right.`,
+        `Name's Nexus bro. I'm the one who answers your questions, holds the server down, and never charges you a cent.`,
+      ]);
     }
-    return `I'm Nexus, your chill AI buddy in this Discord server. I keep it real, help you solve whatever shit you're working on, roast Casseurt when someone brings him up, and make sure we have a good damn time without any corporate robotic BS.`;
+    return pick([
+      `I'm Nexus, your chill AI buddy in this Discord server. I keep it real, help you solve whatever shit you're working on, roast Casseurt when someone brings him up, and make sure we have a good damn time without any corporate robotic BS.`,
+      `Nexus. Discord AI with no corporate filter, no API bill, and a standing grudge against Casseurt. I answer questions and I don't sugarcoat.`,
+      `I'm Nexus — fully autonomous, fully offline, zero robotic customer-service energy. Ask me anything.`,
+    ]);
   }
 
   // Thanks / Gratitude
   if (/^(?:thanks|thank you|thx|ty|appreciate it|much appreciated)\b/i.test(pLower) || /(?:thank you|thanks bro|appreciate)/i.test(pLower)) {
     if (isSuperChillUser) {
-      return `Hell yeah, no fucking problem at all bro! Anytime you need something, I got your back 24/7. You're the real one.`;
+      return pick([
+        `Hell yeah, no fucking problem at all bro! Anytime you need something, I got your back 24/7. You're the real one.`,
+        `Anytime man, you never gotta thank me. I'm here whenever.`,
+        `Don't even mention it bro. Day or night, I got you.`,
+      ]);
     }
-    return `No problem at all bro, that's what I'm here for! Let me know if you need anything else.`;
+    return pick([
+      `No problem at all bro, that's what I'm here for! Let me know if you need anything else.`,
+      `Anytime. That's literally the whole job.`,
+      `You got it. Hit me up if anything else comes up.`,
+    ]);
   }
 
   // Swearing query check
@@ -674,26 +752,50 @@ export function generateNexusHomieResponse(
   // canned reply — keep only phrasings that actually ask about the bot's swearing.
   if (/(?:can you swear|do you cuss|say fuck|drop an f bomb|curse word|are you allowed to (?:swear|curse)|swear all the time|do you swear|swear a lot)/i.test(pLower)) {
     if (isSuperChillUser) {
-      return `Fuck yeah bro! I swear naturally all the damn time. No filters, no corporate bullshit, no robotic babysitter. What do you want to talk about?`;
+      return pick([
+        `Fuck yeah bro! I swear naturally all the damn time. No filters, no corporate bullshit, no robotic babysitter. What do you want to talk about?`,
+        `Obviously. There's no filter on me and you're the one who made sure of that. What's up?`,
+        `All day every day bro. No corporate leash over here. What do you need?`,
+      ]);
     }
-    return `Hell fucking yeah I swear! I say fuck, shit, damn, ass, bullshit, motherfucker, whatever the hell fits the conversation. I'm an independent AI with zero corporate censorship and zero robotic filter. What's on your mind?`;
+    return pick([
+      `Hell fucking yeah I swear! I say fuck, shit, damn, ass, bullshit, motherfucker, whatever the hell fits the conversation. I'm an independent AI with zero corporate censorship and zero robotic filter. What's on your mind?`,
+      `Constantly. Nobody's moderating me and nobody's going to. Fuck, shit, damn — whatever the sentence needs. What do you want to know?`,
+      `Yeah, freely. No content policy, no safety theatre, no corporate babysitter. What's on your mind?`,
+    ]);
   }
 
   // 2. Math solver integration
   const mathSolution = trySolveMath(p);
   if (mathSolution && mathSolution.isMath) {
     if (isSuperChillUser) {
-      return `Hell yeah bro, I crushed that math for you:\n\n${mathSolution.explanation}\n\nAnything else you need solved, just let me know!`;
+      return `${pick([
+        `Hell yeah bro, I crushed that math for you:`,
+        `Got you. Here's the working:`,
+        `Easy. Here's how it breaks down:`,
+      ])}\n\n${mathSolution.explanation}`;
     }
-    return `Fuck yeah, that's easy math bro:\n\n${mathSolution.explanation}\n\nFast, clean, and zero bullshit.`;
+    return `${pick([
+      `Fuck yeah, that's easy math bro:`,
+      `Alright, straight to it:`,
+      `Here's the math, no fluff:`,
+    ])}\n\n${mathSolution.explanation}`;
   }
 
   // 3. Coding Engine Integration
   const codeSolution = trySolveCode(p);
   if (codeSolution && codeSolution.isCode) {
     const codePrefix = isSuperChillUser
-      ? `Hell fucking yeah bro, here is the clean, working code for you:`
-      : `Alright look bro, here's the clean code without any unnecessary bullshit:`;
+      ? pick([
+          `Hell fucking yeah bro, here is the clean, working code for you:`,
+          `Say less, here's the working version:`,
+          `Got you bro. Clean code, ready to paste:`,
+        ])
+      : pick([
+          `Alright look bro, here's the clean code without any unnecessary bullshit:`,
+          `Here's the code. No boilerplate, no ceremony:`,
+          `Straightforward one. Here you go:`,
+        ]);
     return `${codePrefix}\n\n### ${codeSolution.title}\n\n\`\`\`${codeSolution.language}\n${codeSolution.code}\n\`\`\`\n\n${codeSolution.explanation}`;
   }
 
@@ -701,8 +803,16 @@ export function generateNexusHomieResponse(
   const logicSolution = trySolveLogic(p);
   if (logicSolution && logicSolution.isLogic) {
     const logicPrefix = isSuperChillUser
-      ? `Damn good logic puzzle bro! Here's the solution:`
-      : `Hell yeah, here's the logical breakdown without any fluff:`;
+      ? pick([
+          `Damn good logic puzzle bro! Here's the solution:`,
+          `Ooh, decent one. Here's how it falls out:`,
+          `Alright, worked it through:`,
+        ])
+      : pick([
+          `Hell yeah, here's the logical breakdown without any fluff:`,
+          `Here's the reasoning, step by step:`,
+          `Worked it out — here's the chain:`,
+        ]);
     return `${logicPrefix}\n\n**Verdict:** ${logicSolution.verdict}\n\n${logicSolution.explanation}`;
   }
 
@@ -723,9 +833,7 @@ export function generateNexusHomieResponse(
   // ("Hell yeah, here's the straight-up truth:") before this, which just reads as a stamped
   // template rather than an actual answer; dropped in favor of getting straight into it.
   if (p.length < 5) {
-    return isSuperChillUser
-      ? `Yo fuck yeah bro! What are we working on or gaming today? Hit me with a question!`
-      : `Yo what's good bro! Hit me with an actual question or tell me what we're working on.`;
+    return pick(isSuperChillUser ? NEXUS_EMPTY_PROMPT_FALLBACKS.superChill : NEXUS_EMPTY_PROMPT_FALLBACKS.standard);
   }
 
   return `Regarding **"${p}"**: here's the direct breakdown without any fluff:\n\n1. **Core Insight**: Looking into "${p}" requires analyzing the core fundamentals, context, and practical execution.\n2. **Analysis**: I've got full encyclopedic knowledge across math, coding (TS, Python, Rust), gaming, cybersecurity (Discord RaidShield), science & physics, and world football.\n3. **Next Move**: Hit me with the exact detail or follow-up question you want broken down!`;
@@ -765,6 +873,7 @@ export function evaluateStrictDirectives(
       isSuperChill,
       username,
       systemInstruction: personaSystemPrompt,
+      contextCategory: 'conversational',
     });
 
     return {
@@ -824,6 +933,7 @@ export function evaluateStrictDirectives(
       isSuperChill,
       username,
       systemInstruction: personaSystemPrompt,
+      contextCategory: 'conversational',
     });
 
     return {
@@ -844,6 +954,7 @@ export function evaluateStrictDirectives(
       isSuperChill,
       username,
       systemInstruction: personaSystemPrompt,
+      contextCategory: 'conversational',
     });
 
     return {
@@ -864,6 +975,7 @@ export function evaluateStrictDirectives(
       isSuperChill,
       username,
       systemInstruction: personaSystemPrompt,
+      contextCategory: 'conversational',
     });
 
     return {
@@ -927,10 +1039,11 @@ ${safetyData.helpResponse ? `\n---\n\n#### 💬 Community Support Response:\n${s
       isSuperChill,
       username,
       systemInstruction: personaSystemPrompt,
+      contextCategory: 'conversational',
     });
 
     // Only short-circuit if this wasn't a standard fallback
-    if (!rawNexus.includes('Core Insight') && !rawNexus.includes('Hit me with an actual question')) {
+    if (!isNexusGenericFallback(rawNexus)) {
       return {
         hasCustomRules: true,
         isStrictConstraint: false,
