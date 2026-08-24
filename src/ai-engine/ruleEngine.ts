@@ -716,27 +716,19 @@ export function generateNexusHomieResponse(
   const kbMatches = findRelevantKnowledge(p, 2);
   if (kbMatches.length > 0) {
     const primary = kbMatches[0];
-    const intro = isSuperChillUser
-      ? `Hell fucking yeah! Here is the breakdown on **${primary.title}**:`
-      : `Here's the straight facts on **${primary.title}**:`;
-    
-    return `${intro}\n\n${primary.content}`;
+    return `**${primary.title}**\n\n${primary.content}`;
   }
 
-  // Dynamic response fallback
-  const humanIntros = isSuperChillUser
-    ? SWEAR_DICTIONARY.english.intros.superChill
-    : SWEAR_DICTIONARY.english.intros.general;
-
-  const pickedIntro = humanIntros[Math.floor(Math.random() * humanIntros.length)];
-
+  // Dynamic response fallback — used to bolt on a pooled generic intro line
+  // ("Hell yeah, here's the straight-up truth:") before this, which just reads as a stamped
+  // template rather than an actual answer; dropped in favor of getting straight into it.
   if (p.length < 5) {
     return isSuperChillUser
       ? `Yo fuck yeah bro! What are we working on or gaming today? Hit me with a question!`
       : `Yo what's good bro! Hit me with an actual question or tell me what we're working on.`;
   }
 
-  return `${pickedIntro}\n\nRegarding **"${p}"**: Here is the direct breakdown without any fluff:\n\n1. **Core Insight**: Looking into "${p}" requires analyzing the core fundamentals, context, and practical execution.\n2. **Analysis**: I've got full encyclopedic knowledge across math, coding (TS, Python, Rust), gaming, cybersecurity (Discord RaidShield), science & physics, and world football.\n3. **Next Move**: Hit me with the exact detail or follow-up question you want broken down!`;
+  return `Regarding **"${p}"**: here's the direct breakdown without any fluff:\n\n1. **Core Insight**: Looking into "${p}" requires analyzing the core fundamentals, context, and practical execution.\n2. **Analysis**: I've got full encyclopedic knowledge across math, coding (TS, Python, Rust), gaming, cybersecurity (Discord RaidShield), science & physics, and world football.\n3. **Next Move**: Hit me with the exact detail or follow-up question you want broken down!`;
 }
 
 /**

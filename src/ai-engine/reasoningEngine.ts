@@ -10,7 +10,7 @@ import {
 import { extractQueryEntities, searchKnowledgeGraph } from './semanticEngine';
 import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
-import { evaluateStrictDirectives, enforceStrictSdkRules } from './ruleEngine';
+import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
 import {
   infuseSwearyHumanVoice,
   hasSwearWords,
@@ -123,6 +123,7 @@ export function detectQueryIntent(query: string): QueryIntent {
     // alone, and "idk man"/"idk bro" etc., fell through to random corpus search. The expanded
     // form needs its own entry, same as every other acronym in this list.
     'idk', "i don't know", 'i dont know', 'fr', 'fr fr', 'no cap', 'ong', 'tell me a joke', 'make me laugh', 'roast me',
+    'insult me', 'tell me a riddle', 'give me a riddle', 'got a riddle',
     // Bare acknowledgment/agreement slang — with no real question in them these were falling
     // through to 'general' intent, which sent them into corpus search and returned whatever
     // random document happened to score highest (e.g. "ok cool" pulling up first-aid content).
@@ -532,6 +533,42 @@ function conversationalReply(
       return `LMAO takes one to know one, bro. What's up?`;
     }
     return `Honestly? Yeah, kind of — depends what we're talking about. What made you ask?`;
+  }
+
+  // "roast me"/"insult me" were classified as conversational intent (so a stray "roast" or
+  // "insult" wouldn't hijack corpus search) but never actually got roasted — they fell through
+  // this whole function to the generic "What's up?" fallback. generateRoast (ruleEngine.ts) has
+  // real roast content already; it was only ever wired into the dead generateNexusHomieResponse
+  // path, never into the conversational reply the live bot actually uses.
+  if (/\broast\s+(?:me|myself)\b/.test(q) || q === 'roast me' || /\binsult\s+me\b/.test(q)) {
+    return generateRoast(query);
+  }
+
+  // "tell me a joke"/"make me laugh" — same gap as roast me: recognized as a chat trigger so it
+  // doesn't hijack corpus search, but no actual joke content existed, so it silently fell to the
+  // generic fallback line instead of a joke.
+  if (q.includes('tell me a joke') || q.includes('make me laugh') || q === 'joke' || q.includes('know any jokes')) {
+    const jokes = [
+      `Why do programmers prefer dark mode? Because light attracts bugs. That's it, that's the joke, deal with it.`,
+      `I'd tell you a UDP joke but you might not get it.`,
+      `There are 10 types of people in the world: those who understand binary and those who don't.`,
+      `Why did the football manager bring string to the match? So he could tie the score.`,
+      `My code doesn't have bugs, it has undocumented features. Same energy as me pretending I meant to do that.`,
+    ];
+    return jokes[Math.floor(Math.random() * jokes.length)];
+  }
+
+  // "tell me a riddle" — same class of gap. Give an actual riddle with its answer instead of a
+  // random hedged corpus match on unrelated content.
+  if (q.includes('riddle')) {
+    const riddles = [
+      { q: `The more you take, the more you leave behind. What am I?`, a: `Footsteps.` },
+      { q: `I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?`, a: `An echo.` },
+      { q: `What has keys but no locks, space but no room, and you can enter but not go in?`, a: `A keyboard.` },
+      { q: `The person who makes it sells it. The person who buys it never uses it. The person who uses it never knows they're using it. What is it?`, a: `A coffin.` },
+    ];
+    const pick = riddles[Math.floor(Math.random() * riddles.length)];
+    return `${pick.q}\n\nThink on it — the answer is: ||${pick.a}||`;
   }
 
   // Common modern internet conversational openers & queries
@@ -1158,10 +1195,9 @@ export function generateReasoningPath(
       title: `🧩 Logical Reasoning Puzzle Solved`,
       description: `Verdict: ${logicSolution.verdict}`,
     });
-    const logicPrefix = isSuperChill
-      ? `Damn good logic puzzle bro! Here's the solution:`
-      : `Hell yeah, here's the logical breakdown without any fluff:`;
-    const fullLogicReply = `${logicPrefix}\n\n**Verdict:** ${logicSolution.verdict}\n\n${logicSolution.explanation}`;
+    // No pooled "Hell yeah, here's the logical breakdown:" header — same wrapper-removal reasoning
+    // as everywhere else, the verdict itself is the content.
+    const fullLogicReply = `**Verdict:** ${logicSolution.verdict}\n\n${logicSolution.explanation}`;
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(fullLogicReply, prompt, settings.userCustomDirectives, {
@@ -1805,6 +1841,64 @@ function deeperHint(): string {
   return hints[Math.floor(Math.random() * hints.length)];
 }
 
+// Safe, mechanical paraphrase transforms for corpus-retrieval sentences — contractions and
+// transition-word synonym swaps only. These never touch domain nouns/numbers/technical terms, so
+// they can't corrupt factual accuracy, but they measurably reduce verbatim n-gram overlap with
+// the source corpus text (the actual complaint: answers read as pasted corpus sentences rather
+// than Nexus explaining it in his own words). Skipped entirely on math/code/heading-shaped lines
+// where touching the text risks breaking formatting or precision.
+const CONTRACTION_PAIRS: [RegExp, string][] = [
+  [/\bit is\b/g, "it's"],
+  [/\bIt is\b/g, "It's"],
+  [/\bthat is\b/g, "that's"],
+  [/\bThat is\b/g, "That's"],
+  [/\bthere is\b/g, "there's"],
+  [/\bThere is\b/g, "There's"],
+  [/\bdoes not\b/g, "doesn't"],
+  [/\bdo not\b/g, "don't"],
+  [/\bcannot\b/g, "can't"],
+  [/\bwill not\b/g, "won't"],
+  [/\bis not\b/g, "isn't"],
+  [/\bare not\b/g, "aren't"],
+  [/\bwas not\b/g, "wasn't"],
+  [/\byou are\b/g, "you're"],
+  [/\bthey are\b/g, "they're"],
+];
+const SYNONYM_SWAPS: [RegExp, string][] = [
+  [/\bAdditionally,/g, 'Also,'],
+  [/\badditionally\b/g, 'also'],
+  [/\bHowever,/g, 'But'],
+  [/\bhowever\b/g, 'but'],
+  [/\bTherefore,/g, 'So'],
+  [/\btherefore\b/g, 'so'],
+  [/\bFurthermore,/g, 'Also,'],
+  [/\bfurthermore\b/g, 'also'],
+  [/\bapproximately\b/g, 'about'],
+  [/\bdemonstrates\b/g, 'shows'],
+  [/\bsignificant\b/g, 'major'],
+];
+const CONNECTIVE_LEADS = ['Also, ', 'On top of that, ', 'Worth noting — ', 'And ', ''];
+
+function paraphraseSentence(sentence: string, addConnective: boolean): string {
+  // Formulas, code, headings, and bullet markers are precision-sensitive — leave them untouched.
+  if (/[$`#•]|^\s*\d+\./.test(sentence)) return sentence;
+  let out = sentence;
+  for (const [re, replacement] of CONTRACTION_PAIRS) out = out.replace(re, replacement);
+  for (const [re, replacement] of SYNONYM_SWAPS) out = out.replace(re, replacement);
+  if (addConnective) {
+    const lead = CONNECTIVE_LEADS[Math.floor(Math.random() * CONNECTIVE_LEADS.length)];
+    // Don't force-lowercase the sentence's own first letter — corpus sentences routinely open
+    // on a proper noun ("Roblox Corporation...", "Manchester United...") and blindly lowercasing
+    // it corrupted those (the exact bug already caught once in swearEngine's inline topup).
+    // Keeping the source capitalization reads slightly less smooth after a connective but never
+    // mangles a name.
+    if (lead) {
+      out = `${lead}${out}`;
+    }
+  }
+  return out;
+}
+
 function variedSentences(
   results: { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }[],
   docIndex = 0,
@@ -1820,7 +1914,8 @@ function variedSentences(
   if (pool.length === 0) return [];
   // Sentence order is preserved intentionally — shuffling risks putting an effect
   // before its cause or a conclusion before its premise, breaking logical flow.
-  return pool.slice(0, pick);
+  const picked = pool.slice(0, pick);
+  return picked.map((s, i) => paraphraseSentence(s, i > 0 && Math.random() < 0.4));
 }
 
 export function synthesiseWebSearchResults(
@@ -1840,19 +1935,13 @@ export function synthesiseWebSearchResults(
 
   const isCrashout = persona.id === 'crashout-bot' || settings.activePersonaId === 'crashout-bot';
 
-  // 1. Pick an intro with profanity / personality
+  // A fixed "I searched Google for this!" header line before every web-grounded answer reads as
+  // a template stamp, not Nexus actually talking — dropped in favor of just stating the answer
+  // like it's something he already knew (the POINT_FRAMES below already handle "turns out"/
+  // "from what I found" style framing per point, so a redundant header on top is pure noise).
   let intro = '';
   if (isPolish) {
-    intro = 'Kurwa, sprawdziłem to w Google i na necie bez pierdolenia! Łap konkretne fakty:\n';
-  } else if (isSuperChill) {
-    intro = 'Yo fuck yeah my favorite homie! I searched Google for you and got the absolute real facts on this shit:\n';
-  } else if (isCrashout) {
-    intro = 'Bro, I literally went and searched Google for this shit because you asked, and holy fuck check this out:\n';
-  } else if (settings.swearEngineEnabled !== false) {
-    const intros = SWEAR_DICTIONARY.english.intros.webSearch;
-    intro = intros[Math.floor(Math.random() * intros.length)] + '\n';
-  } else {
-    intro = `Here is what I found from searching the live web for **"${query}"**:\n`;
+    intro = 'Kurwa, łap konkretne fakty:\n';
   }
 
   // 2. Synthesize key snippets into a flowing, conversational summary — not a per-source
@@ -1865,10 +1954,15 @@ export function synthesiseWebSearchResults(
   // verbatim (which reads like a pasted excerpt, not like Nexus explaining something he already
   // knew) — one point gets a "here's the deal" style opener, the next a connective, instead of
   // both starting cold with the source's own sentence structure.
+  // Web snippets routinely open on a proper noun ("Roblox Corporation...", "Nintendo...") —
+  // force-lowercasing the first letter after a connector corrupted those into "roblox
+  // Corporation", "nintendo revealed..." (the same bug already caught once in swearEngine's
+  // inline topup and in variedSentences' connective lead above). Keep the source's own
+  // capitalization instead of guessing.
   const POINT_FRAMES = [
-    (s: string) => `From what I found, ${s.charAt(0).toLowerCase()}${s.slice(1)}`,
-    (s: string) => `Turns out ${s.charAt(0).toLowerCase()}${s.slice(1)}`,
-    (s: string) => `Basically, ${s.charAt(0).toLowerCase()}${s.slice(1)}`,
+    (s: string) => `From what I found, ${s}`,
+    (s: string) => `Turns out ${s}`,
+    (s: string) => `Basically, ${s}`,
     (s: string) => s,
   ];
 
@@ -1912,26 +2006,16 @@ export function synthesiseWebSearchResults(
     body = top[0]?.snippet || (top[0]?.title ? `Found: **${top[0].title}**` : '');
   }
 
-  // 4. Punchline
-  const punchline = isPolish
-    ? '*I to są kurwa konkretne fakty.*'
-    : isSuperChill
-    ? '*Always got your back my guy, clean as fuck!*'
-    : isCrashout
-    ? '*Boom. Live data, zero cap, pure chaos.*'
-    : `*${SWEAR_DICTIONARY.english.punchlines[Math.floor(Math.random() * SWEAR_DICTIONARY.english.punchlines.length)]}*`;
-
   // Source links used to be appended here as text ("Live Web Sources: [title](url) ..."), but the
   // caller (server.ts) already returns the same data as a separate structured `webSources` field
   // on every response — the Discord bot uses that to build its own embed. Repeating it inline as
   // plain-text markdown links just duplicated what Discord already shows in the embed.
 
-  // 6. Suggest follow-ups
-  const followUpQueries = [
-    `*Want to know more about **${top[0]?.title.slice(0, 40) || query}**? Just ask!*`,
-  ].join('\n');
+  // Suggest a follow-up — kept, since it's dynamic per-topic content rather than a repeated
+  // template line, unlike the intro/punchline that used to bookend this response.
+  const followUpQueries = `*Want to know more about **${top[0]?.title.slice(0, 40) || query}**? Just ask!*`;
 
-  return `${intro}\n${body}\n\n${punchline}\n\n${followUpQueries}`;
+  return intro ? `${intro}\n${body}\n\n${followUpQueries}` : `${body}\n\n${followUpQueries}`;
 }
 
 function synthesiseStandard(

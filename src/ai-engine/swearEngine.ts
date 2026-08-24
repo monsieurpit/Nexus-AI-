@@ -570,7 +570,10 @@ export function enhanceNaturalSwearPhrasing(
     [/\b(crazy|wild|insane)\b/gi, ['wild as hell', 'batshit crazy', 'insane as fuck']],
     [/\b(obviously)\b/gi, ['obviously, no shit,', 'obviously, no cap,']],
     [/\b(honestly|to be honest|truthfully)\b/gi, ['real talk,', 'no bullshit,', 'straight up,']],
-    [/\b(definitely|certainly)\b/gi, ['fucking definitely', 'damn right', '100% no bullshit']],
+    // "damn right"/"100% no bullshit" only read naturally as standalone exclamations, not as a
+    // drop-in adverb ("definitely muted" -> "100% no bullshit muted" reads broken) — every other
+    // option here substitutes as a mid-sentence adverb, so this needs to as well.
+    [/\b(definitely|certainly)\b/gi, ['fucking definitely', 'for damn sure']],
   ];
 
   let substitutionsCount = 0;
@@ -654,78 +657,67 @@ export function infuseSwearyHumanVoice(
     return sanitizeSwearWords(text);
   }
 
-  // Polish mode swearing
+  // Polish mode swearing — same wrapper-removal fix as the English path below: this used to
+  // bolt a pooled intro line and punchline line onto every response instead of swearing inline,
+  // the exact template-stamp pattern that was killed for English. Top up with a short inline
+  // interjection blended into the first sentence instead.
   if (language === 'polish') {
-    const plIntros = SWEAR_DICTIONARY.polish.intros;
-    const plPunchlines = SWEAR_DICTIONARY.polish.punchlines;
-    const pickedIntro = plIntros[Math.floor(Math.random() * plIntros.length)];
-    const pickedPunchline = plPunchlines[Math.floor(Math.random() * plPunchlines.length)];
-
     const swearCount = getSwearCount(text);
     if (swearCount >= 2 && !forceSwear) {
       return text;
     }
-    return `${pickedIntro}\n\n${text}\n\n*${pickedPunchline}*`;
+    const plTopups = ['Kurwa,', 'Ja pierdolę,', 'O kurwa,', 'No i elegancko,', 'Zajebiście,'];
+    const topup = plTopups[Math.floor(Math.random() * plTopups.length)];
+    return `${topup} ${text.trim()}`;
   }
 
   // English Swear Engine
   let processed = enhanceNaturalSwearPhrasing(text, intensity);
 
-  // If text already has natural profanity, do NOT double-insert clunky intros — but the bar for
-  // "enough already" scales with intensity, since a flat threshold of 2 meant "heavy"/"unhinged"
-  // settings capped out at the same swear density as everything else the moment two profanities
-  // showed up anywhere in the response.
+  // Every response used to get wrapped in a fixed "Hell yeah, here's the straight-up truth:"
+  // header line and a "Clean as hell." footer line, drawn from the same small pools every time —
+  // it reads as a template stamped onto every message rather than an actual voice, which is
+  // exactly the complaint that killed this approach. Swearing now only ever happens INSIDE the
+  // actual sentence (via enhanceNaturalSwearPhrasing's word substitutions above, plus the inline
+  // top-up below when a response has too little profanity of its own to hit) — never as a
+  // bolted-on line before or after the real content.
   const currentCount = getSwearCount(processed);
   const swearCeiling = intensity === 'unhinged' ? 6 : intensity === 'heavy' ? 4 : intensity === 'moderate' ? 2 : 1;
   if (currentCount >= swearCeiling && !forceSwear) {
     return processed;
   }
 
-  // Check if text already starts with a profanity opener
-  const hasExistingOpener = /^(?:fuck yeah|hell yeah|damn right|damn straight|yo fuck yeah|holy shit|no bullshit|real talk)/i.test(
-    processed.trim()
-  );
+  // Content-free answers (raw numbers, a code block, a bare list) have nothing for
+  // enhanceNaturalSwearPhrasing's word-substitution to grab onto, so top up with a short,
+  // varied, comma-continuation interjection blended into the FIRST sentence itself — not a
+  // separate colon-terminated header line — so it reads like a verbal tic, not a template stamp.
+  const INLINE_TOPUPS = [
+    'damn,', 'shit,', 'no cap,', 'ngl,', 'for real,', 'straight up,', 'hell,', 'fr,',
+  ];
+  const superChillTopups = ['bro,', 'my guy,', 'hell yeah,', 'no cap fr,'];
+  const topupPool = isSuperChill ? [...INLINE_TOPUPS, ...superChillTopups] : INLINE_TOPUPS;
+  const topup = topupPool[Math.floor(Math.random() * topupPool.length)];
 
-  if (hasExistingOpener) {
+  const trimmed = processed.trim();
+  const firstChar = trimmed.charAt(0);
+  // Don't stack a topup onto text that already opens with markdown/a heading/a list marker —
+  // injecting mid-symbol would corrupt the formatting instead of reading like a spoken aside.
+  if (/[*_#\-•\d`]/.test(firstChar)) {
     return processed;
   }
-
-  let introList = isSuperChill
-    ? SWEAR_DICTIONARY.english.intros.superChill
-    : contextCategory === 'webSearch'
-    ? SWEAR_DICTIONARY.english.intros.webSearch
-    : contextCategory === 'tech'
-    ? SWEAR_DICTIONARY.english.intros.tech
-    : contextCategory === 'explanation'
-    ? SWEAR_DICTIONARY.english.intros.explanation
-    : SWEAR_DICTIONARY.english.intros.general;
-
-  let punchlineList = SWEAR_DICTIONARY.english.punchlines;
-
-  // On 'unhinged', a short answer with a "clean" intro ("Real talk, check this out:") and a
-  // "clean" punchline ("Fast, accurate, and zero fluff.") can end up with zero actual profanity
-  // anywhere in the response — e.g. every math/logic answer, since the body itself is just
-  // numbers and steps. About half of each stock intro/punchline list has no swear word in it at
-  // all, so on the max intensity setting, bias to the half that actually swears; still falls
-  // back to the full list if a category's list happens to have no sweary entries.
-  if (intensity === 'unhinged') {
-    const swearyIntros = introList.filter(hasSwearWords);
-    if (swearyIntros.length > 0) introList = swearyIntros;
-    const swearyPunchlines = punchlineList.filter(hasSwearWords);
-    if (swearyPunchlines.length > 0) punchlineList = swearyPunchlines;
+  // synthesiseStandard's casualOpener() (and similar per-branch openers elsewhere) already start
+  // a lot of responses with their own filler ("Alright, let's break down...", "Here's the
+  // straight breakdown:", "Right — here is who we're talking about:"). Stacking an inline topup
+  // in front of one of those produced routine double-filler openers ("Damn, Alright, let's break
+  // down...", "Ngl, Right — here is who we're talking about:") — reads like two people talking
+  // at once, not one voice. Skip the topup when the text already opens with an obvious filler.
+  const FILLER_OPENER = /^(alright|okay|ok\b|right[,\s—-]|here'?s|look,|so\b|damn good question|check this out|let me break|let'?s |breaking this down|going back to|historically speaking|from what i found|turns out|basically,)/i;
+  if (FILLER_OPENER.test(trimmed)) {
+    return processed;
   }
-
-  const randomIntro = introList[Math.floor(Math.random() * introList.length)];
-
-  // For punchlines, only add if not super long and not already ending in a punchline
-  const hasPunchline = /\*(?:clean as hell|unfuckwithable|straight facts|boom|done)\*/i.test(processed);
-  if (hasPunchline) {
-    return `${randomIntro}\n\n${processed}`;
-  }
-
-  const randomPunchline = punchlineList[Math.floor(Math.random() * punchlineList.length)];
-
-  return `${randomIntro}\n\n${processed}\n\n*${randomPunchline}*`;
+  // Keep the original sentence's own capitalization — forcing it lowercase corrupted proper
+  // nouns leading a sentence ("Damn, lionel Messi is..." from "Lionel Messi is...").
+  return `${topup.charAt(0).toUpperCase()}${topup.slice(1)} ${trimmed}`;
 }
 
 /**

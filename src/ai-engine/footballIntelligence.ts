@@ -1537,6 +1537,53 @@ Note: as an offline knowledge base, treat anything beyond this as the most recen
   }
 
   // 60. FOOTBALL TERMINOLOGY (BRACE, TREBLE, CLEAN SHEET, ETC.)
+  // 60b. FORMATIONS EXPLAINED (4-4-2, 4-3-3, 4-2-3-1, 3-5-2, etc.)
+  if (
+    /(what is a 4-4-2|what is a 4-3-3|what is a 4-2-3-1|what is a 3-5-2|what is a 5-3-2|explain formations|football formations explained|what formation should|what'?s the best formation|difference between 4-3-3 and 4-2-3-1)/i.test(
+      lower
+    )
+  ) {
+    return {
+      matched: true,
+      title: 'Football Formations Explained: 4-4-2, 4-3-3, 4-2-3-1 & More',
+      topic: 'formations',
+      confidence: 0.97,
+      response: `Formations are shorthand for how a team lines up outfield players (defenders-midfielders-forwards), read back to front from the goalkeeper:
+
+- **4-4-2**: The classic English shape — 4 defenders, 4 midfielders in a flat or diamond line, 2 strikers up top. Simple, direct, hard-working; associated with old-school English football and Atlético Madrid's Simeone era (in its narrower defensive-block form).
+- **4-3-3**: 4 defenders, 3 central midfielders (often one holding, two box-to-box or attacking), 3 forwards with wide wingers cutting inside. Guardiola's Barcelona and modern City/Arsenal favour this for width and pressing triggers.
+- **4-2-3-1**: 4 defenders, 2 holding midfielders (a "double pivot") shielding the back line, an attacking midfield trio behind a lone striker. Extremely popular in the 2010s-2020s for its defensive solidity plus a free-roaming No. 10.
+- **3-5-2**: 3 centre-backs, wing-backs providing width up and down the flanks (effectively becoming a back 5 out of possession), 2 strikers. Used by Conte (Chelsea, Inter) and increasingly common again as a counter to 4-3-3 presses.
+- **4-1-4-1 / 4-3-2-1 ("Christmas Tree")**: Variations that trade a bit of attacking numbers for defensive cover or extra central control.
+Formations are a starting shape, not a cage — the best sides (Guardiola's City, Pep's Barca) morph fluidly between two or three shapes within the same 90 minutes depending on whether they have the ball.`,
+    };
+  }
+
+  // 60c. LESSER-COVERED LEAGUES: MLS, SCOTTISH FOOTBALL, SAUDI PRO LEAGUE, BRAZILIAN FOOTBALL
+  if (
+    /(mls|major league soccer|scottish premiership|old firm|saudi pro league|brasileir[ãa]o|brazilian league|brazilian football league)/i.test(
+      lower
+    )
+  ) {
+    return {
+      matched: true,
+      title: 'Beyond the Big Five: MLS, Scottish Football, Saudi Pro League & Brazil',
+      topic: 'other_leagues',
+      confidence: 0.96,
+      response: `### 🇺🇸 MLS (Major League Soccer)
+American/Canadian top flight, founded 1993 (launched 1996) after the US hosted the 1994 World Cup. Uses a franchise system with a salary cap and "Designated Player" rule (the "Beckham Rule," created for David Beckham's 2007 LA Galaxy move) letting clubs pay a handful of stars outside the cap. Lionel Messi's 2023 move to Inter Miami supercharged the league's global profile — he delivered Miami's first trophy (Leagues Cup) within weeks. Season runs spring-to-fall (unlike Europe's autumn-to-spring calendar) and ends with MLS Cup playoffs rather than a straight league table decider.
+
+### 🏴󠁧󠁢󠁳󠁣󠁴󠁿 Scottish Football
+Dominated for over a century by the **Old Firm**: Celtic (Catholic/Irish-nationalist roots) vs Rangers (Protestant/Unionist roots), the most politically-charged derby in world football. Celtic's Lisbon Lions won the 1967 European Cup with a starting XI entirely born within 30 miles of Glasgow — still unmatched. Celtic and Rangers have combined for the vast majority of Scottish Premiership titles ever awarded, making Scotland one of the most duopoly-dominated top leagues in Europe.
+
+### 🇸🇦 Saudi Pro League
+Transformed almost overnight from 2023 onward via PIF (Public Investment Fund) backing, luring Cristiano Ronaldo (Al Nassr, 2022) followed by Karim Benzema, Neymar, Sadio Mané, and N'Golo Kanté with enormous tax-free wages. Seen as football's newest "retirement league with superstar wages" model, similar to how MLS and the Chinese Super League were once viewed, though Saudi investment has been on a far larger scale.
+
+### 🇧🇷 Brasileirão (Campeonato Brasileiro Série A)
+Brazil's top flight — chaotic, huge (20 teams, 38 rounds), and home to giants like Flamengo, Palmeiras, São Paulo, and Corinthians. Historically a launchpad league: Brazilian talents (Pelé at Santos, Ronaldinho and Neymar at Santos) are developed and sold to Europe rather than the league retaining its stars long-term, though big-money returns (Neymar-style) do happen late-career.`,
+    };
+  }
+
   if (
     // "whats" (no apostrophe) is the far more common Discord spelling of "what is" — the
     // apostrophe-only phrasing here was missing the bulk of real chat traffic and letting these

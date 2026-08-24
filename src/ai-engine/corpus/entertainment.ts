@@ -50,6 +50,14 @@ So: if someone asks for "5 English songs," reasonable picks are Bohemian Rhapsod
     createdAt: Date.now(),
   },
   {
+    id: 'kb-ent-roblox',
+    title: 'Roblox: Platform, Robux, Genres, Studio & Player Culture',
+    category: 'Entertainment',
+    keywords: ['roblox', 'robux', 'obby', 'obbies', 'tycoon', 'simulator', 'roleplay', 'roblox studio', 'lua', 'adopt me', 'brookhaven', 'blox fruits', 'pet simulator', 'noob', 'exploiter', 'gamepass', 'video game', 'gaming'],
+    content: `Roblox is not one game but a platform — millions of user-created games ("experiences") built with the free Roblox Studio and shared under one account/avatar system, launched in 2006 and exploding in popularity through the 2010s-2020s especially with younger players. Robux is the platform's virtual currency, bought with real money (roughly 400 Robux for $4.99, scaling up) or earned by creators through the Developer Exchange (DevEx) program, which lets popular game/item creators cash Robux back out into real dollars. Popular genres: Obbies (short for "obstacle courses" — platforming challenges testing jump timing and precision), Tycoons (build up a business/base over time, collecting currency to unlock upgrades), Simulators (repetitive click/grind loops — mining, pet-collecting, strength-building — often themed around collecting and leveling up), Roleplay (RP) games (social hangout spaces mimicking real life — school, family, restaurant themes), and Battle/PvP games. Notable Roblox titles: Adopt Me! (pet-collecting roleplay, one of the most-played games ever on the platform), Brookhaven RP (open-world roleplay town), Blox Fruits (anime-inspired combat/adventure with a devil-fruit power system), Pet Simulator (idle-style pet collecting and trading), MeepCity, Bloxburg (city-building roleplay), and Piggy (horror survival). Roblox Studio is the free desktop tool for building games, scripted using Lua (specifically Luau, Roblox's typed Lua variant) — the entry point for millions of kids learning their first programming concepts (variables, events, loops, functions) through practical game-building rather than abstract tutorials. Player terminology: "noob" (new/inexperienced player, also the default blocky avatar look), "exploiter"/"hacker" (someone using unauthorized scripts to cheat), "gamepass" (a one-time-purchase in-game perk bought with Robux, distinct from a "developer product" which can be bought repeatedly), "admin commands" (special powers game owners/moderators can use), and "condo games" (a banned category of inappropriate user-made content Roblox actively moderates against). Roblox Corporation takes a cut of all Robux transactions and enforces community standards through automated filters plus human moderation, though enforcement gaps have drawn scrutiny over the years.`,
+    createdAt: Date.now(),
+  },
+  {
     id: 'kb-ent-film-cinema',
     title: 'Film and Cinema: How Movies Work and Why They Matter',
     category: 'Entertainment',
