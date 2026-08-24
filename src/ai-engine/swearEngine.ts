@@ -756,6 +756,24 @@ export function sanitizeSwearWords(text: string): string {
   return clean;
 }
 
+// Word-boundary matches for severe slurs (racial/ethnic, homophobic, ableist, misogynistic).
+// This exists purely to REJECT model output that crosses this line — a hard safety net behind the
+// system-prompt instruction telling the LLM to swear freely but never use hate speech, since an
+// uncensored small local model given "be aggressive, don't hold back" can and does slip into slurs
+// otherwise. Profanity (fuck/shit/etc.) is fine and NOT included here — this is only the words that
+// target a protected group, not general cursing.
+const SLUR_PATTERN =
+  /\b(n[i1]gg[ae3]r?s?|f[a4]gg?[o0]t?s?|ch[i1]nk[s]?|sp[i1]c[s]?|k[i1]k[e3][s]?|w[e3]tb[a4]ck[s]?|g[o0][o0]k[s]?|tr[a4]nn(?:y|ies)|r[e3]t[a4]rd[s]?|c[o0]{2}n[s]?|s[a4]nd\s?n[i1]gg[ae3]r|j[a4]p[s]?|c[o0]{2}lie[s]?)\b/i;
+
+/**
+ * Returns true if the text contains a severe slur/hate-speech term targeting a protected group.
+ * Used as a hard gate on raw LLM output before it's ever shown to a user — profanity/aggression is
+ * allowed by design elsewhere, but slurs are never acceptable regardless of persona/swearIntensity.
+ */
+export function containsSlurOrHateSpeech(text: string): boolean {
+  return SLUR_PATTERN.test(text);
+}
+
 /**
  * Natural In-Body Swear Enhancer:
  * Intelligently replaces bland neutral adjectives and transition words with authentic, punchy swearing.

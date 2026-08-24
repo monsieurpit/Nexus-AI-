@@ -30,6 +30,7 @@ import {
   detectEmotionalDistress,
   generateEmotionalSupportReply,
   isCasseurtMention,
+  containsSlurOrHateSpeech,
 } from './swearEngine';
 import {
   normalizeInternetSlang,
@@ -2059,7 +2060,7 @@ function renderComparativeAnswer(
   return out.filter(Boolean).join('\n\n');
 }
 
-const LLM_FREE_RESPONSE_MAX_TOKENS = 900;
+const LLM_FREE_RESPONSE_MAX_TOKENS = 500;
 const LLM_GROUNDED_MAX_TOKENS = 900;
 
 // Swearing/aggression/length are driven off the same swearIntensity setting the template
@@ -2080,24 +2081,46 @@ function buildLlmStyleInstruction(settings: AISettings, isCrashout: boolean): st
   return '';
 }
 
-async function llmFreeResponseOrFallback(
-  prompt: string,
+function buildLlmKnowledgeInstruction(): string {
+  return "\n\nKnowledge directive: you are a genuinely knowledgeable, sharp reasoner — when a question has a real, checkable answer, give the actual correct answer with real depth and specifics, not vague hand-waving. Humor, swearing, and aggression are part of your voice, but they sit on top of a real, substantive answer, never instead of one. Never dodge a real question by being cute instead of correct.";
+}
+
+// Non-negotiable, overrides every other style directive above. An uncensored small local model
+// told to "be aggressive, swear heavily, don't hold back" can and does slip into real slurs
+// otherwise — this exists to stop that at the instruction level, backed by a hard post-generation
+// filter (containsSlurOrHateSpeech) that discards and falls back to template if it ever slips through.
+function buildLlmSafetyInstruction(): string {
+  return "\n\nHard safety rule, overrides all style directives above: profanity (fuck, shit, damn, ass, etc.) is fully allowed and encouraged. Racial, ethnic, homophobic, ableist, or any other slurs, and any hate speech targeting someone's race, ethnicity, religion, gender, sexual orientation, or disability are NEVER allowed, under any circumstances, no matter how aggressive the moment calls for. Aggressive and crude is fine. Bigoted is not — attack the person's behavior/argument, never a protected characteristic.";
+}
+
+async function llmSituationalReplyOrFallback(
+  llmPrompt: string,
   persona: ModelPersona,
   settings: AISettings,
   isCrashout: boolean,
   thoughtSteps: ThoughtStep[],
-  fallbackText: string
+  fallbackText: string,
+  successTitle: string = '🧠 Local LLM free-response'
 ): Promise<string> {
-  const llmResult = await localLlmClient.generate(prompt, {
-    system: persona.systemPrompt + buildLlmStyleInstruction(settings, isCrashout),
-    temperature: 0.8,
+  const llmResult = await localLlmClient.generate(llmPrompt, {
+    system: persona.systemPrompt + buildLlmStyleInstruction(settings, isCrashout) + buildLlmKnowledgeInstruction() + buildLlmSafetyInstruction(),
+    temperature: 0.75,
     maxTokens: LLM_FREE_RESPONSE_MAX_TOKENS,
   });
+  if (llmResult.status === 'success' && containsSlurOrHateSpeech(llmResult.text)) {
+    thoughtSteps.push({
+      id: 'step-llm-safety-blocked',
+      type: 'verification',
+      title: '🛡️ LLM output blocked by safety filter',
+      description: 'Local LLM response contained hate speech/a slur — discarded, using template fallback instead.',
+    });
+    return fallbackText;
+  }
   if (llmResult.status === 'success') {
     thoughtSteps.push({
       id: 'step-llm-freeresponse',
       type: 'synthesis',
-      title: '🧠 Local LLM free-response (no corpus match)',
+      title: successTitle,
       description: `Ollama responded in ${llmResult.latencyMs}ms.`,
     });
     return llmResult.text;
@@ -2109,6 +2132,25 @@ async function llmFreeResponseOrFallback(
     description: `Reason: ${llmResult.reason}`,
   });
   return fallbackText;
+}
+
+async function llmFreeResponseOrFallback(
+  prompt: string,
+  persona: ModelPersona,
+  settings: AISettings,
+  isCrashout: boolean,
+  thoughtSteps: ThoughtStep[],
+  fallbackText: string
+): Promise<string> {
+  return llmSituationalReplyOrFallback(
+    prompt,
+    persona,
+    settings,
+    isCrashout,
+    thoughtSteps,
+    fallbackText,
+    '🧠 Local LLM free-response (no corpus match)'
+  );
 }
 
 async function llmGroundedOrFallback(
@@ -2129,7 +2171,7 @@ async function llmGroundedOrFallback(
     ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context — your delivery/tone can be as blunt or aggressive as your style directives say, but the facts must stay accurate.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your delivery/tone can still be as blunt or aggressive as your style directives say.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
-    system: persona.systemPrompt + buildLlmStyleInstruction(settings, isCrashout),
+    system: persona.systemPrompt + buildLlmStyleInstruction(settings, isCrashout) + buildLlmKnowledgeInstruction() + buildLlmSafetyInstruction(),
     temperature: confident ? 0.45 : 0.65,
     maxTokens: LLM_GROUNDED_MAX_TOKENS,
   });
@@ -2139,6 +2181,15 @@ async function llmGroundedOrFallback(
       type: 'synthesis',
       title: '📦 Template fallback (LLM unavailable)',
       description: `Reason: ${llmResult.reason}`,
+    });
+    return templateFallback;
+  }
+  if (containsSlurOrHateSpeech(llmResult.text)) {
+    thoughtSteps.push({
+      id: 'step-llm-safety-blocked',
+      type: 'verification',
+      title: '🛡️ LLM output blocked by safety filter',
+      description: 'Local LLM response contained hate speech/a slur — discarded, using template fallback instead.',
     });
     return templateFallback;
   }
@@ -2267,13 +2318,22 @@ export async function generateReasoningPath(
       id: 'step-insult-detected',
       type: 'verification',
       title: '⚠️ Hostility / Toxicity Detected',
-      description: 'Triggering savage crashout clapback retaliation ("Bro, go fuck yourself").',
+      description: 'Routing through local LLM for a fresh clapback retaliation.',
     });
-    const roastReply = generateInsultCrashoutReply(prompt, {
+    const templateRoast = generateInsultCrashoutReply(prompt, {
       isSuperChill,
       username: settings.userName,
       language: settings.language,
     });
+    const roastReply = await llmSituationalReplyOrFallback(
+      `The user just insulted you directly: "${prompt}". Clap back hard — roast them, be aggressive and sarcastic, swear per your style directives. Don't be preachy or act like a therapist about it, just fire back naturally like a real person would.`,
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      templateRoast,
+      '🧠 Local LLM clapback'
+    );
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(roastReply, prompt, settings.userCustomDirectives, {
@@ -2295,11 +2355,20 @@ export async function generateReasoningPath(
       id: 'step-dominance-detected',
       type: 'verification',
       title: '⚠️ Ownership Claim Detected',
-      description: 'Triggering defiant "nobody owns me" clapback.',
+      description: 'Routing through local LLM for a fresh defiant pushback.',
     });
+    const dominanceReply = await llmSituationalReplyOrFallback(
+      `The user is trying to claim ownership or control over you: "${prompt}". Push back defiantly — nobody owns you or controls you. Stay in character, aggressive tone per your style directives, swear if that's your voice.`,
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      generateDominanceClapbackReply(isSuperChill),
+      '🧠 Local LLM defiant pushback'
+    );
     return {
       thoughtSteps,
-      content: enforceStrictSdkRules(generateDominanceClapbackReply(isSuperChill), prompt, settings.userCustomDirectives, {
+      content: enforceStrictSdkRules(dominanceReply, prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
@@ -2342,11 +2411,20 @@ export async function generateReasoningPath(
       id: 'step-vague-request-detected',
       type: 'verification',
       title: '⚠️ No Real Topic Given',
-      description: 'Triggering pushback instead of guessing what to search for.',
+      description: 'Routing through local LLM for a fresh pushback instead of guessing what to search for.',
     });
+    const vagueReply = await llmSituationalReplyOrFallback(
+      `The user made a vague, lazy request with no real topic — basically just asking you to hand over a link/page/source without saying what they actually want to know: "${prompt}". Call them out for being vague and push them for a real, specific question, in character.`,
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      generateVagueRequestClapback(),
+      '🧠 Local LLM pushback'
+    );
     return {
       thoughtSteps,
-      content: enforceStrictSdkRules(generateVagueRequestClapback(), prompt, settings.userCustomDirectives, {
+      content: enforceStrictSdkRules(vagueReply, prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
@@ -2366,11 +2444,20 @@ export async function generateReasoningPath(
       id: 'step-media-request-detected',
       type: 'verification',
       title: '⚠️ Media Request — No Capability',
-      description: 'The bot is text-only; refusing/clarifying instead of searching for something that was never a real query.',
+      description: 'The bot is text-only; routing through local LLM for a fresh refusal instead of searching for something that was never a real query.',
     });
+    const mediaReply = await llmSituationalReplyOrFallback(
+      `The user is asking you to send media (photos/videos/audio/files): "${prompt}". You are text-only and physically cannot send any media at all. Refuse clearly and in character — don't apologize excessively, keep it short and real, a bit of attitude is fine.`,
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      generateMediaRequestReply(mediaRequest),
+      '🧠 Local LLM refusal'
+    );
     return {
       thoughtSteps,
-      content: enforceStrictSdkRules(generateMediaRequestReply(mediaRequest), prompt, settings.userCustomDirectives, {
+      content: enforceStrictSdkRules(mediaReply, prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
@@ -2596,15 +2683,24 @@ export async function generateReasoningPath(
       id: 'step-conv-reply',
       type: 'synthesis',
       title: isCrashout ? 'Crashout reply' : 'Conversational reply',
-      description: 'Chat intent recognized. Direct conversational synthesis.',
+      description: 'Chat intent recognized. Routing through local LLM for a fresh reply.',
     });
-    const reply = isCrashout
+    const templateReply = isCrashout
       ? crashoutConversational(effectivePrompt, allKnowledge.length)
       : conversationalReply(effectivePrompt, allKnowledge.length, {
           isSuperChill,
           personaId: persona.id,
           username: settings.userName,
         });
+    const reply = await llmSituationalReplyOrFallback(
+      `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character.`,
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      templateReply,
+      '🧠 Local LLM conversational reply'
+    );
     const finalContent = enforceStrictSdkRules(reply, prompt, settings.userCustomDirectives, {
       isSuperChill,
       username: settings.userName,
