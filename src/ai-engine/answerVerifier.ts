@@ -17,7 +17,12 @@ export interface VerificationResult {
   issues: string[];
 }
 
-const CAUSAL_MARKERS = /\b(?:because|due to|since|as a result|caused by|leads? to|results? in|so that|therefore|reason)\b/i;
+// Includes the "Why it happens / How it works / The result" headers reasoningEngine's own
+// causal synthesis branch emits ~50% of the time — those ARE causal language, just structural
+// labels instead of prose connectives, and were getting flagged as "no causal language found"
+// then randomly hedged purely because of which synthesis variant got picked.
+const CAUSAL_MARKERS =
+  /\b(?:because|due to|since|as a result|caused by|leads? to|results? in|so that|therefore|reason)\b|why it happens|how it works|the result:/i;
 
 function countListMarkers(text: string): number {
   const numbered = (text.match(/(?:^|\n)\s*\d+[.)]\s+/g) || []).length;

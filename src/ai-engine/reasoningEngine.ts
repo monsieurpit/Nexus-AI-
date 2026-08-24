@@ -376,6 +376,16 @@ function buildConversationMemory(query: string, history: ChatMessage[]): Convers
 const CONFIDENT_MATCH_SCORE = 1.0;
 const WEAK_MATCH_SCORE = 0.4;
 
+// Raw BM25 score alone rubber-stamped queries like "what's the plan for the party we talked
+// about" as confident (score 7.29, way over CONFIDENT_MATCH_SCORE) purely because "plan" is a
+// distinctive word, landing on "Beginner Workout Plan" with zero hedge even though the query's
+// actual subject (a party) is nowhere in that doc. computeConfidence() already blends in title/
+// coverage signals and correctly scored that case at 47% vs 58-91% for real matches sampled
+// across the corpus (round-4 fact-finding pass) — it just wasn't being consulted for the
+// isConfident decision. Requiring both catches the false-confident case without touching
+// genuinely good matches, which all cleared 58%+ in that sample.
+const CONFIDENCE_FLOOR = 0.5;
+
 type SearchHit = { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] };
 
 /**
@@ -631,7 +641,40 @@ function crashoutConversational(query: string): string {
 }
 
 function unknownResponse(): string {
-  return `I genuinely don't have enough in my corpus on that. Hit the **Corpus** button and paste in some info — I'll search it immediately after.`;
+  const variants = [
+    `I genuinely don't have shit on that in my corpus. Hit the **Corpus** button and paste in some info — I'll search it immediately after.`,
+    `Nah bro, I've got fuck all on that topic in here. Hit the **Corpus** button and drop some info in — I'll dig through it right after.`,
+    `Real talk, zero docs on that one. Hit the **Corpus** button and paste something in so I've got shit to actually work with.`,
+  ];
+  return variants[Math.floor(Math.random() * variants.length)];
+}
+
+// Vague dangling-reference questions ("what is the decision", "what's the plan") name a generic
+// noun that only makes sense with prior context — with none, this used to fall straight into the
+// generic "not enough in my corpus" hedge (which reads as if the bot searched and came up empty),
+// when the honest answer is "you never told me what you're talking about." Gated on the
+// conversation actually having no carried-over context, so a genuine follow-up ("what's the
+// verdict [on the case we discussed]") still resolves normally instead of getting this treatment.
+// Anchored to end-of-string (bar trailing punctuation) — "what's the plan for the party we talked
+// about" specifies its own topic in the same sentence and should NOT be treated as dangling; only
+// a bare "what's the plan" with nothing after the noun actually lacks a topic.
+const DANGLING_REFERENCE_REGEX =
+  /^(?:so\s+)?what(?:'s|s)?\s+(?:is|was)?\s*(?:the|ur|your)\s+(?:decision|plan|deal|situation|problem|issue|thing|point|deadline|agreement|verdict|outcome|result|answer|choice|update|status)\s*[?!.]*$/i;
+
+function isDanglingReferenceQuery(query: string, hasCarriedContext: boolean): boolean {
+  return !hasCarriedContext && DANGLING_REFERENCE_REGEX.test(query.trim());
+}
+
+function danglingReferenceReply(isSuperChill?: boolean): string {
+  if (isSuperChill) {
+    return `Bro what decision? 💀 You dropped that with zero context, I got nothing to go off. Fill me in first.`;
+  }
+  const variants = [
+    `What the fuck is "the decision" supposed to be about? I got no fucking context here — give me the actual topic.`,
+    `Bro, what decision? You just said "the decision" out of nowhere with zero context. Tell me what you're actually talking about.`,
+    `Hell if I know — you never gave me any context for that. Say what you're actually asking about and I'll go off.`,
+  ];
+  return variants[Math.floor(Math.random() * variants.length)];
 }
 
 /**
@@ -1002,7 +1045,9 @@ export function generateReasoningPath(
         }
 
         const partTop = partResults.slice(0, 2);
-        const partConfident = partResults[0].score >= CONFIDENT_MATCH_SCORE;
+        const partConfident =
+          partResults[0].score >= CONFIDENT_MATCH_SCORE &&
+          computeConfidence(partResults, partTerms) >= CONFIDENCE_FLOOR;
         const partSynthesised = synthesiseStandard(part, partIntent, partTop);
         sectionResults.push({
           heading: part,
@@ -1198,6 +1243,30 @@ export function generateReasoningPath(
     });
   }
 
+  // Any actual prior turn in the conversation is enough to assume the "the decision"-style noun
+  // has a real antecedent somewhere in it — this check is only meant to catch a truly fresh,
+  // context-free opener, not to second-guess an ongoing conversation's follow-up questions.
+  const hasCarriedContext =
+    memory.augmentedQuery !== prompt || memory.citedDocIds.size > 0 || history.some((m) => m.role === 'user');
+  if (isDanglingReferenceQuery(prompt, hasCarriedContext)) {
+    thoughtSteps.push({
+      id: 'step-dangling-reference',
+      type: 'verification',
+      title: '⚠️ No Antecedent Found',
+      description: 'Query references a generic noun ("the decision") with no prior context to resolve it against.',
+    });
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(danglingReferenceReply(isSuperChill), prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+      }),
+      knowledgeHits: [],
+    };
+  }
+
   // CRASHOUT MODE
   if (isCrashout) {
     const { results, reformulatedQuery } = searchWithReformulation(
@@ -1228,7 +1297,7 @@ export function generateReasoningPath(
       return {
         thoughtSteps,
         content: enforceStrictSdkRules(
-          "Bro I genuinely don't have shit on that. Zero docs. Hit the Corpus button and paste something in.",
+          "Bro I genuinely don't have shit on that. Zero fucking docs. Hit the Corpus button and paste something in.",
           prompt,
           settings.userCustomDirectives,
           { isSuperChill, username: settings.userName, systemInstruction: persona.systemPrompt, swearIntensity: settings.swearIntensity }
@@ -1238,7 +1307,8 @@ export function generateReasoningPath(
     }
 
     const top = results.slice(0, 3);
-    const isConfident = results[0].score >= CONFIDENT_MATCH_SCORE;
+    const isConfident =
+      results[0].score >= CONFIDENT_MATCH_SCORE && computeConfidence(results, queryTerms) >= CONFIDENCE_FLOOR;
     thoughtSteps.push({
       id: 'step-crashout-synth',
       type: 'synthesis',
@@ -1344,7 +1414,7 @@ export function generateReasoningPath(
     });
 
     const confidence = computeConfidence(topDocs, queryTerms);
-    let isConfident = topDocs[0].score >= CONFIDENT_MATCH_SCORE;
+    let isConfident = topDocs[0].score >= CONFIDENT_MATCH_SCORE && confidence >= CONFIDENCE_FLOOR;
     thoughtSteps.push({
       id: 'step-deep-synth',
       type: 'synthesis',
@@ -1447,7 +1517,7 @@ export function generateReasoningPath(
 
   const top = results.slice(0, 3);
   const confidence = computeConfidence(results, queryTerms);
-  let isConfident = results[0].score >= CONFIDENT_MATCH_SCORE;
+  let isConfident = results[0].score >= CONFIDENT_MATCH_SCORE && confidence >= CONFIDENCE_FLOOR;
 
   thoughtSteps.push({
     id: 'step-reasoning',

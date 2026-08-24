@@ -375,8 +375,16 @@ export function trySolveLogic(prompt: string): LogicSolution | null {
   const sequenceResult = trySolveSequence(prompt);
   if (sequenceResult) return sequenceResult;
 
-  // 4. Syllogisms & Logic Fallacies
-  if (lower.includes('syllogism') || lower.includes('fallacy') || (lower.includes('premise') && lower.includes('conclusion'))) {
+  // 4. Syllogisms & Logic Fallacies — only for an actual puzzle to solve/evaluate, not a plain
+  // definitional question ("what is a logical fallacy" was hijacking this generic explainer
+  // instead of hitting the corpus's real "Logical Fallacies & Cognitive Biases" article).
+  const isBareDefinitionQuestion =
+    /^(?:so\s+)?(?:what(?:'s|s)?\s+(?:is|are)|define|explain)\b/i.test(lower.trim()) &&
+    !/\ball\b[\s\S]*\bare\b|\bno\b[\s\S]*\bare\b|\bsome\b[\s\S]*\bare\b/i.test(lower);
+  if (
+    !isBareDefinitionQuestion &&
+    (lower.includes('syllogism') || lower.includes('fallacy') || (lower.includes('premise') && lower.includes('conclusion')))
+  ) {
     return {
       isLogic: true,
       title: 'Classical Syllogistic & Deductive Validity Check',
