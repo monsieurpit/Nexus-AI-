@@ -24,8 +24,12 @@ function simpleHash(str: string): number {
 export function tokenize(text: string): TokenItem[] {
   if (!text) return [];
 
-  // Match words, numbers, punctuation, spaces
-  const regex = /([A-Za-z]+|[0-9]+|[^\s\w]+|\s+)/g;
+  // Match words, numbers, underscores, punctuation, spaces. Underscore is a \w character, so
+  // without its own alternative it matched neither the letters/digits branches nor the
+  // "non-word" punctuation branch — match() just silently dropped it from the output entirely,
+  // shrinking every downstream token's `position` by 1 for each underscore in identifiers like
+  // "my_variable" (breaking anything that reconstructs offsets from `position`).
+  const regex = /([A-Za-z]+|[0-9]+|_+|[^\s\w]+|\s+)/g;
   const matches = text.match(regex) || [];
   let currentPos = 0;
 

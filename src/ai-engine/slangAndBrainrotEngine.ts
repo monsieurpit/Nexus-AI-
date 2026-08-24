@@ -137,6 +137,13 @@ export const SLANG_LEXICON: Record<string, string> = {
 /**
  * Normalizes internet slang and abbreviations from raw user text
  */
+// Same collision class the missing bare-"w" entry already guards against (see comment above):
+// these keys are real slang ONLY in lowercase chat writing. Written capitalized they're almost
+// always something else entirely — "R" is the R programming language / R-squared in stats, "BC"
+// is the "Before Christ" era abbreviation — so case-insensitive matching was silently turning
+// "I love R programming" into "I love are programming" and "500 BC" into "500 because".
+const CASE_SENSITIVE_ABBREVIATION_KEYS = new Set(['r', 'bc']);
+
 export function normalizeInternetSlang(text: string): SlangNormalizationResult {
   const words = text.split(/(\s+|[.,!?;:()]+)/);
   const detectedSlangs: Array<{ slang: string; meaning: string; category: string }> = [];
@@ -144,6 +151,7 @@ export function normalizeInternetSlang(text: string): SlangNormalizationResult {
   const normalizedTokens = words.map((token) => {
     const clean = token.toLowerCase().trim();
     if (!clean) return token;
+    if (CASE_SENSITIVE_ABBREVIATION_KEYS.has(clean) && token.trim() !== clean) return token;
 
     if (ABBREVIATIONS_MAP[clean]) {
       const info = ABBREVIATIONS_MAP[clean];

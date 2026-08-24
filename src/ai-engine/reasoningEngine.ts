@@ -101,6 +101,13 @@ const REASSURANCE_REGEX =
 const GREETING_FALSE_POSITIVE_REGEX =
   /(?:how|who)\s+are\s+you\s+(?:supposed|suppose|going\s+to|gonna|meant\s+to|able\s+to|allowed\s+to|trying\s+to)\b/i;
 
+// "yo" is a bare chatTriggers entry, matched via q.startsWith('yo ') below — which also matched
+// "yo what causes a supernova" and "yo how does DNS work", hijacking real corpus questions into
+// the generic greeting reply (the query never even reached corpus search, unlike every other
+// astronomy/CS question in the round-6 fact-finding pass). "yo" followed immediately by a
+// question word is real content, not a greeting.
+const YO_QUESTION_REGEX = /^yo[,!]?\s+(?:what|whats|how|hows|why|when|whens|where|wheres|who|whos|which|can|could|is|are|do|does|did|will|would)\b/i;
+
 export function detectQueryIntent(query: string): QueryIntent {
   const q = query.toLowerCase().trim();
 
@@ -141,7 +148,7 @@ export function detectQueryIntent(query: string): QueryIntent {
   const qNoPunct = q.replace(/[?!.]+$/, '');
 
   if (
-    !GREETING_FALSE_POSITIVE_REGEX.test(q) && (
+    !GREETING_FALSE_POSITIVE_REGEX.test(q) && !YO_QUESTION_REGEX.test(q) && (
     chatTriggers.some(
       (t) => q === t || qNoPunct === t || q.startsWith(t + ' ') || q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
     ) ||

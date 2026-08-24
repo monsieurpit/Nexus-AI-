@@ -428,7 +428,10 @@ Here is the anatomy of a black hole:
   // 13. Geography: Capitals
   const capitalMatch = lower.match(/(?:capital of|what is the capital of)\s+([a-zA-Z\s]+)/i);
   if (capitalMatch) {
-    const country = capitalMatch[1].trim();
+    // Strip a leading "the" — very common in real phrasing ("capital of the united states",
+    // "capital of the uk") — since the lookup table's keys are bare country names and never
+    // matched with "the " glued onto the front of the capture.
+    const country = capitalMatch[1].trim().replace(/^the\s+/i, '');
     const capitals: Record<string, string> = {
       france: 'Paris',
       germany: 'Berlin',

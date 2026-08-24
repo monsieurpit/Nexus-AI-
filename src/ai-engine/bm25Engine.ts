@@ -284,6 +284,13 @@ export const STOP_WORDS = new Set([
   'beside', 'between', 'beyond', 'despite', 'except', 'inside', 'near', 'next',
   'since', 'toward', 'unless', 'until', 'upon', 'within', 'without', 'like', 'get', 'got',
   'make', 'take', 'go', 'come', 'see', 'know', 'think', 'say', 'tell', 'give', 'use', 'find',
+  // Apostrophe-dropped contractions ("what's" -> "whats") of question words already above.
+  // These are 5+ letters, so correctTypos() doesn't exempt them as "too short to correct" —
+  // it was silently rewriting them into the nearest unrelated vocabulary word ("whats" -> the
+  // corpus's own "watts", from an Ohm's Law doc's keywords), injecting a bogus term into
+  // nearly every "whats X"/"wheres X" query and dragging in an unrelated top-3 result. Filtering
+  // them as stopwords, same as their apostrophised forms already are, is the actual fix.
+  'whats', 'hows', 'wheres', 'whens', 'whos', 'thats', 'theres', 'heres',
 ]);
 
 export function stem(word: string): string {
@@ -313,10 +320,18 @@ export function stem(word: string): string {
     ['ery', '', 4], ['ory', '', 4], ['ism', '', 4], ['ist', '', 4],
     ['ing', '', 4], ['ial', '', 4], ['ical', '', 4],
     ['al', '', 5], ['ly', '', 5], ['er', '', 5], ['ed', '', 4],
-    ['es', '', 4], ['s', '', 5],
+    ['es', '', 4], ['s', '', 4],
   ];
 
   for (const [suffix, replacement, minLen] of rules) {
+    // Plain "s" needed a stricter minLen(5) than "es" above it (minLen 4) for no real reason,
+    // which left common 4-letter root plurals unstemmed ("burns" stayed "burns" instead of
+    // matching "burn") — a query for "how do i treat a burn" scored the actual first-aid burns
+    // doc below unrelated docs whose titles happened to contain "Treatment" (round-6
+    // fact-finding pass). Matching "es"'s threshold fixes that, but "s" alone would then also
+    // wrongly destem words where the double "s" IS the root ("class" -> "clas", "glass" ->
+    // "glas") since those aren't plurals of a shorter word at all — excluded explicitly.
+    if (suffix === 's' && w.endsWith('ss')) continue;
     if (w.endsWith(suffix) && w.length - suffix.length >= minLen) {
       w = w.slice(0, -suffix.length) + replacement;
       break;

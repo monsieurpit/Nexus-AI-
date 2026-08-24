@@ -41,7 +41,11 @@ export function extractSearchQuery(prompt: string): string {
   // Remove common conversational query prefixes & fillers
   const prefixesToRemove = [
     /^(?:can you|could you|please|hey|yo|bro|nexus|dude)\s+/i,
-    /^(?:search on google for|search google for|google search for|search google|search for|look up on google|look up|google)\s+/i,
+    // "search on google for X" AND bare "search on google X" (no "for") both need their own
+    // alternative — the module doc's own example, "can you search on google who won the 2024
+    // champions league?", has no "for" in it and fell through every alternative unmatched,
+    // leaving "search on google" stuck on the front of the query sent to the search engines.
+    /^(?:search on google for|search on google|search google for|google search for|search google|search for|look up on google|look up|google)\s+/i,
     /^(?:tell me about|tell me who|tell me what|tell me when|tell me where|tell me how|tell me why)\s+/i,
     /^(?:what is the latest on|what's the latest on|what do you know about|what is|whats|what's)\s+/i,
     /^(?:who\s+is|who\s+was|whos|who's)\s+/i,
