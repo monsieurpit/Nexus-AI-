@@ -37,10 +37,16 @@ import {
 import { solveGeneralKnowledge } from './generalIntelligence';
 import { trySolveCode } from './codeSolver';
 import { trySolveLogic } from './logicSolver';
-import { decomposeCompoundQuestion, denoiseRamblingQuery } from './questionDecomposer';
+import {
+  decomposeCompoundQuestion,
+  denoiseRamblingQuery,
+  detectComparativeCompound,
+  extractComparativeEvidence,
+} from './questionDecomposer';
 import { correctPromptTypos } from './promptCorrector';
 import { extractRelationFacts, findInferenceChains, formatInferenceChain } from './inferenceEngine';
 import { verifyAnswer } from './answerVerifier';
+import type { VerificationIssue, VerificationIssueKind } from './answerVerifier';
 
 export type QueryIntent =
   | 'definition'
@@ -968,6 +974,154 @@ interface ConversationMemory {
   citedDocIds: Set<string>;
   contextDescription: string;
   isFollowUp: boolean;
+  /** The subject a pronoun in this turn resolves to, newest first. */
+  entityStack: string[];
+  trackedEntity: string | null;
+}
+
+// Interrogatives and request verbs are what the user is *doing*, never what they're asking
+// about. They used to ride along in the follow-up augmentation as if they were topic terms —
+// "Explain machine learning" carried the term "explain" into the next turn's search.
+const NON_TOPIC_WORDS = new Set(
+  `what whats which who whos whose when where why how explain describe define tell told say
+   list give show know about more info information details detail question ask asked
+   can could would should will does do did is are was were the a an of for on in to me my your
+   thing stuff please really just actually also here there`
+    .split(/\s+/)
+    .filter(Boolean)
+);
+
+const TITLE_TRAILING_NOISE = /\s+(?:explained|explainer|guide|overview|basics|101|faq|deep dive)$/i;
+
+/**
+ * The subject a document title is *about*, stripped of its editorial packaging:
+ * "Docker, Containers & Kubernetes Explained" → "Docker",
+ * "Climate Change: The Science of Global Warming" → "Climate Change".
+ * Only a last resort — the user's own wording (below) is a better handle on what "it" means.
+ */
+function subjectFromTitle(title: string): string {
+  const head = title.split(/\s*[:(—–]\s*|\s+-\s+/)[0];
+  const first = head.split(/\s*,\s*|\s*&\s*|\s+\band\b\s+/i)[0];
+  return first.replace(TITLE_TRAILING_NOISE, '').trim();
+}
+
+// Multi-word capitalized runs ("Lionel Messi", "Great Barrier Reef"). Sentence-leading
+// interrogatives are excluded so "What is Docker" yields "Docker", not "What".
+function capitalizedPhrases(text: string): string[] {
+  const words = text.split(/\s+/).map((w) => w.replace(/[^\w'-]/g, '')).filter(Boolean);
+  const phrases: string[] = [];
+  let run: string[] = [];
+  for (const w of words) {
+    const isCap = /^[A-Z]/.test(w) && !NON_TOPIC_WORDS.has(w.toLowerCase());
+    if (isCap) run.push(w);
+    else {
+      if (run.length > 0) phrases.push(run.join(' '));
+      run = [];
+    }
+  }
+  if (run.length > 0) phrases.push(run.join(' '));
+  return phrases;
+}
+
+const MAX_ENTITY_TERMS = 3;
+
+function contentWords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s'-]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !NON_TOPIC_WORDS.has(w));
+}
+
+/**
+ * The concrete thing a topic-setting turn was about.
+ *
+ * Priority is deliberate: what the user *named* beats what the retrieval *found*. A cited doc
+ * title is only used to corroborate the user's own wording (picking "meditation" out of
+ * "Mindfulness, Meditation, and the Science Behind Them") or, failing everything else, as a
+ * fallback handle.
+ */
+function resolveEntity(
+  userText: string,
+  citedTitles: string[]
+): { entity: string; corroborated: boolean } | null {
+  const caps = capitalizedPhrases(userText);
+  if (caps.length > 0) {
+    const longest = caps.reduce((a, b) => (b.split(/\s+/).length > a.split(/\s+/).length ? b : a));
+    return { entity: longest, corroborated: true };
+  }
+
+  const words = contentWords(userText);
+  if (words.length > 0) {
+    const titleBlob = citedTitles.join(' ').toLowerCase();
+    const corroborated = words.filter((w) => titleBlob.includes(w));
+    const chosen = corroborated.length > 0 ? corroborated : words;
+    return { entity: chosen.slice(0, MAX_ENTITY_TERMS).join(' '), corroborated: corroborated.length > 0 };
+  }
+
+  if (citedTitles.length > 0) {
+    const subject = subjectFromTitle(citedTitles[0]);
+    if (subject) return { entity: subject, corroborated: true };
+  }
+  return null;
+}
+
+function hasFollowUpPronoun(text: string): boolean {
+  return text
+    .toLowerCase()
+    .replace(/[?!.,]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .some((w) => FOLLOW_UP_PRONOUNS.has(w));
+}
+
+function isShortQuery(text: string): boolean {
+  return (
+    text
+      .toLowerCase()
+      .replace(/[?!.,]+/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 1).length <= 3
+  );
+}
+
+// Deeper than this and "it" is almost certainly not reaching back that far anyway.
+const MAX_TRACKED_ENTITIES = 3;
+
+/**
+ * Walks the window pairing each topic-setting user turn with the documents the assistant
+ * cited answering it, producing a newest-first stack of concrete subjects. Follow-up turns
+ * are skipped rather than tracked: "how much does that cost?" introduces no new subject, so
+ * letting it overwrite the stack is exactly how the antecedent used to get lost.
+ */
+function trackEntities(recent: ChatMessage[]): string[] {
+  const stack: string[] = [];
+  for (let i = 0; i < recent.length; i++) {
+    const msg = recent[i];
+    if (msg.role !== 'user' || hasFollowUpPronoun(msg.content)) continue;
+
+    const titles: string[] = [];
+    const next = recent[i + 1];
+    if (next && next.role === 'assistant' && Array.isArray(next.sources)) {
+      next.sources.forEach((s) => {
+        if (typeof s === 'string') titles.push(s);
+        else if (s && typeof s.title === 'string') titles.push(s.title);
+      });
+    }
+
+    const resolved = resolveEntity(msg.content, titles);
+    if (!resolved) continue;
+    // A short, pronoun-free turn whose words nothing in the answer's sources echoes ("and the
+    // cost?") is a follow-up wearing different clothes — tracking it would overwrite the real
+    // subject with an attribute of that subject.
+    if (!resolved.corroborated && isShortQuery(msg.content)) continue;
+
+    const { entity } = resolved;
+    const existing = stack.findIndex((e) => e.toLowerCase() === entity.toLowerCase());
+    if (existing !== -1) stack.splice(existing, 1);
+    stack.unshift(entity);
+  }
+  return stack.slice(0, MAX_TRACKED_ENTITIES);
 }
 
 function buildConversationMemory(query: string, history: ChatMessage[]): ConversationMemory {
@@ -990,6 +1144,9 @@ function buildConversationMemory(query: string, history: ChatMessage[]): Convers
       }
     });
 
+  const entityStack = trackEntities(recent);
+  const trackedEntity = entityStack[0] ?? null;
+
   const recentUserTerms = recent
     .filter((m) => m.role === 'user')
     .slice(-2)
@@ -1005,16 +1162,28 @@ function buildConversationMemory(query: string, history: ChatMessage[]): Convers
   const isShort = queryWords.filter((w) => w.length > 1).length <= 3;
   const isFollowUp = hasPronouns || isShort;
 
+  // A tracked entity replaces the recent-terms bag rather than joining it: the bag is what made
+  // resolution a matter of keyword-overlap luck, since a follow-up's own incidental words ("cost",
+  // "start", "big") compete with it on equal footing. The entity is repeated because search()
+  // scores repeated query terms additively, which is the only weighting lever available here.
   let augmented = query;
-  if (isFollowUp && recentUserTerms.length > 0) {
+  if (isFollowUp && trackedEntity) {
+    augmented = `${query} ${trackedEntity} ${trackedEntity}`;
+  } else if (isFollowUp && recentUserTerms.length > 0) {
     augmented = query + ' ' + recentUserTerms.slice(-6).join(' ');
   }
 
+  const carriedContext = augmented !== query;
   const descParts: string[] = [];
-  if (hasPronouns) descParts.push('Pronoun detected → resolved against prior context');
-  if (isShort && !hasPronouns) descParts.push('Short query → augmented with recent topic');
+  if (hasPronouns && carriedContext) descParts.push('Pronoun detected → resolved against prior context');
+  // Claiming an augmentation that never happened: on a conversation's first turn there is
+  // nothing to carry, and this step still reported "augmented with recent topic".
+  if (isShort && !hasPronouns && carriedContext) descParts.push('Short query → augmented with recent topic');
   if (citedDocIds.size > 0) descParts.push(`Boosting ${citedDocIds.size} recently cited doc(s)`);
-  if (isFollowUp && recentUserTerms.length > 0) {
+  if (isFollowUp && trackedEntity) {
+    descParts.push(`Anchored to tracked entity: "${trackedEntity}"`);
+    if (entityStack.length > 1) descParts.push(`Also in scope: ${entityStack.slice(1).join(', ')}`);
+  } else if (isFollowUp && recentUserTerms.length > 0) {
     descParts.push(`Context: ${recentUserTerms.slice(-4).join(', ')}`);
   }
 
@@ -1023,6 +1192,8 @@ function buildConversationMemory(query: string, history: ChatMessage[]): Convers
     citedDocIds,
     contextDescription: descParts.length === 0 ? 'No carryover from prior turns.' : descParts.join(' · '),
     isFollowUp,
+    entityStack,
+    trackedEntity,
   };
 }
 
@@ -1692,7 +1863,106 @@ function danglingReferenceReply(isSuperChill?: boolean): string {
  * Wraps an answer built from a below-confident-threshold match with an honest hedge, instead
  * of presenting a shaky match with the same false certainty as a strong one.
  */
-function hedgeAnswer(text: string, isSuperChill: boolean): string {
+// Most specific gap first — an answer can trip several checks at once, and "nothing on CI/CD"
+// tells the user far more than "that's a bit short".
+const COVERAGE_ISSUE_PRIORITY: VerificationIssueKind[] = [
+  'missing-entity',
+  'off-topic',
+  'no-causal',
+  'too-few-items',
+  'too-short',
+];
+
+const joinList = (items: string[]) =>
+  items.length <= 1 ? items[0] || '' : `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`;
+
+/**
+ * Turns a verification failure into a hedge that names the actual hole.
+ *
+ * The shape checks always knew *what* was missing; only the boolean ever reached the caller,
+ * so a comparison that silently dropped one side and an answer that was merely thin produced
+ * the identical "not fully confident" disclaimer. Returns null when the issue carries nothing
+ * nameable, so the generic hedge still covers that case.
+ */
+function describeCoverageGap(issues: VerificationIssue[], isSuperChill: boolean): string | null {
+  const pick = <T,>(pool: T[]): T => pool[Math.floor(Math.random() * pool.length)];
+  for (const kind of COVERAGE_ISSUE_PRIORITY) {
+    const issue = issues.find((i) => i.kind === kind);
+    if (!issue) continue;
+
+    if (kind === 'missing-entity') {
+      const missing = joinList(issue.missingEntities || []);
+      const covered = joinList(issue.coveredEntities || []);
+      if (!missing) continue;
+      if (covered) {
+        return pick(
+          isSuperChill
+            ? [
+                `I've got the ${covered} side of this, but nothing specifically on ${missing}:`,
+                `Fair warning — this covers ${covered} and barely touches ${missing}:`,
+              ]
+            : [
+                `I've got the ${covered} half of this, but fuck all specifically on ${missing} — so this is one-sided:`,
+                `Straight up: this is the ${covered} side. Nothing I found actually covers ${missing}:`,
+              ]
+        );
+      }
+      return pick(
+        isSuperChill
+          ? [`I couldn't find anything that actually addresses ${missing}, so this is the closest I've got:`]
+          : [
+              `I found nothing that actually addresses ${missing} — this is the nearest thing in my corpus, not an answer to that:`,
+            ]
+      );
+    }
+
+    if (kind === 'off-topic') {
+      const terms = joinList(issue.missingTerms || []);
+      if (!terms) continue;
+      return pick(
+        isSuperChill
+          ? [`Nothing in my corpus actually covers ${terms} — this is the nearest thing I found, so it may miss:`]
+          : [
+              `Real talk — nothing in my corpus covers ${terms}. This is the closest match I've got and it's probably not what you wanted:`,
+            ]
+      );
+    }
+
+    if (kind === 'no-causal') {
+      return pick(
+        isSuperChill
+          ? [`I can tell you what this is, but my sources never actually explain why it happens — so this is the what, not the why:`]
+          : [
+              `Heads up: my sources describe this but never spell out the actual cause, so you're getting the what and not the why:`,
+              `I've got the description but not the mechanism — nothing here says why it happens, so take this as background:`,
+            ]
+      );
+    }
+
+    if (kind === 'too-few-items') {
+      const found = issue.itemsFound ?? 0;
+      return pick(
+        isSuperChill
+          ? [`You asked for a list and my sources only gave me ${found === 1 ? 'one item' : `${found} items`}, so this is thinner than it should be:`]
+          : [
+              `You wanted a list and I've only got ${found === 1 ? 'one thing' : `${found} things`} worth listing — this is short of what you asked for:`,
+            ]
+      );
+    }
+
+    return pick(
+      isSuperChill
+        ? [`This is a thin answer and I know it — my sources barely touch this:`]
+        : [`Not gonna dress it up: my sources barely touch this, so this answer is thin:`]
+    );
+  }
+  return null;
+}
+
+function hedgeAnswer(text: string, isSuperChill: boolean, issues?: VerificationIssue[]): string {
+  const named = issues && issues.length > 0 ? describeCoverageGap(issues, isSuperChill) : null;
+  if (named) return `*${named}*\n\n${text}`;
+
   const prefixes = isSuperChill
     ? [
         "Not gonna lie, this isn't my strongest match, but here's my best shot at it: ",
@@ -1705,6 +1975,73 @@ function hedgeAnswer(text: string, isSuperChill: boolean): string {
       ];
   const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
   return `*${prefix}*\n\n${text}`;
+}
+
+/**
+ * Restructures the independently-solved parts of a compare-then-recommend compound into one
+ * answer: the comparison first, then a recommendation section.
+ *
+ * The recommendation is *quoted*, never composed. `evidence.verdictSentences` are verbatim
+ * lines from the retrieved documents; when the corpus states no preference the section says
+ * exactly that rather than manufacturing a winner out of retrieval scores.
+ */
+function renderComparativeAnswer(
+  comparative: { entities: string[]; criterion: string; comparisonParts: number[]; verdictParts: number[] },
+  sections: { heading: string; body: string }[],
+  evidence: { verdictSentences: string[]; criterionCovered: boolean },
+  isSuperChill: boolean
+): string {
+  const pick = <T,>(pool: T[]): T => pool[Math.floor(Math.random() * pool.length)];
+  const [a, b] = comparative.entities;
+  const forCriterion = comparative.criterion ? ` for ${comparative.criterion}` : '';
+
+  const comparisonBody = comparative.comparisonParts
+    .map((i) => sections[i]?.body)
+    .filter(Boolean)
+    .join('\n\n');
+
+  const out: string[] = [`**${a} vs ${b} — how they actually differ**`, comparisonBody];
+
+  const verdictHeading = comparative.criterion
+    ? `**So which one${forCriterion}?**`
+    : `**So which one do you pick?**`;
+  out.push(verdictHeading);
+
+  if (evidence.verdictSentences.length === 0) {
+    const noVerdict = isSuperChill
+      ? [
+          `Honestly? What I've got here lays out the differences but never actually picks a side${forCriterion}, so I'm not going to make one up for you.`,
+          `My sources describe both without ever calling a winner${forCriterion} — I'd rather tell you that than guess.`,
+        ]
+      : [
+          `Straight up: my corpus lays out the difference but never actually calls a winner${forCriterion}, and I'm not about to invent one just to sound decisive.`,
+          `Real talk — nothing I've got takes a side${forCriterion}. I can give you the tradeoff, but the "which is better" call isn't in my sources and I'm not faking it.`,
+        ];
+    out.push(pick(noVerdict));
+    return out.filter(Boolean).join('\n\n');
+  }
+
+  const lead =
+    comparative.criterion && !evidence.criterionCovered
+      ? isSuperChill
+        ? `Nothing I've got speaks to ${comparative.criterion} specifically, so treat this as the general tradeoff rather than a straight answer:`
+        : `Heads up — nothing in my sources addresses ${comparative.criterion} directly, so this is the general tradeoff they state rather than an actual call on ${comparative.criterion}:`
+      : isSuperChill
+        ? `Here's what my sources actually come down on:`
+        : `Going off what my sources actually say — not my opinion:`;
+
+  out.push(lead);
+  out.push(evidence.verdictSentences.map((s) => `- ${s}`).join('\n'));
+
+  if (comparative.criterion && !evidence.criterionCovered) {
+    out.push(
+      isSuperChill
+        ? `Pick whichever side of that tradeoff matters more for your ${comparative.criterion} setup.`
+        : `Whichever side of that tradeoff hurts less for your ${comparative.criterion} setup is your answer — I'm not going to pretend my sources made that call.`
+    );
+  }
+
+  return out.filter(Boolean).join('\n\n');
 }
 
 export function generateReasoningPath(
@@ -2150,14 +2487,33 @@ export function generateReasoningPath(
         description: earlyDecomposed.parts.map((p, i) => `  ${i + 1}. ${p}`).join('\n'),
       });
 
-      const sectionResults: { heading: string; body: string; hits: string[] }[] = [];
-      for (const part of earlyDecomposed.parts) {
+      // A compare-then-recommend compound ("how does X compare to Y and which is better for Z")
+      // is one question wearing two hats, not two questions. Detecting it up front changes two
+      // things: the "which one is better" part gets searched with the compared subjects spliced
+      // in (on its own it's a pronoun with no antecedent, and used to retrieve whatever doc
+      // happened to share a word with "better for CI/CD"), and the parts get merged into a
+      // compare-then-verdict structure below instead of two stapled-together snippets.
+      const comparative = detectComparativeCompound(earlyDecomposed.parts, effectivePrompt);
+      if (comparative.isComparative) {
+        thoughtSteps.push({
+          id: 'step-comparative-shape',
+          type: 'intent',
+          title: '⚖️ Comparative compound detected',
+          description: `Comparing "${comparative.entities[0]}" vs "${comparative.entities[1]}"${
+            comparative.criterion ? ` · recommendation asked for: ${comparative.criterion}` : ''
+          }`,
+        });
+      }
+
+      const sectionResults: { heading: string; body: string; hits: string[]; docTexts: string[] }[] = [];
+      for (const [partIndex, part] of earlyDecomposed.parts.entries()) {
         const partMath = trySolveMath(part);
         if (partMath && partMath.isMath) {
           sectionResults.push({
             heading: part,
             body: `**Result:** ${partMath.result}\n\n**How I got there:**\n${partMath.steps.map((s) => `  ${s}`).join('\n')}`,
             hits: [],
+            docTexts: [],
           });
           continue;
         }
@@ -2168,6 +2524,7 @@ export function generateReasoningPath(
             heading: part,
             body: `**Verdict:** ${partLogic.verdict}\n\n${partLogic.explanation}`,
             hits: [],
+            docTexts: [],
           });
           continue;
         }
@@ -2178,16 +2535,19 @@ export function generateReasoningPath(
             heading: part,
             body: partGk.response,
             hits: partGk.title ? [partGk.title] : [],
+            docTexts: [partGk.response],
           });
           continue;
         }
 
+        const isVerdictPart = comparative.isComparative && comparative.verdictParts.includes(partIndex);
+        const partQuery = isVerdictPart ? `${part} ${comparative.entities.join(' ')}` : part;
         const partIntent = detectQueryIntent(part);
-        const partTerms = processForSearch(part);
-        const { results: partResults } = searchWithReformulation(part, partTerms, allKnowledge, new Set(), 5);
+        const partTerms = processForSearch(partQuery);
+        const { results: partResults } = searchWithReformulation(partQuery, partTerms, allKnowledge, new Set(), 5);
 
         if (partResults.length === 0 || partResults[0].score < WEAK_MATCH_SCORE) {
-          sectionResults.push({ heading: part, body: unknownResponse(), hits: [] });
+          sectionResults.push({ heading: part, body: unknownResponse(), hits: [], docTexts: [] });
           continue;
         }
 
@@ -2200,20 +2560,42 @@ export function generateReasoningPath(
           heading: part,
           body: partConfident ? partSynthesised : hedgeAnswer(partSynthesised, isSuperChill),
           hits: partTop.map((t) => t.item.title),
+          docTexts: partResults.slice(0, 3).map((r) => r.item.content),
         });
       }
 
-      thoughtSteps.push({
-        id: 'step-compound-synth',
-        type: 'synthesis',
-        title: 'Answering each part independently',
-        description: `${sectionResults.length} sub-answers synthesised and combined.`,
-      });
-
-      const combined = sectionResults
-        .map((s, i) => `**${i + 1}. ${s.heading}**\n${s.body}`)
-        .join('\n\n');
       const allHits = Array.from(new Set(sectionResults.flatMap((s) => s.hits)));
+
+      let combined: string;
+      if (comparative.isComparative) {
+        const evidence = extractComparativeEvidence(
+          Array.from(new Set(sectionResults.flatMap((s) => s.docTexts))),
+          comparative.entities,
+          comparative.criterion
+        );
+        thoughtSteps.push({
+          id: 'step-comparative-synth',
+          type: 'synthesis',
+          title: 'Merging into a compare-then-recommend answer',
+          description:
+            evidence.verdictSentences.length === 0
+              ? 'No preference statement found in the retrieved docs — reporting the comparison without inventing a winner.'
+              : `${evidence.verdictSentences.length} grounded preference statement(s) quoted from the corpus${
+                  comparative.criterion
+                    ? ` · criterion "${comparative.criterion}" ${evidence.criterionCovered ? 'covered' : 'NOT covered'}`
+                    : ''
+                }.`,
+        });
+        combined = renderComparativeAnswer(comparative, sectionResults, evidence, isSuperChill);
+      } else {
+        thoughtSteps.push({
+          id: 'step-compound-synth',
+          type: 'synthesis',
+          title: 'Answering each part independently',
+          description: `${sectionResults.length} sub-answers synthesised and combined.`,
+        });
+        combined = sectionResults.map((s, i) => `**${i + 1}. ${s.heading}**\n${s.body}`).join('\n\n');
+      }
 
       return {
         thoughtSteps,
@@ -2629,18 +3011,20 @@ export function generateReasoningPath(
     }
 
     const synthesisedDeep = synthesiseDeep(prompt, intent, topDocs);
-    const deepVerification = verifyAnswer(synthesisedDeep, intent, queryTerms, entities);
+    const deepVerification = verifyAnswer(synthesisedDeep, intent, queryTerms, entities, prompt);
     if (!deepVerification.passed) {
       thoughtSteps.push({
         id: 'step-deep-self-check',
         type: 'verification',
         title: '⚠️ Self-check flagged the answer',
-        description: deepVerification.issues.join('\n'),
+        description: deepVerification.issues.map((i) => i.detail).join('\n'),
       });
       isConfident = false;
     }
 
-    const text = (isConfident ? synthesisedDeep : hedgeAnswer(synthesisedDeep, isSuperChill)) + deepInferenceNote;
+    const text =
+      (isConfident ? synthesisedDeep : hedgeAnswer(synthesisedDeep, isSuperChill, deepVerification.issues)) +
+      deepInferenceNote;
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(text, prompt, settings.userCustomDirectives, {
@@ -2747,13 +3131,13 @@ export function generateReasoningPath(
   // intent demands, rather than trusting the retrieval score alone. A confident-scoring match
   // can still produce a thin/off-shape answer (e.g. a "comparison" that never mentions the
   // second entity); demote it to a hedge instead of presenting it with false certainty.
-  const verification = verifyAnswer(synthesised, intent, queryTerms, entities);
+  const verification = verifyAnswer(synthesised, intent, queryTerms, entities, prompt);
   if (!verification.passed) {
     thoughtSteps.push({
       id: 'step-self-check',
       type: 'verification',
       title: '⚠️ Self-check flagged the answer',
-      description: verification.issues.join('\n'),
+      description: verification.issues.map((i) => i.detail).join('\n'),
     });
     isConfident = false;
   }
@@ -2788,7 +3172,8 @@ export function generateReasoningPath(
     };
   }
 
-  const mainText = (isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill)) + inferenceNote;
+  const mainText =
+    (isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill, verification.issues)) + inferenceNote;
   const followUps = suggestFollowUps(prompt, intent, results);
 
   return {
