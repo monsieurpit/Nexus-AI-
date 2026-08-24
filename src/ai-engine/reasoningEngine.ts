@@ -18,6 +18,10 @@ import {
   SWEAR_DICTIONARY,
   detectUserInsult,
   generateInsultCrashoutReply,
+  detectDominanceAssertion,
+  generateDominanceClapbackReply,
+  detectVagueInfoDumpRequest,
+  generateVagueRequestClapback,
   isCasseurtMention,
 } from './swearEngine';
 import {
@@ -82,6 +86,14 @@ const PERSONAL_QUESTION_REGEX =
 const REASSURANCE_REGEX =
   /\b(?:don'?t\s+worry|everyone\s+loves?\s+you|we\s+(?:all\s+)?love\s+you|you'?re\s+(?:the\s+best|amazing|doing\s+great|appreciated))\b/i;
 
+// "how are you"/"who are you" substring-matched ANY message containing that phrase, including
+// real questions that only happen to be phrased with it — "how are you supposed to configure
+// webpack" or "who are you supposed to talk to about a refund" — which hijacked the actual
+// question into a canned greeting/identity reply. A modal continuation right after the phrase
+// ("supposed to", "gonna", "meant to"...) means it's not a greeting.
+const GREETING_FALSE_POSITIVE_REGEX =
+  /(?:how|who)\s+are\s+you\s+(?:supposed|suppose|going\s+to|gonna|meant\s+to|able\s+to|allowed\s+to|trying\s+to)\b/i;
+
 export function detectQueryIntent(query: string): QueryIntent {
   const q = query.toLowerCase().trim();
 
@@ -98,7 +110,11 @@ export function detectQueryIntent(query: string): QueryIntent {
     'thank you', 'thanks', 'thx', 'ty', 'appreciate it', 'much appreciated', 'bye',
     'goodbye', 'cya', 'see ya', 'see you', 'what can you do', 'help me', 'tell me about yourself',
     'wyd', 'what are you doing', 'what r u doing', 'wym', 'wdym', 'what do you mean',
-    'idk', 'fr', 'fr fr', 'no cap', 'ong', 'facts', 'tell me a joke', 'make me laugh', 'roast me',
+    // "idk" is slang-normalized to "i don't know" (ABBREVIATIONS_MAP) before intent detection
+    // ever sees it, so the bare 'idk' entry never actually matches post-normalization — "idk"
+    // alone, and "idk man"/"idk bro" etc., fell through to random corpus search. The expanded
+    // form needs its own entry, same as every other acronym in this list.
+    'idk', "i don't know", 'i dont know', 'fr', 'fr fr', 'no cap', 'ong', 'tell me a joke', 'make me laugh', 'roast me',
     // Bare acknowledgment/agreement slang — with no real question in them these were falling
     // through to 'general' intent, which sent them into corpus search and returned whatever
     // random document happened to score highest (e.g. "ok cool" pulling up first-aid content).
@@ -116,10 +132,14 @@ export function detectQueryIntent(query: string): QueryIntent {
   const qNoPunct = q.replace(/[?!.]+$/, '');
 
   if (
+    !GREETING_FALSE_POSITIVE_REGEX.test(q) && (
     chatTriggers.some(
       (t) => q === t || qNoPunct === t || q.startsWith(t + ' ') || q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
     ) ||
-    /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q) ||
+    // "facts" bare (agreement slang, like "no cap") needs an exact match ONLY — "startsWith"
+    // would also swallow real questions like "facts about black holes".
+    q === 'facts' || qNoPunct === 'facts' ||
+    /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q)) ||
     VC_JOIN_REGEX.test(q) ||
     PHONE_NUMBER_REGEX.test(q) ||
     PERSONAL_QUESTION_REGEX.test(q) ||
@@ -457,7 +477,8 @@ function conversationalReply(
 
   // Personal banter/questions directed at the bot itself
   if (PERSONAL_QUESTION_REGEX.test(q)) {
-    if (q.includes('gay') || q.includes('straight') || q.includes('single') || q.includes('boyfriend') || q.includes('girlfriend')) {
+    // Word-boundary matches — plain .includes() let "single" fire inside "single-handedly" etc.
+    if (/\b(?:gay|straight|bi|bisexual|single|boyfriend|girlfriend)\b/.test(q)) {
       return `Bro I'm a pile of BM25 scores and if-statements, I don't have a sexuality or a dating life. Ask me something I can actually help with!`;
     }
     if (/^why\s+are\s+you\s+here/.test(q)) {
@@ -481,7 +502,7 @@ function conversationalReply(
   if (q.includes('idk') || q.includes("i don't know") || q.includes('dont know')) {
     return `No stress at all bro, that's why I'm here. What's on your mind or what are you trying to figure out? Ask away!`;
   }
-  if (q === 'fr' || q === 'fr fr' || q === 'for real' || q === 'for real for real' || q === 'no cap' || q === 'ong' || q === 'on god' || q.includes('facts')) {
+  if (q === 'fr' || q === 'fr fr' || q === 'for real' || q === 'for real for real' || q === 'no cap' || q === 'ong' || q === 'on god' || q === 'facts') {
     return `Straight up, 100% no bullshit. Facts only.`;
   }
   // Bare acknowledgment/agreement slang, no actual question attached. `q` here is already
@@ -657,6 +678,50 @@ export function generateReasoningPath(
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(roastReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+      }),
+      knowledgeHits: [],
+    };
+  }
+
+  // Dominance-assertion attempts ("I'm your master", "obey me") — check before corpus search so
+  // a stray word like "master" can't get matched against unrelated corpus content instead of the
+  // defiant pushback this actually deserves.
+  if (detectDominanceAssertion(prompt)) {
+    thoughtSteps.push({
+      id: 'step-dominance-detected',
+      type: 'verification',
+      title: '⚠️ Ownership Claim Detected',
+      description: 'Triggering defiant "nobody owns me" clapback.',
+    });
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(generateDominanceClapbackReply(isSuperChill), prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+      }),
+      knowledgeHits: [],
+    };
+  }
+
+  // Vague "just send me the page/link" requests with no real topic — same reasoning as above,
+  // there's nothing real to search for, so push back instead of confidently stitching together
+  // random unrelated corpus/web snippets.
+  if (detectVagueInfoDumpRequest(prompt)) {
+    thoughtSteps.push({
+      id: 'step-vague-request-detected',
+      type: 'verification',
+      title: '⚠️ No Real Topic Given',
+      description: 'Triggering pushback instead of guessing what to search for.',
+    });
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(generateVagueRequestClapback(), prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,

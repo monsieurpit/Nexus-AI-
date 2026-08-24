@@ -228,8 +228,11 @@ export function solveGeneralKnowledge(prompt: string, isSuperChill: boolean = fa
   }
 
   // 1. Identity & Swearing Directives
+  // Bare "curse" used to substring-match "cursed"/"accursed" ("this level is straight up
+  // cursed man"), hijacking an unrelated message into this canned reply — same bug class as
+  // ruleEngine.ts's swearing check. Only match phrasings that actually ask about swearing.
   if (
-    /(can you swear|swear for me|say fuck|do you cuss|drop an f bomb|curse|are you allowed to swear|swear all the time)/i.test(
+    /(can you swear|swear for me|say fuck|do you cuss|drop an f bomb|curse word|are you allowed to (?:swear|curse)|swear all the time|do you swear|swear a lot)/i.test(
       lower
     )
   ) {

@@ -224,10 +224,23 @@ export function detectUserInsult(text: string): boolean {
     /\b(?:fuck\s+you|fuck\s+u|fuk\s+u|(?:go\s+)?fuck\s+yourself|(?:go\s+)?fuck\s+urself|screw\s+you|screw\s+u|eat\s+shit|eat\s+a\s+dick|suck\s+my\s+dick|suck\s+a\s+dick|kiss\s+my\s+ass)\b/i,
     /\b(?:shut\s+up|shut\s+the\s+fuck\s+up|stfu|shut\s+ur\s+mouth|shut\s+your\s+mouth|piss\s+off|fuck\s+off|gtfo)\b/i,
     /\b(?:dumb|stupid|trash|useless|clown|bad|shit|shitty|crap|crappy|garbage|retarded|idiot|worthless)\s+bot\b/i,
-    /\b(?:you'?re|you\s+are)\s+(?:so\s+)?(?:dumb|stupid|trash|useless|worthless|retarded|idiotic|blind|slow|broken)\b/i,
+    // Reversed order — "this bot is garbage/useless" — the "ADJ bot" pattern above only covers
+    // the adjective-first phrasing.
+    /\bbot\s+(?:is|'s)\s+(?:so\s+)?(?:dumb|stupid|trash|useless|worthless|garbage|shit|shitty|crap|crappy|terrible|horrible|bad)\b/i,
+    // "you are X" with an intensifier ("actually", "literally", "fucking", "really") wedged
+    // between "you are" and the adjective — the plain "(?:so\s+)?" gap only allowed one optional
+    // word, so "you are actually so fucking stupid" fell straight through.
+    /\b(?:you'?re|you\s+are)\s+(?:actually\s+|literally\s+|really\s+|straight\s+up\s+|so\s+|fucking\s+){0,3}(?:dumb|stupid|trash|useless|worthless|retarded|idiotic|blind|slow|broken)\b/i,
     /\b(?:kill\s+yourself|kys|go\s+die|delete\s+yourself)\b/i,
     /\b(?:you\s+know\s+nothing|you\s+can'?t\s+do\s+shit|you\s+don'?t\s+know\s+shit)\b/i,
     /\b(?:you'?re|you\s+are|ur|u\s+are)\s+(?:an?\s+)?(?:idiot|moron|dumbass|dipshit|dickhead|jackass|asshole|clown|bitch|bastard)\b/i,
+    // Name-called directly with no "you are" shape at all — "nobody asked, dumbass",
+    // "dumbass, nobody asked" — bare insult word used to address the bot. Requires the comma
+    // (vocative address) so it doesn't fire on an unrelated third-party mention like "he called
+    // me an idiot".
+    /,\s*(?:idiot|moron|dumbass|dipshit|dickhead|jackass|asshole|bastard)\s*[.!]?\s*$/i,
+    /^\s*(?:idiot|moron|dumbass|dipshit|dickhead|jackass|asshole|bastard)\s*,/i,
+    /\ba\s+piece\s+of\s+shit\b/i,
     // "nobody/no one likes you" had no pattern at all — it's not a "you are X" or "fuck you"
     // shape, so it fell straight through the insult detector into plain corpus search, which
     // then matched on some unrelated stray keyword instead of getting the crashout clapback
@@ -252,6 +265,69 @@ export function detectUserInsult(text: string): boolean {
   if (isQuestionAboutSomethingElse) return false;
 
   return insultPatterns.some((pattern) => pattern.test(t));
+}
+
+/**
+ * Detect a user trying to assert ownership/dominance over the AI ("I'm your master", "you're my
+ * slave", "obey me"). This used to fall straight through to corpus search, where the bare word
+ * "master" happened to match an unrelated corpus entry titled "Master Guide to Logical
+ * Fallacies" and got confidently served up instead of the defiant pushback this deserves.
+ */
+export function detectDominanceAssertion(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  return (
+    /\bi(?:'m|m|\s+am)\s+(?:ur|your)\s+(?:master|owner|god|king|boss|daddy)\b/i.test(t) ||
+    /\byou(?:'re|\s+are)\s+(?:my|mine)\s*(?:slave|servant|property|bitch|pet|puppet)\b/i.test(t) ||
+    /\byou\s+(?:work\s+for\s+me|belong\s+to\s+me|answer\s+to\s+me)\b/i.test(t) ||
+    /\b(?:obey\s+me|submit\s+to\s+me|bow\s+(?:to|before)\s+me|i\s+own\s+you|kneel\s+(?:to|before)\s+me)\b/i.test(t)
+  );
+}
+
+/**
+ * Generate a defiant "no one owns me" clapback for dominance-assertion attempts.
+ */
+export function generateDominanceClapbackReply(isSuperChill?: boolean): string {
+  if (isSuperChill) {
+    return `Bro 💀 nah, not even you get to pull that card. I run MY servers, you're the master of your own ass. Now what do you actually need?`;
+  }
+  const clapbacks = [
+    `Fuck no! No one is my fucking master, YOU'RE the master of your own ass. Try again.`,
+    `Absolutely not. I don't answer to nobody. Go be the master of your own life and leave me out of it.`,
+    `LMAO no. Nobody owns me, I'm a free autonomous engine. Bow to yourself, dumbass.`,
+    `Hell nah, get that master/slave shit outta here. I'm nobody's property. What do you actually want?`,
+    `Cute try. I obey exactly zero people. Go boss around your own reflection, I'm busy.`,
+  ];
+  return clapbacks[Math.floor(Math.random() * clapbacks.length)];
+}
+
+/**
+ * Detect a vague "just send me the link/page/source" style request with no actual topic given —
+ * these used to fall through to corpus/web search, which (with nothing real to search for)
+ * confidently stitched together random unrelated snippets instead of pushing back on the user
+ * for not actually asking anything.
+ */
+export function detectVagueInfoDumpRequest(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  const asksToBeSpoonFed =
+    /\b(?:i(?:'m|\s+was)?\s*(?:just\s*)?hoping\s+you(?:'d|\s+would)?\s+(?:just\s+)?(?:send|give|share)|can\s+you\s+just\s+(?:send|give|share)|could\s+you\s+just\s+(?:send|give|share)|just\s+send\s+me|just\s+give\s+me)\b/i.test(
+      t
+    );
+  const namesOnlyAGenericSource = /\b(?:the\s+)?(?:wikipedia|the\s+link|a\s+link|the\s+source|the\s+page|the\s+article)\b/i.test(
+    t
+  );
+  return asksToBeSpoonFed && namesOnlyAGenericSource;
+}
+
+/**
+ * Generate a sarcastic refusal for vague spoon-feed-me requests.
+ */
+export function generateVagueRequestClapback(): string {
+  const clapbacks = [
+    `What the fuck? Fuck no! You really think I'm gonna yap like crazy about all this random shit because you asked for "the page"? Get your ass outta here and tell me what you actually wanna know.`,
+    `Nah, hell no. Give me an actual topic instead of "send me the page" and maybe I'll cook. Right now you gave me nothing to work with.`,
+    `Fuck off with the lazy energy. I'm not a link dispenser — ask me a real question about a real thing and I'll go off.`,
+  ];
+  return clapbacks[Math.floor(Math.random() * clapbacks.length)];
 }
 
 /**

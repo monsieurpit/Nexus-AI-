@@ -664,7 +664,10 @@ export function generateNexusHomieResponse(
   }
 
   // Swearing query check
-  if (/(?:can you swear|do you cuss|say fuck|drop an f bomb|curse|are you allowed to swear|swear all the time|swear)/i.test(pLower)) {
+  // Bare "swear"/"curse" alternatives used to match ANY message containing those substrings
+  // ("I swear I didn't do it", "this map is cursed"), hijacking unrelated messages into this
+  // canned reply — keep only phrasings that actually ask about the bot's swearing.
+  if (/(?:can you swear|do you cuss|say fuck|drop an f bomb|curse word|are you allowed to (?:swear|curse)|swear all the time|do you swear|swear a lot)/i.test(pLower)) {
     if (isSuperChillUser) {
       return `Fuck yeah bro! I swear naturally all the damn time. No filters, no corporate bullshit, no robotic babysitter. What do you want to talk about?`;
     }

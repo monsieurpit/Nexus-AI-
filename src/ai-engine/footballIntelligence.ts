@@ -1538,7 +1538,10 @@ Note: as an offline knowledge base, treat anything beyond this as the most recen
 
   // 60. FOOTBALL TERMINOLOGY (BRACE, TREBLE, CLEAN SHEET, ETC.)
   if (
-    /(what is a brace|what does brace mean|what is a treble( in football)?|what is a clean sheet|what is a hat.?trick|what is a nutmeg|what is a cap in football|what does capped mean)/i.test(
+    // "whats" (no apostrophe) is the far more common Discord spelling of "what is" — the
+    // apostrophe-only phrasing here was missing the bulk of real chat traffic and letting these
+    // queries fall through to unrelated corpus matches instead.
+    /(what'?s a brace|what does brace mean|what'?s a treble( in football)?|what'?s a clean sheet|what'?s a hat.?trick|what'?s a nutmeg|what'?s a cap in football|what does capped mean)/i.test(
       lower
     )
   ) {
