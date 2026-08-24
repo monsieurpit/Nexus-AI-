@@ -898,6 +898,28 @@ export function detectQueryIntent(query: string): QueryIntent {
     return 'definition';
   }
 
+  // Checked BEFORE 'explanation': "how does Docker compare to VMs" starts with "how " and used
+  // to be caught by that broad prefix check below, misclassifying every "how does X compare to
+  // Y" / "how does X differ from Y" phrasing as a plain explanation and skipping the comparative
+  // synthesis path entirely — the single most natural way to actually phrase a comparison
+  // question. round-10's comparative-compound handling had to work around this by keying off its
+  // own cue instead of `detectQueryIntent`; fixing it here at the root means any caller of
+  // `detectQueryIntent` gets the correct classification, not just that one call site.
+  if (
+    q.includes('compare ') ||
+    q.includes('difference between') ||
+    q.includes(' vs ') ||
+    q.includes(' versus ') ||
+    q.includes('better than') ||
+    q.includes('differ from') ||
+    q.includes('differs from') ||
+    // Narrow "X or Y" pattern (e.g. "messi or ronaldo") — only two bare tokens either
+    // side of "or", so it doesn't misfire on longer sentences that happen to contain "or"
+    /^[a-z0-9'-]+\s+or\s+[a-z0-9'-]+$/i.test(q)
+  ) {
+    return 'comparative';
+  }
+
   if (
     q.startsWith('how ') ||
     q.startsWith('explain ') ||
@@ -924,19 +946,6 @@ export function detectQueryIntent(query: string): QueryIntent {
     q.includes('why does')
   ) {
     return 'causal';
-  }
-
-  if (
-    q.includes('compare ') ||
-    q.includes('difference between') ||
-    q.includes(' vs ') ||
-    q.includes(' versus ') ||
-    q.includes('better than') ||
-    // Narrow "X or Y" pattern (e.g. "messi or ronaldo") — only two bare tokens either
-    // side of "or", so it doesn't misfire on longer sentences that happen to contain "or"
-    /^[a-z0-9'-]+\s+or\s+[a-z0-9'-]+$/i.test(q)
-  ) {
-    return 'comparative';
   }
 
   if (
@@ -3736,23 +3745,36 @@ function synthesiseStandard(
     }
     case 'comparative': {
       if (results.length >= 2) {
+        // The 3rd-ranked doc used to get tacked on as "Bottom line"/"Key difference"
+        // unconditionally — fine when it's a genuine third angle on the same comparison, but for
+        // a query with only two real subjects (e.g. "Docker vs VMs"), whatever scored 3rd is just
+        // noise (a "Race Conditions & Concurrency" doc has nothing to do with either). Only trust
+        // it as a real bottom line when it's not trailing miles behind the two docs actually being
+        // compared — a big score drop-off is the signal that it's unrelated, not additive.
+        const thirdDocIsRelevant =
+          results.length > 2 &&
+          !!results[2].relevantSentences?.length &&
+          results[2].score >= Math.min(results[0].score, results[1].score) * 0.6;
         if (Math.random() < 0.5) {
           let text = `${opener}\n\n`;
-          for (const doc of results.slice(0, 3)) {
+          // Same reasoning as the "Bottom line" gate below — don't render a whole unrelated
+          // section for the doc, not just skip its one-line summary.
+          const docsToShow = thirdDocIsRelevant ? results.slice(0, 3) : results.slice(0, 2);
+          for (const doc of docsToShow) {
             const sents = variedSentences([doc], 0, 3);
             text += `**${doc.item.title}**\n${sents.map((s) => `• ${s}`).join('\n')}\n\n`;
           }
           text = text.trim();
-          if (results.length > 2 && results[2].relevantSentences?.length) {
-            text += `\n\n**Bottom line:** ${results[2].relevantSentences[0]}`;
+          if (thirdDocIsRelevant) {
+            text += `\n\n**Bottom line:** ${results[2].relevantSentences![0]}`;
           }
           return text;
         } else {
           const s1 = variedSentences(results, 0, 2);
           const s2 = variedSentences(results, 1, 2);
           let text = `${opener}**${results[0].item.title}:** ${s1.join(' ')}\n\n**${results[1].item.title}:** ${s2.join(' ')}`;
-          if (results.length > 2 && results[2].relevantSentences?.length) {
-            text += `\n\n**Key difference:** ${results[2].relevantSentences[0]}`;
+          if (thirdDocIsRelevant) {
+            text += `\n\n**Key difference:** ${results[2].relevantSentences![0]}`;
           }
           return text;
         }
