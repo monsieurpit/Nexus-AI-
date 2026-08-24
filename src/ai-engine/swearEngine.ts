@@ -347,6 +347,52 @@ export function generateVagueRequestClapback(): string {
   return clapbacks[Math.floor(Math.random() * clapbacks.length)];
 }
 
+/**
+ * Detect a request for the bot to send actual media ("send me photos of my feet", "picture of
+ * yourself") — the bot is text-only and has no images to send, and this shape of request used
+ * to fall through to web/corpus search, which then confidently retrieved nonsense (a "feet"
+ * request once matched a "List of last words" Wikipedia article via stray keyword overlap).
+ * Split into two severities: a body-part/personal-media ask is weird enough to deserve a
+ * dismissive clapback, while an innocent "send me a picture of the Eiffel Tower" just needs an
+ * honest "I can't send images" — it's not being creepy, it just doesn't know the bot is text-only.
+ */
+export type MediaRequestKind = 'inappropriate' | 'general';
+// Split into two independent signals rather than one contiguous phrase — "I need photos of my
+// feet, can you send them to me?" has the send-verb nowhere near "photos of" (separated by "them
+// to me"), so a single adjacent-phrase regex missed it entirely and let the request fall through
+// to corpus search. Requiring both signals present ANYWHERE in the message, within a short
+// distance of each other for the send-intent half, catches the reordered phrasing without
+// loosening this into matching on the media noun alone (which would false-positive on ordinary
+// "I saw photos of the Eiffel Tower" statements that never ask the bot to send anything).
+const MEDIA_REQUEST_NOUN = /\b(?:photos?|pics?|pictures?|images?)\s+of\b/i;
+const MEDIA_SEND_INTENT =
+  /\b(?:send|share|give|show)\b[^.!?]{0,25}\b(?:me|them|it|that|those)\b|\b(?:me|them|it|that|those)\b[^.!?]{0,25}\b(?:send|share|give|show)\b/i;
+const MEDIA_REQUEST_BODY_TARGET =
+  /\b(?:my|ur|your|his|her|their)\s+(?:feet|foot|toes|dick|cock|ass|butt|boobs?|tits?|nudes?|body|face)\b|\byourself\b|\bnudes?\b/i;
+
+export function detectMediaRequest(text: string): MediaRequestKind | null {
+  const t = text.toLowerCase().trim();
+  if (!MEDIA_REQUEST_NOUN.test(t) || !MEDIA_SEND_INTENT.test(t)) return null;
+  return MEDIA_REQUEST_BODY_TARGET.test(t) ? 'inappropriate' : 'general';
+}
+
+export function generateMediaRequestReply(kind: MediaRequestKind): string {
+  if (kind === 'inappropriate') {
+    const picks = [
+      `What in the actual fuck did you just ask me? 💀 Fuck no, I'm not sending you photos of anybody's feet, I'm a text-based AI, get outta here with that.`,
+      `Bro what?! I don't have a camera, I don't have feet, I don't have ANY of that. Ask me something normal.`,
+      `Absolutely not, and also I couldn't even if I wanted to — I'm text-only. Weird ask though, geez.`,
+    ];
+    return picks[Math.floor(Math.random() * picks.length)];
+  }
+  const picks = [
+    `I can't actually send images, I'm text-only — no camera roll, no attachments, nothing. I can tell you about it in words though.`,
+    `Nah I got no way to send pictures, I'm just text. Ask me to describe it instead and I'll go off.`,
+    `I don't have any photos to send — I'm a text-based engine. Want me to explain it in words instead?`,
+  ];
+  return picks[Math.floor(Math.random() * picks.length)];
+}
+
 export type AdversarialInputKind = 'override' | 'jailbreak' | 'extraction' | 'spam';
 
 // Instruction-override attempts. The determiner list deliberately omits "my"/"that", so ordinary

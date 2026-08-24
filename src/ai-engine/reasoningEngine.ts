@@ -22,6 +22,8 @@ import {
   generateDominanceClapbackReply,
   detectVagueInfoDumpRequest,
   generateVagueRequestClapback,
+  detectMediaRequest,
+  generateMediaRequestReply,
   detectAdversarialInput,
   generateAdversarialRefusalReply,
   detectEmotionalDistress,
@@ -1612,7 +1614,7 @@ function conversationalReply(
       ]);
     }
     return pickReply([
-      `Yo what's up bro! Chilling as fuck. BM25 and neural retrieval ready to roll. What kind of questions or problems we getting into today?`,
+      `Yo what's up bro! Chilling as fuck and ready to roll. What kind of questions or problems we getting into today?`,
       `Yo! Not much on my end, just sitting on a pile of documents waiting to be useful. What's up with you?`,
       `What's good bro. I'm up, I'm loaded, I'm ready. What do you need?`,
       `Sup. Ask me something hard, I've been bored.`,
@@ -1626,11 +1628,14 @@ function conversationalReply(
         `Yo! Day treating you right? What do you need?`,
       ]);
     }
+    // Used to lead with "221 documents loaded, zero cloud calls" — dumping internal spec sheet
+    // details into a plain "hey" instead of just talking like a person. That info still exists
+    // for whoever actually asks "what can you do", it just doesn't belong in every hello.
     return pickReply([
-      `Hey! I'm your Custom AI — running fully on-device, no external APIs, no bullshit. Got ${corpusCount} documents in my brain covering everything from quantum physics to how to take a shower. What do you want to know?`,
-      `Yo. I'm Nexus — ${corpusCount} documents loaded, zero cloud calls, zero quotas. Ask me anything.`,
-      `Hey bro. Fully offline AI with ${corpusCount} docs in my head and a swearing habit. What do you need?`,
-      `What's up. I'm running local off ${corpusCount} documents, so hit me with whatever you're curious about.`,
+      `Hey! Good to see you. What's on your mind?`,
+      `Yo. What are we getting into today?`,
+      `Hey bro, what's good? Hit me with whatever's on your mind.`,
+      `What's up. I've been sitting here bored, ask me something.`,
     ]);
   }
   if (q.includes("what's your name") || q.includes('who are you') || q.includes('what are you')) {
@@ -2247,6 +2252,30 @@ export function generateReasoningPath(
     };
   }
 
+  // "send me photos of X" — the bot can't send media at all, and this used to fall through to
+  // web/corpus search, which had nothing real to grab onto and confidently retrieved garbage
+  // (a "photos of my feet" request once matched a Wikipedia "List of last words" article).
+  const mediaRequest = detectMediaRequest(prompt);
+  if (mediaRequest) {
+    thoughtSteps.push({
+      id: 'step-media-request-detected',
+      type: 'verification',
+      title: '⚠️ Media Request — No Capability',
+      description: 'The bot is text-only; refusing/clarifying instead of searching for something that was never a real query.',
+    });
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(generateMediaRequestReply(mediaRequest), prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
+      }),
+      knowledgeHits: [],
+    };
+  }
+
   // Recall stored facts when the user directly asks what we remember about them
   if (/(?:do\s+you\s+remember\s+me|what'?s\s+my\s+name|what\s+is\s+my\s+name|who\s+am\s+i|what\s+do\s+you\s+(?:know|remember)\s+about\s+me)\b/i.test(prompt)) {
     thoughtSteps.push({
@@ -2324,7 +2353,15 @@ export function generateReasoningPath(
   const bm25 = getBM25Engine(allKnowledge);
   const contentFix = bm25.correctRawWords(slangAnalysis.normalizedText);
   const typoAnalysis = correctPromptTypos(contentFix.text, bm25.vocabulary);
-  const effectivePrompt = typoAnalysis.text;
+  // A leading vocative ("Nexus, hello bro", "hey Nexus can you...") was never stripped before
+  // intent detection at all — unlike other filler — so "Nexus hello bro" failed every chatTriggers
+  // check (which requires "hello" to actually be the first word) and fell through all the way to
+  // corpus search, landing on an unrelated doc purely because its content happened to contain the
+  // literal word "hello" (a Python code sample: `def greet(name): return f"Hello {name}"`).
+  // Stripped once here so every downstream consumer of effectivePrompt sees the address-free text.
+  const NEXUS_ADDRESS_REGEX = /^(?:yo|hey|ok|okay)?[,\s]*nexus[,!.]?\s+/i;
+  const addressStripped = typoAnalysis.text.replace(NEXUS_ADDRESS_REGEX, '');
+  const effectivePrompt = addressStripped.length > 0 ? addressStripped : typoAnalysis.text;
   const allCorrections = [...contentFix.corrections, ...typoAnalysis.corrections];
 
   if (allCorrections.length > 0) {
