@@ -33,4 +33,29 @@ export const TECHNOLOGY_CORPUS: KnowledgeItem[] = [
     content: `Quantum computing harnesses quantum mechanical phenomena to perform computations impossible or impractical for classical computers. Classical computers use bits (0 or 1); quantum computers use qubits, which can be in a superposition of 0 and 1 simultaneously. Entanglement links qubits so the state of one depends on the state of others, enabling massive parallelism. Quantum interference is used to amplify correct answers and cancel wrong ones. Quantum gates (analogous to classical logic gates) manipulate qubits. Key quantum algorithms: Shor's algorithm factors large numbers exponentially faster than any known classical algorithm — threatening RSA encryption. Grover's algorithm searches unsorted databases with a quadratic speedup (O(√N) vs O(N)). Quantum simulation could model molecular behaviour for drug discovery and materials science. Physical implementations use superconducting qubits (Google, IBM), trapped ions (IonQ), and photonic systems. The challenge is decoherence — qubits lose their quantum state through environmental interactions. Google claimed 'quantum supremacy' in 2019 (a calculation in 200 seconds vs. 10,000 years for classical). Practical general-purpose quantum computers likely remain 10–20+ years away.`,
     createdAt: Date.now(),
   },
+
+  {
+    id: 'kb-tech-cryptocurrency-blockchain',
+    title: 'Cryptocurrency & Blockchain Explained',
+    category: 'technology',
+    keywords: [
+      'cryptocurrency',
+      'crypto',
+      'bitcoin',
+      'blockchain',
+      'ethereum',
+      'nft',
+      'mining',
+      'wallet',
+      'decentralized',
+    ],
+    content: `**Cryptocurrency** is digital money secured by cryptography and recorded on a **blockchain** — a public, decentralized ledger duplicated across thousands of computers worldwide, rather than controlled by a single bank or government.
+1. **Blockchain basics**: Transactions are grouped into "blocks," each cryptographically linked to the previous one (forming a "chain"), making past records effectively tamper-proof — altering one block would require redoing every block after it across a majority of the network simultaneously.
+2. **Bitcoin** (created 2009 by the pseudonymous "Satoshi Nakamoto"): The first and largest cryptocurrency by market value. Capped at a hard limit of 21 million coins ever, designed as a decentralized alternative to government-issued currency.
+3. **Ethereum**: The second-largest cryptocurrency, notable for **smart contracts** — self-executing code running on its blockchain that powers decentralized apps (DeFi lending, NFT marketplaces) beyond just currency transfer.
+4. **Mining vs. Staking**: "Mining" (Bitcoin's approach, Proof-of-Work) has computers race to solve computational puzzles to validate transactions and earn new coins, consuming huge amounts of electricity. "Staking" (Ethereum's current approach, Proof-of-Stake) instead has validators lock up existing coins as collateral to earn the right to validate — vastly more energy-efficient.
+5. **Wallets**: Software or hardware that stores the private cryptographic keys proving ownership of your coins — lose the keys (or have them stolen) and the funds are unrecoverable, since there's no central authority to reverse a transaction or reset a password.
+6. **Volatility & risk**: Crypto prices are notoriously volatile (large swings in days or hours) and largely unregulated compared to traditional markets — high potential reward comes with correspondingly high risk of loss.`,
+    createdAt: Date.now(),
+  },
 ];

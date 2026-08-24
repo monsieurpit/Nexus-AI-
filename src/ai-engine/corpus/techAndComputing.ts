@@ -200,4 +200,52 @@ export const TECH_AND_COMPUTING_CORPUS: KnowledgeItem[] = [
 5. **Data Race vs Race Condition**: A *data race* is specifically simultaneous unsynchronized access to the same memory (at least one write) technically undefined behavior in languages like C++/Rust. A *race condition* is the broader logic bug where correctness depends on timing, which can happen even without a technical data race (e.g. two separate database transactions racing).`,
     createdAt: Date.now(),
   },
+
+  // 7. VPNs & Network Security Tunneling
+  {
+    id: 'kb-vpn-network-security',
+    title: 'VPNs: How Virtual Private Networks Work',
+    category: 'networking',
+    keywords: [
+      'vpn',
+      'virtual private network',
+      'network security',
+      'encryption',
+      'ip address',
+      'tunneling',
+      'proxy',
+    ],
+    content: `A **VPN (Virtual Private Network)** creates an encrypted "tunnel" between your device and a remote server, routing your internet traffic through it instead of sending it directly.
+1. **How it works**: Your device encrypts all outgoing traffic before it leaves, sends it through the tunnel to the VPN provider's server, which then decrypts it and forwards it to the actual destination (a website, app, etc.) on your behalf. Responses travel back the same encrypted path.
+2. **What it actually hides**: Your ISP and anyone snooping on your local network (public WiFi, for example) can't see WHAT you're doing online, only that you're connected to a VPN server. Websites you visit see the VPN server's IP address instead of yours, which is how VPNs let you appear to be browsing from a different country.
+3. **Common uses**: Protecting traffic on untrusted public WiFi, bypassing geographic content restrictions, accessing a company's private internal network remotely (this was the original, pre-consumer use case), and basic privacy from ISP-level tracking.
+4. **What it does NOT do**: A VPN doesn't make you anonymous — the VPN provider itself can usually still see your traffic (hence "no-logs" policies matter), and it doesn't protect against malware, phishing, or a website that identifies you once you log into an account.
+5. **Protocols**: OpenVPN and WireGuard are the two most common modern VPN protocols — WireGuard is newer, faster, and has a much smaller codebase (easier to security-audit) than OpenVPN.`,
+    createdAt: Date.now(),
+  },
+
+  // 8. Docker, Containers & Kubernetes
+  {
+    id: 'kb-docker-kubernetes-containers',
+    title: 'Docker, Containers & Kubernetes Explained',
+    category: 'coding',
+    keywords: [
+      'docker',
+      'kubernetes',
+      'k8s',
+      'container',
+      'containerization',
+      'devops',
+      'microservices',
+      'pod',
+      'orchestration',
+    ],
+    content: `**Containers** package an application together with everything it needs to run (code, runtime, system libraries, config) into one portable unit — so it behaves identically on a developer's laptop, a testing server, and production, solving the classic "works on my machine" problem.
+1. **Docker**: The dominant containerization platform. A \`Dockerfile\` describes how to build an **image** (a snapshot of the app + its dependencies); running that image creates a **container** (a live, isolated instance). Unlike a full virtual machine, containers share the host OS's kernel, making them far lighter and faster to start (milliseconds vs. minutes for a VM).
+2. **Why containers over VMs**: A VM virtualizes an entire computer including its own OS kernel — heavy, slow to boot. A container just isolates a process using the host kernel's own namespacing/cgroups features, so you can run dozens of containers with the overhead of running dozens of lightweight processes, not dozens of computers.
+3. **Kubernetes (K8s)**: An orchestration system for running containers at scale across many machines. Where Docker runs one container on one machine, Kubernetes manages hundreds or thousands of containers across a cluster of servers — automatically restarting crashed containers, scaling up under load, and rolling out updates with zero downtime.
+4. **Core Kubernetes concepts**: A **Pod** is the smallest deployable unit (one or more tightly-coupled containers). A **Deployment** describes how many replicas of a Pod should be running. A **Service** gives a stable network address to a set of Pods even as individual Pods are created/destroyed. A **Node** is a physical or virtual machine in the cluster.
+5. **Typical stack**: Developers build and test locally with Docker, then deploy to a Kubernetes cluster (self-managed or a managed cloud offering like Google GKE, AWS EKS, or Azure AKS) for production scale and reliability.`,
+    createdAt: Date.now(),
+  },
 ];

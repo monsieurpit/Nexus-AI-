@@ -177,6 +177,12 @@ const RAW_SYNONYM_MAP: Record<string, string[]> = {
   motivation: ['drive', 'incentive', 'ambition', 'willpower'],
   habit: ['routine', 'behavior', 'pattern', 'ritual'],
   mindfulness: ['meditation', 'awareness', 'presence', 'relaxation'],
+  // The stemmer strips "-tion" from "meditation" (-> "medita") but has no rule connecting the
+  // "-ate" verb form "meditate" to it (stem('meditate') === 'meditate', unchanged) — the same
+  // stemmer-gap problem the whole self-normalizing RAW_SYNONYM_MAP pattern exists to work around,
+  // just for a pair this map didn't have an entry for yet. Without this, "how to meditate" scored
+  // as a weak/hedged match against the corpus's own meditation content.
+  meditate: ['meditation', 'mindfulness'],
   trauma: ['ptsd', 'distress', 'injury', 'mental health'],
   cognition: ['thinking', 'mind', 'perception', 'psychology'],
 

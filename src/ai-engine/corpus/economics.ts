@@ -25,4 +25,26 @@ export const ECONOMICS_CORPUS: KnowledgeItem[] = [
     content: `Behavioural economics integrates psychology into economic analysis, showing that people systematically deviate from rational decision-making. Daniel Kahneman and Amos Tversky pioneered prospect theory: people weigh losses more heavily than equivalent gains (loss aversion), and evaluate outcomes relative to a reference point. System 1 thinking is fast, automatic, and intuitive; System 2 is slow, deliberate, and rational (Kahneman's 'Thinking, Fast and Slow'). Cognitive biases distort decision-making: anchoring (over-relying on first information), availability heuristic (overweighting memorable events), confirmation bias (seeking information that confirms existing beliefs), framing effects (choices change depending on how options are presented), and the endowment effect (overvaluing what we own). Hyperbolic discounting means people prefer smaller, sooner rewards over larger, later ones — explaining procrastination and low savings rates. Nudge theory (Thaler and Sunstein) designs choice architectures to guide better decisions without restricting freedom — opt-out pension enrolment dramatically increases savings rates. Behavioural economics informs public policy, product design, and financial planning.`,
     createdAt: Date.now(),
   },
+
+  {
+    id: 'kb-econ-black-swan',
+    title: 'Black Swan Events & Antifragility',
+    category: 'economics',
+    keywords: [
+      'black swan',
+      'black swan event',
+      'nassim taleb',
+      'antifragile',
+      'tail risk',
+      'unpredictable event',
+      'rare event',
+    ],
+    content: `A **black swan event**, a term popularized by Nassim Nicholas Taleb in his 2007 book of the same name, is an extremely rare, unpredictable event with severe, widespread consequences — one that seems obvious and explainable only in hindsight.
+1. **Three defining traits**: (1) It's an outlier — nothing in the past reliably predicted it was possible. (2) It carries an extreme impact when it happens. (3) After the fact, people concoct explanations that make it seem predictable and expected all along (hindsight bias).
+2. **The name's origin**: Europeans assumed all swans were white for centuries — a reasonable belief based on every swan anyone had ever seen — until black swans were discovered in Australia in 1697, instantly falsifying an assumption built on total historical experience. Taleb used this to illustrate how a single unprecedented observation can upend seemingly rock-solid conclusions.
+3. **Real-world examples commonly cited**: The 2008 global financial crisis, the September 11 attacks, the rise of the internet, and the COVID-19 pandemic — all events that most models and institutions considered essentially impossible or negligible in probability beforehand, yet reshaped the world.
+4. **Antifragility**: In a follow-up book, Taleb introduced "antifragile" — systems that don't just resist shocks (robust) but actually get STRONGER from volatility, randomness, and stress, the way a muscle grows from the stress of a workout, or a well-diversified portfolio can benefit from market chaos that wipes out overleveraged competitors.
+5. **Practical takeaway**: Because black swans are by definition unpredictable, the strategy isn't to try to forecast them — it's to build systems (financial, organizational, personal) with enough slack and optionality to survive, or even benefit from, being wrong about what "normal" looks like.`,
+    createdAt: Date.now(),
+  },
 ];
