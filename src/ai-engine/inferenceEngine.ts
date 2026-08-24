@@ -86,12 +86,51 @@ const PRONOUN_TERMS = new Set([
   'there', 'here', 'which', 'who', 'what', 'one', 'ones', 'so', 'such',
 ]);
 
+// Generic single-word nouns that show up as the object of a definitional sentence in nearly
+// every subject domain ("Photosynthesis is the **process**...", "A mutex is a **mechanism**...")
+// — they're fine as the tail end of a fact, but letting a chain continue FROM one of these as
+// the next hop's subject means any two completely unrelated documents that both happen to
+// contain a generic word like "process" get treated as a genuine connection, producing
+// nonsensical cross-domain leaps (biology "process" chaining into an unrelated CS "process").
+const GENERIC_BRIDGE_TERMS = new Set([
+  'process', 'system', 'method', 'way', 'result', 'part', 'type', 'form', 'thing',
+  'state', 'value', 'level', 'stage', 'step', 'factor', 'element', 'component',
+  'condition', 'situation', 'case', 'example', 'kind', 'sort', 'group', 'set',
+]);
+
 function cleanTerm(raw: string): string {
   return raw
+    .replace(/^\d+[.)]\s*/, '') // strip leading list numbering ("4. large intestine" -> "large intestine")
+    .replace(/\*\*|\*|__|_/g, '') // strip markdown bold/italic markers
     .replace(/^(?:the|a|an|this|that|these|those)\s+/i, '')
     .replace(/[.,;:!?]+$/g, '')
     .trim()
     .toLowerCase();
+}
+
+/**
+ * Same as cleanTerm, but truncates an overlong result instead of leaving it to be rejected by
+ * isUsableTerm — for the OBJECT half of a fact only. The single most common corpus sentence
+ * shape is a definitional opener ("Photosynthesis is the process by which plants, algae, and
+ * cyanobacteria convert light energy into chemical energy...") — the generic "is a/the X"
+ * pattern's object is whatever comes after, which for real prose almost always runs well past a
+ * short phrase. Rejecting anything over the length cap outright meant these extremely common
+ * definitional sentences were silently dropped wholesale instead of yielding a usable (if
+ * truncated) fact. This is deliberately NOT applied to subjects: a subject captured by a lazy
+ * `(.+?)` before a mid-sentence verb (e.g. "...converts X into Y") can be an entire preceding
+ * clause rather than a clean noun phrase, and truncating that just produces a differently-shaped
+ * garbled subject rather than a genuinely short one — better to reject those than fake them.
+ */
+function cleanObjectTerm(raw: string): string {
+  const term = cleanTerm(raw);
+  if (term.length <= MAX_TERM_LEN) return term;
+
+  const clauseBreak = term.slice(0, MAX_TERM_LEN).search(/[,:;](?!.*[,:;])/);
+  if (clauseBreak > MIN_TERM_LEN) {
+    return term.slice(0, clauseBreak);
+  }
+  const lastSpace = term.slice(0, MAX_TERM_LEN).lastIndexOf(' ');
+  return term.slice(0, lastSpace > MIN_TERM_LEN ? lastSpace : MAX_TERM_LEN);
 }
 
 function isUsableTerm(term: string): boolean {
@@ -137,7 +176,7 @@ export function extractRelationFacts(knowledge: KnowledgeItem[]): RelationFact[]
         if (!match) continue;
 
         const subject = cleanTerm(match[1]);
-        const object = cleanTerm(match[2]);
+        const object = cleanObjectTerm(match[2]);
         if (!isUsableTerm(subject) || !isUsableTerm(object) || subject === object) continue;
 
         facts.push({
@@ -200,9 +239,22 @@ export function findInferenceChains(
       chains.push({ facts: path, spansMultipleDocuments: docIds.size > 1 });
     }
 
-    if (path.length < maxHops) {
+    // Don't chain onward from a bare generic word ("process", "system") — it's a legitimate
+    // final fact, but continuing from it treats "shares a common English noun" as if it were a
+    // real conceptual link between whatever two documents happen to use that word.
+    const objectIsGenericBridge = GENERIC_BRIDGE_TERMS.has(last.object.trim());
+
+    if (path.length < maxHops && !objectIsGenericBridge) {
+      // Also exclude candidates whose OWN subject is a bare generic word — that's the direction
+      // the false bridge actually forms in: some unrelated document's "Process is a running
+      // program..." fact substring-matches into our longer "...the process by which..." object
+      // via termMatches' word-boundary-contains check, even though our own object passed the
+      // exact-match generic check above (it's a real phrase, not the bare word "process").
       const next = facts.filter(
-        (f) => termMatches(f.subject, last.object) && !path.some((p) => p.sourceId === f.sourceId && p.object === f.object)
+        (f) =>
+          termMatches(f.subject, last.object) &&
+          !GENERIC_BRIDGE_TERMS.has(f.subject.trim()) &&
+          !path.some((p) => p.sourceId === f.sourceId && p.object === f.object)
       );
       for (const nf of next.slice(0, 5)) {
         stack.push({ path: [...path, nf] });

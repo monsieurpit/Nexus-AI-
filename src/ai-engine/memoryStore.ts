@@ -293,7 +293,7 @@ export const DEFAULT_SETTINGS: AISettings = {
   strictRuleAdherence: true,
   roastIntensity: 75,
   swearEngineEnabled: true,
-  swearIntensity: 'heavy',
+  swearIntensity: 'unhinged',
   webSearchEnabled: true,
   webSearchMode: 'auto',
   webSearchEngine: 'all',

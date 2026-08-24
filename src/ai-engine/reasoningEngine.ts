@@ -1152,9 +1152,12 @@ export function generateReasoningPath(
       description: `${sectionResults.length} sub-answers synthesised and combined.`,
     });
 
+    // Bold labels, not ### headers per part — stacking several full markdown headers in one
+    // Discord message reads as wall-of-text clutter rather than a clean multi-part answer (same
+    // issue already fixed for web search synthesis).
     const combined = sectionResults
-      .map((s, i) => `### ${i + 1}. ${s.heading}\n\n${s.body}`)
-      .join('\n\n---\n\n');
+      .map((s, i) => `**${i + 1}. ${s.heading}**\n${s.body}`)
+      .join('\n\n');
     const allHits = Array.from(new Set(sectionResults.flatMap((s) => s.hits)));
 
     return {

@@ -447,7 +447,15 @@ export function enhanceNaturalSwearPhrasing(
   for (const [regex, options] of replacements) {
     if (substitutionsCount >= maxSubstitutions) break;
     if (regex.test(enhanced)) {
-      enhanced = enhanced.replace(regex, () => {
+      enhanced = enhanced.replace(regex, (match, _p1, offset: number, full: string) => {
+        // \b treats a hyphen as a word boundary, so these single-word patterns also match the
+        // first half of an unrelated hyphenated compound — "hard" inside "Hard-Boiled", "false"
+        // inside "false-9" (a real football tactical term) — corrupting it into "tricky as
+        // hell-Boiled" or "bullshit-9". Skip the swap whenever a hyphen sits on either side of
+        // the match; it's part of a compound term, not the standalone word being swapped.
+        const before = full[offset - 1];
+        const after = full[offset + match.length];
+        if (before === '-' || after === '-') return match;
         substitutionsCount++;
         return options[Math.floor(Math.random() * options.length)];
       });
@@ -464,10 +472,19 @@ export function enhanceNaturalSwearPhrasing(
   // punctuation immediately after the replaced word ("Honestly? Yeah..."), that terminal mark
   // survives the replace() untouched and lands right after the new comma, producing "no
   // bullshit,? Yeah...". That stray mark is always redundant once the comma's there, so strip it.
+  //
+  // Critical: only collapse horizontal whitespace (spaces/tabs), never newlines. This function
+  // runs on every final response via enforceStrictSdkRules — collapsing \s+ (which matches
+  // newlines too) to a single space was silently flattening every numbered list, bullet point,
+  // and paragraph break in EVERY response that went through the swear engine (i.e. almost all of
+  // them) into one continuous wall of text, regardless of how carefully the underlying content
+  // was formatted upstream. Runs of 3+ blank lines still get tidied to a single blank line.
   enhanced = enhanced
     .replace(/,\s*,/g, ',')
     .replace(/,\s*([?!.])/g, ',')
-    .replace(/\s+/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+\n/g, '\n')
     .trim();
 
   return enhanced;

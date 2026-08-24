@@ -167,11 +167,19 @@ export async function generateAIResponse(
 
   callbacks.onReasoningComplete?.(reasoningResult.thoughtSteps);
 
-  // Compute multi-head attention distribution
+  // Compute multi-head attention distribution — the "[KB: ...]" tokens are meant to show which
+  // documents the response actually drew from, so they need to come from the real citations
+  // (reasoningResult.knowledgeHits), not just the first 2 entries of the raw knowledge base array
+  // in whatever order it happens to be stored — that showed the same arbitrary 2 documents in the
+  // Attention Visualizer for every single query regardless of topic.
+  const citedKnowledge =
+    reasoningResult.knowledgeHits.length > 0
+      ? knowledgeBase.filter((k) => reasoningResult.knowledgeHits.includes(k.title) || reasoningResult.knowledgeHits.includes(k.id))
+      : [];
   const attentionMatrix = calculateAttentionMatrix(
     userPrompt || 'Visual Input Matrix',
     persona.systemPrompt,
-    knowledgeBase.slice(0, 2),
+    citedKnowledge,
     settings.attentionHeads
   );
 
