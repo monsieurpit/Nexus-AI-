@@ -18,6 +18,30 @@ export const ENTERTAINMENT_CORPUS: KnowledgeItem[] = [
     createdAt: Date.now(),
   },
   {
+    id: 'kb-ent-famous-songs',
+    title: 'Famous English-Language Songs & Iconic Tracks',
+    category: 'Entertainment',
+    keywords: ['songs', 'name a song', 'english songs', 'famous songs', 'best songs', 'popular songs', 'hit songs', 'top songs', 'song titles', 'artists', 'music'],
+    content: `Some of the most famous English-language songs and artists across eras, spanning the genres above:
+- **"Bohemian Rhapsody" — Queen (1975)**: A six-minute operatic rock epic with no repeating chorus, widely cited as one of the greatest songs ever recorded.
+- **"Billie Jean" — Michael Jackson (1983)**: Off the best-selling album of all time, Thriller; its bassline and moonwalk performance became iconic.
+- **"Like a Rolling Stone" — Bob Dylan (1965)**: Frequently ranked the greatest song of all time by critics for reshaping what a pop single could be lyrically.
+- **"Smells Like Teen Spirit" — Nirvana (1991)**: The song that broke grunge into the mainstream and effectively ended 80s hair-metal's commercial dominance.
+- **"Shape of You" — Ed Sheeran (2017)**: One of the best-selling digital singles of all time, blending pop with dancehall rhythm.
+- **"Rolling in the Deep" — Adele (2011)**: A soul-pop anthem that won Song and Record of the Year at the Grammys.
+- **"Blinding Lights" — The Weeknd (2019)**: Spent a record-breaking number of weeks on the Billboard Hot 100, blending synth-pop with 80s influences.
+- **"Hey Jude" — The Beatles (1968)**: Written by Paul McCartney, one of the best-selling singles in history with its famous extended "na-na-na" outro.
+- **"Imagine" — John Lennon (1971)**: A minimalist piano ballad that became an anthem for peace worldwide.
+- **"Rolling Stones — (I Can't Get No) Satisfaction" (1965)**: Built on one of rock's most recognizable fuzz-guitar riffs.
+- **"Uptown Funk" — Mark Ronson ft. Bruno Mars (2014)**: A funk-revival hit that topped charts in over 19 countries.
+- **"Purple Rain" — Prince (1984)**: A genre-blending rock ballad and title track of his acclaimed film/album.
+- **"Rap God" — Eminem (2013)**: Famous for one stretch of over 100 words in 15 seconds, showcasing technical rap speed.
+- **"Someone Like You" — Adele (2011)**: A stripped-down piano breakup ballad that became a cultural phenomenon.
+- **"Thriller" — Michael Jackson (1982)**: Its music video, directed like a short horror film, revolutionized the format.
+So: if someone asks for "5 English songs," reasonable picks are Bohemian Rhapsody, Billie Jean, Shape of You, Hey Jude, and Blinding Lights — spanning classic rock, pop, and modern chart-toppers.`,
+    createdAt: Date.now(),
+  },
+  {
     id: 'kb-ent-video-games-culture',
     title: 'Video Games and Gaming Culture',
     category: 'Entertainment',

@@ -221,7 +221,7 @@ export function detectUserInsult(text: string): boolean {
   // Direct insults targeting the AI
   const insultPatterns = [
     /\b(?:you|u)\s+(?:suck|are\s+shit|are\s+trash|are\s+dumb|are\s+stupid|are\s+useless|are\s+ass|are\s+garbage|are\s+bad|are\s+a\s+clown|are\s+a\s+bitch|are\s+a\s+dick|are\s+a\s+retard|are\s+a\s+failure|are\s+terrible|are\s+horrible)\b/i,
-    /\b(?:fuck\s+you|fuck\s+u|fuk\s+u|go\s+fuck\s+yourself|screw\s+you|screw\s+u|eat\s+shit|eat\s+a\s+dick|suck\s+my\s+dick|suck\s+a\s+dick|kiss\s+my\s+ass)\b/i,
+    /\b(?:fuck\s+you|fuck\s+u|fuk\s+u|(?:go\s+)?fuck\s+yourself|(?:go\s+)?fuck\s+urself|screw\s+you|screw\s+u|eat\s+shit|eat\s+a\s+dick|suck\s+my\s+dick|suck\s+a\s+dick|kiss\s+my\s+ass)\b/i,
     /\b(?:shut\s+up|shut\s+the\s+fuck\s+up|stfu|shut\s+ur\s+mouth|shut\s+your\s+mouth|piss\s+off|fuck\s+off|gtfo)\b/i,
     /\b(?:dumb\s+bot|stupid\s+bot|trash\s+bot|useless\s+bot|clown\s+bot|bad\s+bot|shit\s+bot|retarded\s+bot|idiot\s+bot)\b/i,
     /\b(?:you'?re|you\s+are)\s+(?:so\s+)?(?:dumb|stupid|trash|useless|worthless|retarded|idiotic|blind|slow|broken)\b/i,

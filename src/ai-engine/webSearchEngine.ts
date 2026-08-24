@@ -1,6 +1,6 @@
 import { AISettings, KnowledgeItem, WebSearchResult } from '../types';
 import { processForSearch, BM25Engine } from './bm25Engine';
-import { isCasseurtMention } from './swearEngine';
+import { isCasseurtMention, detectUserInsult } from './swearEngine';
 
 /**
  * Autonomous Zero-API-Key Web Search Engine
@@ -544,11 +544,12 @@ export function shouldTriggerLiveWebSearch(
   const q = query.toLowerCase().trim();
 
   // 1. NEVER SEARCH: Insults, curses, and toxicity (handled directly by Discord crashout/roast engine)
-  const isInsult =
-    /\b(?:fuck\s+(?:you|u|off)|go\s+fuck\s+yourself|screw\s+(?:you|u)|shut\s+(?:the\s+fuck\s+)?up|stfu|kys|kill\s+yourself|eat\s+shit|suck\s+my\s+dick|you\s+suck|you'?re\s+(?:trash|dumb|stupid|bad|ass|clown)|dumb\s+bot|bitch|idiot|clown|moron|spierdalaj|wypierdalaj|zamknij\s+mord[eę]|chuj)\b/i.test(
-      q
-    );
-  if (isInsult) return false;
+  // Reuses swearEngine's detectUserInsult instead of maintaining a second, separately-drifting
+  // insult list — this file used to have its own copy that (like swearEngine's) was missing bare
+  // "fuck yourself" (only "go fuck yourself"), so telling the bot to fuck itself triggered a live
+  // Google search for the word "fuck" instead of being recognized as hostility directed at it.
+  // One list now, so a fix to either detection path can't silently miss the other.
+  if (detectUserInsult(q)) return false;
 
   // 2. NEVER SEARCH: Conversational chit-chat, greetings, small-talk, and personal inquiries
   const isConversational =
