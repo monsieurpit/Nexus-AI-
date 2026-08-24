@@ -2,13 +2,13 @@
 # Nexus Autonomous AI Engine & SDK — Complete Architectural Specification
 
 > **Target Audience:** AI Engineering Models, Autonomous Coding Agents, and Software Engineers modifying or extending this codebase.
-> **Design Guarantee:** 100% self-contained, offline-capable, autonomous cognitive architecture with zero third-party external AI model API calls.
+> **Design Guarantee:** 100% self-contained, offline-capable, autonomous cognitive architecture with zero third-party cloud AI API calls. Response generation optionally calls a self-hosted local LLM (Ollama) the operator controls; it is never a cloud dependency and the engine degrades gracefully to its deterministic pipeline without it.
 
 ---
 
 ## 1. Executive Summary & Core Philosophy
 
-**Nexus AI** is a fully autonomous, in-memory cognitive engine and backend server written in TypeScript and Node.js. It does not call OpenAI, Anthropic, or external Gemini endpoints. Instead, it implements a deterministic and probabilistic multi-stage reasoning pipeline:
+**Nexus AI** is a fully autonomous, in-memory cognitive engine and backend server written in TypeScript and Node.js. It does not call OpenAI, Anthropic, or external Gemini endpoints. Instead, it implements a deterministic and probabilistic multi-stage reasoning pipeline, optionally calling a self-hosted Ollama instance (configured via `OLLAMA_BASE_URL`/`OLLAMA_MODEL`) for response generation, with automatic fallback to the deterministic template/retrieval pipeline if Ollama is unreachable — see §3.5:
 
 ```
 [Incoming Request / Discord Event / API Call]
@@ -66,6 +66,7 @@
 ├── src/
 │   ├── ai-engine/
 │   │   ├── reasoningEngine.ts      # Central orchestrator coordinating all cognitive modules
+│   │   ├── localLlmClient.ts       # Self-hosted Ollama HTTP client (never throws; typed unavailable results)
 │   │   ├── semanticEngine.ts       # Latent semantic vectors, cosine similarity, doc ranking
 │   │   ├── ruleEngine.ts           # Strict directives, RaidShield 21 hard security rules
 │   │   ├── swearEngine.ts          # Profanity injection, tone modulation, anti-bot filtering
@@ -144,6 +145,14 @@ Implements authentic, human-style colloquial language:
   - *Cooking*: Dry vs moist heat cooking, knife skills & kitchen safety, flavour & seasoning chemistry, baking science.
   - *World Geography*: Continents, major global powers, climate zones & biomes, natural wonders & landforms.
   - *Entertainment*: Music theory, music genres, video game culture & esports, cinema history, social media platforms.
+
+### 3.5. Local LLM Generation Tier (`src/ai-engine/localLlmClient.ts`)
+- A two-tier generation model layered on top of the retrieval/confidence pipeline above, not a replacement for it — `bm25Engine.ts`'s scoring, `computeConfidence()`, and `answerVerifier.ts`'s shape checks are unchanged.
+- `localLlmClient.generate()` calls a self-hosted Ollama instance's `POST /api/generate` (non-streaming), reached via `OLLAMA_BASE_URL` (e.g. a Cloudflare Tunnel to a machine running `OLLAMA_MODEL`, default `qwen2.5:3b`). It never throws — every failure mode (not configured, connection error, timeout, HTTP error, empty response) returns a typed `unavailable` result, and `generateReasoningPath` falls back to its existing deterministic path on any of them.
+- **Grounded tier** — when corpus retrieval is confident (`isConfident`, STANDARD MODE only for now), the top-scoring documents are injected into the LLM prompt as context with an explicit "don't invent facts" instruction; the LLM's answer is still passed through `verifyAnswer()` as a post-hoc shape check, falling back to the existing template synthesis (`synthesiseStandard`) if it fails or Ollama is unavailable.
+- **Free-response tier** — when there is no confident corpus match (all reasoning modes), the LLM answers in persona instead of a hardcoded pool reply, falling back to the existing pool text (e.g. `unknownResponse()`) if Ollama is unavailable.
+- Deterministic/safety-critical branches (prompt-injection detection, math/code/logic solvers, insult/dominance/emotional-distress handling, bot-meta questions, etc.) never route through the LLM — they remain fully deterministic.
+- Every return path — LLM-generated or template — still passes through `enforceStrictSdkRules()` last, so persona voice, swear intensity, and formatting rules apply uniformly regardless of text source.
 
 ---
 

@@ -11,6 +11,7 @@ import { extractQueryEntities, searchKnowledgeGraph, getBM25Engine } from './sem
 import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
+import * as localLlmClient from './localLlmClient';
 import {
   infuseSwearyHumanVoice,
   hasSwearWords,
@@ -2058,7 +2059,35 @@ function renderComparativeAnswer(
   return out.filter(Boolean).join('\n\n');
 }
 
-export function generateReasoningPath(
+async function llmFreeResponseOrFallback(
+  prompt: string,
+  persona: ModelPersona,
+  thoughtSteps: ThoughtStep[],
+  fallbackText: string
+): Promise<string> {
+  const llmResult = await localLlmClient.generate(prompt, {
+    system: persona.systemPrompt,
+    temperature: 0.7,
+  });
+  if (llmResult.status === 'success') {
+    thoughtSteps.push({
+      id: 'step-llm-freeresponse',
+      type: 'synthesis',
+      title: '🧠 Local LLM free-response (no corpus match)',
+      description: `Ollama responded in ${llmResult.latencyMs}ms.`,
+    });
+    return llmResult.text;
+  }
+  thoughtSteps.push({
+    id: 'step-llm-unavailable',
+    type: 'synthesis',
+    title: '📦 Template fallback (LLM unavailable)',
+    description: `Reason: ${llmResult.reason}`,
+  });
+  return fallbackText;
+}
+
+export async function generateReasoningPath(
   prompt: string,
   history: ChatMessage[],
   persona: ModelPersona,
@@ -2066,7 +2095,7 @@ export function generateReasoningPath(
   allKnowledge: KnowledgeItem[],
   userMemories: UserMemory[],
   webSearchResults?: WebSearchResult[]
-): ReasoningResult {
+): Promise<ReasoningResult> {
   const thoughtSteps: ThoughtStep[] = [];
   const isCrashout =
     persona.id === 'crashout-bot' ||
@@ -2880,14 +2909,20 @@ export function generateReasoningPath(
     }
 
     if (results.length === 0 || results[0].score < WEAK_MATCH_SCORE) {
+      const freeText = await llmFreeResponseOrFallback(
+        prompt,
+        persona,
+        thoughtSteps,
+        "Bro I genuinely don't have shit on that. Zero fucking docs. Hit the Corpus button and paste something in."
+      );
       return {
         thoughtSteps,
-        content: enforceStrictSdkRules(
-          "Bro I genuinely don't have shit on that. Zero fucking docs. Hit the Corpus button and paste something in.",
-          prompt,
-          settings.userCustomDirectives,
-          { isSuperChill, username: settings.userName, systemInstruction: persona.systemPrompt, swearIntensity: settings.swearIntensity }
-        ),
+        content: enforceStrictSdkRules(freeText, prompt, settings.userCustomDirectives, {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+        }),
         knowledgeHits: [],
       };
     }
@@ -3007,9 +3042,10 @@ export function generateReasoningPath(
     const topDocs = merged.slice(0, 7);
 
     if (topDocs.length === 0 || topDocs[0].score < WEAK_MATCH_SCORE) {
+      const freeText = await llmFreeResponseOrFallback(prompt, persona, thoughtSteps, unknownResponse());
       return {
         thoughtSteps,
-        content: enforceStrictSdkRules(unknownResponse(), prompt, settings.userCustomDirectives, {
+        content: enforceStrictSdkRules(freeText, prompt, settings.userCustomDirectives, {
           isSuperChill,
           username: settings.userName,
           systemInstruction: persona.systemPrompt,
@@ -3119,9 +3155,10 @@ export function generateReasoningPath(
   }
 
   if (results.length === 0 || results[0].score < WEAK_MATCH_SCORE) {
+    const freeText = await llmFreeResponseOrFallback(prompt, persona, thoughtSteps, unknownResponse());
     return {
       thoughtSteps,
-      content: enforceStrictSdkRules(unknownResponse(), prompt, settings.userCustomDirectives, {
+      content: enforceStrictSdkRules(freeText, prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
@@ -3218,8 +3255,38 @@ export function generateReasoningPath(
     };
   }
 
-  const mainText =
-    (isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill, verification.issues)) + inferenceNote;
+  let mainText: string;
+  if (isConfident) {
+    const groundingContext = top.map((t, i) => `[${i + 1}] ${t.item.title}: ${t.item.content}`).join('\n\n');
+    const groundedPrompt = `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. Stay in character.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
+    const llmResult = await localLlmClient.generate(groundedPrompt, {
+      system: persona.systemPrompt,
+      temperature: 0.3,
+    });
+    if (llmResult.status === 'success') {
+      const llmVerification = verifyAnswer(llmResult.text, intent, queryTerms, entities, prompt);
+      thoughtSteps.push({
+        id: 'step-llm-grounded',
+        type: 'synthesis',
+        title: llmVerification.passed ? '🧠 Local LLM grounded response' : '📦 LLM answer failed self-check — using template',
+        description: llmVerification.passed
+          ? `Ollama responded in ${llmResult.latencyMs}ms, grounded on ${top.length} source(s).`
+          : llmVerification.issues.map((i) => i.detail).join('\n'),
+      });
+      mainText = llmVerification.passed ? llmResult.text : synthesised;
+    } else {
+      thoughtSteps.push({
+        id: 'step-llm-unavailable',
+        type: 'synthesis',
+        title: '📦 Template fallback (LLM unavailable)',
+        description: `Reason: ${llmResult.reason}`,
+      });
+      mainText = synthesised;
+    }
+  } else {
+    mainText = hedgeAnswer(synthesised, isSuperChill, verification.issues);
+  }
+  mainText += inferenceNote;
   const followUps = suggestFollowUps(prompt, intent, results);
 
   return {

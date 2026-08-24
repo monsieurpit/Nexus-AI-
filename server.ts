@@ -10,6 +10,7 @@ import {
   enforceStrictSdkRules,
 } from './src/ai-engine/ruleEngine';
 import { generateReasoningPath, assessCorpusConfidence } from './src/ai-engine/reasoningEngine';
+import { checkAvailability as checkLocalLlmAvailability } from './src/ai-engine/localLlmClient';
 import {
   BUILTIN_KNOWLEDGE,
   getAllKnowledge,
@@ -328,12 +329,18 @@ function authenticateApiKey(req: express.Request): { isValid: boolean; key: stri
 // ----------------------------------------------------
 
 // 1. Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  const llmAvailable = await checkLocalLlmAvailability();
   res.json({
     status: 'ok',
     service: 'Nexus AI & RaidShield Engine Server',
     timestamp: new Date().toISOString(),
     version: '2.0.0',
+    llm: {
+      configured: Boolean(process.env.OLLAMA_BASE_URL),
+      model: process.env.OLLAMA_MODEL || 'qwen2.5:3b',
+      available: llmAvailable,
+    },
     queue: {
       pendingRequests: globalRequestQueue.pendingCount,
       runningNow: globalRequestQueue.runningCount,
@@ -960,7 +967,7 @@ app.post('/api/v1/nexus', async (req, res) => {
       if (strictEvaluation.hasCustomRules && strictEvaluation.output) {
         outputText = strictEvaluation.output;
       } else {
-        const reasoningResult = generateReasoningPath(
+        const reasoningResult = await generateReasoningPath(
           promptToEvaluate,
           historyArray,
           persona,
@@ -1283,7 +1290,7 @@ app.post('/api/v1/generate', async (req, res) => {
       if (strictEvaluation.hasCustomRules && strictEvaluation.output) {
         outputText = strictEvaluation.output;
       } else {
-        const reasoningResult = generateReasoningPath(
+        const reasoningResult = await generateReasoningPath(
           promptText,
           [],
           persona,
@@ -1392,7 +1399,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
       if (strictEvaluation.hasCustomRules && strictEvaluation.output) {
         outputText = strictEvaluation.output;
       } else {
-        const reasoningResult = generateReasoningPath(
+        const reasoningResult = await generateReasoningPath(
           promptText,
           [],
           persona,

@@ -18,7 +18,7 @@ import {
 
 export interface GenerationCallbacks {
   onReasoningStart?: () => void;
-  onReasoningComplete?: (steps: ReturnType<typeof generateReasoningPath>['thoughtSteps']) => void;
+  onReasoningComplete?: (steps: Awaited<ReturnType<typeof generateReasoningPath>>['thoughtSteps']) => void;
   onTokenChunk?: (partialContent: string) => void;
   onComplete?: (finalMessage: ChatMessage) => void;
   onError?: (error: Error) => void;
@@ -142,7 +142,7 @@ export async function generateAIResponse(
   }
 
   // Run reasoning synthesis
-  const reasoningResult = generateReasoningPath(
+  const reasoningResult = await generateReasoningPath(
     userPrompt || (imageUrl ? 'Inspect uploaded image visual features' : ''),
     history,
     persona,
