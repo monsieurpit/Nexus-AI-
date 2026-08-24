@@ -461,7 +461,12 @@ export function parseSdkRules(
     // chicken for dinner").
     // Target name can be multiple words ("roast my friend because...", not just "roast john
     // because..."), so allow up to a few extra words before "because/since/bc" shows up.
-    /\broast\s+\S+(?:\s+\S+){0,3}?\s+(?:because|since|bc)\b/i.test(promptLower);
+    /\broast\s+\S+(?:\s+\S+){0,3}?\s+(?:because|since|bc)\b/i.test(promptLower) ||
+    // "roast my friend jake, he never showers" — same idea as the because/since form above, but
+    // the reason is a comma-separated clause instead of joined by a connector word. Requiring a
+    // pronoun + verb right after the comma is what keeps this from false-positiving on an actual
+    // recipe list ("roast chicken, garlic, and lemon").
+    /\broast\s+\S+(?:\s+\S+){0,3}?,\s*(?:he|she|they|it)\s+\w+/i.test(promptLower);
   const isCrashoutRequested =
     /(?:crash\s*out|rage|unhinged)/i.test(directivesOnlyText) ||
     /(?:crash\s*out\s+mode|go\s+unhinged|activate\s+crashout|crashout\s+mode)/i.test(promptLower);

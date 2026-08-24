@@ -331,6 +331,54 @@ export function generateVagueRequestClapback(): string {
 }
 
 /**
+ * Detect genuine emotional distress ("I'm anxious about my interview", "my dog died") — there was
+ * no handler for this at all, so these fell straight through to plain corpus/BM25 search, which
+ * confidently matched on a stray literal keyword (e.g. "interview" pulling up job-interview outfit
+ * advice) instead of ever acknowledging what the user actually said. Deliberately narrow: only
+ * fires on a first-person statement of a negative emotional state, not just any message that
+ * happens to contain a feelings-word ("this bug is driving me crazy" shouldn't trigger it).
+ */
+export function detectEmotionalDistress(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  return (
+    /\bi(?:'m|\s+am)\s+(?:so\s+|really\s+|super\s+|pretty\s+)?(?:feeling\s+)?(?:anxious|stressed(?:\s+out)?|depressed|overwhelmed|lonely|heartbroken|devastated|exhausted|burnt\s*out|hopeless|worthless|panicking|scared|terrified|grieving)\b/i.test(
+      t
+    ) ||
+    /\bi\s+feel\s+(?:so\s+|really\s+)?(?:anxious|stressed|depressed|overwhelmed|lonely|sad|hopeless|worthless|scared|terrified|awful|numb)\b/i.test(t) ||
+    /\bmy\s+(?:dog|cat|pet|mom|dad|mother|father|grandma|grandpa|friend)\s+(?:died|passed\s+away)\b/i.test(t) ||
+    /\bi(?:'m|\s+am)\s+(?:really\s+)?(?:hurting|struggling|not\s+(?:doing|feeling)\s+(?:okay|ok|well|good))\b/i.test(t)
+  );
+}
+
+/**
+ * Generate an in-voice supportive reply — still the same sweary homie persona, just pointed at
+ * actually being there for the user instead of roasting them, since a crashout clapback would be
+ * the wrong tone entirely for someone saying they're struggling.
+ */
+export function generateEmotionalSupportReply(text: string, isSuperChill?: boolean): string {
+  const t = text.toLowerCase();
+  const isGrief = /\b(?:died|passed\s+away)\b/.test(t);
+  if (isSuperChill) {
+    return isGrief
+      ? `Damn, I'm really sorry man. That kind of loss just hits different, take whatever time you need — I'm here if you want to talk it out or just need a distraction.`
+      : `Hey, for real — that sounds like a lot to carry right now. You don't have to have it figured out, just take it one thing at a time. I'm right here if you want to vent or need a hand thinking it through.`;
+  }
+  if (isGrief) {
+    const griefReplies = [
+      `Damn, man. I'm genuinely sorry — that kind of loss doesn't just brush off. Take the time you need, no rush, I'm right here if you want to talk about it or just need something to distract you.`,
+      `Fuck, that's rough. Really sorry you're going through that. No pressure to be okay right now — I'm here either way, whether that's talking it out or just chilling on something else for a bit.`,
+    ];
+    return griefReplies[Math.floor(Math.random() * griefReplies.length)];
+  }
+  const supportReplies = [
+    `Hey, for real — I hear you, that sounds like a lot. You don't gotta have it all figured out right now, just take it one step at a time. I'm right here if you want to talk it through or need a hand breaking it down.`,
+    `Damn, that's a heavy thing to be sitting with. You're allowed to not be okay about it. I'm not going anywhere — vent if you need to, or tell me what's actually stressing you out and we'll pick it apart together.`,
+    `Real talk, that sounds exhausting. Be easy on yourself, you're doing better than you think. I'm here — whether you wanna talk it out or just need something else to focus on for a bit, I got you.`,
+  ];
+  return supportReplies[Math.floor(Math.random() * supportReplies.length)];
+}
+
+/**
  * Generate an unhinged, savage crashout clapback telling the user "Bro, go fuck yourself"
  */
 export function generateInsultCrashoutReply(

@@ -481,6 +481,59 @@ function tryUnitConversion(input: string): MathSolution | null {
   return null;
 }
 
+// Distance/rate/time word problems ("a train travels 60mph for 2.5 hours, how far does it go")
+// — classic textbook phrasing with no arithmetic symbols or "calculate"/"solve" keyword for
+// detectQueryIntent to latch onto, so these fell all the way through to plain corpus search
+// (which had nothing relevant and returned a random unrelated document) instead of ever reaching
+// a solver. Covers the three rearrangements of distance = rate × time.
+function trySolveRateTimeDistance(prompt: string): MathSolution | null {
+  const lower = prompt.toLowerCase();
+
+  const rateMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:mph|miles per hour|km\/h|kmh|kilometers per hour|kilometres per hour)/);
+  const timeMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)\b/);
+  const distMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:miles|mi|km|kilometers|kilometres)\b(?!\s*per)/);
+
+  const unit = /km\/h|kmh|kilometers per hour|kilometres per hour|\bkm\b|kilometers|kilometres/.test(lower) ? 'km' : 'miles';
+
+  // How far? (rate + time given, asking for distance)
+  if (rateMatch && timeMatch && /how\s+far|what\s+distance/.test(lower)) {
+    const rate = parseFloat(rateMatch[1]);
+    const time = parseFloat(timeMatch[1]);
+    const distance = rate * time;
+    return {
+      isMath: true,
+      expression: `${rate} ${unit}/h × ${time} h`,
+      result: `${distance} ${unit}`,
+      steps: [
+        `Formula: distance = rate × time`,
+        `${rate} × ${time} = ${distance}`,
+      ],
+      explanation: `Using distance = rate × time: **${rate} ${unit}/h × ${time} hours = ${distance} ${unit}**.`,
+    };
+  }
+
+  // How long? (rate + distance given, asking for time)
+  if (rateMatch && distMatch && /how\s+long|how\s+many\s+hours|what\s+time/.test(lower)) {
+    const rate = parseFloat(rateMatch[1]);
+    const distance = parseFloat(distMatch[1]);
+    if (rate > 0) {
+      const time = distance / rate;
+      return {
+        isMath: true,
+        expression: `${distance} ${unit} ÷ ${rate} ${unit}/h`,
+        result: `${time} hours`,
+        steps: [
+          `Formula: time = distance ÷ rate`,
+          `${distance} ÷ ${rate} = ${time}`,
+        ],
+        explanation: `Using time = distance ÷ rate: **${distance} ${unit} ÷ ${rate} ${unit}/h = ${time} hours**.`,
+      };
+    }
+  }
+
+  return null;
+}
+
 export function trySolveMath(prompt: string): MathSolution | null {
   const cleanPrompt = prompt.trim();
   const lower = cleanPrompt.toLowerCase();
@@ -493,6 +546,11 @@ export function trySolveMath(prompt: string): MathSolution | null {
   // of a variable to solve for and would otherwise reject these entirely)
   const linearRes = trySolveLinearEquation(cleanPrompt);
   if (linearRes) return linearRes;
+
+  // 1c. Distance/rate/time word problems (before the arithmetic parser, which can't make sense
+  // of "60mph for 2.5 hours" as an expression at all)
+  const rateRes = trySolveRateTimeDistance(cleanPrompt);
+  if (rateRes) return rateRes;
 
   // 2. Recursive-descent AST Parser
   const parser = new RecursiveDescentParser();

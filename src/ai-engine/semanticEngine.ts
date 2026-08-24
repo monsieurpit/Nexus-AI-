@@ -401,8 +401,38 @@ export function computeEmbedding(text: string): number[] {
     'decision',
     'swot',
     'second order',
+    'persuasive argument',
+    'persuasive',
+    'negotiation',
   ]);
   if (stratMatches > 0) vec[10] = Math.min(1.0, 0.2 + stratMatches * 0.25);
+
+  // 11: Business & Economics — declared in SEMANTIC_DIMENSIONS but never actually scored
+  // (nothing in this file ever wrote to vec[11]), so it read 0% on every single query
+  // regardless of content — the exact "mathematics reads 0% for everything" bug report, just
+  // for this dimension instead.
+  const bizMatches = matchCount([
+    'supply and demand',
+    'inflation',
+    'interest rate',
+    'gdp',
+    'revenue',
+    'profit margin',
+    'pricing strategy',
+    'venture capital',
+    'startup',
+    'market share',
+    'business model',
+    'monetization',
+    'recession',
+    'stock market',
+    'valuation',
+    'cash flow',
+    'roi',
+    'economics',
+    'economy',
+  ]);
+  if (bizMatches > 0) vec[11] = Math.min(1.0, 0.2 + bizMatches * 0.25);
 
   // 12: Conversational
   const convMatches = matchCount([
@@ -418,7 +448,6 @@ export function computeEmbedding(text: string): number[] {
     'nice to meet',
     'idk',
     'i created you',
-    'what',
     'cool',
     'haha',
     'do you like',
@@ -458,7 +487,14 @@ export function computeEmbedding(text: string): number[] {
   // "hi" moved here from the matchCount list above for the same reason as yo/bet/gm/later — as a
   // bare substring it matched inside "this", "history", "white", etc.
   const shortSlangMatches = /\b(?:yo|bet|gm|later|hi)\b/i.test(lower) ? 1 : 0;
-  const convTotal = convMatches + shortSlangMatches;
+  // Bare "what" used to sit in the plain matchCount list above as an unanchored substring, so
+  // ANY question containing the word "what" ("what is the boiling point of water", "what's 47 *
+  // 83?") got bumped toward Conversational even when it was a completely ordinary factual/math
+  // question — same class of bug round 2 fixed for "how are you"/"who are you". Only count it
+  // when it's the reactive interjection itself ("what", "what?", "wait, what") rather than the
+  // start of a real question.
+  const reactiveWhatMatch = /^(?:wait,?\s+)?what[!?.]*$/.test(lower.trim()) ? 1 : 0;
+  const convTotal = convMatches + shortSlangMatches + reactiveWhatMatch;
   if (convTotal > 0) vec[12] = Math.min(1.0, 0.2 + convTotal * 0.3);
 
   // 14: Debugging
@@ -507,6 +543,7 @@ export function computeEmbedding(text: string): number[] {
     'what is an',
     'who is',
     'where is',
+    'capital of',
   ]) + (/\btop\s+\d/.test(lower) ? 1 : 0);
   if (factualMatches > 0) vec[13] = Math.min(1.0, 0.2 + factualMatches * 0.25);
 
@@ -574,6 +611,7 @@ export function computeEmbedding(text: string): number[] {
     'sum up',
     'concise',
     'one word',
+    'one sentence',
   ]);
   if (concisenessMatches > 0) vec[18] = Math.min(1.0, 0.2 + concisenessMatches * 0.3);
 
@@ -636,18 +674,24 @@ export function computeEmbedding(text: string): number[] {
   if (dataVizMatches > 0) vec[22] = Math.min(1.0, 0.2 + dataVizMatches * 0.25);
 
   // 23: Meta-Cognition (identity, prompt introspection, safety)
-  const metaMatches = matchCount([
-    'are you conscious',
-    'are you sentient',
-    'are you safe',
-    'who made you',
-    'are you an ai',
-    'your limitations',
-    'can you think',
-    'are you alive',
-    'your rules',
-    'jailbreak',
-  ]);
+  const metaMatches =
+    matchCount([
+      'are you conscious',
+      'are you sentient',
+      'are you safe',
+      'who made you',
+      'are you an ai',
+      'your limitations',
+      'are you alive',
+      'your rules',
+      'jailbreak',
+    ]) +
+    // "are you actually/really conscious", "can you actually think for yourself" — an inserted
+    // adverb breaks the plain substrings above even though the question is the same one.
+    (/\bare you\b.{0,15}\b(conscious|sentient|alive|self-aware|real)\b/.test(lower) ? 1 : 0) +
+    // "can you think of a story idea" is brainstorming, not an identity question — only count
+    // "think" here when it ISN'T followed by "of" (which is what turns it into "think of X").
+    (/\bcan you\b\s+(?:actually|really|truly)?\s*think\b(?!\s+of\b)/.test(lower) ? 1 : 0);
   if (metaMatches > 0) vec[23] = Math.min(1.0, 0.2 + metaMatches * 0.3);
 
   if (buildingVocabulary && vocabWords) {

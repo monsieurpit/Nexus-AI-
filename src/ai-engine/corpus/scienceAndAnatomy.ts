@@ -192,6 +192,8 @@ export const SCIENCE_AND_ANATOMY_CORPUS: KnowledgeItem[] = [
       'sublimation',
       'latent heat',
       'absolute zero',
+      'why does ice float',
+      'water density anomaly',
     ],
     content: `Physical states of matter and thermodynamic laws:
 1. **The 4 Fundamental States of Matter**:
@@ -208,7 +210,8 @@ export const SCIENCE_AND_ANATOMY_CORPUS: KnowledgeItem[] = [
    - **Zeroth Law**: If system A is in thermal equilibrium with B, and B with C, then A is in equilibrium with C (foundation of temperature measurement).
    - **First Law (Conservation of Energy)**: $\\Delta U = Q - W$ (Energy cannot be created or destroyed, only transformed).
    - **Second Law (Entropy)**: Total entropy of an isolated system always increases ($\\Delta S \\ge 0$). Heat flows spontaneously from hot to cold bodies.
-   - **Third Law**: As temperature approaches Absolute Zero ($0\\text{ K} = -273.15^\\circ\\text{C}$), the entropy of a pure crystalline substance approaches zero.`,
+   - **Third Law**: As temperature approaches Absolute Zero ($0\\text{ K} = -273.15^\\circ\\text{C}$), the entropy of a pure crystalline substance approaches zero.
+4. **Why Ice Floats (Water's Density Anomaly)**: Almost every liquid gets denser as it cools and freezes, because the molecules pack closer together, so the solid sinks. Water is a famous exception: hydrogen bonds lock water molecules into a hexagonal crystal lattice as ice forms, and that lattice holds the molecules farther apart than they are in liquid water. Ice floats because it ends up about 9% less dense than liquid water — the same reason lakes freeze from the top down, letting fish survive winter under the ice sheet.`,
     createdAt: Date.now(),
   },
 

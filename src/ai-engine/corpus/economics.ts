@@ -13,8 +13,8 @@ export const ECONOMICS_CORPUS: KnowledgeItem[] = [
     id: 'kb-economics-macroeconomics-gdp',
     title: 'Macroeconomics: GDP, Inflation, and Monetary Policy',
     category: 'Economics',
-    keywords: ['GDP', 'inflation', 'monetary policy', 'macroeconomics', 'interest rates', 'central bank', 'unemployment', 'fiscal policy'],
-    content: `Macroeconomics studies economy-wide phenomena. Gross Domestic Product (GDP) measures total economic output — the sum of all goods and services produced within a country in a year. GDP can be calculated by expenditure (C + I + G + NX: consumption + investment + government + net exports), income (wages + profits + rents + interest), or production. Real GDP adjusts for inflation; GDP per capita divides by population. Inflation is the general rise in price levels, measured by the Consumer Price Index (CPI). Moderate inflation (~2%) is targeted by central banks as healthy; hyperinflation destroys purchasing power (Weimar Germany, Zimbabwe). Unemployment is when people seeking work cannot find it; the natural rate includes frictional (between jobs) and structural (skills mismatch) unemployment. Monetary policy is conducted by central banks (Federal Reserve, ECB, Bank of Canada): adjusting interest rates and the money supply to target inflation and employment. Lower interest rates stimulate borrowing and spending; higher rates cool inflation. Quantitative easing (QE) involves central banks buying assets to inject money. Fiscal policy uses government spending and taxation to influence aggregate demand.`,
+    keywords: ['GDP', 'inflation', 'monetary policy', 'macroeconomics', 'interest rates', 'central bank', 'unemployment', 'fiscal policy', 'recession'],
+    content: `Macroeconomics studies economy-wide phenomena. Gross Domestic Product (GDP) measures total economic output — the sum of all goods and services produced within a country in a year. GDP can be calculated by expenditure (C + I + G + NX: consumption + investment + government + net exports), income (wages + profits + rents + interest), or production. Real GDP adjusts for inflation; GDP per capita divides by population. Inflation is the general rise in price levels, measured by the Consumer Price Index (CPI). Moderate inflation (~2%) is targeted by central banks as healthy; hyperinflation destroys purchasing power (Weimar Germany, Zimbabwe). Unemployment is when people seeking work cannot find it; the natural rate includes frictional (between jobs) and structural (skills mismatch) unemployment. Monetary policy is conducted by central banks (Federal Reserve, ECB, Bank of Canada): adjusting interest rates and the money supply to target inflation and employment. Lower interest rates stimulate borrowing and spending; higher rates cool inflation. Quantitative easing (QE) involves central banks buying assets to inject money. Fiscal policy uses government spending and taxation to influence aggregate demand. A recession is commonly defined as two consecutive quarters of falling real GDP, though official calls (e.g. by the NBER in the US) also weigh employment, income, and industrial output. Recessions are typically triggered by demand shocks (a sudden drop in spending), supply shocks (an oil crisis, a pandemic), or the bursting of an asset bubble (2008's housing crash), and they're usually fought with the same two levers: central banks cutting interest rates, and governments increasing fiscal spending, to push demand back up.`,
     createdAt: Date.now(),
   },
   {
@@ -45,6 +45,31 @@ export const ECONOMICS_CORPUS: KnowledgeItem[] = [
 3. **Real-world examples commonly cited**: The 2008 global financial crisis, the September 11 attacks, the rise of the internet, and the COVID-19 pandemic — all events that most models and institutions considered essentially impossible or negligible in probability beforehand, yet reshaped the world.
 4. **Antifragility**: In a follow-up book, Taleb introduced "antifragile" — systems that don't just resist shocks (robust) but actually get STRONGER from volatility, randomness, and stress, the way a muscle grows from the stress of a workout, or a well-diversified portfolio can benefit from market chaos that wipes out overleveraged competitors.
 5. **Practical takeaway**: Because black swans are by definition unpredictable, the strategy isn't to try to forecast them — it's to build systems (financial, organizational, personal) with enough slack and optionality to survive, or even benefit from, being wrong about what "normal" looks like.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-econ-startup-saas-pricing',
+    title: 'Startup & SaaS Business Strategy: Pricing, Revenue, and Growth',
+    category: 'economics',
+    keywords: [
+      'pricing strategy',
+      'saas',
+      'startup',
+      'revenue',
+      'profit margin',
+      'monetization',
+      'business model',
+      'venture capital',
+      'valuation',
+      'cash flow',
+      'market share',
+      'roi',
+    ],
+    content: `Common pricing and growth strategy for startups, especially SaaS (Software as a Service):
+1. **Pricing models**: Flat-rate (one price, all features), tiered (Basic/Pro/Enterprise — the most common SaaS approach, since it lets a low tier capture price-sensitive users while a high tier captures high-willingness-to-pay customers), usage-based (pay per API call/seat/GB — scales with the customer's own usage), and freemium (a free tier drives adoption and word-of-mouth, converting a small percentage to paid over time).
+2. **How to actually set the number**: Value-based pricing (charge based on the value delivered to the customer, not your own cost) consistently outperforms cost-plus pricing for software, since the marginal cost of serving one more customer is near zero. A common early-stage approach is to interview target customers about willingness-to-pay, then price at the low end of what serious buyers say they'd pay — undercharging early and raising prices later is far easier than overcharging and losing trust.
+3. **Key metrics investors and founders track**: MRR/ARR (Monthly/Annual Recurring Revenue), churn rate (% of customers who cancel), CAC (Customer Acquisition Cost), LTV (Customer Lifetime Value) — a healthy SaaS business wants LTV:CAC of at least 3:1, and revenue, profit margin, and cash flow (a profitable business can still die from running out of cash if customers pay slowly and expenses are due now).
+4. **Funding & growth**: Venture capital trades equity for capital across funding rounds (seed, Series A, B, C...), each with a company valuation attached; bootstrapped startups grow from revenue instead, trading a slower growth rate for keeping full ownership and not answering to investors. Market share is a company's percentage of total sales in its industry — growing it can matter more than short-term profit in the early land-grab phase of a new market.`,
     createdAt: Date.now(),
   },
 ];

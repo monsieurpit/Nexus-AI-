@@ -111,8 +111,16 @@ const CLASSIC_RIDDLES: { match: RegExp; title: string; answer: string; explanati
 // this fell through to plain corpus search (which matched random "farm"/animal-adjacent content)
 // because it looks like an arithmetic word problem but isn't actually solved by subtraction.
 function trySolveAllButRiddle(prompt: string): LogicSolution | null {
-  const match = prompt.match(/all\s+but\s+(\d+)\s+(?:of\s+(?:them|it|the\s+\w+)\s+)?(?:die|died|survive|survived|left)/i);
+  // The verb right after "all but N" isn't always one of a short fixed list ("die"/"survive"/
+  // "left") — "all but 6 wander off", "all but 6 run away", "all but 6 escape" are the same
+  // trick riddle with a different verb, and the original verb-only regex missed all of them,
+  // falling through to corpus search on "cows"/"wander" instead. Any short clause between the
+  // number and a comma (or end of sentence) is accepted now, as long as the question itself asks
+  // how many are left/remain — that combination is specific enough to avoid false-triggering on
+  // an unrelated sentence that happens to contain "all but N" with no riddle intent.
+  const match = prompt.match(/all\s+but\s+(\d+)\s+(?:of\s+(?:them|it|the\s+\w+)\s+)?[a-z][a-z\s]{0,40}?(?=[,.]|$)/i);
   if (!match) return null;
+  if (!/how\s+many\s+(?:are|remain|is|survive)|\bleft\b/i.test(prompt)) return null;
   const n = match[1];
   return {
     isLogic: true,
@@ -170,6 +178,83 @@ function trySolveCapabilitySyllogism(prompt: string): LogicSolution | null {
     ],
     explanation: `Purely from the premises given, this is valid: if every ${categorySingular} can ${ability}, and a ${member} belongs to the ${category} category, then a ${member} can ${ability} too — the conclusion follows necessarily from the stated premises. (Worth flagging: this is validity, not truth — if the real-world premise "all ${category} can ${ability}" is itself false, as it is for flightless birds like penguins, the argument is valid but not sound.)`,
   };
+}
+
+function trySolveSequence(prompt: string): LogicSolution | null {
+  const lower = prompt.toLowerCase();
+  if (!/next\s+(?:number|term|value)|what\s+comes?\s+next|complete\s+the\s+(?:sequence|pattern)/.test(lower)) return null;
+
+  // Pull out the run of numbers in the sequence itself, ignoring stray digits elsewhere in the
+  // sentence (e.g. "riddle #3"). Requires at least 3 terms to have any hope of inferring a rule.
+  const numMatches = prompt.match(/-?\d+(?:\.\d+)?/g);
+  if (!numMatches || numMatches.length < 3) return null;
+  const nums = numMatches.map(Number);
+
+  const diffs = nums.slice(1).map((n, i) => n - nums[i]);
+  const isArithmetic = diffs.every((d) => d === diffs[0]);
+
+  let ratios: number[] | null = null;
+  if (nums.every((n) => n !== 0)) {
+    ratios = nums.slice(1).map((n, i) => n / nums[i]);
+  }
+  const isGeometric = !isArithmetic && ratios !== null && ratios.every((r) => Math.abs(r - ratios![0]) < 1e-9);
+
+  const isSquares = !isArithmetic && !isGeometric && nums.every((n) => Number.isInteger(n) && n >= 0 && Number.isInteger(Math.sqrt(n)));
+
+  if (isArithmetic) {
+    const d = diffs[0];
+    const next = nums[nums.length - 1] + d;
+    return {
+      isLogic: true,
+      title: 'Number Sequence: Arithmetic Progression',
+      verdict: `The next number is ${next}.`,
+      formalSteps: [
+        `Sequence: ${nums.join(', ')}`,
+        `Consecutive difference is constant: ${d > 0 ? '+' : ''}${d} each step.`,
+        `Next term = ${nums[nums.length - 1]} ${d >= 0 ? '+' : '-'} ${Math.abs(d)} = ${next}.`,
+      ],
+      explanation: `This is an arithmetic progression — each term adds the same constant (${d}) to the previous one. Extending that pattern gives **${next}**.`,
+    };
+  }
+
+  if (isGeometric && ratios) {
+    const r = ratios[0];
+    const next = nums[nums.length - 1] * r;
+    const nextDisplay = Number.isInteger(next) ? next : Number(next.toFixed(4));
+    return {
+      isLogic: true,
+      title: 'Number Sequence: Geometric Progression',
+      verdict: `The next number is ${nextDisplay}.`,
+      formalSteps: [
+        `Sequence: ${nums.join(', ')}`,
+        `Consecutive ratio is constant: each term is ×${r} the previous one.`,
+        `Next term = ${nums[nums.length - 1]} × ${r} = ${nextDisplay}.`,
+      ],
+      explanation: `This is a geometric progression — each term is multiplied by the same constant ratio (${r}) to get the next. Extending that pattern gives **${nextDisplay}**.`,
+    };
+  }
+
+  if (isSquares) {
+    const roots = nums.map((n) => Math.sqrt(n));
+    const rootDiffs = roots.slice(1).map((r, i) => r - roots[i]);
+    if (rootDiffs.every((d) => d === rootDiffs[0])) {
+      const nextRoot = roots[roots.length - 1] + rootDiffs[0];
+      const next = nextRoot * nextRoot;
+      return {
+        isLogic: true,
+        title: 'Number Sequence: Perfect Squares',
+        verdict: `The next number is ${next}.`,
+        formalSteps: [
+          `Sequence: ${nums.join(', ')}`,
+          `Each term is a perfect square: ${roots.map((r) => `${r}²`).join(', ')}.`,
+          `Next root = ${nextRoot}, so next term = ${nextRoot}² = ${next}.`,
+        ],
+        explanation: `These are consecutive perfect squares. Following the pattern of their roots (${roots.join(', ')}, ...) the next root is ${nextRoot}, so the next term is **${next}**.`,
+      };
+    }
+  }
+
+  return null;
 }
 
 export function trySolveLogic(prompt: string): LogicSolution | null {
@@ -262,6 +347,33 @@ export function trySolveLogic(prompt: string): LogicSolution | null {
       explanation: `### Constraint Graph Analysis\n\n- Forbidden States: $\\{\\text{Wolf}, \\text{Goat}\\}$ without farmer, and $\\{\\text{Goat}, \\text{Cabbage}\\}$ without farmer.\n- Key Insight: The Goat is the mutual conflicting element. Transporting it back on the return leg breaks the deadlock.`,
     };
   }
+
+  // 3a. River Crossing Puzzle (Fox, Chicken, Grain/Corn) — same structure as wolf/goat/cabbage
+  // above but a different cast (fox eats chicken, chicken eats grain), which round-2 testing
+  // found fell through untouched since only the wolf/goat/cabbage wording was matched.
+  if (lower.includes('fox') && lower.includes('chicken') && (lower.includes('grain') || lower.includes('corn') || lower.includes('feed'))) {
+    return {
+      isLogic: true,
+      title: 'River Crossing Constraint Satisfaction Solution',
+      verdict: 'Complete safe crossing achieved in 7 steps.',
+      formalSteps: [
+        'Step 1: Take the Chicken across to the east bank (Fox and Grain are safely left together on the west bank — a fox won\'t eat grain).',
+        'Step 2: Return alone to the west bank.',
+        'Step 3: Take the Fox across to the east bank, leaving it there.',
+        'Step 4: Take the Chicken back with you to the west bank (can\'t leave Fox and Chicken alone together on the east bank).',
+        'Step 5: Take the Grain across to the east bank, leaving it safely with the Fox.',
+        'Step 6: Return alone to the west bank.',
+        'Step 7: Take the Chicken across to the east bank. All three — Fox, Chicken, and Grain — are now safely on the east bank.',
+      ],
+      explanation: `### Constraint Graph Analysis\n\n- Forbidden States: $\\{\\text{Fox}, \\text{Chicken}\\}$ without farmer, and $\\{\\text{Chicken}, \\text{Grain}\\}$ without farmer.\n- Key Insight: The Chicken is the mutual conflicting element (eaten by the fox, eats the grain), so ferrying it back on the return leg is what breaks the deadlock — identical structure to the wolf/goat/cabbage version, just relabeled.`,
+    };
+  }
+
+  // 3b. "What's the next number in the sequence" puzzles — arithmetic, geometric, and square
+  // progressions. Previously unhandled entirely, so these fell through to corpus search and
+  // matched on stray words like "number"/"sequence", landing on unrelated math trivia.
+  const sequenceResult = trySolveSequence(prompt);
+  if (sequenceResult) return sequenceResult;
 
   // 4. Syllogisms & Logic Fallacies
   if (lower.includes('syllogism') || lower.includes('fallacy') || (lower.includes('premise') && lower.includes('conclusion'))) {

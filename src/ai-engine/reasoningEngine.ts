@@ -22,6 +22,8 @@ import {
   generateDominanceClapbackReply,
   detectVagueInfoDumpRequest,
   generateVagueRequestClapback,
+  detectEmotionalDistress,
+  generateEmotionalSupportReply,
   isCasseurtMention,
 } from './swearEngine';
 import {
@@ -58,6 +60,11 @@ export interface ReasoningResult {
 const FOLLOW_UP_PRONOUNS = new Set([
   'it', 'its', 'they', 'them', 'their', 'that', 'this', 'these', 'those',
   'he', 'him', 'his', 'she', 'her', 'there',
+  // "the second one", "which one", "what about the third one" — a referential "one" standing in
+  // for something from the previous turn. Missing this meant a follow-up like "and the second
+  // one?" (4 words, so isShort's <=3 cutoff also missed it) had zero context carried over and
+  // searched literally on "second one" alone, landing on whatever random doc scored highest.
+  'one', 'ones',
 ]);
 
 // "Can you join the VC?" used to fall through to the code solver, which matched the bare word
@@ -108,7 +115,8 @@ export function detectQueryIntent(query: string): QueryIntent {
     'good morning', 'good afternoon', 'good evening', 'good night', 'howdy',
     "what's your name", 'who are you', 'what are you', 'who made you', 'who created you',
     'thank you', 'thanks', 'thx', 'ty', 'appreciate it', 'much appreciated', 'bye',
-    'goodbye', 'cya', 'see ya', 'see you', 'what can you do', 'help me', 'tell me about yourself',
+    'goodbye', 'cya', 'see ya', 'see you', 'later', 'peace out', 'catch you later',
+    'what can you do', 'help me', 'tell me about yourself',
     'wyd', 'what are you doing', 'what r u doing', 'wym', 'wdym', 'what do you mean',
     // "idk" is slang-normalized to "i don't know" (ABBREVIATIONS_MAP) before intent detection
     // ever sees it, so the bare 'idk' entry never actually matches post-normalization — "idk"
@@ -122,7 +130,7 @@ export function detectQueryIntent(query: string): QueryIntent {
     // form and its ABBREVIATIONS_MAP expansion need to be listed here — "fr fr" is normalized to
     // "for real for real" before this function ever sees it.
     'lol', 'lmao', 'lmfao', 'rofl', 'bet', 'say less', 'you good', 'u good',
-    'aight', 'ight', 'word', 'ok cool', 'okay cool', 'nvm', 'nevermind', 'mood',
+    'aight', 'ight', 'word', 'ok', 'okay', 'k', 'kk', 'ok cool', 'okay cool', 'nvm', 'nevermind', 'mood',
     'for real', 'for real for real', 'laughing my ass off', 'laughing my fucking ass off',
     'rolling on the floor laughing', 'never mind',
   ];
@@ -139,6 +147,11 @@ export function detectQueryIntent(query: string): QueryIntent {
     // "facts" bare (agreement slang, like "no cap") needs an exact match ONLY — "startsWith"
     // would also swallow real questions like "facts about black holes".
     q === 'facts' || qNoPunct === 'facts' ||
+    // Bare "what"/"what?"/"wait, what" (a reactive interjection) — same exact-match-only
+    // reasoning as "facts": adding it to chatTriggers' startsWith check would re-hijack every
+    // real question starting with "what " ("what is the boiling point of water"), which is
+    // exactly the bug already fixed for the semantic dimension scorer.
+    q === 'what' || qNoPunct === 'what' || q === 'wait, what' || q === 'wait what' ||
     /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q)) ||
     VC_JOIN_REGEX.test(q) ||
     PHONE_NUMBER_REGEX.test(q) ||
@@ -151,6 +164,16 @@ export function detectQueryIntent(query: string): QueryIntent {
   // Math trigger
   if (
     /\d+\s*[+\-*/÷×^%]\s*\d+/.test(q) ||
+    // Word-form arithmetic ("128 divided by 8", "5 times 3", "9 plus 4") — mathSolver.ts's own
+    // preprocessor already rewrites these phrases into real operators, but that solver only ever
+    // runs when detectQueryIntent returns 'mathematical' first, and this class of phrasing had no
+    // trigger of its own — only the symbolic form (\d+\s*[+\-*/...]\s*\d+) was recognized, so any
+    // spelled-out arithmetic fell through to 'general' and landed on random corpus search.
+    /\d+\s*(?:plus|minus|times|divided\s+by|multiplied\s+by|over|to\s+the\s+power(?:\s+of)?)\s*\d+/i.test(q) ||
+    // Distance/rate/time word problems ("60mph for 2.5 hours, how far") have no operator symbol
+    // or "calculate"/"solve" keyword at all, so they need their own explicit trigger.
+    (/\d\s*(?:mph|km\/h|kmh|miles per hour|kilometers? per hour|kilometres? per hour)/.test(q) &&
+      /how\s+far|how\s+long|what\s+distance|how\s+many\s+hours/.test(q)) ||
     q.includes('calculate') ||
     q.includes('compute') ||
     q.includes('solve ') ||
@@ -163,7 +186,12 @@ export function detectQueryIntent(query: string): QueryIntent {
     /\b(?:square|cube)\s*root\s+of\b|\babsolute\s+value\s+of\b|\bfactorial\b|\b(?:average|mean)\s+of\b|\d+\s*(?:factorial|squared|cubed)\b|\d+\s*mod\s*\d+/i.test(
       q
     ) ||
-    (q.includes('what is') && /\d/.test(q) && !q.includes('what is a ') && !q.includes('what is the ') && !q.includes('what is an ')) ||
+    // "what is"/"what's" both need this check — "what's 128 divided by 8" was falling through
+    // because only the "what is" spelling was ever checked, so the contraction (the far more
+    // common way people actually type this) never routed to the math solver.
+    (/\bwhat'?s\b|\bwhat\s+is\b/.test(q) &&
+      /\d/.test(q) &&
+      !/\bwhat'?s\s+a\b|\bwhat\s+is\s+a\b|\bwhat'?s\s+the\b|\bwhat\s+is\s+the\b|\bwhat'?s\s+an\b|\bwhat\s+is\s+an\b/.test(q)) ||
     // Named mathematical constants have no digit in the question itself ("what is pi") — the
     // digit-presence check above never catches these on its own, so this fell through to
     // 'definition' intent and never reached the math solver, which already supports evaluating
@@ -313,7 +341,11 @@ function buildConversationMemory(query: string, history: ChatMessage[]): Convers
     .flatMap((m) => processForSearch(m.content));
 
   const queryTerms = processForSearch(query);
-  const queryWords = query.toLowerCase().split(/\s+/);
+  // Trailing punctuation was never stripped here, so "and the second one?" split into
+  // ["and","the","second","one?"] — "one?" never equals "one" in FOLLOW_UP_PRONOUNS, so any
+  // follow-up ending in "?" (the overwhelming majority of them — "what about that?", "and him?")
+  // silently lost its pronoun-detection entirely and got zero context carried over.
+  const queryWords = query.toLowerCase().replace(/[?!.,]+/g, ' ').split(/\s+/).filter(Boolean);
   const hasPronouns = queryWords.some((w) => FOLLOW_UP_PRONOUNS.has(w));
   const isShort = queryWords.filter((w) => w.length > 1).length <= 3;
   const isFollowUp = hasPronouns || isShort;
@@ -700,6 +732,29 @@ export function generateReasoningPath(
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(generateDominanceClapbackReply(isSuperChill), prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+      }),
+      knowledgeHits: [],
+    };
+  }
+
+  // Genuine emotional distress ("I'm anxious about my interview", "my dog died") — check before
+  // corpus search for the same reason as dominance/vague-request above: a stray literal keyword
+  // ("interview") would otherwise pull up unrelated corpus content (outfit advice) instead of the
+  // engine ever acknowledging what the user actually said.
+  if (detectEmotionalDistress(prompt)) {
+    thoughtSteps.push({
+      id: 'step-emotional-distress-detected',
+      type: 'verification',
+      title: '💙 Emotional Support Needed',
+      description: 'Responding with genuine support instead of corpus search.',
+    });
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(generateEmotionalSupportReply(prompt, isSuperChill), prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,

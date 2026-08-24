@@ -98,7 +98,13 @@ const RAW_SYNONYM_MAP: Record<string, string[]> = {
   debug: ['fix', 'troubleshoot', 'error', 'bug'],
   compile: ['build', 'transpile', 'assemble', 'code'],
   framework: ['library', 'toolkit', 'platform', 'stack'],
-  recursion: ['loop', 'iteration', 'function', 'algorithm'],
+  // "loop"/"function"/"algorithm" used to sit here, but recursion and iteration (loops) are
+  // usually CONTRASTED in CS teaching, not interchangeable — and "loop"/"function" are common
+  // enough generic words that expanding into them let totally unrelated docs (a shoelace-tying
+  // guide, which literally says "loop" 9 times for physical loops of lace) outscore the actual
+  // recursion content for "walk me through how recursion works". Kept to genuinely synonymous,
+  // specific terms only.
+  recursion: ['recursive', 'self-referential', 'base case'],
   binary: ['bit', 'digital', 'code', 'boolean'],
   processor: ['cpu', 'chip', 'computer', 'hardware'],
 
@@ -219,6 +225,16 @@ const RAW_SYNONYM_MAP: Record<string, string[]> = {
   ocean: ['sea', 'water', 'marine', 'coast'],
   capital: ['city', 'government', 'headquarters', 'seat'],
   population: ['inhabitants', 'demographics', 'people', 'census'],
+  // "tallest"/"biggest"/"largest" vs "highest" — corpus docs describing a superlative record
+  // (Everest is "the world's highest" peak) almost always use one specific word for it, but users
+  // ask with whichever synonym comes naturally ("tallest mountain"). Without this, the sentence
+  // actually containing the answer scores 0 on the literal query term and loses to an unrelated
+  // sentence that happens to share other words ("world's longest mountain RANGE" beat out the
+  // Everest sentence for "what's the tallest mountain in the world").
+  tallest: ['highest', 'biggest', 'largest'],
+  highest: ['tallest', 'biggest', 'largest'],
+  biggest: ['largest', 'tallest', 'highest'],
+  largest: ['biggest', 'tallest', 'highest'],
 
   // Environment
   environment: ['ecosystem', 'nature', 'climate', 'planet'],
@@ -264,7 +280,7 @@ export const STOP_WORDS = new Set([
   'through', 'during', 'before', 'after', 'to', 'from', 'up', 'down', 'as', 'if', 'then',
   'because', 'while', 'although', 'though', 'more', 'most', 'other', 'some', 'such', 'no',
   'any', 'each', 'every', 'all', 'few', 'many', 'much', 'same', 'own', 'out', 'off', 'over',
-  'under', 'again', 'further', 'once', 'here', 'there', 'now', 'where', 'when', 'how',
+  'under', 'again', 'further', 'once', 'here', 'there', 'now', 'where', 'when', 'how', 'why',
   'beside', 'between', 'beyond', 'despite', 'except', 'inside', 'near', 'next',
   'since', 'toward', 'unless', 'until', 'upon', 'within', 'without', 'like', 'get', 'got',
   'make', 'take', 'go', 'come', 'see', 'know', 'think', 'say', 'tell', 'give', 'use', 'find',
@@ -272,6 +288,21 @@ export const STOP_WORDS = new Set([
 
 export function stem(word: string): string {
   let w = word.toLowerCase();
+
+  // The generic 'es' -> '' rule below strips both letters unconditionally, which is only
+  // correct when "-es" is a real plural suffix tacked onto a consonant ending (box -> boxes,
+  // watch -> watches). When the singular itself already ends in "e" (vaccine -> vaccines, phone
+  // -> phones, gene -> genes), stripping both letters produces "vaccin"/"phon"/"gen" while the
+  // singular form stems to "vaccine"/"phone"/"gene" unchanged (no rule here strips a lone
+  // trailing "e") — a silent mismatch between a doc's stored singular and a query's plural that
+  // made otherwise-perfect corpus matches (e.g. "vaccines" in a query for a doc full of
+  // "vaccine") score as if the words shared nothing in common. Real "-es" plurals only ever
+  // follow s/x/z/ch/sh; anything else ending in "es" means the base word already ends in "e", so
+  // only the trailing "s" should come off.
+  if (w.endsWith('es') && w.length > 4 && !/(?:[sxz]|ch|sh)es$/.test(w)) {
+    return w.slice(0, -1);
+  }
+
   const rules: [string, string, number][] = [
     ['ational', 'ate', 5], ['tional', 'tion', 5], ['ization', 'ize', 5],
     ['isation', 'ise', 5], ['ousness', 'ous', 5], ['iveness', 'ive', 5],
@@ -359,11 +390,20 @@ export function levenshteinDistance(a: string, b: string): number {
 
 export function correctTypos(terms: string[], vocabulary: Set<string>): string[] {
   return terms.map((term) => {
-    if (vocabulary.has(term) || term.length <= 3 || /^\d+$/.test(term)) {
+    // Short words (<=4 letters) are the danger zone: against a corpus-sized vocabulary there's
+    // almost always SOME unrelated real word 1 edit away ("dogs" -> "dots"/"logs", "cats" ->
+    // "cars"/"cuts"), so a correctly-spelled word that simply isn't in this corpus's vocabulary
+    // gets silently rewritten into whatever unrelated vocabulary word happened to collide — same
+    // class of bug as "that" -> "what" fixed earlier in semanticEngine.ts, just in the retrieval
+    // vocabulary instead of the dimension matcher. Longer words have enough letters that a
+    // same-first-letter, distance<=2 neighbor is actually likely to be a genuine typo.
+    if (vocabulary.has(term) || term.length <= 4 || /^\d+$/.test(term)) {
       return term;
     }
 
-    const candidates = Array.from(vocabulary).filter((v) => Math.abs(v.length - term.length) <= 2);
+    const candidates = Array.from(vocabulary).filter(
+      (v) => Math.abs(v.length - term.length) <= 2 && v[0] === term[0]
+    );
     let bestTerm = term;
     let bestDist = 3;
 
@@ -675,7 +715,13 @@ export class BM25Engine {
     for (const size of [2, 3]) {
       if (words.length > size) {
         for (let start = 0; start <= words.length - size; start++) {
-          const phrase = words.slice(start, start + size).join(' ');
+          const window = words.slice(start, start + size);
+          // A window edged by a stopword ("facts about", "how to") is a generic English
+          // fragment, not a named entity — indexing it caused an unrelated query like "facts
+          // about dogs" to phrase-match "Major World Countries: Key Facts About Global Powers"
+          // purely because both contain "facts about", with zero topical overlap.
+          if (STOP_WORDS.has(window[0]) || STOP_WORDS.has(window[window.length - 1])) continue;
+          const phrase = window.join(' ');
           if (!this.entityIndex.has(phrase)) this.entityIndex.set(phrase, []);
           this.entityIndex.get(phrase)!.push(docIdx);
         }
