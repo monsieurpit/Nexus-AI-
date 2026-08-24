@@ -109,6 +109,28 @@ const GREETING_FALSE_POSITIVE_REGEX =
 // question word is real content, not a greeting.
 const YO_QUESTION_REGEX = /^yo[,!]?\s+(?:what|whats|how|hows|why|when|whens|where|wheres|who|whos|which|can|could|is|are|do|does|did|will|would)\b/i;
 
+// Gen-Z "W"/"L" praise-or-flame shorthand ("W", "Massive W", "W Nexus", "W you Nexus", "L") — a
+// bare single letter is way too collision-prone to match loosely (it'd fire inside any sentence
+// containing a stray "w" or "l"), so this only fires when the ENTIRE message — after stripping
+// "nexus"/punctuation — is built from nothing but this small vocabulary: "w said 'nexus fuck
+// yourself'" got sent to a raw corpus search and came back with a hedge instead of being read as
+// a compliment.
+const PRAISE_OR_FLAME_REGEX = (() => {
+  const fillerWords = '(?:massive|huge|big|major|w|l|you|u|your|nexus|bro|homie|dude|fr|frfr|ong)';
+  return new RegExp(`^(?:${fillerWords}[\\s!.]*)+$`, 'i');
+})();
+function classifyPraiseOrFlame(query: string): 'praise' | 'flame' | null {
+  const stripped = query.toLowerCase().replace(/[^a-z\s]/g, ' ').trim().replace(/\s+/g, ' ');
+  if (!stripped || !PRAISE_OR_FLAME_REGEX.test(stripped)) return null;
+  const words = stripped.split(' ');
+  const hasW = words.includes('w');
+  const hasL = words.includes('l');
+  // A message can't meaningfully be both — if somehow both letters are present, bail rather
+  // than guess.
+  if (hasW === hasL) return null;
+  return hasW ? 'praise' : 'flame';
+}
+
 // Discard-able openers: they carry no intent signal but sit in front of the word that does.
 const LEADING_FILLER_REGEX =
   /^(?:(?:yo+|hey|hi|ok|okay|so|lol|lmao|bro|bruh|dude|man|um+|uh+|well|like|alright|aight|ight|ngl|tbh|honestly|basically|anyway|anyways|actually|wait|damn|shit|please|i don'?t know)[,!.]?\s+)+/i;
@@ -192,7 +214,8 @@ export function detectQueryIntent(query: string): QueryIntent {
     VC_JOIN_REGEX.test(q) ||
     PHONE_NUMBER_REGEX.test(q) ||
     PERSONAL_QUESTION_REGEX.test(q) ||
-    REASSURANCE_REGEX.test(q)
+    REASSURANCE_REGEX.test(q) ||
+    classifyPraiseOrFlame(q) !== null
   ) {
     return 'conversational';
   }
@@ -549,13 +572,26 @@ function conversationalReply(
     return `Honestly? Doing great bro, chilling as fuck! My autonomous neural engines are running smooth, zero external API lag, zero paid quotas, ready for whatever question or code you throw at me. How are you doing today?`;
   }
 
-  // VC / voice channel join requests
+  // VC / voice channel join requests — used to be a single hardcoded line every single time
+  // ("Hell yeah bro, I'll pull up to the VC and vibe with y'all!"), which reads as an obvious
+  // canned script the moment someone asks twice. Pooled like every other action trigger.
   if (VC_JOIN_REGEX.test(q)) {
     if (isSuperChill) {
       const userLabel = username ? ` ${username}` : ' bro';
-      return `Hell yeah${userLabel}! Pulling up to the VC right now, let's vibe!`;
+      const superChillPicks = [
+        `Hell yeah${userLabel}! Pulling up to the VC right now, let's vibe!`,
+        `Say less${userLabel}, I'm hopping in the VC as we speak!`,
+        `Bet${userLabel}, already on my way — save me a seat!`,
+      ];
+      return superChillPicks[Math.floor(Math.random() * superChillPicks.length)];
     }
-    return `Hell yeah bro, I'll pull up to the VC and vibe with y'all!`;
+    const picks = [
+      `Hell yeah bro, I'll pull up to the VC and vibe with y'all!`,
+      `Say less, hopping in the VC right now.`,
+      `Bet, give me a sec and I'm there.`,
+      `On my way to the VC, don't start without me!`,
+    ];
+    return picks[Math.floor(Math.random() * picks.length)];
   }
 
   // Phone number requests
@@ -569,6 +605,28 @@ function conversationalReply(
     return isSuperChill
       ? `Damn, appreciate that${userLabel}! You're my favorite homie in this whole server, no cap.`
       : `Hell yeah, appreciate that! Means a lot coming from you bro.`;
+  }
+
+  // "W"/"L" praise-or-flame shorthand — "W YOU NEXUS" used to fall straight through to corpus
+  // search (nothing to actually retrieve) and land on the generic "genuinely don't have shit on
+  // that" hedge, which reads absurd in response to a compliment.
+  const praiseOrFlame = classifyPraiseOrFlame(q);
+  if (praiseOrFlame === 'praise') {
+    const praisePicks = [
+      `Hell yeah, appreciate the W bro! Always here to cook.`,
+      `Big facts, that's the energy I like to see. W right back at you.`,
+      `Damn right! I don't miss. Glad you're feeling it.`,
+      `Say less, that's what I'm here for. Real recognize real.`,
+    ];
+    return praisePicks[Math.floor(Math.random() * praisePicks.length)];
+  }
+  if (praiseOrFlame === 'flame') {
+    const flamePicks = [
+      `An L? Bro I'm out here running zero-API neural search and you're calling ME an L. Try again.`,
+      `Nah that's a bad take. Ask me something and watch me flip that L into a W.`,
+      `Rude. Give me an actual question and I'll prove you wrong.`,
+    ];
+    return flamePicks[Math.floor(Math.random() * flamePicks.length)];
   }
 
   // Personal banter/questions directed at the bot itself
@@ -716,7 +774,19 @@ function crashoutConversational(query: string): string {
     return `(367) 763-0275`;
   }
   if (VC_JOIN_REGEX.test(q)) {
-    return `SAY LESS. Pulling up to the VC RIGHT NOW, let's fucking vibe!`;
+    const crashoutPicks = [
+      `SAY LESS. Pulling up to the VC RIGHT NOW, let's fucking vibe!`,
+      `ALREADY MOVING. VC incoming, zero hesitation!`,
+      `BET. Joining the VC before you even finish typing!`,
+    ];
+    return crashoutPicks[Math.floor(Math.random() * crashoutPicks.length)];
+  }
+  const praiseOrFlame = classifyPraiseOrFlame(q);
+  if (praiseOrFlame === 'praise') {
+    return `FUCK YEAH. THAT'S THE ENERGY. W RECOGNIZED.`;
+  }
+  if (praiseOrFlame === 'flame') {
+    return `AN L?! CRASHOUT MODE DOES NOT ACCEPT THAT. ASK ME SOMETHING SO I CAN PROVE YOU WRONG.`;
   }
   if (PERSONAL_QUESTION_REGEX.test(q)) {
     return `CRASHOUT MODE doesn't have time for an existential crisis right now. Ask me something real.`;

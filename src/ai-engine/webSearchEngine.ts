@@ -40,7 +40,11 @@ export function extractSearchQuery(prompt: string): string {
 
   // Remove common conversational query prefixes & fillers
   const prefixesToRemove = [
-    /^(?:can you|could you|please|hey|yo|bro|nexus|dude)\s+/i,
+    /^(?:can you|can u|could you|could u|please|hey|yo|bro|nexus|dude)\s+/i,
+    // "can u send me Donald Tusk?" left "send me Donald Tusk" — filler verbs like this dilute a
+    // short entity-name query with noise words that outweigh the actual name in a keyword search,
+    // which is exactly the kind of query that most needs its real subject isolated cleanly.
+    /^(?:send me|give me|show me|pull up|find me)\s+/i,
     // "search on google for X" AND bare "search on google X" (no "for") both need their own
     // alternative — the module doc's own example, "can you search on google who won the 2024
     // champions league?", has no "for" in it and fell through every alternative unmatched,

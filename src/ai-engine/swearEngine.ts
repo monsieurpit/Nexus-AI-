@@ -705,14 +705,38 @@ export function infuseSwearyHumanVoice(
   if (/[*_#\-•\d`]/.test(firstChar)) {
     return processed;
   }
+  // synthesiseWebSearchResults' POINT_FRAMES lead every web-grounded answer with "From what I
+  // found,"/"Turns out"/"Basically," — skipping the topup entirely for these (as a plain filler)
+  // meant web-search answers, which are usually plain factual prose with nothing for
+  // enhanceNaturalSwearPhrasing's word-substitution to grab onto either, systematically ended up
+  // with ZERO swear words anywhere even on 'unhinged' — the exact "he didn't even swear in it"
+  // complaint. These have a real comma-continuation clause to inject into, unlike a bare
+  // one-word filler, so slot the topup in right after the lead instead of skipping it.
+  const LEAD_CLAUSE_OPENER = /^(from what i found|turns out|basically)[,]?\s*/i;
+  const leadMatch = trimmed.match(LEAD_CLAUSE_OPENER);
+  if (leadMatch) {
+    const leadWord = leadMatch[1];
+    const originalLead = trimmed.slice(0, leadWord.length);
+    const rest = trimmed.slice(leadMatch[0].length);
+    return `${originalLead}, ${topup} ${rest}`;
+  }
   // synthesiseStandard's casualOpener() (and similar per-branch openers elsewhere) already start
   // a lot of responses with their own filler ("Alright, let's break down...", "Here's the
   // straight breakdown:", "Right — here is who we're talking about:"). Stacking an inline topup
   // in front of one of those produced routine double-filler openers ("Damn, Alright, let's break
   // down...", "Ngl, Right — here is who we're talking about:") — reads like two people talking
   // at once, not one voice. Skip the topup when the text already opens with an obvious filler.
-  const FILLER_OPENER = /^(alright|okay|ok\b|right[,\s—-]|here'?s|look,|so\b|damn good question|check this out|let me break|let'?s |breaking this down|going back to|historically speaking|from what i found|turns out|basically,)/i;
+  const FILLER_OPENER = /^(alright|okay|ok\b|right[,\s—-]|here'?s|look,|so\b|damn good question|check this out|let me break|let'?s |breaking this down|going back to|historically speaking)/i;
   if (FILLER_OPENER.test(trimmed)) {
+    return processed;
+  }
+  // Any new canned reply pool (VC-join picks, praise/flame clapbacks, etc.) that happens to
+  // already open with real profanity ("Hell yeah, appreciate the W bro!") would otherwise need
+  // its own manual entry added to FILLER_OPENER above to avoid stacking — this generalizes that
+  // instead of playing whack-a-mole: if the opening clause already has a swear word in it, the
+  // voice is already established, so back off.
+  const firstClause = trimmed.match(/^[^.!?]*[.!?]?/)?.[0] || trimmed;
+  if (hasSwearWords(firstClause)) {
     return processed;
   }
   // Keep the original sentence's own capitalization — forcing it lowercase corrupted proper
