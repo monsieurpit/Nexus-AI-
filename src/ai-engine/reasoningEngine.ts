@@ -2059,15 +2059,39 @@ function renderComparativeAnswer(
   return out.filter(Boolean).join('\n\n');
 }
 
+const LLM_FREE_RESPONSE_MAX_TOKENS = 700;
+const LLM_GROUNDED_MAX_TOKENS = 700;
+
+// Swearing/aggression/length are driven off the same swearIntensity setting the template
+// pipeline's post-hoc infuseSwearyHumanVoice() already uses (default 'unhinged' engine-wide),
+// so the LLM's raw voice matches what the template pipeline would have infused anyway instead
+// of relying entirely on word-splicing after the fact.
+function buildLlmStyleInstruction(settings: AISettings, isCrashout: boolean): string {
+  const intensity = settings.swearIntensity || 'unhinged';
+  if (isCrashout || intensity === 'unhinged') {
+    return "\n\nStyle directives: swear heavily and often (fuck, shit, damn, hell, etc.) — profanity should feel like a natural part of your voice, not sprinkled in. Be blunt, confrontational, and aggressive in tone; don't soften opinions or hedge. Give a thorough, detailed answer — several sentences of real substance, never a lazy one-liner.";
+  }
+  if (intensity === 'heavy') {
+    return '\n\nStyle directives: swear naturally and fairly often, keep an edgy, no-nonsense tone, and give a thorough, detailed answer rather than a short one-liner.';
+  }
+  if (intensity === 'moderate') {
+    return '\n\nStyle directives: light natural profanity is fine, keep a casual but substantive tone, and give a reasonably detailed answer.';
+  }
+  return '';
+}
+
 async function llmFreeResponseOrFallback(
   prompt: string,
   persona: ModelPersona,
+  settings: AISettings,
+  isCrashout: boolean,
   thoughtSteps: ThoughtStep[],
   fallbackText: string
 ): Promise<string> {
   const llmResult = await localLlmClient.generate(prompt, {
-    system: persona.systemPrompt,
-    temperature: 0.7,
+    system: persona.systemPrompt + buildLlmStyleInstruction(settings, isCrashout),
+    temperature: 0.8,
+    maxTokens: LLM_FREE_RESPONSE_MAX_TOKENS,
   });
   if (llmResult.status === 'success') {
     thoughtSteps.push({
@@ -2085,6 +2109,46 @@ async function llmFreeResponseOrFallback(
     description: `Reason: ${llmResult.reason}`,
   });
   return fallbackText;
+}
+
+async function llmGroundedOrFallback(
+  prompt: string,
+  persona: ModelPersona,
+  settings: AISettings,
+  isCrashout: boolean,
+  top: { item: KnowledgeItem }[],
+  templateFallback: string,
+  intent: QueryIntent,
+  queryTerms: string[],
+  entities: string[],
+  thoughtSteps: ThoughtStep[]
+): Promise<string> {
+  const groundingContext = top.map((t, i) => `[${i + 1}] ${t.item.title}: ${t.item.content}`).join('\n\n');
+  const groundedPrompt = `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context — your delivery/tone can be as blunt or aggressive as your style directives say, but the facts must stay accurate.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
+  const llmResult = await localLlmClient.generate(groundedPrompt, {
+    system: persona.systemPrompt + buildLlmStyleInstruction(settings, isCrashout),
+    temperature: 0.45,
+    maxTokens: LLM_GROUNDED_MAX_TOKENS,
+  });
+  if (llmResult.status !== 'success') {
+    thoughtSteps.push({
+      id: 'step-llm-unavailable',
+      type: 'synthesis',
+      title: '📦 Template fallback (LLM unavailable)',
+      description: `Reason: ${llmResult.reason}`,
+    });
+    return templateFallback;
+  }
+  const llmVerification = verifyAnswer(llmResult.text, intent, queryTerms, entities, prompt);
+  thoughtSteps.push({
+    id: 'step-llm-grounded',
+    type: 'synthesis',
+    title: llmVerification.passed ? '🧠 Local LLM grounded response' : '📦 LLM answer failed self-check — using template',
+    description: llmVerification.passed
+      ? `Ollama responded in ${llmResult.latencyMs}ms, grounded on ${top.length} source(s).`
+      : llmVerification.issues.map((i) => i.detail).join('\n'),
+  });
+  return llmVerification.passed ? llmResult.text : templateFallback;
 }
 
 export async function generateReasoningPath(
@@ -2912,6 +2976,8 @@ export async function generateReasoningPath(
       const freeText = await llmFreeResponseOrFallback(
         prompt,
         persona,
+        settings,
+        isCrashout,
         thoughtSteps,
         "Bro I genuinely don't have shit on that. Zero fucking docs. Hit the Corpus button and paste something in."
       );
@@ -2966,7 +3032,20 @@ export async function generateReasoningPath(
     }
 
     const synthesised = synthesiseCrashout(prompt, intent, top);
-    const reply = isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill);
+    const reply = isConfident
+      ? await llmGroundedOrFallback(
+          prompt,
+          persona,
+          settings,
+          isCrashout,
+          top,
+          synthesised,
+          intent,
+          queryTerms,
+          entities,
+          thoughtSteps
+        )
+      : hedgeAnswer(synthesised, isSuperChill);
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(reply, prompt, settings.userCustomDirectives, {
@@ -3042,7 +3121,7 @@ export async function generateReasoningPath(
     const topDocs = merged.slice(0, 7);
 
     if (topDocs.length === 0 || topDocs[0].score < WEAK_MATCH_SCORE) {
-      const freeText = await llmFreeResponseOrFallback(prompt, persona, thoughtSteps, unknownResponse());
+      const freeText = await llmFreeResponseOrFallback(prompt, persona, settings, isCrashout, thoughtSteps, unknownResponse());
       return {
         thoughtSteps,
         content: enforceStrictSdkRules(freeText, prompt, settings.userCustomDirectives, {
@@ -3104,9 +3183,24 @@ export async function generateReasoningPath(
       isConfident = false;
     }
 
-    const text =
-      (isConfident ? synthesisedDeep : hedgeAnswer(synthesisedDeep, isSuperChill, deepVerification.issues)) +
-      deepInferenceNote;
+    let text: string;
+    if (isConfident) {
+      text = await llmGroundedOrFallback(
+        prompt,
+        persona,
+        settings,
+        isCrashout,
+        topDocs,
+        synthesisedDeep,
+        intent,
+        queryTerms,
+        entities,
+        thoughtSteps
+      );
+    } else {
+      text = hedgeAnswer(synthesisedDeep, isSuperChill, deepVerification.issues);
+    }
+    text += deepInferenceNote;
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(text, prompt, settings.userCustomDirectives, {
@@ -3155,7 +3249,7 @@ export async function generateReasoningPath(
   }
 
   if (results.length === 0 || results[0].score < WEAK_MATCH_SCORE) {
-    const freeText = await llmFreeResponseOrFallback(prompt, persona, thoughtSteps, unknownResponse());
+    const freeText = await llmFreeResponseOrFallback(prompt, persona, settings, isCrashout, thoughtSteps, unknownResponse());
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(freeText, prompt, settings.userCustomDirectives, {
@@ -3257,32 +3351,18 @@ export async function generateReasoningPath(
 
   let mainText: string;
   if (isConfident) {
-    const groundingContext = top.map((t, i) => `[${i + 1}] ${t.item.title}: ${t.item.content}`).join('\n\n');
-    const groundedPrompt = `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. Stay in character.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
-    const llmResult = await localLlmClient.generate(groundedPrompt, {
-      system: persona.systemPrompt,
-      temperature: 0.3,
-    });
-    if (llmResult.status === 'success') {
-      const llmVerification = verifyAnswer(llmResult.text, intent, queryTerms, entities, prompt);
-      thoughtSteps.push({
-        id: 'step-llm-grounded',
-        type: 'synthesis',
-        title: llmVerification.passed ? '🧠 Local LLM grounded response' : '📦 LLM answer failed self-check — using template',
-        description: llmVerification.passed
-          ? `Ollama responded in ${llmResult.latencyMs}ms, grounded on ${top.length} source(s).`
-          : llmVerification.issues.map((i) => i.detail).join('\n'),
-      });
-      mainText = llmVerification.passed ? llmResult.text : synthesised;
-    } else {
-      thoughtSteps.push({
-        id: 'step-llm-unavailable',
-        type: 'synthesis',
-        title: '📦 Template fallback (LLM unavailable)',
-        description: `Reason: ${llmResult.reason}`,
-      });
-      mainText = synthesised;
-    }
+    mainText = await llmGroundedOrFallback(
+      prompt,
+      persona,
+      settings,
+      isCrashout,
+      top,
+      synthesised,
+      intent,
+      queryTerms,
+      entities,
+      thoughtSteps
+    );
   } else {
     mainText = hedgeAnswer(synthesised, isSuperChill, verification.issues);
   }
