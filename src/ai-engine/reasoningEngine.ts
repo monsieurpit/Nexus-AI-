@@ -7,7 +7,7 @@ import {
   UserMemory,
   WebSearchResult,
 } from '../types';
-import { extractQueryEntities, searchKnowledgeGraph } from './semanticEngine';
+import { extractQueryEntities, searchKnowledgeGraph, getBM25Engine } from './semanticEngine';
 import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
@@ -34,7 +34,8 @@ import {
 import { solveGeneralKnowledge } from './generalIntelligence';
 import { trySolveCode } from './codeSolver';
 import { trySolveLogic } from './logicSolver';
-import { decomposeCompoundQuestion } from './questionDecomposer';
+import { decomposeCompoundQuestion, denoiseRamblingQuery } from './questionDecomposer';
+import { correctPromptTypos } from './promptCorrector';
 import { extractRelationFacts, findInferenceChains, formatInferenceChain } from './inferenceEngine';
 import { verifyAnswer } from './answerVerifier';
 
@@ -108,8 +109,20 @@ const GREETING_FALSE_POSITIVE_REGEX =
 // question word is real content, not a greeting.
 const YO_QUESTION_REGEX = /^yo[,!]?\s+(?:what|whats|how|hows|why|when|whens|where|wheres|who|whos|which|can|could|is|are|do|does|did|will|would)\b/i;
 
+// Discard-able openers: they carry no intent signal but sit in front of the word that does.
+const LEADING_FILLER_REGEX =
+  /^(?:(?:yo+|hey|hi|ok|okay|so|lol|lmao|bro|bruh|dude|man|um+|uh+|well|like|alright|aight|ight|ngl|tbh|honestly|basically|anyway|anyways|actually|wait|damn|shit|please|i don'?t know)[,!.]?\s+)+/i;
+
+// Anything past this is a real message that happens to open with a chat token, not a greeting.
+const CHAT_TRIGGER_MAX_WORDS = 7;
+const isChatLength = (wordCount: number) => wordCount <= CHAT_TRIGGER_MAX_WORDS;
+// Phrase-specific greeting forms ("how are you", "what's up") are matched by their own explicit
+// clauses below, so excluding question words here doesn't cost them anything.
+const QUESTION_BODY_REGEX =
+  /\b(?:what|whats|why|how|hows|who|whos|where|wheres|when|whens|which|explain|define|difference)\b/i;
+
 export function detectQueryIntent(query: string): QueryIntent {
-  const q = query.toLowerCase().trim();
+  let q = query.toLowerCase().trim();
 
   const chatTriggers = [
     // Bare "hi"/"hey" need their own exact entries — the "hi "/"hey " trailing-space forms below
@@ -146,11 +159,26 @@ export function detectQueryIntent(query: string): QueryIntent {
   // Strictly for exact-match trigger comparisons — "you good?" should still hit the "you good"
   // trigger even though the question mark survives the outer trim().
   const qNoPunct = q.replace(/[?!.]+$/, '');
+  const wordCount = q.split(/\s+/).filter(Boolean).length;
 
   if (
     !GREETING_FALSE_POSITIVE_REGEX.test(q) && !YO_QUESTION_REGEX.test(q) && (
     chatTriggers.some(
-      (t) => q === t || qNoPunct === t || q.startsWith(t + ' ') || q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
+      (t) =>
+        q === t ||
+        qNoPunct === t ||
+        // A leading chat token only makes the WHOLE message conversational when the message is
+        // actually a short chat message with no question in it. "hey", "ok", "yo", "lol", "idk"
+        // and "so" are how half of Discord opens a real question — "hey so my little brother
+        // asked me how photosynthesis works", "ok so hear me out, why is the sky blue", "idk if
+        // this is dumb but what happens if you fall into a black hole" — and the unguarded
+        // startsWith swallowed every one of them into a canned greeting, with no corpus search
+        // at all. The narrow "yo + question word" exemption above was this same bug, spotted for
+        // one trigger; this generalizes it to all of them.
+        (isChatLength(wordCount) &&
+          q.startsWith(t + ' ') &&
+          !QUESTION_BODY_REGEX.test(q.slice(t.length))) ||
+        q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
     ) ||
     // "facts" bare (agreement slang, like "no cap") needs an exact match ONLY — "startsWith"
     // would also swallow real questions like "facts about black holes".
@@ -169,6 +197,13 @@ export function detectQueryIntent(query: string): QueryIntent {
     return 'conversational';
   }
 
+  // Everything below classifies on `q.startsWith(...)`, which a leading chat token silently
+  // defeats — "lol what is a black hole" and "bruh why is the sky blue" landed on 'general'
+  // instead of definition/causal purely because of the first word. The conversational branch has
+  // already returned by this point, so a message that is nothing BUT filler can't be affected.
+  const stripped = q.replace(LEADING_FILLER_REGEX, '');
+  if (stripped.length > 0) q = stripped;
+
   // Math trigger
   if (
     /\d+\s*[+\-*/÷×^%]\s*\d+/.test(q) ||
@@ -183,8 +218,12 @@ export function detectQueryIntent(query: string): QueryIntent {
     (/\d\s*(?:mph|km\/h|kmh|miles per hour|kilometers? per hour|kilometres? per hour)/.test(q) &&
       /how\s+far|how\s+long|what\s+distance|how\s+many\s+hours/.test(q)) ||
     q.includes('calculate') ||
-    q.includes('compute') ||
-    q.includes('solve ') ||
+    // Word-boundaried, not a bare substring: "compute" is inside "computer", "computers" and
+    // "computing", so ANY message mentioning a computer was classified as arithmetic and shipped
+    // to the math solver — which is most of the CS corpus, and every rambling "how does the
+    // computer know where to go" question. Same for "solve" inside "resolve"/"dissolve".
+    /\bcomput(?:e|es|ed)\b/.test(q) ||
+    /\bsolve\b/.test(q) ||
     q.includes('convert ') ||
     // Named math operations phrased as "what is the X of N" ("what is the square root of 81")
     // need their own explicit check — the generic "what is X" math heuristic below deliberately
@@ -255,6 +294,13 @@ export function detectQueryIntent(query: string): QueryIntent {
   if (
     q.startsWith('how ') ||
     q.startsWith('explain ') ||
+    // A buried imperative ask — "...and honestly can you explain photosynthesis to me" — only
+    // ever matched when "explain" was the very first word, so any rambling message that gets to
+    // its request late fell through to 'general'. Deliberately narrow to the imperative forms:
+    // a bare "explain it simply" tacked onto a comparison ("...just explain it simply, what's
+    // the difference between tcp and udp") is not an explanation request, it's a style note.
+    /\b(?:can|could|would|will)\s+(?:you|u)\s+(?:please\s+)?(?:explain|describe|break\s+down)\b/.test(q) ||
+    /\bexplain\s+(?:to\s+me\s+)?(?:what|how|why)\b/.test(q) ||
     q.includes('how does') ||
     q.includes('how do ') ||
     q.includes('how can')
@@ -922,7 +968,29 @@ export function generateReasoningPath(
 
   // 2. Internet Slang & Acronym Normalization + Brainrot Disambiguation (e.g. 67 meme vs literal 67 apples)
   const slangAnalysis = normalizeInternetSlang(prompt);
-  const effectivePrompt = slangAnalysis.normalizedText;
+  // Typo correction runs on the prompt BEFORE intent detection, not only inside the retrieval
+  // and embedding scorers. Those two only ever fixed the terms being scored, so a misspelled
+  // question word ("wut is the squar root of 81") was already routed to the wrong intent and the
+  // wrong solver — or no solver at all — long before either corrector got a say.
+  // Two passes: long content words against the real corpus vocabulary (so Domain Intelligence
+  // and the solvers see "photosynthesis", not "photosythesis"), then the routing-word pass.
+  const bm25 = getBM25Engine(allKnowledge);
+  const contentFix = bm25.correctRawWords(slangAnalysis.normalizedText);
+  const typoAnalysis = correctPromptTypos(contentFix.text, bm25.vocabulary);
+  const effectivePrompt = typoAnalysis.text;
+  const allCorrections = [...contentFix.corrections, ...typoAnalysis.corrections];
+
+  if (allCorrections.length > 0) {
+    thoughtSteps.push({
+      id: 'step-typo-correction',
+      type: 'reasoning',
+      title: '✏️ Fixed some spelling',
+      description: allCorrections
+        .slice(0, 6)
+        .map((c) => `• "${c.from}" → "${c.to}"`)
+        .join('\n'),
+    });
+  }
 
   if (slangAnalysis.detectedSlangs.length > 0) {
     thoughtSteps.push({
@@ -990,7 +1058,10 @@ export function generateReasoningPath(
 
   // 3. Intent Detection (using normalized text for maximum accuracy)
   const intent = detectQueryIntent(effectivePrompt);
-  const queryTerms = processForSearch(effectivePrompt);
+  // Retrieval-only view of the prompt: routing and the solvers still see the full sentence,
+  // but corpus scoring drops the narrative filler wrapped around the actual question.
+  const searchPrompt = denoiseRamblingQuery(effectivePrompt);
+  const queryTerms = processForSearch(searchPrompt);
   const entities = extractQueryEntities(prompt);
 
   thoughtSteps.push({
@@ -1276,7 +1347,10 @@ export function generateReasoningPath(
   }
 
   // 8. Memory Resolution & Corpus Search
-  const memory = buildConversationMemory(prompt, history);
+  // Built from searchPrompt, not the raw prompt: this is what actually gets searched, so it
+  // should carry the slang normalization, typo corrections and filler-stripping done above —
+  // the raw prompt threw all three away right before the main corpus search.
+  const memory = buildConversationMemory(searchPrompt, history);
   if (memory.isFollowUp || memory.citedDocIds.size > 0) {
     thoughtSteps.push({
       id: 'step-memory-loaded',
@@ -1290,7 +1364,7 @@ export function generateReasoningPath(
   // has a real antecedent somewhere in it — this check is only meant to catch a truly fresh,
   // context-free opener, not to second-guess an ongoing conversation's follow-up questions.
   const hasCarriedContext =
-    memory.augmentedQuery !== prompt || memory.citedDocIds.size > 0 || history.some((m) => m.role === 'user');
+    memory.augmentedQuery !== searchPrompt || memory.citedDocIds.size > 0 || history.some((m) => m.role === 'user');
   if (isDanglingReferenceQuery(prompt, hasCarriedContext)) {
     thoughtSteps.push({
       id: 'step-dangling-reference',

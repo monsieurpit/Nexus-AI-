@@ -1,6 +1,6 @@
 import { KnowledgeItem, AttentionScore, UserMemory } from '../types';
 import { tokenize } from './tokenizer';
-import { levenshteinDistance, STOP_WORDS } from './bm25Engine';
+import { levenshteinDistance, STOP_WORDS, isAdjacentTransposition } from './bm25Engine';
 
 // 24-Dimensional Semantic Latent Representation
 export const SEMANTIC_DIMENSIONS = [
@@ -98,20 +98,6 @@ let semanticHarvestedVocabularyCache: Set<string> | null = null;
 // typo tolerance for. This tiny, hand-reviewed list is trusted for any single edit; see below for
 // why the much larger harvested vocabulary is held to a stricter standard.
 const SEMANTIC_SEED_VOCABULARY = new Set(['how', 'what', 'why', 'who', 'when', 'where', 'which', 'like', 'love', 'hate']);
-
-function isAdjacentTransposition(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  const diffPositions: number[] = [];
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) diffPositions.push(i);
-  }
-  return (
-    diffPositions.length === 2 &&
-    diffPositions[1] === diffPositions[0] + 1 &&
-    a[diffPositions[0]] === b[diffPositions[1]] &&
-    a[diffPositions[1]] === b[diffPositions[0]]
-  );
-}
 
 function correctSemanticTypos(text: string, harvestedVocabulary: Set<string>): string {
   return text

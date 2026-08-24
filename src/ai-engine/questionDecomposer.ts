@@ -78,3 +78,66 @@ export function decomposeCompoundQuestion(query: string): DecomposedQuestion {
 
   return { isCompound: false, parts: [trimmed] };
 }
+
+/**
+ * Strips narrative filler out of a long, rambling Discord message so BM25 scores the actual
+ * question instead of the story wrapped around it.
+ *
+ * A message like "idk if this is a dumb question but everyone keeps talking about black holes in
+ * movies and stuff and i just wanna know what actually happens if you fall into one" is 30 words
+ * of which four are the topic. BM25 sums over every query term, so the eight narrative words
+ * ("dumb", "question", "everyone", "talking", "movies", "stuff", "wanna", "know") outvoted them
+ * and returned the film-industry document ahead of the black-hole one.
+ *
+ * The filler list is only ever applied to the *preamble* — everything before the last
+ * interrogative — never to the question clause itself. That distinction is what makes it safe to
+ * list ordinary nouns like "movies" or "documentary": in "how do movies actually get made" the
+ * question clause starts at "how", the preamble is empty, and nothing is touched at all.
+ */
+const NARRATIVE_FILLER = new Set(
+  `yesterday today tonight tomorrow friend friends roommate brother sister mom dad guy dude bro
+   man buddy homie people everyone somebody someone anybody nobody
+   thing things stuff wondering wonder wondered thinking thought asked asking ask telling told
+   tell said saying say talking talked talk watching watched saw seen reading
+   honestly genuinely basically actually literally seriously legit random dumb stupid weird crazy
+   insane please sorry anyway anyways unrelated curious figure understand simply
+   ages hour hours minute minutes question questions answer answers
+   tiktok youtube instagram twitter documentary movie movies
+   wanna gonna gotta kinda sorta lemme dunno
+   zoned nodded clue argue arguing argued
+   explanation explaining explained technical confused confusing
+   keeps keep kept wanted tried trying tries couldnt didnt`
+    .split(/\s+/)
+    .filter(Boolean)
+);
+
+// Where the real question starts. "explain"/"describe" are included so a message whose actual
+// ask is phrased without a wh-word ("...can you explain photosynthesis to me") still has a
+// question clause to protect.
+const CLAUSE_MARKER =
+  /^(?:what|whats|how|hows|why|who|whos|where|wheres|when|whens|which|explain|describe|define)$/i;
+
+// Below this a message is a normal question, not a story with a question buried in it.
+const MIN_RAMBLE_WORDS = 12;
+// Fewer removals than this and the preamble was carrying real content, not filler.
+const MIN_FILLER_REMOVED = 3;
+
+export function denoiseRamblingQuery(query: string): string {
+  const words = query.trim().split(/\s+/);
+  if (words.length < MIN_RAMBLE_WORDS) return query;
+
+  const bare = (w: string) => w.toLowerCase().replace(/[^a-z']/g, '');
+  let clauseStart = -1;
+  for (let i = words.length - 1; i >= 0; i--) {
+    if (CLAUSE_MARKER.test(bare(words[i]))) {
+      clauseStart = i;
+      break;
+    }
+  }
+  // No marker at all, or the message already opens with the question — nothing is preamble.
+  if (clauseStart <= 0) return query;
+
+  const preamble = words.slice(0, clauseStart).filter((w) => !NARRATIVE_FILLER.has(bare(w)));
+  if (clauseStart - preamble.length < MIN_FILLER_REMOVED) return query;
+  return [...preamble, ...words.slice(clauseStart)].join(' ');
+}

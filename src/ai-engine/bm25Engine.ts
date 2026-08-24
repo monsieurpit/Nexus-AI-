@@ -403,6 +403,21 @@ export function levenshteinDistance(a: string, b: string): number {
   return matrix[b.length][a.length];
 }
 
+/** Two words identical except for one swapped adjacent letter pair ("wehre"/"where"). */
+export function isAdjacentTransposition(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const diff: number[] = [];
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) diff.push(i);
+  }
+  return (
+    diff.length === 2 &&
+    diff[1] === diff[0] + 1 &&
+    a[diff[0]] === b[diff[1]] &&
+    a[diff[1]] === b[diff[0]]
+  );
+}
+
 export function correctTypos(terms: string[], vocabulary: Set<string>): string[] {
   return terms.map((term) => {
     // Short words (<=4 letters) are the danger zone: against a corpus-sized vocabulary there's
@@ -451,6 +466,12 @@ export class BM25Engine {
   // the full vocabulary Set (every unique term/bigram/trigram across the whole corpus) on
   // every single search() call, which is what the uncached getter used to do.
   private cachedVocabulary: Set<string> | null = null;
+  // Unstemmed corpus words. correctTypos() exempts anything <=4 characters, but it only ever ran
+  // on already-stemmed query terms — so a plainly-misspelled 7-letter word whose stem happens to
+  // be short ("lerning" -> stem "lern") slipped under that exemption and was never corrected at
+  // all, even though "learn" sat right there in the vocabulary. Correcting the full-length word
+  // first is both more effective and safer: more letters means fewer coincidental collisions.
+  private rawVocabulary: Set<string> = new Set();
 
   private readonly k1: number = 1.5;
   private readonly b: number = 0.75;
@@ -495,6 +516,10 @@ export class BM25Engine {
     this.indexEntityTitle(doc.title, docIdx);
     for (const kw of doc.keywords) {
       this.indexEntityPhrase(kw, docIdx);
+    }
+
+    for (const w of tokenizeWords(`${doc.title} ${doc.keywords.join(' ')} ${doc.content}`)) {
+      if (w.length > 4 && !/\d/.test(w)) this.rawVocabulary.add(w);
     }
 
     const baseTitle = processForSearch(doc.title);
@@ -565,12 +590,69 @@ export class BM25Engine {
     this.termFrequencies = [];
     this.documentFrequencies = new Map();
     this.entityIndex = new Map();
+    this.rawVocabulary = new Set();
     this.avgDocLength = 0;
     this.totalDocLength = 0;
 
     for (const doc of docs) {
       this.addDocument(doc);
     }
+  }
+
+  /**
+   * Fixes misspelled full-length words against the unstemmed corpus vocabulary, before stemming.
+   *
+   * correctTypos() below exempts anything <=4 characters, but it only ever ran on already-stemmed
+   * terms — a plainly misspelled long word whose stem happens to be short ("lerning" -> stem
+   * "lern") slipped under that exemption and was never corrected, even with "learning" sitting
+   * right there in the vocabulary.
+   *
+   * Thresholds here were set by running this over /usr/share/dict/words and reading the output:
+   *  - 7-letter floor. Under that, a word sits one edit from something in a corpus-sized
+   *    vocabulary nearly every time ("advise"/"advice", "alter"/"after", "abort"/"about") and
+   *    every one of those is a word a user might genuinely type.
+   *  - At exactly 7-9 letters, only *structural* typos count — a length change or an adjacent
+   *    transposition. Same-length substitutions at this length are overwhelmingly collisions
+   *    between two distinct real words ("agility"/"ability", "audition"/"addition"), not typos.
+   *  - At exactly 7 letters, only the dropped-letter direction (a strictly LONGER candidate).
+   *    People omit letters far more than they add them, so a 7-letter word matching a shorter
+   *    vocabulary word almost always means the user's word was itself real and simply absent
+   *    from this corpus ("banking" -> "baking", "auction" -> "action", "armrest" -> "arrest").
+   *  - Past 10 letters a coincidental one- or two-edit neighbour essentially stops happening.
+   */
+  public correctRawWords(query: string): { text: string; corrections: { from: string; to: string }[] } {
+    const corrections: { from: string; to: string }[] = [];
+    if (this.rawVocabulary.size === 0) return { text: query, corrections };
+    const text = query.replace(/[A-Za-z]{7,}/g, (word) => {
+      const lower = word.toLowerCase();
+      if (STOP_WORDS.has(lower) || this.rawVocabulary.has(lower)) return word;
+      const wordStem = stem(lower);
+      const isLong = lower.length >= 10;
+      const maxDist = isLong ? 2 : 1;
+      let best: string | null = null;
+      let bestDist = maxDist + 1;
+      let tied = false;
+      for (const cand of this.rawVocabulary) {
+        if (cand[0] !== lower[0] || Math.abs(cand.length - lower.length) > maxDist) continue;
+        if (!isLong && cand.length === lower.length && !isAdjacentTransposition(lower, cand)) continue;
+        if (lower.length === 7 && cand.length <= lower.length) continue;
+        // Rewriting a word into its own inflection ("athlete" -> "athletes") is a no-op once
+        // both are stemmed, so it buys nothing and only adds a chance of picking wrong.
+        if (stem(cand) === wordStem) continue;
+        const d = levenshteinDistance(lower, cand);
+        if (d < bestDist) {
+          bestDist = d;
+          best = cand;
+          tied = false;
+        } else if (d === bestDist && cand !== best) {
+          tied = true;
+        }
+      }
+      if (!best || tied) return word;
+      corrections.push({ from: word, to: best });
+      return best;
+    });
+    return { text, corrections };
   }
 
   public search(
@@ -581,7 +663,7 @@ export class BM25Engine {
   ): BM25ScoredItem[] {
     if (this.documents.length === 0) return [];
 
-    const originalTerms = processForSearch(query);
+    const originalTerms = processForSearch(this.correctRawWords(query).text);
     let queryTerms = originalTerms;
     if (expandSynonyms) {
       queryTerms = expandQuerySynonyms(queryTerms);
@@ -646,7 +728,7 @@ export class BM25Engine {
     return reranked.slice(0, topK).map((entry) => {
       const doc = this.documents[entry.idx];
       const snippet = this.bestSnippet(doc.content, queryTerms);
-      const sentences = this.bm25Sentences(doc, queryTerms, 4);
+      const sentences = this.bm25Sentences(doc, queryTerms, 4, literalTerms);
       return {
         item: doc,
         score: parseFloat(entry.score.toFixed(3)),
@@ -656,7 +738,16 @@ export class BM25Engine {
     });
   }
 
-  public bm25Sentences(document: KnowledgeItem, queryTerms: string[], count: number = 4): string[] {
+  // literalTerms mirrors bm25()'s synonym downweight. Without it, sentence picking ranked
+  // synonym-only matches level with the words the user actually typed: "what is the largest
+  // planet" pulled "The eight planets orbit the Sun..." (matching the expanded "orbit"/"solar")
+  // over "The outer gas giants — Jupiter (largest, ...)", the one sentence carrying the answer.
+  public bm25Sentences(
+    document: KnowledgeItem,
+    queryTerms: string[],
+    count: number = 4,
+    literalTerms?: Set<string>
+  ): string[] {
     const sents = splitSentences(document.content);
     if (sents.length === 0 || queryTerms.length === 0) return [];
 
@@ -679,7 +770,11 @@ export class BM25Engine {
         if (freq > 0) {
           const idfVal = this.idf(term);
           const norm = sentK1 * (1 - sentB + (sentB * dl) / avgSentLen);
-          score += (idfVal * freq * (sentK1 + 1)) / (freq + norm);
+          let termScore = (idfVal * freq * (sentK1 + 1)) / (freq + norm);
+          if (literalTerms && !literalTerms.has(term) && !term.includes('~')) {
+            termScore *= 0.35;
+          }
+          score += termScore;
         }
       }
       return { text: sentence, score };

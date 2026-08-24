@@ -352,6 +352,24 @@ export function evaluateBrainrotContext(query: string): {
     };
   }
 
+  // Italian Brainrot (AI-generated animal-hybrid characters that blew up on TikTok/Discord in
+  // 2024-25) — a whole meme family with no coverage at all before this, so anything from it
+  // ("tung tung tung sahur") fell through to corpus search and got matched against unrelated
+  // content by stray keyword overlap instead of being recognized as brainrot at all.
+  if (
+    /\b(?:tung\s+tung\s+tung\s+sahur|tung\s+sahur|tralalero\s+tralala|bombardiro\s+crocodilo|bombardino\s+coccodrillo|brr\s+brr\s+patapim|cappuccino\s+assassino|lirili\s+larila|italian\s+brainrot|ballerina\s+cappuccina|chimpanzini\s+bananini)\b/i.test(
+      q
+    )
+  ) {
+    return {
+      isBrainrot: true,
+      brainrotType: 'italian_brainrot',
+      isLiteralNumeric67: false,
+      explanation:
+        "Italian Brainrot is a family of surreal AI-generated animal-hybrid characters (Tung Tung Tung Sahur — a wooden log with a bat, Tralalero Tralala — a shark in Nikes, Bombardiro Crocodilo — a crocodile fighter jet, Ballerina Cappuccina) with fake Italian names and absurd backstories, narrated in AI-generated Italian voiceovers, that blew up on TikTok/YouTube Shorts in 2024-2025 and spread straight into Discord meme culture.",
+    };
+  }
+
   if (/\b(?:grimace\s+shake|grimace\s+incident)\b/i.test(q)) {
     return {
       isBrainrot: true,
@@ -399,6 +417,23 @@ export function generateBrainrotResponse(
 
     case 'baby_gronk':
       return `**Baby Gronk** (real name Madden San Miguel) is a viral youth football kid whose dad turned his highlight clips into a full-blown internet phenomenon. 😂\n\nHe got immortalized in brainrot lore when TikTok collectively decided that "Baby Gronk rizzed up Livvy Dunne" (LSU gymnast) to become "the new Rizzler" — a completely made-up storyline the internet ran with as if it were breaking news.\n\nPeak parasocial internet chaos, honestly.`;
+
+    case 'italian_brainrot': {
+      // Named this way because the opening line used to hardcode "Tung Tung Tung Sahur"
+      // regardless of which character the user actually mentioned ("what is bombardiro
+      // crocodilo" got an answer that opened by claiming the user said "tung tung tung sahur").
+      const lowerPrompt = userPrompt.toLowerCase();
+      const mentioned = /\b(?:tung\s+tung\s+tung\s+sahur|tung\s+sahur)\b/i.test(lowerPrompt)
+        ? 'Tung Tung Tung Sahur'
+        : /\btralalero\s+tralala\b/i.test(lowerPrompt)
+        ? 'Tralalero Tralala'
+        : /\b(?:bombardiro\s+crocodilo|bombardino\s+coccodrillo)\b/i.test(lowerPrompt)
+        ? 'Bombardiro Crocodilo'
+        : /\bballerina\s+cappuccina\b/i.test(lowerPrompt)
+        ? 'Ballerina Cappuccina'
+        : 'Italian Brainrot';
+      return `Bro said **${mentioned}** to me 💀 that's straight out of **Italian Brainrot** — a whole cursed universe of AI-generated animal-hybrid characters with fake Italian names, made with AI voice generators and Blender/AI image tools, that took over TikTok and YouTube Shorts in 2024-25.\n\nTung Tung Tung Sahur is a wooden log with a face and a baseball bat (named after the Indonesian "sahur" drum used to wake people for pre-dawn Ramadan meals), and he's got a whole cast of buddies: **Tralalero Tralala** (a shark wearing Nikes), **Bombardiro Crocodilo** (a crocodile fused with a fighter jet), **Ballerina Cappuccina** (a coffee-cup-headed ballerina). Zero logic, maximum brainrot, and it's somehow everywhere now.`;
+    }
 
     case 'grimace_shake':
       return `The **Grimace Shake trend** was a summer 2023 TikTok phenomenon around McDonald's purple birthday milkshake (named after the mascot Grimace). 💀\n\nThe joke: people would film themselves drinking it, then the video would abruptly cut to fake found-footage horror aftermath — smashed rooms, "missing" title cards, chaos — implying the shake turned them feral or straight-up killed them.\n\nMcDonald's marketing team somehow let a mascot beverage become a horror-movie meme and it worked.`;

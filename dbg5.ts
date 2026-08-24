@@ -1,0 +1,10 @@
+import { getBM25Engine } from './src/ai-engine/semanticEngine';
+import { BUILTIN_KNOWLEDGE } from './src/ai-engine/knowledgeBase';
+import { processForSearch, splitSentences, expandQuerySynonyms } from './src/ai-engine/bm25Engine';
+const e = getBM25Engine(BUILTIN_KNOWLEDGE);
+const q = 'what is the largest planet';
+console.log('terms', processForSearch(q), 'expanded', expandQuerySynonyms(processForSearch(q)));
+const doc = BUILTIN_KNOWLEDGE.find(d => d.title.includes('Solar System'))!;
+console.log('doc', doc.title);
+for (const s of splitSentences(doc.content)) console.log('  SENT:', JSON.stringify(s.slice(0,110)));
+console.log('---picked:', e.bm25Sentences(doc, expandQuerySynonyms(processForSearch(q)), 4));
