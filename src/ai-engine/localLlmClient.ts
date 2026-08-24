@@ -36,7 +36,7 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
   }
 
   const controller = new AbortController();
-  const timeoutMs = options.timeoutMs ?? 12000;
+  const timeoutMs = options.timeoutMs ?? 30000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
 

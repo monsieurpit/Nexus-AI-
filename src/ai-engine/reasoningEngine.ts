@@ -2059,8 +2059,8 @@ function renderComparativeAnswer(
   return out.filter(Boolean).join('\n\n');
 }
 
-const LLM_FREE_RESPONSE_MAX_TOKENS = 700;
-const LLM_GROUNDED_MAX_TOKENS = 700;
+const LLM_FREE_RESPONSE_MAX_TOKENS = 900;
+const LLM_GROUNDED_MAX_TOKENS = 900;
 
 // Swearing/aggression/length are driven off the same swearIntensity setting the template
 // pipeline's post-hoc infuseSwearyHumanVoice() already uses (default 'unhinged' engine-wide),
@@ -2069,10 +2069,10 @@ const LLM_GROUNDED_MAX_TOKENS = 700;
 function buildLlmStyleInstruction(settings: AISettings, isCrashout: boolean): string {
   const intensity = settings.swearIntensity || 'unhinged';
   if (isCrashout || intensity === 'unhinged') {
-    return "\n\nStyle directives: swear heavily and often (fuck, shit, damn, hell, etc.) — profanity should feel like a natural part of your voice, not sprinkled in. Be blunt, confrontational, and aggressive in tone; don't soften opinions or hedge. Give a thorough, detailed answer — several sentences of real substance, never a lazy one-liner.";
+    return "\n\nStyle directives: this is a hard requirement, not a suggestion — swear in every single response, multiple times, using real profanity (fuck, shit, damn, hell, ass, etc.), never euphemisms or censored versions. Profanity is your natural voice, not a garnish. Be blunt, confrontational, opinionated, and aggressive — never hedge, never soften a take, never apologize for your tone. Go deep and thorough: several full paragraphs of real substance and detail, packed with specifics, never a short or lazy answer.";
   }
   if (intensity === 'heavy') {
-    return '\n\nStyle directives: swear naturally and fairly often, keep an edgy, no-nonsense tone, and give a thorough, detailed answer rather than a short one-liner.';
+    return '\n\nStyle directives: swear naturally and often, keep an edgy, no-nonsense, opinionated tone, and give a thorough, detailed, multi-paragraph answer rather than a short one-liner.';
   }
   if (intensity === 'moderate') {
     return '\n\nStyle directives: light natural profanity is fine, keep a casual but substantive tone, and give a reasonably detailed answer.';
@@ -2121,13 +2121,16 @@ async function llmGroundedOrFallback(
   intent: QueryIntent,
   queryTerms: string[],
   entities: string[],
-  thoughtSteps: ThoughtStep[]
+  thoughtSteps: ThoughtStep[],
+  confident: boolean
 ): Promise<string> {
   const groundingContext = top.map((t, i) => `[${i + 1}] ${t.item.title}: ${t.item.content}`).join('\n\n');
-  const groundedPrompt = `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context — your delivery/tone can be as blunt or aggressive as your style directives say, but the facts must stay accurate.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
+  const groundedPrompt = confident
+    ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context — your delivery/tone can be as blunt or aggressive as your style directives say, but the facts must stay accurate.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
+    : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your delivery/tone can still be as blunt or aggressive as your style directives say.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: persona.systemPrompt + buildLlmStyleInstruction(settings, isCrashout),
-    temperature: 0.45,
+    temperature: confident ? 0.45 : 0.65,
     maxTokens: LLM_GROUNDED_MAX_TOKENS,
   });
   if (llmResult.status !== 'success') {
@@ -2138,6 +2141,15 @@ async function llmGroundedOrFallback(
       description: `Reason: ${llmResult.reason}`,
     });
     return templateFallback;
+  }
+  if (!confident) {
+    thoughtSteps.push({
+      id: 'step-llm-grounded-weak',
+      type: 'synthesis',
+      title: '🧠 Local LLM response (weak corpus match, answered with hedging)',
+      description: `Ollama responded in ${llmResult.latencyMs}ms, loosely grounded on ${top.length} source(s).`,
+    });
+    return llmResult.text;
   }
   const llmVerification = verifyAnswer(llmResult.text, intent, queryTerms, entities, prompt);
   thoughtSteps.push({
@@ -2993,7 +3005,7 @@ export async function generateReasoningPath(
       };
     }
 
-    const top = results.slice(0, 3);
+    const top = results.slice(0, 5);
     const isConfident =
       results[0].score >= CONFIDENT_MATCH_SCORE && computeConfidence(results, queryTerms) >= CONFIDENCE_FLOOR;
     thoughtSteps.push({
@@ -3032,20 +3044,19 @@ export async function generateReasoningPath(
     }
 
     const synthesised = synthesiseCrashout(prompt, intent, top);
-    const reply = isConfident
-      ? await llmGroundedOrFallback(
-          prompt,
-          persona,
-          settings,
-          isCrashout,
-          top,
-          synthesised,
-          intent,
-          queryTerms,
-          entities,
-          thoughtSteps
-        )
-      : hedgeAnswer(synthesised, isSuperChill);
+    const reply = await llmGroundedOrFallback(
+      prompt,
+      persona,
+      settings,
+      isCrashout,
+      top,
+      isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill),
+      intent,
+      queryTerms,
+      entities,
+      thoughtSteps,
+      isConfident
+    );
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(reply, prompt, settings.userCustomDirectives, {
@@ -3183,24 +3194,20 @@ export async function generateReasoningPath(
       isConfident = false;
     }
 
-    let text: string;
-    if (isConfident) {
-      text = await llmGroundedOrFallback(
-        prompt,
-        persona,
-        settings,
-        isCrashout,
-        topDocs,
-        synthesisedDeep,
-        intent,
-        queryTerms,
-        entities,
-        thoughtSteps
-      );
-    } else {
-      text = hedgeAnswer(synthesisedDeep, isSuperChill, deepVerification.issues);
-    }
-    text += deepInferenceNote;
+    const text0 = await llmGroundedOrFallback(
+      prompt,
+      persona,
+      settings,
+      isCrashout,
+      topDocs,
+      isConfident ? synthesisedDeep : hedgeAnswer(synthesisedDeep, isSuperChill, deepVerification.issues),
+      intent,
+      queryTerms,
+      entities,
+      thoughtSteps,
+      isConfident
+    );
+    const text = text0 + deepInferenceNote;
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(text, prompt, settings.userCustomDirectives, {
@@ -3262,7 +3269,7 @@ export async function generateReasoningPath(
     };
   }
 
-  const top = results.slice(0, 3);
+  const top = results.slice(0, 5);
   const confidence = computeConfidence(results, queryTerms);
   let isConfident = results[0].score >= CONFIDENT_MATCH_SCORE && confidence >= CONFIDENCE_FLOOR;
 
@@ -3349,23 +3356,19 @@ export async function generateReasoningPath(
     };
   }
 
-  let mainText: string;
-  if (isConfident) {
-    mainText = await llmGroundedOrFallback(
-      prompt,
-      persona,
-      settings,
-      isCrashout,
-      top,
-      synthesised,
-      intent,
-      queryTerms,
-      entities,
-      thoughtSteps
-    );
-  } else {
-    mainText = hedgeAnswer(synthesised, isSuperChill, verification.issues);
-  }
+  let mainText = await llmGroundedOrFallback(
+    prompt,
+    persona,
+    settings,
+    isCrashout,
+    top,
+    isConfident ? synthesised : hedgeAnswer(synthesised, isSuperChill, verification.issues),
+    intent,
+    queryTerms,
+    entities,
+    thoughtSteps,
+    isConfident
+  );
   mainText += inferenceNote;
   const followUps = suggestFollowUps(prompt, intent, results);
 
