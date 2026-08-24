@@ -446,7 +446,14 @@ export function parseSdkRules(
     /(?:roast|savage|burn|diss)/i.test(directivesOnlyText) ||
     /(?:roast\s+(?:me|him|her|them|this|that|it)\b|give\s+me\s+a\s+(?:savage\s+)?roast|savage\s+roast|roast\s+mode)/i.test(
       promptLower
-    );
+    ) ||
+    // "roast <username/name> '<reason>'" — a real Discord roast-a-third-party command shape
+    // (e.g. "roast xXplayerXx 'hes stiff'") was falling through entirely, since the pronoun-only
+    // pattern above only covers "roast me/him/her/them/this/that/it", not an arbitrary name. A
+    // quoted reason after the target is a strong, low-false-positive signal this is a roast
+    // request rather than an unrelated use of "roast" (roast chicken, roast garlic, etc.), which
+    // never come with a quoted clause attached.
+    /\broast\s+\S+.*["'].+["']/i.test(promptLower);
   const isCrashoutRequested =
     /(?:crash\s*out|rage|unhinged)/i.test(directivesOnlyText) ||
     /(?:crash\s*out\s+mode|go\s+unhinged|activate\s+crashout|crashout\s+mode)/i.test(promptLower);

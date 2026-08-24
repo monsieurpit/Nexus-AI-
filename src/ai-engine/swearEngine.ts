@@ -452,10 +452,14 @@ export function enhanceNaturalSwearPhrasing(
         // first half of an unrelated hyphenated compound — "hard" inside "Hard-Boiled", "false"
         // inside "false-9" (a real football tactical term) — corrupting it into "tricky as
         // hell-Boiled" or "bullshit-9". Skip the swap whenever a hyphen sits on either side of
-        // the match; it's part of a compound term, not the standalone word being swapped.
+        // the match; it's part of a compound term, not the standalone word being swapped. Same
+        // deal for a space directly followed by a digit ("False 9", not hyphenated at all) —
+        // caught corrupting the exact same football term written the other way, into "total
+        // horseshit 9".
         const before = full[offset - 1];
         const after = full[offset + match.length];
-        if (before === '-' || after === '-') return match;
+        const afterNext = full[offset + match.length + 1];
+        if (before === '-' || after === '-' || (after === ' ' && /\d/.test(afterNext || ''))) return match;
         substitutionsCount++;
         return options[Math.floor(Math.random() * options.length)];
       });

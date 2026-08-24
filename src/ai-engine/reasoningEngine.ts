@@ -74,6 +74,14 @@ const PHONE_NUMBER_REGEX =
 const PERSONAL_QUESTION_REGEX =
   /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i;
 
+// Reassurance/affection statements directed AT the bot ("don't worry, everyone loves you") —
+// declarative, not a question, so they don't match PERSONAL_QUESTION_REGEX either, but they're
+// just as much a dead end for corpus/web search: "don't worry" scored against Anxiety-disorder
+// content via the word "worry", and "everyone loves u" got sent to Google as a literal search
+// query, which came back with unrelated Japanese-grammar and diss-track results.
+const REASSURANCE_REGEX =
+  /\b(?:don'?t\s+worry|everyone\s+loves?\s+you|we\s+(?:all\s+)?love\s+you|you'?re\s+(?:the\s+best|amazing|doing\s+great|appreciated))\b/i;
+
 export function detectQueryIntent(query: string): QueryIntent {
   const q = query.toLowerCase().trim();
 
@@ -97,7 +105,8 @@ export function detectQueryIntent(query: string): QueryIntent {
     /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q) ||
     VC_JOIN_REGEX.test(q) ||
     PHONE_NUMBER_REGEX.test(q) ||
-    PERSONAL_QUESTION_REGEX.test(q)
+    PERSONAL_QUESTION_REGEX.test(q) ||
+    REASSURANCE_REGEX.test(q)
   ) {
     return 'conversational';
   }
@@ -414,6 +423,14 @@ function conversationalReply(
   // Phone number requests
   if (PHONE_NUMBER_REGEX.test(q)) {
     return `(367) 763-0275`;
+  }
+
+  // Reassurance/affection directed at the bot itself
+  if (REASSURANCE_REGEX.test(q)) {
+    const userLabel = username ? ` ${username}` : '';
+    return isSuperChill
+      ? `Damn, appreciate that${userLabel}! You're my favorite homie in this whole server, no cap.`
+      : `Hell yeah, appreciate that! Means a lot coming from you bro.`;
   }
 
   // Personal banter/questions directed at the bot itself

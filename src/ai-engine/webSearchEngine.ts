@@ -598,7 +598,19 @@ export function shouldTriggerLiveWebSearch(
   // 7. FALLBACK: Local corpus has no confident match — reach for the web instead of giving up.
   // Threshold calibrated against real corpus data: genuinely relevant matches average ~0.6,
   // irrelevant ones ~0.3, with the boundary sitting around 0.4.
-  if (typeof matchedConfidence === 'number' && matchedConfidence < 0.42) {
+  //
+  // Only for messages that actually look like a question/information request in the first place.
+  // A declarative statement addressed at the bot ("don't worry, everyone loves you") isn't a
+  // greeting, an insult, or any other pattern this function already excludes — it's just not a
+  // question at all, so it was falling all the way through to here and getting scored on
+  // whatever unrelated corpus document happened to share the most keywords, then searched for
+  // verbatim (producing e.g. an actual Google search for "everyone loves u" that came back with
+  // completely unrelated Japanese-grammar and diss-track results). Nothing on the web answers a
+  // statement that isn't asking anything, so require question-shape before ever reaching here.
+  const looksLikeQuestion =
+    q.includes('?') ||
+    /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should)\b/i.test(q);
+  if (typeof matchedConfidence === 'number' && matchedConfidence < 0.42 && looksLikeQuestion) {
     return 'low-confidence-fallback';
   }
 
