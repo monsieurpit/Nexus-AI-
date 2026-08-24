@@ -6,13 +6,21 @@ export interface OllamaGenerateOptions {
   maxTokens?: number;
   timeoutMs?: number;
   system?: string;
+  topP?: number;
+  stopSequences?: string[];
 }
 
 export type LocalLlmResult =
   | { status: 'success'; text: string; latencyMs: number }
   | {
       status: 'unavailable';
-      reason: 'not_configured' | 'connection_error' | 'timeout' | 'http_error' | 'empty_response' | 'degenerate_output';
+      reason:
+        | 'not_configured'
+        | 'connection_error'
+        | 'timeout'
+        | 'http_error'
+        | 'empty_response'
+        | 'degenerate_output';
       detail?: string;
     };
 
@@ -38,13 +46,21 @@ function isDegenerateRepetition(text: string): boolean {
   return false;
 }
 
+/**
+ * Pings Ollama and confirms OLLAMA_MODEL is actually pulled — a server that's up but hasn't
+ * pulled the configured model will otherwise pass a bare connectivity check and then fail every
+ * real generate() call, which is a worse failure mode to discover mid-request than at startup.
+ */
 export async function checkAvailability(timeoutMs = 2000): Promise<boolean> {
   if (!OLLAMA_BASE_URL) return false;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: controller.signal });
-    return res.ok;
+    if (!res.ok) return false;
+    const data: any = await res.json().catch(() => null);
+    const models: string[] = Array.isArray(data?.models) ? data.models.map((m: any) => m?.name).filter(Boolean) : [];
+    return models.includes(OLLAMA_MODEL);
   } catch {
     return false;
   } finally {
@@ -52,6 +68,11 @@ export async function checkAvailability(timeoutMs = 2000): Promise<boolean> {
   }
 }
 
+/**
+ * Uses /api/chat (system + user role messages) rather than /api/generate's flat prompt string —
+ * Ollama applies the model's actual chat template this way, which follows system instructions
+ * more reliably than /api/generate's looser prompt/system concatenation.
+ */
 export async function generate(prompt: string, options: OllamaGenerateOptions = {}): Promise<LocalLlmResult> {
   if (!OLLAMA_BASE_URL) {
     return { status: 'unavailable', reason: 'not_configured' };
@@ -63,18 +84,24 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
   const startedAt = Date.now();
 
   try {
-    const res = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+    const messages = [
+      ...(options.system ? [{ role: 'system', content: options.system }] : []),
+      { role: 'user', content: prompt },
+    ];
+
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
         model: OLLAMA_MODEL,
-        prompt,
-        system: options.system,
+        messages,
         stream: false,
         options: {
           temperature: options.temperature ?? 0.5,
           num_predict: options.maxTokens ?? 400,
+          top_p: options.topP,
+          stop: options.stopSequences,
           repeat_penalty: 1.3,
           repeat_last_n: 128,
         },
@@ -87,7 +114,7 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     }
 
     const data: any = await res.json();
-    const text = typeof data?.response === 'string' ? data.response.trim() : '';
+    const text = typeof data?.message?.content === 'string' ? data.message.content.trim() : '';
     if (!text) {
       return { status: 'unavailable', reason: 'empty_response' };
     }

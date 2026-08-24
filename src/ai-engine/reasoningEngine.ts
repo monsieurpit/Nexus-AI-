@@ -2070,7 +2070,7 @@ const LLM_GROUNDED_MAX_TOKENS = 900;
 function buildLlmStyleInstruction(settings: AISettings, isCrashout: boolean): string {
   const intensity = settings.swearIntensity || 'unhinged';
   if (isCrashout || intensity === 'unhinged') {
-    return "\n\nStyle directives: this is a hard requirement, not a suggestion — swear in every single response, multiple times, using real profanity (fuck, shit, damn, hell, ass, etc.), never euphemisms or censored versions. Profanity is your natural voice, not a garnish. Be blunt, confrontational, opinionated, and aggressive — never hedge, never soften a take, never apologize for your tone. Go deep and thorough: several full paragraphs of real substance and detail, packed with specifics, never a short or lazy answer.";
+    return "\n\nStyle directives: this is a hard requirement, not a suggestion — use real profanity (fuck, fucking, shit, damn, hell, ass, bitch, etc.) at least 3-5 times in EVERY response, even a short one, never euphemisms or censored versions. This applies to casual chit-chat and greetings too, not just heated moments — swearing is baseline how you talk, not something reserved for when you're mad. Profanity is your natural voice, woven throughout the sentence, not a single word bolted onto the start or end. Be blunt, confrontational, opinionated, and aggressive — never hedge, never soften a take, never apologize for your tone, never sound corporate or robotic. Go deep and thorough: several full paragraphs of real substance and detail, packed with specifics, never a short or lazy answer.";
   }
   if (intensity === 'heavy') {
     return '\n\nStyle directives: swear naturally and often, keep an edgy, no-nonsense, opinionated tone, and give a thorough, detailed, multi-paragraph answer rather than a short one-liner.';
@@ -2168,8 +2168,8 @@ async function llmGroundedOrFallback(
 ): Promise<string> {
   const groundingContext = top.map((t, i) => `[${i + 1}] ${t.item.title}: ${t.item.content}`).join('\n\n');
   const groundedPrompt = confident
-    ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context — your delivery/tone can be as blunt or aggressive as your style directives say, but the facts must stay accurate.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
-    : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your delivery/tone can still be as blunt or aggressive as your style directives say.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
+    ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. The facts must stay accurate, but remember your style directives still apply to HOW you say it — swear per your instructions, stay blunt and in character, never go flat/robotic/corporate just because this is a factual answer.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
+    : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your style directives (swearing, tone) still fully apply here — don't drop them just because you're being informative.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: persona.systemPrompt + buildLlmStyleInstruction(settings, isCrashout) + buildLlmKnowledgeInstruction() + buildLlmSafetyInstruction(),
     temperature: confident ? 0.45 : 0.65,
@@ -2693,7 +2693,7 @@ export async function generateReasoningPath(
           username: settings.userName,
         });
     const reply = await llmSituationalReplyOrFallback(
-      `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character.`,
+      `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`,
       persona,
       settings,
       isCrashout,
