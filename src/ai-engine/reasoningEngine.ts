@@ -126,6 +126,15 @@ const GREETING_FALSE_POSITIVE_REGEX =
 // question word is real content, not a greeting.
 const YO_QUESTION_REGEX = /^yo[,!]?\s+(?:what|whats|how|hows|why|when|whens|where|wheres|who|whos|which|can|could|is|are|do|does|did|will|would)\b/i;
 
+// "yo whats good"/"yo whats up"/"yo whats good bro" are idiomatic greetings (same meaning as
+// "yo what's up") — YO_QUESTION_REGEX above matches these too since "whats" is a question word,
+// hijacking them into corpus search the same way "yo what causes a supernova" is meant to go, but
+// unlike that query there's no real question here to search for. Carved out separately so these
+// specific idiom tails stay conversational while genuine "yo what's the capital of France"-style
+// questions still fall through to real search.
+const YO_GREETING_TAIL_REGEX =
+  /^yo[,!]?\s+what'?s?\s+(?:good|up|poppin'?|crackin'?|gucci|new|good\s+(?:with\s+you|bro|man|homie|my\s+g|fam|g))\s*[?!.]*$/i;
+
 // Gen-Z "W"/"L" praise-or-flame shorthand ("W", "Massive W", "W Nexus", "W you Nexus", "L") — a
 // bare single letter is way too collision-prone to match loosely (it'd fire inside any sentence
 // containing a stray "w" or "l"), so this only fires when the ENTIRE message — after stripping
@@ -768,7 +777,7 @@ export function detectQueryIntent(query: string): QueryIntent {
   const wordCount = q.split(/\s+/).filter(Boolean).length;
 
   if (
-    !GREETING_FALSE_POSITIVE_REGEX.test(q) && !YO_QUESTION_REGEX.test(q) && (
+    !GREETING_FALSE_POSITIVE_REGEX.test(q) && (!YO_QUESTION_REGEX.test(q) || YO_GREETING_TAIL_REGEX.test(q)) && (
     chatTriggers.some(
       (t) =>
         q === t ||
@@ -795,6 +804,7 @@ export function detectQueryIntent(query: string): QueryIntent {
     // exactly the bug already fixed for the semantic dimension scorer.
     q === 'what' || qNoPunct === 'what' || q === 'wait, what' || q === 'wait what' ||
     /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q)) ||
+    YO_GREETING_TAIL_REGEX.test(q) ||
     VC_JOIN_REGEX.test(q) ||
     PHONE_NUMBER_REGEX.test(q) ||
     PERSONAL_QUESTION_REGEX.test(q) ||
