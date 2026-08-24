@@ -434,7 +434,15 @@ if __name__ == "__main__":
   const hasSqlContext = /\b(sql|postgres|mysql|database|table)\b/i.test(lower);
   const hasJoinPhrase = /\b(?:inner|left|right|outer|full|cross)\s+join\b/i.test(lower) || (lower.includes('join') && hasSqlContext);
   const hasQueryInSqlContext = lower.includes('query') && hasSqlContext;
-  if (lower.includes('sql') || hasQueryInSqlContext || hasJoinPhrase || lower.includes('group by')) {
+  // "what is a primary key in sql" / "how do you select all rows in sql" are asking for a
+  // concept explanation, not a query to generate — but the bare "sql" keyword used to fire this
+  // branch unconditionally, so every SQL-related definition question got the same canned
+  // advanced CTE/window-function example back instead of an actual answer to what was asked.
+  // Skip this branch for those and let them fall through to the knowledge corpus.
+  const isSqlDefinitionQuestion =
+    /^(?:what\s+(?:is|are|does)|define|explain\s+what|how\s+do\s+you|how\s+to)\b/i.test(lower.trim()) &&
+    !/\b(write|generate|create|build|make\s+me|show\s+me\s+(?:a|an|some)\s+(?:query|code))\b/i.test(lower);
+  if (!isSqlDefinitionQuestion && (lower.includes('sql') || hasQueryInSqlContext || hasJoinPhrase || lower.includes('group by'))) {
     return {
       isCode: true,
       language: 'sql',

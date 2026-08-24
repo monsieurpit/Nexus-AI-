@@ -140,6 +140,31 @@ export const TECH_AND_COMPUTING_CORPUS: KnowledgeItem[] = [
     createdAt: Date.now(),
   },
 
+  // 4b. SQL Basics: Primary Keys, Foreign Keys & Core Statements
+  {
+    id: 'kb-sql-basics-primary-key',
+    title: 'SQL Basics: Primary Keys, Foreign Keys, SELECT & JOIN',
+    category: 'coding',
+    keywords: [
+      'primary key',
+      'foreign key',
+      'sql basics',
+      'select statement',
+      'select all rows',
+      'where clause',
+      'unique constraint',
+      'sql join basics',
+    ],
+    content: `The core building blocks of a SQL table and query, before you get anywhere near window functions or CTEs:
+1. **Primary Key**: The column (or set of columns) that uniquely identifies every row in a table — no two rows can share one, and it can't be NULL. Example: \`id INT PRIMARY KEY\`. Most engines auto-index it, so lookups by primary key are fast.
+2. **Foreign Key**: A column in one table that references a primary key in another table, enforcing that the referenced row actually exists (referential integrity). Example: \`orders.customer_id REFERENCES customers.id\`.
+3. **Unique Constraint**: Like a primary key (no duplicate values allowed) but a table can have several, and unlike a primary key it CAN allow one NULL per column depending on the engine.
+4. **SELECT — reading rows**: \`SELECT * FROM customers;\` returns every column for every row. \`SELECT name, email FROM customers WHERE country = 'CA';\` returns only matching rows and only those two columns.
+5. **JOIN — combining tables**: \`SELECT o.id, c.name FROM orders o INNER JOIN customers c ON o.customer_id = c.id;\` pulls matching rows from both tables using the foreign-key relationship.
+6. **WHERE vs HAVING**: \`WHERE\` filters individual rows before grouping; \`HAVING\` filters groups after a \`GROUP BY\` aggregate.`,
+    createdAt: Date.now(),
+  },
+
   // 5. Relational Databases vs NoSQL & Indexing
   {
     id: 'kb-database-indexing-acid-nosql',

@@ -74,12 +74,120 @@ function trySolveSyllogism(prompt: string): LogicSolution | null {
   };
 }
 
+// Classic riddles matched by a distinctive fragment of their wording. These had no handler at
+// all before, so a riddle like "I speak without a mouth" fell through to plain corpus search,
+// which had nothing riddle-shaped to match and returned whatever unrelated document happened to
+// share a stray keyword (e.g. "mouth" pulling up dining-etiquette content).
+const CLASSIC_RIDDLES: { match: RegExp; title: string; answer: string; explanation: string }[] = [
+  {
+    match: /speak\s+without\s+a\s+mouth|hear\s+without\s+ears.{0,40}(?:what\s+am\s+i|who\s+am\s+i)/i,
+    title: 'Classic Riddle: The Echo',
+    answer: 'An echo.',
+    explanation: `An echo "speaks" by reflecting sound waves back at you and "hears" in the sense that it only exists as a response to a sound that was made — no mouth or ears required, just a hard surface and physics.`,
+  },
+  {
+    match: /keys\s+but\s+no\s+locks|space\s+but\s+no\s+room/i,
+    title: 'Classic Riddle: The Keyboard',
+    answer: 'A keyboard.',
+    explanation: `A keyboard has keys (but they don't open anything), a space bar (but it isn't a physical room), and you "enter" on it constantly (the Enter key) without ever physically going anywhere.`,
+  },
+  {
+    match: /the\s+more\s+you\s+take.{0,20}the\s+more\s+you\s+leave\s+behind/i,
+    title: 'Classic Riddle: Footsteps',
+    answer: 'Footsteps.',
+    explanation: `Every step you take leaves one more footstep behind you — the act of taking (a step) is literally what produces the thing you're leaving.`,
+  },
+  {
+    match: /what\s+has\s+(?:a\s+)?(?:face|hands).{0,30}no\s+(?:arms|legs)/i,
+    title: 'Classic Riddle: The Clock',
+    answer: 'A clock.',
+    explanation: `A clock has a "face" and "hands" but no arms or legs — the words are borrowed from the body but describe parts of the clock instead.`,
+  },
+];
+
+// "A farmer has 17 sheep, all but 9 die, how many are left" — a classic trick riddle where the
+// large opening number (17) is a deliberate red herring. "All but N die" literally means every
+// sheep except N of them dies, so N is the answer regardless of the starting count. Previously
+// this fell through to plain corpus search (which matched random "farm"/animal-adjacent content)
+// because it looks like an arithmetic word problem but isn't actually solved by subtraction.
+function trySolveAllButRiddle(prompt: string): LogicSolution | null {
+  const match = prompt.match(/all\s+but\s+(\d+)\s+(?:of\s+(?:them|it|the\s+\w+)\s+)?(?:die|died|survive|survived|left)/i);
+  if (!match) return null;
+  const n = match[1];
+  return {
+    isLogic: true,
+    title: 'Classic Riddle: "All But N" Trick Question',
+    verdict: `${n} are left.`,
+    formalSteps: [
+      `"All but ${n} die" means every one of them dies EXCEPT ${n} — so ${n} is how many survive.`,
+      `The starting count is a red herring; it never factors into the answer.`,
+    ],
+    explanation: `The starting number is deliberately there to bait you into subtracting. "All but ${n} die" already tells you directly how many are left standing: **${n}**.`,
+  };
+}
+
+function trySolveClassicRiddle(prompt: string): LogicSolution | null {
+  for (const riddle of CLASSIC_RIDDLES) {
+    if (riddle.match.test(prompt)) {
+      return {
+        isLogic: true,
+        title: riddle.title,
+        verdict: riddle.answer,
+        formalSteps: [`Riddle recognized: ${riddle.title}.`, `Answer: ${riddle.answer}`],
+        explanation: riddle.explanation,
+      };
+    }
+  }
+  return null;
+}
+
+// "If all birds can fly and a penguin is a bird, can a penguin fly?" — a categorical syllogism
+// phrased with an "X can Y" capability premise instead of the "X are Y" form trySolveSyllogism
+// handles. This is a straightforward valid deduction from the stated premises (even though
+// penguins can't actually fly — the puzzle is about what logically follows from the premises as
+// given, not zoological fact), but with no handler it fell through to corpus search and matched
+// on stray words like "bird"/"fly", landing on completely unrelated content.
+function trySolveCapabilitySyllogism(prompt: string): LogicSolution | null {
+  const lower = prompt.toLowerCase();
+  const premise = lower.match(/\ball\s+([a-z]+)\s+can\s+([a-z]+)/);
+  if (!premise) return null;
+  const [, category, ability] = premise;
+  // The major premise states the category as a plural ("all birds can fly") but the minor
+  // premise names one member in the singular ("a penguin is a bird") — match either form.
+  const categorySingular = category.endsWith('s') ? category.slice(0, -1) : category;
+  const instance = lower.match(new RegExp(`([a-z]+)\\s+is\\s+an?\\s+(?:${category}|${categorySingular})\\b`));
+  if (!instance) return null;
+  const [, member] = instance;
+
+  return {
+    isLogic: true,
+    title: 'Categorical Syllogism: Capability Inference',
+    verdict: `Yes — logically, a ${member} can ${ability}.`,
+    formalSteps: [
+      `Major Premise: All ${category} can ${ability}.`,
+      `Minor Premise: A ${member} is a ${categorySingular}.`,
+      `Conclusion: Therefore, a ${member} can ${ability}.`,
+    ],
+    explanation: `Purely from the premises given, this is valid: if every ${categorySingular} can ${ability}, and a ${member} belongs to the ${category} category, then a ${member} can ${ability} too — the conclusion follows necessarily from the stated premises. (Worth flagging: this is validity, not truth — if the real-world premise "all ${category} can ${ability}" is itself false, as it is for flightless birds like penguins, the argument is valid but not sound.)`,
+  };
+}
+
 export function trySolveLogic(prompt: string): LogicSolution | null {
   const lower = prompt.toLowerCase();
 
-  // 0. Natural-language categorical syllogisms (checked before the literal-keyword version below)
+  // 0. Classic riddles (checked first — these are the most literal/specific match)
+  const riddleResult = trySolveClassicRiddle(prompt);
+  if (riddleResult) return riddleResult;
+
+  const allButResult = trySolveAllButRiddle(prompt);
+  if (allButResult) return allButResult;
+
+  // 0a. Natural-language categorical syllogisms (checked before the literal-keyword version below)
   const syllogismResult = trySolveSyllogism(prompt);
   if (syllogismResult) return syllogismResult;
+
+  const capabilitySyllogismResult = trySolveCapabilitySyllogism(prompt);
+  if (capabilitySyllogismResult) return capabilitySyllogismResult;
 
   // 0b. Three Switches / One Lightbulb Puzzle
   if (

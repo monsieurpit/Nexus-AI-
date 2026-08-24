@@ -1,6 +1,6 @@
 import { KnowledgeItem, AttentionScore, UserMemory } from '../types';
 import { tokenize } from './tokenizer';
-import { levenshteinDistance } from './bm25Engine';
+import { levenshteinDistance, STOP_WORDS } from './bm25Engine';
 
 // 24-Dimensional Semantic Latent Representation
 export const SEMANTIC_DIMENSIONS = [
@@ -121,6 +121,14 @@ function correctSemanticTypos(text: string, harvestedVocabulary: Set<string>): s
       if (stripped.length < 3) return tok;
       const lowerStripped = stripped.toLowerCase();
       if (SEMANTIC_SEED_VOCABULARY.has(lowerStripped) || harvestedVocabulary.has(lowerStripped)) return tok;
+      // Never "correct" a word that's already a common, correctly-spelled English word — this
+      // caught silently mangling "that" into "what" ("better than that" -> "better than what"),
+      // since "that" is exactly 1 substitution away from the seed word "what". The seed-tier
+      // logic below only ever checked "is this token already one of our ~10 target words", not
+      // "is this token already some OTHER real word entirely" — virtually every short common
+      // function word (this, than, with, have...) is 1 edit away from some seed word, so without
+      // this guard the seed tier was quietly corrupting ordinary sentences, not just fixing typos.
+      if (STOP_WORDS.has(lowerStripped)) return tok;
 
       // Seed words are few, reviewed, and exactly what a chatbot expects to see typo'd, so any
       // single edit (substitution, insertion, deletion, or adjacent transposition) is trusted.
@@ -399,7 +407,6 @@ export function computeEmbedding(text: string): number[] {
   // 12: Conversational
   const convMatches = matchCount([
     'hello',
-    'hi',
     'hey',
     'good morning',
     'good afternoon',
@@ -422,8 +429,37 @@ export function computeEmbedding(text: string): number[] {
     'your opinion on',
     'your favorite',
     'your favourite',
+    'roast me',
+    'roast him',
+    'roast her',
+    'roast them',
+    'tell me a joke',
+    'make me laugh',
+    'good bot',
+    'bad bot',
+    'good morning',
+    'wyd',
+    'lol',
+    'lmao',
+    'nice one',
+    'say less',
+    'sup',
+    'peace out',
+    'catch you later',
+    'fuck yourself',
+    'fuck you',
+    'you suck',
+    "you're dumb",
   ]);
-  if (convMatches > 0) vec[12] = Math.min(1.0, 0.2 + convMatches * 0.3);
+  // These slang words are too short/collision-prone for the plain-substring matchCount above
+  // ("yo" is a substring of "beyond", "bet" of "better", "gm" is rare enough to be safe but kept
+  // here for consistency) — checked with real word boundaries instead so they don't need to be
+  // excluded from the Conversational dimension entirely just to avoid false-positiving elsewhere.
+  // "hi" moved here from the matchCount list above for the same reason as yo/bet/gm/later — as a
+  // bare substring it matched inside "this", "history", "white", etc.
+  const shortSlangMatches = /\b(?:yo|bet|gm|later|hi)\b/i.test(lower) ? 1 : 0;
+  const convTotal = convMatches + shortSlangMatches;
+  if (convTotal > 0) vec[12] = Math.min(1.0, 0.2 + convTotal * 0.3);
 
   // 14: Debugging
   const debugMatches = matchCount([
@@ -462,8 +498,15 @@ export function computeEmbedding(text: string): number[] {
     'tell me',
     'list of',
     'name some',
+    'name me',
+    'give me',
     'examples of',
     'best known',
+    'what is the',
+    'what is a',
+    'what is an',
+    'who is',
+    'where is',
   ]) + (/\btop\s+\d/.test(lower) ? 1 : 0);
   if (factualMatches > 0) vec[13] = Math.min(1.0, 0.2 + factualMatches * 0.25);
 
@@ -571,6 +614,9 @@ export function computeEmbedding(text: string): number[] {
     'design pattern',
     'scalable system',
     'infrastructure',
+    'design a system',
+    'design an app',
+    'build a system',
   ]);
   if (architectureMatches > 0) vec[21] = Math.min(1.0, 0.2 + architectureMatches * 0.25);
 

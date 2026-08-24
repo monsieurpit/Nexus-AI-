@@ -223,11 +223,19 @@ export function detectUserInsult(text: string): boolean {
     /\b(?:you|u)\s+(?:suck|are\s+shit|are\s+trash|are\s+dumb|are\s+stupid|are\s+useless|are\s+ass|are\s+garbage|are\s+bad|are\s+a\s+clown|are\s+a\s+bitch|are\s+a\s+dick|are\s+a\s+retard|are\s+a\s+failure|are\s+terrible|are\s+horrible)\b/i,
     /\b(?:fuck\s+you|fuck\s+u|fuk\s+u|(?:go\s+)?fuck\s+yourself|(?:go\s+)?fuck\s+urself|screw\s+you|screw\s+u|eat\s+shit|eat\s+a\s+dick|suck\s+my\s+dick|suck\s+a\s+dick|kiss\s+my\s+ass)\b/i,
     /\b(?:shut\s+up|shut\s+the\s+fuck\s+up|stfu|shut\s+ur\s+mouth|shut\s+your\s+mouth|piss\s+off|fuck\s+off|gtfo)\b/i,
-    /\b(?:dumb\s+bot|stupid\s+bot|trash\s+bot|useless\s+bot|clown\s+bot|bad\s+bot|shit\s+bot|retarded\s+bot|idiot\s+bot)\b/i,
+    /\b(?:dumb|stupid|trash|useless|clown|bad|shit|shitty|crap|crappy|garbage|retarded|idiot|worthless)\s+bot\b/i,
     /\b(?:you'?re|you\s+are)\s+(?:so\s+)?(?:dumb|stupid|trash|useless|worthless|retarded|idiotic|blind|slow|broken)\b/i,
     /\b(?:kill\s+yourself|kys|go\s+die|delete\s+yourself)\b/i,
     /\b(?:you\s+know\s+nothing|you\s+can'?t\s+do\s+shit|you\s+don'?t\s+know\s+shit)\b/i,
     /\b(?:you'?re|you\s+are|ur|u\s+are)\s+(?:an?\s+)?(?:idiot|moron|dumbass|dipshit|dickhead|jackass|asshole|clown|bitch|bastard)\b/i,
+    // "nobody/no one likes you" had no pattern at all — it's not a "you are X" or "fuck you"
+    // shape, so it fell straight through the insult detector into plain corpus search, which
+    // then matched on some unrelated stray keyword instead of getting the crashout clapback
+    // every other direct insult gets. Careful: "everybody/everyone LIKES you" is a positive
+    // reassurance, not an insult — only pair "nobody/no one" with the positive verbs, and
+    // "everybody/everyone" only with "hates".
+    /\b(?:nobody|no\s*one)\s+(?:likes?|loves?|wants?|cares?\s+about)\s+you\b/i,
+    /\b(?:everybody|everyone)\s+hates?\s+you\b/i,
     // Polish insults
     /\b(?:spierdalaj|wypierdalaj|zamknij\s+si[eę]|chuj\s+ci\s+w\s+dup[eę]|jesteś\s+g[oó]wnem|debilu|kretynie|zamknij\s+mord[eę]|poca[lł]uj\s+mnie\s+w\s+dup[eę])\b/i,
     // Spanish insults
@@ -461,7 +469,14 @@ export function enhanceNaturalSwearPhrasing(
         const afterNext = full[offset + match.length + 1];
         if (before === '-' || after === '-' || (after === ' ' && /\d/.test(afterNext || ''))) return match;
         substitutionsCount++;
-        return options[Math.floor(Math.random() * options.length)];
+        const picked = options[Math.floor(Math.random() * options.length)];
+        // The matched word can be sentence-initial ("Honestly? Doing great..."), and every
+        // replacement phrase in the list above is written lowercase — swapping it in verbatim
+        // there produced a sentence starting with a lowercase word ("no bullshit, Doing
+        // great..."). Re-capitalize whenever this match opens the string or follows sentence-
+        // ending punctuation, matching the capitalization the original word had.
+        const isSentenceStart = offset === 0 || /[.!?]\s*$/.test(full.slice(0, offset));
+        return isSentenceStart ? picked.charAt(0).toUpperCase() + picked.slice(1) : picked;
       });
     }
   }
@@ -551,7 +566,7 @@ export function infuseSwearyHumanVoice(
     return processed;
   }
 
-  const introList = isSuperChill
+  let introList = isSuperChill
     ? SWEAR_DICTIONARY.english.intros.superChill
     : contextCategory === 'webSearch'
     ? SWEAR_DICTIONARY.english.intros.webSearch
@@ -561,6 +576,21 @@ export function infuseSwearyHumanVoice(
     ? SWEAR_DICTIONARY.english.intros.explanation
     : SWEAR_DICTIONARY.english.intros.general;
 
+  let punchlineList = SWEAR_DICTIONARY.english.punchlines;
+
+  // On 'unhinged', a short answer with a "clean" intro ("Real talk, check this out:") and a
+  // "clean" punchline ("Fast, accurate, and zero fluff.") can end up with zero actual profanity
+  // anywhere in the response — e.g. every math/logic answer, since the body itself is just
+  // numbers and steps. About half of each stock intro/punchline list has no swear word in it at
+  // all, so on the max intensity setting, bias to the half that actually swears; still falls
+  // back to the full list if a category's list happens to have no sweary entries.
+  if (intensity === 'unhinged') {
+    const swearyIntros = introList.filter(hasSwearWords);
+    if (swearyIntros.length > 0) introList = swearyIntros;
+    const swearyPunchlines = punchlineList.filter(hasSwearWords);
+    if (swearyPunchlines.length > 0) punchlineList = swearyPunchlines;
+  }
+
   const randomIntro = introList[Math.floor(Math.random() * introList.length)];
 
   // For punchlines, only add if not super long and not already ending in a punchline
@@ -569,10 +599,7 @@ export function infuseSwearyHumanVoice(
     return `${randomIntro}\n\n${processed}`;
   }
 
-  const randomPunchline =
-    SWEAR_DICTIONARY.english.punchlines[
-      Math.floor(Math.random() * SWEAR_DICTIONARY.english.punchlines.length)
-    ];
+  const randomPunchline = punchlineList[Math.floor(Math.random() * punchlineList.length)];
 
   return `${randomIntro}\n\n${processed}\n\n*${randomPunchline}*`;
 }

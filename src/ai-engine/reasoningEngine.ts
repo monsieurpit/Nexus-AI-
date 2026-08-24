@@ -86,8 +86,11 @@ export function detectQueryIntent(query: string): QueryIntent {
   const q = query.toLowerCase().trim();
 
   const chatTriggers = [
-    'hello', 'hi ', 'hey ', 'hi!', 'hello!', 'hey!', 'yo ', 'yo!', 'yo',
-    'wassup', 'wazzup', "what's up", 'whats up', 'what up', 'sup',
+    // Bare "hi"/"hey" need their own exact entries — the "hi "/"hey " trailing-space forms below
+    // only ever match via `q.startsWith(t + ' ')`, which appends a SECOND space, so a lone "hi"
+    // or "hey" with no trailing text never matched either form and fell through to corpus search.
+    'hello', 'hi', 'hi ', 'hey', 'hey ', 'hi!', 'hello!', 'hey!', 'yo ', 'yo!', 'yo',
+    'wassup', 'wazzup', 'wsg', "what's up", 'whats up', 'what up', 'sup', 'gm', 'gn',
     'how are you', 'how are you doing', 'how you doing', 'how u doing', 'how are u',
     "how's it going", 'hows it going', 'how you been', 'how have you been', 'how are things', 'hru',
     'good morning', 'good afternoon', 'good evening', 'good night', 'howdy',
@@ -96,11 +99,25 @@ export function detectQueryIntent(query: string): QueryIntent {
     'goodbye', 'cya', 'see ya', 'see you', 'what can you do', 'help me', 'tell me about yourself',
     'wyd', 'what are you doing', 'what r u doing', 'wym', 'wdym', 'what do you mean',
     'idk', 'fr', 'fr fr', 'no cap', 'ong', 'facts', 'tell me a joke', 'make me laugh', 'roast me',
+    // Bare acknowledgment/agreement slang — with no real question in them these were falling
+    // through to 'general' intent, which sent them into corpus search and returned whatever
+    // random document happened to score highest (e.g. "ok cool" pulling up first-aid content).
+    // Intent detection runs on the slang-normalized text (see effectivePrompt), so both the raw
+    // form and its ABBREVIATIONS_MAP expansion need to be listed here — "fr fr" is normalized to
+    // "for real for real" before this function ever sees it.
+    'lol', 'lmao', 'lmfao', 'rofl', 'bet', 'say less', 'you good', 'u good',
+    'aight', 'ight', 'word', 'ok cool', 'okay cool', 'nvm', 'nevermind', 'mood',
+    'for real', 'for real for real', 'laughing my ass off', 'laughing my fucking ass off',
+    'rolling on the floor laughing', 'never mind',
   ];
+
+  // Strictly for exact-match trigger comparisons — "you good?" should still hit the "you good"
+  // trigger even though the question mark survives the outer trim().
+  const qNoPunct = q.replace(/[?!.]+$/, '');
 
   if (
     chatTriggers.some(
-      (t) => q === t || q.startsWith(t + ' ') || q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
+      (t) => q === t || qNoPunct === t || q.startsWith(t + ' ') || q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
     ) ||
     /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q) ||
     VC_JOIN_REGEX.test(q) ||
@@ -126,7 +143,12 @@ export function detectQueryIntent(query: string): QueryIntent {
     /\b(?:square|cube)\s*root\s+of\b|\babsolute\s+value\s+of\b|\bfactorial\b|\b(?:average|mean)\s+of\b|\d+\s*(?:factorial|squared|cubed)\b|\d+\s*mod\s*\d+/i.test(
       q
     ) ||
-    (q.includes('what is') && /\d/.test(q) && !q.includes('what is a ') && !q.includes('what is the ') && !q.includes('what is an '))
+    (q.includes('what is') && /\d/.test(q) && !q.includes('what is a ') && !q.includes('what is the ') && !q.includes('what is an ')) ||
+    // Named mathematical constants have no digit in the question itself ("what is pi") — the
+    // digit-presence check above never catches these on its own, so this fell through to
+    // 'definition' intent and never reached the math solver, which already supports evaluating
+    // both constants correctly.
+    /\b(?:what\s+is|value\s+of)\s+(?:pi|euler'?s?\s+number)\b|^(?:pi|euler'?s?\s+number)\??$/i.test(q)
   ) {
     return 'mathematical';
   }
@@ -459,8 +481,26 @@ function conversationalReply(
   if (q.includes('idk') || q.includes("i don't know") || q.includes('dont know')) {
     return `No stress at all bro, that's why I'm here. What's on your mind or what are you trying to figure out? Ask away!`;
   }
-  if (q === 'fr' || q === 'fr fr' || q === 'no cap' || q === 'ong' || q.includes('facts')) {
+  if (q === 'fr' || q === 'fr fr' || q === 'for real' || q === 'for real for real' || q === 'no cap' || q === 'ong' || q === 'on god' || q.includes('facts')) {
     return `Straight up, 100% no bullshit. Facts only.`;
+  }
+  // Bare acknowledgment/agreement slang, no actual question attached. `q` here is already
+  // slang-normalized ("fr fr" → "for real for real", "lmao" → "laughing my ass off"), so match
+  // on both the raw and expanded forms.
+  if (
+    q === 'lol' || q === 'lmao' || q === 'lmfao' || q === 'rofl' || q.startsWith('lol ') || q.startsWith('lmao ') ||
+    q.includes('laughing my ass off') || q.includes('laughing my fucking ass off') || q.includes('rolling on the floor laughing')
+  ) {
+    return `Glad I could make you laugh, bro. What else you got?`;
+  }
+  if (q === 'bet' || q === 'say less' || q === 'word' || q === 'aight' || q === 'ight' || q === 'mood') {
+    return `Bet. I got you — hit me with whatever's next.`;
+  }
+  if (q === 'you good' || q === 'u good' || q.startsWith('you good?') || q.startsWith('u good?')) {
+    return `Yeah I'm solid, running clean as hell. You good though? What's on your mind?`;
+  }
+  if (q === 'ok cool' || q === 'okay cool' || q === 'nvm' || q === 'nevermind' || q === 'never mind') {
+    return `All good, I'm right here whenever you need something.`;
   }
   if (
     q.includes('wassup') ||
@@ -469,6 +509,7 @@ function conversationalReply(
     q.includes('whats up') ||
     q.includes('what up') ||
     q === 'sup' ||
+    q === 'wsg' ||
     q.startsWith('yo')
   ) {
     if (isSuperChill) {
@@ -476,7 +517,7 @@ function conversationalReply(
     }
     return `Yo what's up bro! Chilling as fuck. BM25 and neural retrieval ready to roll. What kind of questions or problems we getting into today?`;
   }
-  if (q.includes('hello') || q.includes('hi') || q.includes('hey') || q.includes('good morning') || q.includes('good evening')) {
+  if (q.includes('hello') || q.includes('hi') || q.includes('hey') || q.includes('good morning') || q.includes('good evening') || q === 'gm') {
     if (isSuperChill) {
       return `Yo what's up bro! Hope your day is going legendary. What's on your mind?`;
     }
@@ -594,6 +635,7 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: [],
     };
@@ -618,6 +660,7 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: [],
     };
@@ -641,6 +684,7 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: [],
     };
@@ -663,6 +707,7 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: [],
     };
@@ -708,6 +753,7 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: [],
     };
@@ -766,12 +812,108 @@ export function generateReasoningPath(
       isSuperChill,
       username: settings.userName,
       systemInstruction: persona.systemPrompt,
+      swearIntensity: settings.swearIntensity,
     });
     return {
       thoughtSteps,
       content: finalContent,
       knowledgeHits: [],
     };
+  }
+
+  // 3b. Compound question splitting — checked BEFORE the single-answer solvers below on
+  // purpose. A query like "what's 2+2 and who won the last world cup" used to get classified
+  // as 'mathematical' intent purely because it contains "2+2" (letting the math branch consume
+  // it and drop the World Cup half), or the whole combined string got matched wholesale by
+  // Domain Intelligence / web search grounding on whichever half scored higher — either way one
+  // half of the question silently vanished. Splitting first and running the full solver
+  // toolkit (math, logic, domain knowledge, then corpus) on each part independently means both
+  // halves actually get answered. Skipped in crashout/deep-think mode, which have their own
+  // dedicated flows below.
+  if (!isCrashout && !isDeepThink) {
+    const earlyDecomposed = decomposeCompoundQuestion(effectivePrompt);
+    if (earlyDecomposed.isCompound) {
+      thoughtSteps.push({
+        id: 'step-compound-split',
+        type: 'intent',
+        title: `🔀 Compound question — split into ${earlyDecomposed.parts.length} parts`,
+        description: earlyDecomposed.parts.map((p, i) => `  ${i + 1}. ${p}`).join('\n'),
+      });
+
+      const sectionResults: { heading: string; body: string; hits: string[] }[] = [];
+      for (const part of earlyDecomposed.parts) {
+        const partMath = trySolveMath(part);
+        if (partMath && partMath.isMath) {
+          sectionResults.push({
+            heading: part,
+            body: `**Result:** ${partMath.result}\n\n**How I got there:**\n${partMath.steps.map((s) => `  ${s}`).join('\n')}`,
+            hits: [],
+          });
+          continue;
+        }
+
+        const partLogic = trySolveLogic(part);
+        if (partLogic && partLogic.isLogic) {
+          sectionResults.push({
+            heading: part,
+            body: `**Verdict:** ${partLogic.verdict}\n\n${partLogic.explanation}`,
+            hits: [],
+          });
+          continue;
+        }
+
+        const partGk = solveGeneralKnowledge(part, isSuperChill);
+        if (partGk && partGk.matched) {
+          sectionResults.push({
+            heading: part,
+            body: partGk.response,
+            hits: partGk.title ? [partGk.title] : [],
+          });
+          continue;
+        }
+
+        const partIntent = detectQueryIntent(part);
+        const partTerms = processForSearch(part);
+        const { results: partResults } = searchWithReformulation(part, partTerms, allKnowledge, new Set(), 5);
+
+        if (partResults.length === 0 || partResults[0].score < WEAK_MATCH_SCORE) {
+          sectionResults.push({ heading: part, body: unknownResponse(), hits: [] });
+          continue;
+        }
+
+        const partTop = partResults.slice(0, 2);
+        const partConfident = partResults[0].score >= CONFIDENT_MATCH_SCORE;
+        const partSynthesised = synthesiseStandard(part, partIntent, partTop);
+        sectionResults.push({
+          heading: part,
+          body: partConfident ? partSynthesised : hedgeAnswer(partSynthesised, isSuperChill),
+          hits: partTop.map((t) => t.item.title),
+        });
+      }
+
+      thoughtSteps.push({
+        id: 'step-compound-synth',
+        type: 'synthesis',
+        title: 'Answering each part independently',
+        description: `${sectionResults.length} sub-answers synthesised and combined.`,
+      });
+
+      const combined = sectionResults
+        .map((s, i) => `**${i + 1}. ${s.heading}**\n${s.body}`)
+        .join('\n\n');
+      const allHits = Array.from(new Set(sectionResults.flatMap((s) => s.hits)));
+
+      return {
+        thoughtSteps,
+        content: enforceStrictSdkRules(combined, prompt, settings.userCustomDirectives, {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+        }),
+        knowledgeHits: allHits,
+      };
+    }
   }
 
   // 4. Mathematical Intent
@@ -800,6 +942,7 @@ export function generateReasoningPath(
           isSuperChill,
           username: settings.userName,
           systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
         }),
         knowledgeHits: [],
       };
@@ -836,6 +979,7 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: [],
     };
@@ -859,6 +1003,7 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: [],
     };
@@ -879,6 +1024,7 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: gkResult.title ? [gkResult.title] : [],
     };
@@ -915,6 +1061,7 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: webSearchResults.map((w) => w.title),
     };
@@ -964,7 +1111,7 @@ export function generateReasoningPath(
           "Bro I genuinely don't have shit on that. Zero docs. Hit the Corpus button and paste something in.",
           prompt,
           settings.userCustomDirectives,
-          { isSuperChill, username: settings.userName, systemInstruction: persona.systemPrompt }
+          { isSuperChill, username: settings.userName, systemInstruction: persona.systemPrompt, swearIntensity: settings.swearIntensity }
         ),
         knowledgeHits: [],
       };
@@ -987,6 +1134,7 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: top.map((t) => t.item.title),
     };
@@ -1061,6 +1209,7 @@ export function generateReasoningPath(
           isSuperChill,
           username: settings.userName,
           systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
         }),
         knowledgeHits: [],
       };
@@ -1122,71 +1271,19 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: topDocs.map((t) => t.item.title),
     };
   }
 
   // STANDARD MODE
-
-  // 8a. Compound question splitting — answer each independent sub-question separately
-  // rather than letting one bag-of-words search only ever surface whichever half wins.
-  // Skipped when live web results already grounded the (combined) query above.
-  const decomposed = decomposeCompoundQuestion(effectivePrompt);
-  if (decomposed.isCompound) {
-    thoughtSteps.push({
-      id: 'step-compound-split',
-      type: 'intent',
-      title: `🔀 Compound question — split into ${decomposed.parts.length} parts`,
-      description: decomposed.parts.map((p, i) => `  ${i + 1}. ${p}`).join('\n'),
-    });
-
-    const sectionResults: { heading: string; body: string; hits: string[] }[] = [];
-    for (const part of decomposed.parts) {
-      const partIntent = detectQueryIntent(part);
-      const partTerms = processForSearch(part);
-      const { results: partResults } = searchWithReformulation(part, partTerms, allKnowledge, memory.citedDocIds, 5);
-
-      if (partResults.length === 0 || partResults[0].score < WEAK_MATCH_SCORE) {
-        sectionResults.push({ heading: part, body: unknownResponse(), hits: [] });
-        continue;
-      }
-
-      const partTop = partResults.slice(0, 2);
-      const partConfident = partResults[0].score >= CONFIDENT_MATCH_SCORE;
-      const partSynthesised = synthesiseStandard(part, partIntent, partTop);
-      sectionResults.push({
-        heading: part,
-        body: partConfident ? partSynthesised : hedgeAnswer(partSynthesised, isSuperChill),
-        hits: partTop.map((t) => t.item.title),
-      });
-    }
-
-    thoughtSteps.push({
-      id: 'step-compound-synth',
-      type: 'synthesis',
-      title: 'Answering each part independently',
-      description: `${sectionResults.length} sub-answers synthesised and combined.`,
-    });
-
-    // Bold labels, not ### headers per part — stacking several full markdown headers in one
-    // Discord message reads as wall-of-text clutter rather than a clean multi-part answer (same
-    // issue already fixed for web search synthesis).
-    const combined = sectionResults
-      .map((s, i) => `**${i + 1}. ${s.heading}**\n${s.body}`)
-      .join('\n\n');
-    const allHits = Array.from(new Set(sectionResults.flatMap((s) => s.hits)));
-
-    return {
-      thoughtSteps,
-      content: enforceStrictSdkRules(combined, prompt, settings.userCustomDirectives, {
-        isSuperChill,
-        username: settings.userName,
-        systemInstruction: persona.systemPrompt,
-      }),
-      knowledgeHits: allHits,
-    };
-  }
+  //
+  // Compound question splitting (8a in the old numbering) now happens earlier, right after
+  // intent detection — see "3b. Compound question splitting" above — so every compound query
+  // reaching this point has already been handled and returned. It ran through the full solver
+  // toolkit (math/logic/domain knowledge) per part instead of only corpus search, which this
+  // spot never had access to anyway.
 
   const { results, reformulatedQuery } = searchWithReformulation(
     memory.augmentedQuery,
@@ -1222,6 +1319,7 @@ export function generateReasoningPath(
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: [],
     };
@@ -1293,6 +1391,7 @@ export function generateReasoningPath(
       isSuperChill,
       username: settings.userName,
       systemInstruction: persona.systemPrompt,
+      swearIntensity: settings.swearIntensity,
     }),
     knowledgeHits: top.map((t) => t.item.title),
   };
@@ -1572,13 +1671,32 @@ export function synthesiseWebSearchResults(
   // and stacking several of those headers in one Discord message just looks like wall-of-text
   // clutter rather than an actual answer. Trimming to the lead sentence or two per source and
   // dropping the per-source headers keeps it sounding like the bot talking, not quoting a page.
+  // Conversational framing per point so consecutive snippets don't just get concatenated
+  // verbatim (which reads like a pasted excerpt, not like Nexus explaining something he already
+  // knew) — one point gets a "here's the deal" style opener, the next a connective, instead of
+  // both starting cold with the source's own sentence structure.
+  const POINT_FRAMES = [
+    (s: string) => `From what I found, ${s.charAt(0).toLowerCase()}${s.slice(1)}`,
+    (s: string) => `Turns out ${s.charAt(0).toLowerCase()}${s.slice(1)}`,
+    (s: string) => `Basically, ${s.charAt(0).toLowerCase()}${s.slice(1)}`,
+    (s: string) => s,
+  ];
+
   const points: string[] = [];
   for (let i = 0; i < Math.min(top.length, 2); i++) {
     const item = top[i];
     let cleanedSnippet = item.snippet
       .replace(/^(?:Wikipedia\s*[-—:]*|\bSource:.*$)/gi, '')
+      // Strip wire-reportage attribution framing ("officials say", "according to X", "sources
+      // say/report") — that phrasing is what makes a paraphrase read as a quoted press release
+      // instead of Nexus stating something he already knew.
+      .replace(/\b(?:according to [a-z0-9 .'-]+?,?\s*|officials (?:say|said)\s*|sources (?:say|said|report)\s*|reports (?:say|indicate)\s*)/gi, '')
       .replace(/\s+/g, ' ')
-      .trim();
+      .trim()
+      // Stripping attribution from the middle of a sentence can leave the next word lowercase
+      // where a capitalized subject used to be ("Officials say the measures..." → "the
+      // measures...") — re-capitalize the start of every sentence to fix that up.
+      .replace(/(^|[.!?]\s+)([a-z])/g, (_m, lead, letter) => lead + letter.toUpperCase());
     if (!cleanedSnippet) continue;
 
     // Keep just the first sentence or two — a full paragraph reads as a lifted excerpt, one or
@@ -1590,7 +1708,8 @@ export function synthesiseWebSearchResults(
       cleanedSnippet = enhanceNaturalSwearPhrasing(cleanedSnippet, settings.swearIntensity || 'moderate');
     }
 
-    points.push(cleanedSnippet);
+    const frame = POINT_FRAMES[i % POINT_FRAMES.length];
+    points.push(frame(cleanedSnippet));
   }
 
   // 3. Synthesis body — a short paragraph, not a bulleted source-by-source breakdown

@@ -57,6 +57,7 @@ export class RecursiveDescentParser {
       'compute',
       'what is',
       "what's",
+      'whats',
       'solve',
       'equals',
       'equal to',
@@ -305,6 +306,70 @@ export class RecursiveDescentParser {
   }
 }
 
+// Parses one side of a single-variable linear equation ("3x - 9", "12", "-x + 4") into its
+// total x-coefficient and constant term. Terms are matched left-to-right with their leading
+// sign, so "3x - 9 + x" correctly accumulates coefficient 4 and constant -9 in one pass.
+function parseLinearSide(side: string): { coeff: number; constant: number } {
+  let coeff = 0;
+  let constant = 0;
+  const termRegex = /([+-]?\s*\d*\.?\d*)\s*x|([+-]?\s*\d+\.?\d*)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = termRegex.exec(side)) !== null) {
+    if (match[1] !== undefined) {
+      const raw = match[1].replace(/\s+/g, '');
+      if (raw === '' || raw === '+') coeff += 1;
+      else if (raw === '-') coeff -= 1;
+      else coeff += parseFloat(raw);
+    } else if (match[2] !== undefined) {
+      const raw = match[2].replace(/\s+/g, '');
+      if (raw !== '' && raw !== '+' && raw !== '-') constant += parseFloat(raw);
+    }
+  }
+  return { coeff, constant };
+}
+
+// Basic single-variable linear equations: "x + 5 = 12", "3x - 9 = 0", "2x + 3 = 11". mathSolver's
+// arithmetic parser (RecursiveDescentParser below) has no concept of a variable to solve for, so
+// "solve x + 5 = 12" previously just failed to parse and fell all the way through to plain
+// corpus search on the leftover word "solve", landing on an unrelated "Algorithms" document.
+function trySolveLinearEquation(input: string): MathSolution | null {
+  // Not \bx\b — in "3x - 9 = 0" the x is glued directly to its coefficient digit, so there's
+  // no word boundary on its left side and \b would never match it.
+  if (!/x/i.test(input) || !input.includes('=')) return null;
+
+  const stripped = input
+    .toLowerCase()
+    .replace(/\b(solve|calculate|compute|find x|for x|what is x if)\b/g, ' ')
+    .replace(/\?/g, '');
+
+  const sides = stripped.split('=');
+  if (sides.length !== 2) return null;
+
+  const left = parseLinearSide(sides[0]);
+  const right = parseLinearSide(sides[1]);
+  const coeff = left.coeff - right.coeff;
+  if (coeff === 0) return null;
+
+  const constDiff = right.constant - left.constant;
+  const x = constDiff / coeff;
+  const formattedX = Number.isInteger(x) ? `${x}` : x.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  // "0 - -9" reads awkwardly — render subtracting a negative as adding its magnitude instead.
+  const subtractConst = (a: number, b: number) => (b < 0 ? `${a} + ${-b}` : `${a} - ${b}`);
+
+  return {
+    isMath: true,
+    expression: input.trim(),
+    result: `x = ${formattedX}`,
+    steps: [
+      `Left side: ${left.coeff}x + (${left.constant}) — Right side: ${right.coeff}x + (${right.constant})`,
+      `Collect x terms on one side: (${left.coeff} - ${right.coeff})x = ${subtractConst(right.constant, left.constant)}`,
+      `${coeff}x = ${constDiff}`,
+      `x = ${constDiff} / ${coeff} = ${formattedX}`,
+    ],
+    explanation: `**Result:** \`x = ${formattedX}\`\n\n**Calculation Steps:**\n• Left side: ${left.coeff}x + (${left.constant})\n• Right side: ${right.coeff}x + (${right.constant})\n• (${left.coeff} - ${right.coeff})x = ${subtractConst(right.constant, left.constant)}\n• ${coeff}x = ${constDiff}\n• x = ${formattedX}`,
+  };
+}
+
 /**
  * Unit conversions handler
  */
@@ -423,6 +488,11 @@ export function trySolveMath(prompt: string): MathSolution | null {
   // 1. Unit conversions
   const unitRes = tryUnitConversion(cleanPrompt);
   if (unitRes) return unitRes;
+
+  // 1b. Single-variable linear equations (before the arithmetic parser, which has no concept
+  // of a variable to solve for and would otherwise reject these entirely)
+  const linearRes = trySolveLinearEquation(cleanPrompt);
+  if (linearRes) return linearRes;
 
   // 2. Recursive-descent AST Parser
   const parser = new RecursiveDescentParser();

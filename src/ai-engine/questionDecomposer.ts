@@ -9,8 +9,12 @@
  * each can be searched and answered on its own, then recombined.
  */
 
+// "'s" is optional after what/who/where/how/whats — \b alone doesn't bridge it, since "whats"
+// (no apostrophe, extremely common in Discord chat) has no word boundary between "what" and the
+// trailing "s". Without this, "whats the square root of 81 and who is messi" never even
+// qualified as two question fragments and silently fell back to un-split single-query search.
 const QUESTION_LEAD_WORDS =
-  /^(?:what|who|when|where|why|how|which|is|are|does|do|did|can|could|will|would|should|explain|describe|tell me|list)\b/i;
+  /^(?:what|who|when|where|why|how|which)('s|s)?\b|^(?:is|are|does|do|did|can|could|will|would|should|explain|describe|tell me|list)\b/i;
 
 export interface DecomposedQuestion {
   isCompound: boolean;
@@ -19,7 +23,13 @@ export interface DecomposedQuestion {
 
 function looksLikeQuestionFragment(fragment: string): boolean {
   const trimmed = fragment.trim();
-  if (trimmed.split(/\s+/).length < 3) return false;
+  const wordCount = trimmed.split(/\s+/).length;
+  // Short math expressions ("what's 2+2") are legitimately only 2 tokens — the digit is doing
+  // the work a third word normally would, so the usual 3-word floor (which exists to keep noun
+  // phrases like "salt and pepper" from being mistaken for question fragments) is relaxed to 2
+  // whenever there's a digit in it.
+  const minWords = /\d/.test(trimmed) ? 2 : 3;
+  if (wordCount < minWords) return false;
   return QUESTION_LEAD_WORDS.test(trimmed);
 }
 

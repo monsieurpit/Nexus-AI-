@@ -453,7 +453,15 @@ export function parseSdkRules(
     // quoted reason after the target is a strong, low-false-positive signal this is a roast
     // request rather than an unrelated use of "roast" (roast chicken, roast garlic, etc.), which
     // never come with a quoted clause attached.
-    /\broast\s+\S+.*["'].+["']/i.test(promptLower);
+    /\broast\s+\S+.*["'].+["']/i.test(promptLower) ||
+    // Same shape but without quotes around the reason — "roast john because he can't cook" —
+    // which used to fall all the way through to plain corpus search on the reason itself
+    // ("cook"/"shower"), returning cooking or hygiene facts instead of a roast. "because/since/bc"
+    // is a safe, low-false-positive signal here (unlike "for", which would also catch "roast
+    // chicken for dinner").
+    // Target name can be multiple words ("roast my friend because...", not just "roast john
+    // because..."), so allow up to a few extra words before "because/since/bc" shows up.
+    /\broast\s+\S+(?:\s+\S+){0,3}?\s+(?:because|since|bc)\b/i.test(promptLower);
   const isCrashoutRequested =
     /(?:crash\s*out|rage|unhinged)/i.test(directivesOnlyText) ||
     /(?:crash\s*out\s+mode|go\s+unhinged|activate\s+crashout|crashout\s+mode)/i.test(promptLower);
@@ -484,10 +492,19 @@ export function enforceStrictSdkRules(
   rawOutput: string,
   promptText: string,
   rulesInput: any,
-  options: { isSuperChill?: boolean; username?: string; systemInstruction?: string } = {}
+  options: {
+    isSuperChill?: boolean;
+    username?: string;
+    systemInstruction?: string;
+    swearIntensity?: 'light' | 'moderate' | 'heavy' | 'unhinged';
+  } = {}
 ): string {
   const parsed = parseSdkRules(rulesInput, promptText, options.systemInstruction || '');
   let result = rawOutput.trim();
+  // Every caller used to get a hardcoded 'heavy' here regardless of the user's actual
+  // swearIntensity setting, so 'unhinged' (the persona default) never actually got its higher
+  // swear ceiling or forced-swear behavior applied to the final wrapped response.
+  const intensity = options.swearIntensity || 'heavy';
 
   // 1. Swear Rule Enforcement (Infuse authentic profanity, punchlines, and natural swear flow)
   if (parsed.swearDirective === 'never_swear') {
@@ -497,14 +514,14 @@ export function enforceStrictSdkRules(
       language: 'polish',
       isSuperChill: options.isSuperChill,
       forceSwear: false,
-      intensity: 'heavy',
+      intensity,
     });
   } else {
     result = infuseSwearyHumanVoice(result, {
       language: 'english',
       isSuperChill: options.isSuperChill,
       forceSwear: false,
-      intensity: 'heavy',
+      intensity,
     });
   }
 

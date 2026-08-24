@@ -254,7 +254,7 @@ export const SYNONYM_MAP: Record<string, string[]> = (() => {
   return normalized;
 })();
 
-const STOP_WORDS = new Set([
+export const STOP_WORDS = new Set([
   'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
   'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'shall', 'can',
   'i', 'me', 'my', 'we', 'our', 'you', 'your', 'he', 'him', 'his', 'she', 'her', 'it', 'its',
@@ -526,7 +526,8 @@ export class BM25Engine {
   ): BM25ScoredItem[] {
     if (this.documents.length === 0) return [];
 
-    let queryTerms = processForSearch(query);
+    const originalTerms = processForSearch(query);
+    let queryTerms = originalTerms;
     if (expandSynonyms) {
       queryTerms = expandQuerySynonyms(queryTerms);
     }
@@ -534,13 +535,22 @@ export class BM25Engine {
 
     if (queryTerms.length === 0) return [];
 
+    // Terms the user actually typed (post-typo-correction) vs. ones only added by synonym
+    // expansion — e.g. "jazz music" expands "music" into "song"/"melody"/"audio"/"sound" too.
+    // Rare synonym terms get a naturally high IDF, and a document that happens to score well on
+    // several synonyms (an audio-engineering doc matching "audio"/"sound") could outscore the
+    // document that actually matches the literal query word ("jazz") once those IDF-boosted
+    // synonym hits stack up. bm25() downweights any term not in this set so a synonym can still
+    // help a doc get found, but can't out-rank literal query-term matches on its own.
+    const literalTerms = new Set(correctTypos(originalTerms, this.vocabulary));
+
     const queryBigrams = this.makeBigrams(queryTerms);
     const queryTrigrams = this.makeTrigrams(queryTerms);
     const allQueryTerms = [...queryTerms, ...queryBigrams, ...queryTrigrams];
 
     const scored: { idx: number; score: number }[] = [];
     for (let i = 0; i < this.termFrequencies.length; i++) {
-      const s = this.bm25(this.termFrequencies[i], allQueryTerms);
+      const s = this.bm25(this.termFrequencies[i], allQueryTerms, literalTerms);
       if (s > 0) {
         scored.push({ idx: i, score: s });
       }
@@ -769,9 +779,14 @@ export class BM25Engine {
     return Math.sqrt(sumSq);
   }
 
-  private bm25(tf: Map<string, number>, queryTerms: string[]): number {
+  // synonymOnlyTerms: when provided, any query term NOT in it (i.e. only present because
+  // synonym expansion added it, not because the user typed it or a bigram/trigram derived from
+  // what they typed) contributes at reduced weight — see the comment in search() above.
+  private bm25(tf: Map<string, number>, queryTerms: string[], literalTerms?: Set<string>): number {
     let dl = 0;
     for (const v of tf.values()) dl += v;
+
+    const SYNONYM_TERM_WEIGHT = 0.35;
 
     let score = 0;
     const uniqueTerms = Array.from(new Set(queryTerms));
@@ -780,7 +795,11 @@ export class BM25Engine {
       if (freq > 0) {
         const idfVal = this.idf(term);
         const norm = this.k1 * (1 - this.b + (this.b * dl) / Math.max(this.avgDocLength, 1));
-        score += (idfVal * freq * (this.k1 + 1)) / (freq + norm);
+        let termScore = (idfVal * freq * (this.k1 + 1)) / (freq + norm);
+        if (literalTerms && !literalTerms.has(term) && !term.includes('~')) {
+          termScore *= SYNONYM_TERM_WEIGHT;
+        }
+        score += termScore;
       }
     }
     return score;
