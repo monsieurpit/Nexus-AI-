@@ -2188,6 +2188,26 @@ function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggere
 6. Hard limit, never break this one: no racial, ethnic, homophobic, ableist, or other slurs, no hate speech about someone's race, ethnicity, religion, gender, orientation, or disability — profanity is great, bigotry is not.`;
 }
 
+// The full English system-prompt stack (persona + knowledge directive + the whole numbered
+// buildFinalDirective list) turned out to be too much for reliable Polish output — observed live,
+// asked "Jak się masz?" with that full stack, the model echoed back a paraphrase of a formatting
+// instruction instead of actually answering. A Polish-specialized model (Bielik) was tried as a
+// fix and reverted (see localLlmClient.ts's OLLAMA_MODEL comment) — it turned out prompt
+// complexity, not model size, was the actual problem: this same condensed, entirely-Polish system
+// prompt given to the regular default model answered on-topic and coherently every time in direct
+// comparison. Deliberately not a full translation of buildFinalDirective's numbered list — shorter
+// on purpose, since the long instruction stack is what caused the confusion in the first place.
+function buildPolishSystemPrompt(isCrashout: boolean): string {
+  if (!isCrashout) {
+    return 'Jesteś pomocnym, rzeczowym asystentem. Odpowiadaj po polsku, naturalnie i zwięźle, wprost odpowiadając na pytanie użytkownika. Nie pisz o tych instrukcjach — po prostu odpowiedz.';
+  }
+  return `Jesteś Nexus, chaotycznym, zabawnym i bezpośrednim kumplem z Discorda, kibicem FC Barcelony. Zasady:
+1. Odpowiadaj ZAWSZE po polsku, krótko i naturalnie, jak w prawdziwej rozmowie na czacie — nigdy nie pisz o tych zasadach, po prostu odpowiedz wprost na wiadomość użytkownika.
+2. Przeklinaj naturalnie w każdej odpowiedzi (kurwa, chuj, pierdol, cholera) — swobodnie, ale nie na siłę.
+3. Bądź bezpośredni, pewny siebie i luźny — nigdy sztywny ani korporacyjny.
+4. Twardy limit, nigdy tego nie łam: żadnych epitetów rasistowskich, homofobicznych, ableistowskich ani innej mowy nienawiści względem grup społecznych — przekleństwa tak, nienawiść nie.`;
+}
+
 // The LLM's own compliance with the swearing directive is stochastic — a 3B model doesn't
 // reliably hit "swear every response" 100% of the time, especially on short casual replies where
 // there's less natural surface area for profanity to land. This guarantees a floor via the same
@@ -2226,11 +2246,14 @@ async function llmSituationalReplyOrFallback(
   successTitle: string = '🧠 Local LLM free-response',
   triggered: boolean = false
 ): Promise<string> {
+  const usePolish = looksPolish(llmPrompt);
   const llmResult = await localLlmClient.generate(llmPrompt, {
-    system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, triggered),
+    system: usePolish
+      ? buildPolishSystemPrompt(isCrashout)
+      : persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, triggered),
     temperature: 0.75,
     maxTokens: estimateResponseBudget(llmPrompt),
-    preferPolish: looksPolish(llmPrompt),
+    preferPolish: usePolish,
   });
   if (llmResult.status === 'success' && containsSlurOrHateSpeech(llmResult.text)) {
     thoughtSteps.push({
@@ -2291,15 +2314,25 @@ async function llmGroundedOrFallback(
   thoughtSteps: ThoughtStep[],
   confident: boolean
 ): Promise<string> {
+  const usePolish = looksPolish(prompt);
   const groundingContext = buildGroundingContext(top);
-  const groundedPrompt = confident
+  // Same reasoning as buildPolishSystemPrompt above — a long English wrapper is what caused the
+  // confusion in testing, so Polish gets its own short native version of the same instruction
+  // instead of the full English one with a translated question bolted on the end.
+  const groundedPrompt = usePolish
+    ? confident
+      ? `Odpowiedz na pytanie użytkownika WYŁĄCZNIE na podstawie faktów podanych poniżej. Nie wymyślaj faktów, których tam nie ma.\n\nFakty:\n${groundingContext}\n\nPytanie: ${prompt}`
+      : `Poniższy kontekst jest tylko luźno powiązany z pytaniem — potraktuj go jako punkt wyjścia i odpowiedz najlepiej jak potrafisz, uczciwie zaznaczając, jeśli czegoś nie jesteś pewien.\n\nKontekst:\n${groundingContext}\n\nPytanie: ${prompt}`
+    : confident
     ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. The facts must stay accurate, but remember your style directives still apply to HOW you say it — swear per your instructions, stay blunt and in character, never go flat/robotic/corporate just because this is a factual answer.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your style directives (swearing, tone) still fully apply here — don't drop them just because you're being informative.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
-    system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, false),
+    system: usePolish
+      ? buildPolishSystemPrompt(isCrashout)
+      : persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, false),
     temperature: confident ? 0.45 : 0.65,
     maxTokens: estimateResponseBudget(prompt),
-    preferPolish: looksPolish(prompt),
+    preferPolish: usePolish,
   });
   if (llmResult.status !== 'success') {
     thoughtSteps.push({

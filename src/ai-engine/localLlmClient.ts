@@ -1,14 +1,15 @@
 const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || '').replace(/\/+$/, '');
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
-// Benchmarked live against qwen2.5:3b on identical Polish prompts: qwen produced broken grammar,
-// invented words, and stray non-Polish characters, while this Polish-specialized model (SpeakLeash/
-// Bielik, trained specifically for Polish fluency) answered cleanly and correctly. NOT used as the
-// default model — benchmarked on English too, and it leaked raw template/stop tokens into real
-// output (e.g. "<|end_id: assistant>") and gave a completely unrelated answer to "whats up" — it's
-// only reliable for Polish. Callers opt in per-call via generate()'s preferPolish option once they've
-// detected the user's message is actually Polish; English stays on OLLAMA_MODEL as before.
-const OLLAMA_MODEL_POLISH = process.env.OLLAMA_MODEL_POLISH || 'SpeakLeash/bielik-1.5b-v3.0-instruct:Q8_0';
+// A Polish-specialized model (SpeakLeash/Bielik-1.5b) was tried here and reverted after real-world
+// testing: it had noticeably cleaner Polish GRAMMAR in isolated one-off tests, but embedded in this
+// pipeline's actual instruction-following load it was unreliable — it repeatedly echoed/paraphrased
+// its own system-prompt instructions instead of answering, drifted into non-Polish gibberish, and a
+// Polish native speaker confirmed a live response was genuinely off-topic. Direct comparison showed
+// the real fix wasn't model size, it was prompt complexity: qwen2.5:3b given the SAME short,
+// Polish-only system prompt (see buildPolishSystemPrompt in reasoningEngine.ts) answered on-topic
+// and coherently every time. So Polish now stays on the one default model with a leaner prompt,
+// same as English — no separate model routing.
 
 // Shared language-signal classifier — used both to decide which model handles a message
 // (looksPolish, called by reasoningEngine.ts before generate()) and, below, to verify the model's
@@ -24,12 +25,19 @@ const POLISH_SIGNAL_WORDS = new Set([
   'dziękuję', 'dzięki', 'mogę', 'chcę', 'też', 'kurwa', 'siema', 'mordeczko', 'chuj', 'zajebiście',
   'cześć', 'czesc', 'hej', 'witam', 'słowo', 'słowa', 'znasz', 'jesteś', 'masz',
 ]);
+// Deliberately excludes short words that are ALSO common, unrelated Polish words — "to" (English
+// preposition vs. Polish "this/it"), "on" (vs. Polish "he"), "a" (vs. Polish "and/but"), "i" (vs.
+// Polish "and"), "do" (vs. Polish "to/until"), "no" (vs. Polish colloquial "yeah/well") — keeping
+// any of those in this list creates a false tie against real Polish signal words in genuinely
+// Polish sentences. Observed live: "Jak to dobrze!" (jak=Polish, to=counted as English here before
+// the fix, dobrze=neither) tied 1-1 and looksPolish wrongly returned false. Every word below is
+// unambiguously English only.
 const ENGLISH_SIGNAL_WORDS = new Set([
-  'what', 'does', 'do', 'did', 'is', 'are', 'was', 'were', 'can', 'could', 'would', 'should', 'will',
-  'you', 'your', 'yours', 'i', 'my', 'me', 'we', 'us', 'our', 'the', 'a', 'an', 'this', 'that',
+  'what', 'does', 'did', 'is', 'are', 'was', 'were', 'can', 'could', 'would', 'should', 'will',
+  'you', 'your', 'yours', 'me', 'we', 'us', 'our', 'the', 'an', 'this', 'that',
   'these', 'those', 'how', 'why', 'where', 'when', 'who', 'whom', 'mean', 'means', 'meaning',
-  'explain', 'tell', 'see', 'show', 'please', 'thanks', 'thank', 'and', 'or', 'but', 'not', 'no',
-  'yes', 'have', 'has', 'had', 'with', 'for', 'to', 'of', 'in', 'on', 'at', 'it', 'define',
+  'explain', 'tell', 'see', 'show', 'please', 'thanks', 'thank', 'and', 'or', 'but', 'not',
+  'yes', 'have', 'has', 'had', 'with', 'for', 'of', 'in', 'at', 'it', 'define',
   'definition', 'called', 'name', 'about',
 ]);
 const POLISH_DIACRITIC_REGEX = /[ąćęłńóśźż]/i;
@@ -98,9 +106,9 @@ export interface OllamaGenerateOptions {
   topP?: number;
   stopSequences?: string[];
   // Set by callers that have already detected the user's message is Polish (see
-  // reasoningEngine.ts's looksPolish()) — routes this one call to OLLAMA_MODEL_POLISH instead of
-  // the default model. Never set automatically here since generate() only sees the fully-built
-  // prompt/system text, not the original raw user message language.
+  // reasoningEngine.ts's looksPolish()) — no longer routes to a different model (see the
+  // OLLAMA_MODEL comment above for why), just tells generate() which language to verify the
+  // OUTPUT actually landed in (the wrong_language check below).
   preferPolish?: boolean;
 }
 
@@ -222,7 +230,7 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        model: options.preferPolish ? OLLAMA_MODEL_POLISH : OLLAMA_MODEL,
+        model: OLLAMA_MODEL,
         messages,
         stream: false,
         options: {

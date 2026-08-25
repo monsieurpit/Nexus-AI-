@@ -11,6 +11,8 @@
  * 4. Multi-language profanity (English, Polish, Spanish)
  */
 
+import { looksPolish } from './localLlmClient';
+
 /**
  * Shared detector for any mention of "Casseurt" — the personal roast-rule trigger.
  * Single source of truth so every module that needs to special-case this name
@@ -703,7 +705,7 @@ export function hasSwearWords(text: string): boolean {
  * Count the swear density in text
  */
 export function getSwearCount(text: string): number {
-  const matches = text.match(/\b(fuck|fucking|shit|bullshit|damn|goddamn|ass|badass|bitch|hell|dumbass|dipshit|kurwa|pierdol|chuj|zajebiście)\b/gi);
+  const matches = text.match(/\b(fuck|fucking|shit|bullshit|damn|goddamn|ass|badass|bitch|hell|dumbass|dipshit|kurwa|pierdol|chuj|zajebiście|cholera)\b/gi);
   return matches ? matches.length : 0;
 }
 
@@ -818,6 +820,12 @@ export function uncensorProfanity(text: string): string {
 // raise the count at all — a bug this shipped with once already ("ngl,"/"fr,"/"bro," don't count
 // as profanity, so the floor silently did nothing when one of those got picked).
 const SWEAR_FLOOR_INTERJECTIONS = ['damn,', 'shit,', 'hell,', 'fuck,', 'goddamn,'];
+// Observed live: a Polish response ("Jak się masz?" -> Bielik's Polish reply) got the English
+// "damn," bolted onto its front by forceSwearFloor, since the floor always used the English pool
+// regardless of what language the actual response was in — read as broken/untranslated to a
+// Polish speaker. getSwearCount already recognizes Polish swears (kurwa, pierdol, chuj,
+// zajebiście) for counting purposes; the floor now picks its interjection pool to match.
+const SWEAR_FLOOR_INTERJECTIONS_PL = ['kurwa,', 'chuj,', 'cholera,', 'pierdolę,'];
 
 // Instruction-only compliance on "swear N times" tops out well under 100% for a small local
 // model (confirmed by direct testing — several instruction rewordings all landed short-response
@@ -841,7 +849,9 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
   // nowhere close to minCount, while reading as barely sweary at all next to every other response.
   // Spreads the remaining deficit across later sentence breaks (distinct words, no repeats) so it
   // doesn't stack multiple interjections at the very front either.
-  const pool = [...SWEAR_FLOOR_INTERJECTIONS].sort(() => Math.random() - 0.5);
+  const pool = [...(looksPolish(text) ? SWEAR_FLOOR_INTERJECTIONS_PL : SWEAR_FLOOR_INTERJECTIONS)].sort(
+    () => Math.random() - 0.5
+  );
   let result = `${pool[0]} ${trimmed}`;
   let remaining = minCount - startCount - 1;
 
