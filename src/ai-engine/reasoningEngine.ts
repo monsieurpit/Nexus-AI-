@@ -2076,8 +2076,12 @@ function renderComparativeAnswer(
   return out.filter(Boolean).join('\n\n');
 }
 
-const LLM_FREE_RESPONSE_MAX_TOKENS = 900;
-const LLM_GROUNDED_MAX_TOKENS = 900;
+// Trimmed back from 900 (which itself had been raised from an original 400 for longer, more
+// thorough answers) after live reports of 7-13s response times — a 3B model generating up to 900
+// tokens is genuinely slow for a Discord bot. 550 is a middle ground: still noticeably longer and
+// more thorough than the original 400, while meaningfully cutting worst-case generation time.
+const LLM_FREE_RESPONSE_MAX_TOKENS = 550;
+const LLM_GROUNDED_MAX_TOKENS = 550;
 
 // Swearing/aggression/length are driven off the same swearIntensity setting the template
 // pipeline's post-hoc infuseSwearyHumanVoice() already uses (default 'unhinged' engine-wide),
