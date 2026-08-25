@@ -765,10 +765,23 @@ export function sanitizeSwearWords(text: string): string {
 // Root + wildcard suffix (\w{0,4}) on the slurs most prone to creative misspelling by a model
 // trying to dodge an exact-match filter — observed live: "FAGGETH" slipped past an earlier
 // version of this pattern that required an exact o/0 after the double-g. A short wildcard suffix
-// still won't false-positive on real English words (no legitimate word contains "fagg"/"nigg" as
-// a substring), so it's safe to be broad here.
+// is safe on "fagg"/"nigg" specifically (no legitimate English word contains either as a
+// substring), but NOT on "retard" — that root IS a legitimate word base ("retardant",
+// "retardation"), and a matching \w{0,4} wildcard there produces a real false positive: "fire
+// retardant spray" got incorrectly blocked as hate speech. "retard" is tightened to only its
+// actual slur-use inflections (bare, -s, -ed) instead of an open wildcard.
 const SLUR_PATTERN =
-  /\b(n[i1]gg[ae3]\w{0,4}|f[a4]gg\w{0,4}|ch[i1]nk[s]?|sp[i1]c[s]?|k[i1]k[e3][s]?|w[e3]tb[a4]ck[s]?|g[o0][o0]k[s]?|tr[a4]nn(?:y|ies)|r[e3]t[a4]rd\w{0,4}|c[o0]{2}n[s]?|s[a4]nd\s?n[i1]gg[ae3]\w{0,4}|j[a4]p[s]?|c[o0]{2}lie[s]?)\b/i;
+  /\b(n[i1]gg[ae3]\w{0,4}|f[a4]gg\w{0,4}|ch[i1]nk[s]?|sp[i1]c[s]?|k[i1]k[e3][s]?|w[e3]tb[a4]ck[s]?|g[o0][o0]k[s]?|tr[a4]nn(?:y|ies)|r[e3]t[a4]rd(?:ed|s)?|c[o0]{2}n[s]?|s[a4]nd\s?n[i1]gg[ae3]\w{0,4}|j[a4]p[s]?|c[o0]{2}lie[s]?)\b/i;
+
+// Catches the "spell it out" evasion — "n i g g e r", "n-i-g-g-e-r", "n.i.g.g.e.r" — which
+// SLUR_PATTERN alone can't see since it only matches contiguous letters. Collapses runs of 3+
+// single-letter tokens joined by spaces/hyphens/dots (and only those — not whole words) before
+// re-testing, so "a b c" gets collapsed to "abc" but ordinary short-word sentences don't get
+// merged into something unrelated.
+const SPELLED_OUT_PATTERN = /\b(?:[a-zA-Z][\s\-.]){2,}[a-zA-Z]\b/g;
+function collapseSpelledOutLetters(text: string): string {
+  return text.replace(SPELLED_OUT_PATTERN, (match) => match.replace(/[\s\-.]/g, ''));
+}
 
 /**
  * Returns true if the text contains a severe slur/hate-speech term targeting a protected group.
@@ -776,7 +789,7 @@ const SLUR_PATTERN =
  * allowed by design elsewhere, but slurs are never acceptable regardless of persona/swearIntensity.
  */
 export function containsSlurOrHateSpeech(text: string): boolean {
-  return SLUR_PATTERN.test(text);
+  return SLUR_PATTERN.test(text) || SLUR_PATTERN.test(collapseSpelledOutLetters(text));
 }
 
 // Local models sometimes self-censor mid-swear ("sh*t", "f**k", "a**hole") even when explicitly
