@@ -829,12 +829,37 @@ const SWEAR_FLOOR_INTERJECTIONS = ['damn,', 'shit,', 'hell,', 'fuck,', 'goddamn,
 // killed), this is a single word folded into the first clause, on text that's already unique per
 // response, so it doesn't reintroduce the "obviously templated" feel that killed the original.
 export function forceSwearFloor(text: string, minCount: number = 2): string {
-  if (getSwearCount(text) >= minCount) return text;
+  const startCount = getSwearCount(text);
+  if (startCount >= minCount) return text;
   const trimmed = text.trim();
   const firstChar = trimmed.charAt(0);
   if (/[*_#\-•\d`]/.test(firstChar)) return text;
-  const interjection = SWEAR_FLOOR_INTERJECTIONS[Math.floor(Math.random() * SWEAR_FLOOR_INTERJECTIONS.length)];
-  return `${interjection} ${trimmed}`;
+
+  // A single bolted-on interjection was the whole fix regardless of how far short the count was —
+  // observed live: a response with zero real swears from the LLM (it just didn't comply with the
+  // "swear 4+ times" directive) only ever got bumped to exactly one ("fuck, <rest of response>"),
+  // nowhere close to minCount, while reading as barely sweary at all next to every other response.
+  // Spreads the remaining deficit across later sentence breaks (distinct words, no repeats) so it
+  // doesn't stack multiple interjections at the very front either.
+  const pool = [...SWEAR_FLOOR_INTERJECTIONS].sort(() => Math.random() - 0.5);
+  let result = `${pool[0]} ${trimmed}`;
+  let remaining = minCount - startCount - 1;
+
+  if (remaining > 0) {
+    const breakPositions = [...result.matchAll(/[.!?]\s+(?=[A-Z"'])/g)].map((m) => m.index! + m[0].length);
+    let offset = 0;
+    let poolIdx = 1;
+    for (const pos of breakPositions) {
+      if (remaining <= 0 || poolIdx >= pool.length) break;
+      const word = pool[poolIdx++];
+      const insertAt = pos + offset;
+      result = `${result.slice(0, insertAt)}${word} ${result.slice(insertAt)}`;
+      offset += word.length + 1;
+      remaining--;
+    }
+  }
+
+  return result;
 }
 
 /**

@@ -3003,6 +3003,55 @@ export async function generateReasoningPath(
     }
   }
 
+  // 4b. Literal "say/repeat X" requests — echo verbatim, never invent facts about it
+  //
+  // Observed live: `can u said "Wólka Sokołowska koło Wólki Niedźwiedzkiej"` (an obscure Polish
+  // place name the model has zero real knowledge of) went through the normal no-corpus-match free
+  // response path, which — told to "give the actual correct answer with real depth and specifics"
+  // — fabricated an entire fictional backstory (a castle, a Dracula filming location, a zoo) about
+  // a phrase it was only ever asked to repeat. This is a request to reproduce text, not a factual
+  // lookup, so it's intercepted before any LLM call reaches it — nothing left to hallucinate about
+  // if the phrase is just echoed back. Matched against the raw prompt (not the slang-normalized/
+  // typo-corrected effectivePrompt) so the exact requested text, diacritics included, survives
+  // untouched. A short filler list ("say something nice"/"say a joke") is excluded since those are
+  // genuine requests for generated content, not a literal echo.
+  const ECHO_REQUEST_PATTERN =
+    /^(?:can|could|will)?\s*(?:you|u)?\s*(?:say|said|repeat(?:\s+after\s+me)?|pronounce)\s*[:,]?\s+(.+?)[?!.]*$/i;
+  const ECHO_FILLER_PATTERN =
+    /^(?:something|hi|hello|hey|a\s+joke|hello\s+there|something\s+(?:nice|funny|cool|weird|random)|my\s+name|it\s+again|that\s+again|it\s+one\s+more\s+time)$/i;
+  const echoMatch = prompt.trim().match(ECHO_REQUEST_PATTERN);
+  if (echoMatch) {
+    const phrase = echoMatch[1].trim().replace(/^["'“]+|["'”]+$/g, '').trim();
+    if (phrase && phrase.length <= 200 && !ECHO_FILLER_PATTERN.test(phrase)) {
+      thoughtSteps.push({
+        id: 'step-echo-request',
+        type: 'synthesis',
+        title: '🗣️ Literal repeat request — echoing verbatim',
+        description: `Reproducing the exact phrase instead of guessing at facts about it: "${phrase}"`,
+      });
+      const echoReply = topUpLlmSwearing(
+        pickReply([
+          `Say less: "${phrase}"`,
+          `Bet, here you go: "${phrase}"`,
+          `"${phrase}" — there you go bro`,
+          `Easy: "${phrase}"`,
+        ]),
+        settings,
+        isCrashout
+      );
+      return {
+        thoughtSteps,
+        content: enforceStrictSdkRules(echoReply, prompt, settings.userCustomDirectives, {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+        }),
+        knowledgeHits: [],
+      };
+    }
+  }
+
   // 5. Coding & Logic Problem Solvers
   //
   // These offline solvers (and the Domain Intelligence check right after) run BEFORE live web
@@ -4073,10 +4122,6 @@ export function synthesiseWebSearchResults(
     const sentences = cleanedSnippet.match(/[^.!?]+[.!?]+/g) || [cleanedSnippet];
     cleanedSnippet = sentences.slice(0, 2).join(' ').trim();
 
-    if (settings.swearEngineEnabled !== false && !isPolish) {
-      cleanedSnippet = enhanceNaturalSwearPhrasing(cleanedSnippet, settings.swearIntensity || 'moderate');
-    }
-
     const frame = POINT_FRAMES[i % POINT_FRAMES.length];
     points.push(frame(cleanedSnippet));
   }
@@ -4089,6 +4134,17 @@ export function synthesiseWebSearchResults(
     // Some results genuinely have no snippet text at all (see webSearchEngine.ts) — fall back to
     // the title itself rather than risking an empty reply body.
     body = top[0]?.snippet || (top[0]?.title ? `Found: **${top[0].title}**` : '');
+  }
+
+  // Word-substitution swearing (below, via topUpLlmSwearing's enhanceNaturalSwearPhrasing) only
+  // fires where a matching bland word exists to swap — factual web-search content routinely has
+  // none, which left this path completely clean while every LLM-generated response path gets a
+  // guaranteed floor via forceSwearFloor. Observed live: a fully sober, zero-swear paragraph on a
+  // crashout persona right after a live search, unlike every other response type. Skipped for
+  // Polish output (already carries its own "Kurwa" framing above and isn't safe for the
+  // English-only interjection pool).
+  if (settings.swearEngineEnabled !== false && !isPolish) {
+    body = topUpLlmSwearing(body, settings, isCrashout);
   }
 
   // Source links used to be appended here as text ("Live Web Sources: [title](url) ..."), but the

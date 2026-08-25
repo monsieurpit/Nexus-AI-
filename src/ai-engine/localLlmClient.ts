@@ -68,6 +68,17 @@ function isDegenerateRepetition(text: string): boolean {
   return false;
 }
 
+// Only used when Ollama itself reports the generation was cut off by the token cap
+// (done_reason: "length"), not on a naturally-finished response — a complete response that
+// happens not to end in ./!/? (e.g. it ends in a code block or list item) should never be trimmed.
+function trimIncompleteTail(text: string): string {
+  const lastSentenceEnd = Math.max(text.lastIndexOf('.'), text.lastIndexOf('!'), text.lastIndexOf('?'));
+  // Keep at least half the response — never chop away most of an otherwise-complete-feeling reply
+  // just because its last few words happen to trail off past the final punctuation mark.
+  if (lastSentenceEnd === -1 || lastSentenceEnd < text.length * 0.4) return text;
+  return text.slice(0, lastSentenceEnd + 1);
+}
+
 /**
  * Pings Ollama and confirms OLLAMA_MODEL is actually pulled — a server that's up but hasn't
  * pulled the configured model will otherwise pass a bare connectivity check and then fail every
@@ -136,9 +147,17 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     }
 
     const data: any = await res.json();
-    const text = typeof data?.message?.content === 'string' ? data.message.content.trim() : '';
+    let text = typeof data?.message?.content === 'string' ? data.message.content.trim() : '';
     if (!text) {
       return { status: 'unavailable', reason: 'empty_response' };
+    }
+    // A response cut off mid-generation by num_predict (Ollama reports this as
+    // done_reason: "length") often ends in a dangling half-sentence or the small model's last few
+    // tokens degrading into incoherent token-soup right at the cutoff — observed live: a fully
+    // normal response tailed off into "😅😩💪✨zerszynek dziśka ! !" once the length cap hit.
+    // Trimming back to the last complete sentence drops that garbage tail instead of shipping it.
+    if (data?.done_reason === 'length') {
+      text = trimIncompleteTail(text);
     }
     if (isDegenerateRepetition(text)) {
       return { status: 'unavailable', reason: 'degenerate_output', detail: text.slice(0, 100) };
