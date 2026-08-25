@@ -593,7 +593,17 @@ export function shouldTriggerLiveWebSearch(
     // search for "Meaning of jak myślisz kto wygra ligę mistrzów" and rate-limited (429).
     /\b(?:jak|co)\s+myślisz\b/i.test(q) ||
     /\btwoim\s+zdaniem\b/i.test(q) ||
-    /\b(?:czy\s+)?lubisz\s+(?:mnie|go|ją|to)\b/i.test(q);
+    /\b(?:czy\s+)?lubisz\s+(?:mnie|go|ją|to)\b/i.test(q) ||
+    // Polish greetings/small-talk ("jak tam u ciebie" = "how's it going with you", "co tam" =
+    // "what's up", "co nowego" = "what's new", "jak leci"/"jak się masz" = "how are you") — the
+    // same "how are you"/"what's up" English carve-out above never had Polish coverage at all.
+    // Observed live: "jak tam u ciebie" got searched verbatim as "Meaning of jak tam u ciebie" and
+    // rate-limited (429) — this keeps surfacing one new Polish small-talk phrasing at a time, so
+    // this covers the common variants together instead of patching them one report at a time.
+    /^(?:cześć|czesc|siema|siemka|hej|elo|witam)\b/i.test(q) ||
+    /\bjak\s+(?:tam|leci|się\s+masz|się\s+miewasz)\b/i.test(q) ||
+    /\bco\s+(?:tam|nowego|słychać|slychac|u\s+ciebie)\b/i.test(q) ||
+    /^(?:dzięki|dzieki|dziękuję|dziekuje|pa|do\s+zobaczenia|na\s+razie)\b/i.test(q);
 
   if (isConversational) return false;
 
