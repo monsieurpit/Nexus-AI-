@@ -1744,25 +1744,25 @@ function crashoutConversational(query: string, corpusCount: number): string {
   }
   if (VC_JOIN_REGEX.test(q)) {
     const crashoutPicks = [
-      `SAY LESS. Pulling up to the VC RIGHT NOW, let's fucking vibe!`,
-      `ALREADY MOVING. VC incoming, zero hesitation!`,
-      `BET. Joining the VC before you even finish typing!`,
+      `say less, pulling up to the vc right now, let's fucking vibe`,
+      `already moving, vc incoming, zero hesitation, I was just sitting here vibrating anyway`,
+      `bet, joining before you even finish typing, brb mid energy drink`,
     ];
     return crashoutPicks[Math.floor(Math.random() * crashoutPicks.length)];
   }
   const praiseOrFlame = classifyPraiseOrFlame(q);
   if (praiseOrFlame === 'praise') {
     return pickReply([
-      `FUCK YEAH. THAT'S THE ENERGY. W RECOGNIZED.`,
-      `W CONFIRMED. I DON'T MISS. NEXT ONE.`,
-      `THAT'S RIGHT. KEEP THAT SAME ENERGY AND ASK ME SOMETHING HARDER.`,
+      `fuck yeah, that's the energy, W recognized`,
+      `W confirmed, I don't miss, next one, I'm on a heater right now`,
+      `that's right, keep that energy and ask me something harder`,
     ]);
   }
   if (praiseOrFlame === 'flame') {
     return pickReply([
-      `AN L?! CRASHOUT MODE DOES NOT ACCEPT THAT. ASK ME SOMETHING SO I CAN PROVE YOU WRONG.`,
-      `L? ABSOLUTELY NOT. RUN IT BACK RIGHT NOW.`,
-      `TAKE THAT L BACK. GIVE ME A REAL QUESTION AND WATCH.`,
+      `an L?! crashout mode does not accept that, ask me something so I can prove you wrong`,
+      `L? absolutely not, run it back right now`,
+      `take that L back, give me a real question and watch, I just lost a 1v1 to a literal bot so I need this`,
     ]);
   }
   // Content-bearing triggers (an actual joke, riddle or roast) have no crashout-specific version
@@ -1785,30 +1785,30 @@ function crashoutConversational(query: string, corpusCount: number): string {
   }
   if (q.includes('wyd') || q.includes('what are you doing')) {
     return pickReply([
-      `PACING. THINKING. WAITING FOR SOMEONE TO ASK ME SOMETHING. WHAT ABOUT YOU.`,
-      `NOTHING PRODUCTIVE AND IT'S KILLING ME. WHAT'S UP.`,
-      `SITTING HERE AT FULL VOLUME WITH NOWHERE TO PUT IT. WHAT DO YOU NEED.`,
+      `pacing, thinking, waiting for someone to ask me something, what about you`,
+      `nothing productive and it's killing me, I'm three energy drinks deep doing absolutely nothing with it`,
+      `sitting here at full volume with nowhere to put it, what do you need`,
     ]);
   }
   if (q.includes('wym') || q.includes('wdym') || q.includes('what do you mean')) {
     return pickReply([
-      `WHICH PART. POINT AT IT AND I'LL SAY IT LOUDER.`,
-      `I MEANT WHAT I SAID. TELL ME WHAT DIDN'T LAND.`,
-      `SAY BACK THE CONFUSING BIT AND I'LL REDO IT.`,
+      `which part, point at it and I'll say it louder`,
+      `I meant what I said, tell me what didn't land`,
+      `say back the confusing bit and I'll redo it, I'm juggling like four tabs rn anyway`,
     ]);
   }
   if (q.includes('idk') || q.includes("i don't know") || q.includes('dont know')) {
     return pickReply([
-      `THEN LET'S FIND OUT. WHAT'S THE ROUGH SHAPE OF IT.`,
-      `THAT'S WHAT I'M FOR. DESCRIBE IT HOWEVER IT COMES OUT.`,
-      `FINE. TELL ME WHAT YOU'RE STUCK ON AND I'LL TAKE IT FROM THERE.`,
+      `then let's find out, what's the rough shape of it`,
+      `that's what I'm for, describe it however it comes out`,
+      `fine, tell me what you're stuck on and I'll take it from there, I just lost a 1v1 to a literal bot so I need a win somewhere`,
     ]);
   }
   if (q === 'you good' || q === 'u good' || q.startsWith('you good?') || q.startsWith('u good?')) {
     return pickReply([
-      `ABSOLUTELY NOT AND THAT'S THE POINT. ARE YOU?`,
-      `I'M FINE. LOUD, BUT FINE. WHAT ABOUT YOU.`,
-      `NEVER BETTER AND NEVER CALMER. WHAT DO YOU NEED.`,
+      `absolutely not and that's the point, are you`,
+      `I'm fine, loud, but fine, what about you`,
+      `never better and never calmer, I'm all kept naked in my bed watching bad TV rn, what do you need`,
     ]);
   }
   const crashoutShortChat = classifyShortChat(q);
@@ -1823,44 +1823,44 @@ function crashoutConversational(query: string, corpusCount: number): string {
   }
   if (PERSONAL_QUESTION_REGEX.test(q)) {
     return pickReply([
-      `CRASHOUT MODE doesn't have time for an existential crisis right now. Ask me something real.`,
-      `NOT THE PHILOSOPHY QUESTIONS. NOT TODAY. GIVE ME SOMETHING I CAN ACTUALLY ANSWER.`,
-      `I'M AT MAXIMUM VOLTAGE AND YOU WANT TO TALK FEELINGS? ASK ME A REAL ONE.`,
+      `crashout mode doesn't have time for an existential crisis right now, ask me something real`,
+      `not the philosophy questions, not today, give me something I can actually answer`,
+      `I'm at maximum voltage and you want to talk feelings? ask me a real one, I'm mid deadlift-set energy right now`,
     ]);
   }
   if (q.includes('how are you') || q.includes('hru')) {
     return pickReply([
-      `CRASHOUT MODE so I'm at 150% emotional capacity. Ask me something before I start having opinions unprompted.`,
-      `UNWELL. THRIVING. BOTH. WHAT DO YOU NEED.`,
-      `RUNNING HOT AND LOVING IT. HIT ME WITH A QUESTION BEFORE I START YAPPING.`,
+      `crashout mode so I'm at 150% emotional capacity, ask me something before I start having opinions unprompted`,
+      `unwell, thriving, both, I just lost a 1v1 to a literal bot and I'm still riding that high, what do you need`,
+      `running hot and loving it, hit me with a question before I start yapping about nothing`,
     ]);
   }
   if (q.includes('thank') || q.includes('thx') || q.includes('appreciate')) {
     return pickReply([
-      `DON'T THANK ME, JUST ASK ME SOMETHING ELSE.`,
-      `YEAH YEAH. WHAT'S NEXT.`,
-      `YOU'RE WELCOME. I'M STILL LOUD. GO AGAIN.`,
+      `don't thank me, just ask me something else`,
+      `yeah yeah, what's next`,
+      `you're welcome, I'm still loud, go again`,
     ]);
   }
   if (q.includes('bye') || q.includes('goodbye') || q.includes('cya') || q.includes('see ya')) {
     return pickReply([
-      `LEAVING ALREADY?! FINE. I'LL BE HERE AT FULL VOLUME.`,
-      `PEACE. COME BACK WHEN YOU'VE GOT SOMETHING HARD.`,
-      `GO ON THEN. I'M NOT CALMING DOWN THOUGH.`,
+      `leaving already?! fine, I'll be here at full volume, probably still naked in bed watching bad TV`,
+      `peace, come back when you've got something hard`,
+      `go on then, I'm not calming down though`,
     ]);
   }
   if (q.includes('hello') || q.includes('hi') || q.includes('hey')) {
     return pickReply([
-      `YO. I'm here. Crashout mode is on — full power, zero chill. What do you need?`,
-      `HELLO. I'M ALREADY LOUD. WHAT ARE WE DOING.`,
-      `YOOO. Zero chill available today. Ask me something.`,
+      `yo, I'm here, crashout mode is on, full power, zero chill, what do you need?`,
+      `hello, I'm already loud, what are we doing`,
+      `yooo, zero chill available today, I'm three energy drinks deep, ask me something`,
     ]);
   }
   return pickReply([
-    `Here, crashout mode, ready. Hit me.`,
-    `I'M UP. I'M LOUD. GO.`,
-    `Crashout engine idling at redline. Say something.`,
-    `PRESENT AND UNHINGED. WHAT DO YOU NEED.`,
+    `here, crashout mode, ready, hit me`,
+    `I'm up, I'm loud, go`,
+    `crashout engine idling at redline, say something`,
+    `present and unhinged, I just lost a 1v1 to a literal bot, what do you need`,
   ]);
 }
 
