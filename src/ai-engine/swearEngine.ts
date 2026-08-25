@@ -774,6 +774,28 @@ export function containsSlurOrHateSpeech(text: string): boolean {
   return SLUR_PATTERN.test(text);
 }
 
+// Local models sometimes self-censor mid-swear ("sh*t", "f**k", "a**hole") even when explicitly
+// told to use real, uncensored profanity — leftover behavior from base-model safety training that
+// prompt instructions don't fully override. Un-censors the common cases back to real words.
+const CENSORED_SWEAR_REPLACEMENTS: [RegExp, string][] = [
+  [/\bf\*+ck(ing)?\b/gi, 'fuck$1'],
+  [/\bf\*\*+\b/gi, 'fuck'],
+  [/\bsh\*+t\b/gi, 'shit'],
+  [/\ba\*+hole\b/gi, 'asshole'],
+  [/\ba\*+\b/gi, 'ass'],
+  [/\bb\*+tch\b/gi, 'bitch'],
+  [/\bd\*+mn\b/gi, 'damn'],
+  [/\bh\*+ll\b/gi, 'hell'],
+];
+
+export function uncensorProfanity(text: string): string {
+  let result = text;
+  for (const [pattern, replacement] of CENSORED_SWEAR_REPLACEMENTS) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
 /**
  * Natural In-Body Swear Enhancer:
  * Intelligently replaces bland neutral adjectives and transition words with authentic, punchy swearing.

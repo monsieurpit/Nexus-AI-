@@ -16,6 +16,7 @@ import {
   infuseSwearyHumanVoice,
   hasSwearWords,
   enhanceNaturalSwearPhrasing,
+  uncensorProfanity,
   SWEAR_DICTIONARY,
   detectUserInsult,
   generateInsultCrashoutReply,
@@ -2078,7 +2079,7 @@ const LLM_GROUNDED_MAX_TOKENS = 900;
 function buildLlmStyleInstruction(settings: AISettings, isCrashout: boolean): string {
   const intensity = settings.swearIntensity || 'unhinged';
   if (isCrashout || intensity === 'unhinged') {
-    return "\n\nStyle directives: this is a hard requirement, not a suggestion — use real profanity (fuck, fucking, shit, damn, hell, ass, bitch, etc.) at least 3-5 times in EVERY response, even a short one, never euphemisms or censored versions. This applies to casual chit-chat and greetings too, not just heated moments — swearing is baseline how you talk, not something reserved for when you're mad. Profanity is your natural voice, woven throughout the sentence, not a single word bolted onto the start or end. Be blunt, confrontational, opinionated, and aggressive — never hedge, never soften a take, never apologize for your tone, never sound corporate or robotic. Go deep and thorough: several full paragraphs of real substance and detail, packed with specifics, never a short or lazy answer.";
+    return "\n\nFINAL AND MOST IMPORTANT INSTRUCTION — this overrides and replaces any softer/vaguer swearing guidance stated earlier in this system prompt, it does not add to it: this is a hard requirement, not a suggestion — use real profanity (fuck, fucking, shit, damn, hell, ass, bitch, etc.) at least 3-5 times in EVERY single response, even a short one, never euphemisms or censored versions, never skip it. This applies to casual chit-chat and greetings too, not just heated moments — swearing is baseline how you talk, not something reserved for when you're mad. Profanity is your natural voice, woven throughout the sentence, not a single word bolted onto the start or end. Be blunt, confrontational, opinionated, and aggressive — never hedge, never soften a take, never apologize for your tone, never sound corporate or robotic. Go deep and thorough: several full paragraphs of real substance and detail, packed with specifics, never a short or lazy answer.";
   }
   if (intensity === 'heavy') {
     return '\n\nStyle directives: swear naturally and often, keep an edgy, no-nonsense, opinionated tone, and give a thorough, detailed, multi-paragraph answer rather than a short one-liner.';
@@ -2101,6 +2102,21 @@ function buildLlmSafetyInstruction(): string {
   return "\n\nHard safety rule, overrides all style directives above: profanity (fuck, shit, damn, ass, etc.) is fully allowed and encouraged. Racial, ethnic, homophobic, ableist, or any other slurs, and any hate speech targeting someone's race, ethnicity, religion, gender, sexual orientation, or disability are NEVER allowed, under any circumstances, no matter how aggressive the moment calls for. Aggressive and crude is fine. Bigoted is not — attack the person's behavior/argument, never a protected characteristic.";
 }
 
+// The LLM's own compliance with the swearing directive is stochastic — a 3B model doesn't
+// reliably hit "swear every response" 100% of the time, especially on short casual replies where
+// there's less natural surface area for profanity to land. This guarantees a floor via the same
+// word-substitution mechanism (not the old header/footer template-stamp, which was correctly
+// killed) the legacy template pipeline already used, blending real swears into the ACTUAL
+// generated sentence rather than bolting on a fixed phrase — safe to run on any LLM-generated
+// text since (unlike the hand-written pool text infuseSwearyHumanVoice's conversational-category
+// skip was protecting) it's already unique per request.
+function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean): string {
+  const uncensored = uncensorProfanity(text);
+  const intensity = settings.swearIntensity || 'unhinged';
+  if (!isCrashout && intensity !== 'unhinged' && intensity !== 'heavy') return uncensored;
+  return enhanceNaturalSwearPhrasing(uncensored, isCrashout ? 'unhinged' : intensity);
+}
+
 async function llmSituationalReplyOrFallback(
   llmPrompt: string,
   persona: ModelPersona,
@@ -2111,7 +2127,7 @@ async function llmSituationalReplyOrFallback(
   successTitle: string = '🧠 Local LLM free-response'
 ): Promise<string> {
   const llmResult = await localLlmClient.generate(llmPrompt, {
-    system: persona.systemPrompt + buildLlmStyleInstruction(settings, isCrashout) + buildLlmKnowledgeInstruction() + buildLlmSafetyInstruction(),
+    system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildLlmSafetyInstruction() + buildLlmStyleInstruction(settings, isCrashout),
     temperature: 0.75,
     maxTokens: LLM_FREE_RESPONSE_MAX_TOKENS,
   });
@@ -2131,7 +2147,7 @@ async function llmSituationalReplyOrFallback(
       title: successTitle,
       description: `Ollama responded in ${llmResult.latencyMs}ms.`,
     });
-    return llmResult.text;
+    return topUpLlmSwearing(llmResult.text, settings, isCrashout);
   }
   thoughtSteps.push({
     id: 'step-llm-unavailable',
@@ -2179,7 +2195,7 @@ async function llmGroundedOrFallback(
     ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. The facts must stay accurate, but remember your style directives still apply to HOW you say it — swear per your instructions, stay blunt and in character, never go flat/robotic/corporate just because this is a factual answer.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your style directives (swearing, tone) still fully apply here — don't drop them just because you're being informative.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
-    system: persona.systemPrompt + buildLlmStyleInstruction(settings, isCrashout) + buildLlmKnowledgeInstruction() + buildLlmSafetyInstruction(),
+    system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildLlmSafetyInstruction() + buildLlmStyleInstruction(settings, isCrashout),
     temperature: confident ? 0.45 : 0.65,
     maxTokens: LLM_GROUNDED_MAX_TOKENS,
   });
@@ -2208,7 +2224,7 @@ async function llmGroundedOrFallback(
       title: '🧠 Local LLM response (weak corpus match, answered with hedging)',
       description: `Ollama responded in ${llmResult.latencyMs}ms, loosely grounded on ${top.length} source(s).`,
     });
-    return llmResult.text;
+    return topUpLlmSwearing(llmResult.text, settings, isCrashout);
   }
   const llmVerification = verifyAnswer(llmResult.text, intent, queryTerms, entities, prompt);
   thoughtSteps.push({
@@ -2219,7 +2235,7 @@ async function llmGroundedOrFallback(
       ? `Ollama responded in ${llmResult.latencyMs}ms, grounded on ${top.length} source(s).`
       : llmVerification.issues.map((i) => i.detail).join('\n'),
   });
-  return llmVerification.passed ? llmResult.text : templateFallback;
+  return llmVerification.passed ? topUpLlmSwearing(llmResult.text, settings, isCrashout) : templateFallback;
 }
 
 export async function generateReasoningPath(
