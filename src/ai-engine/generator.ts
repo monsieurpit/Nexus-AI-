@@ -96,7 +96,7 @@ export async function generateAIResponse(
   let webSearchExecuted = false;
   let webSearchQuery = '';
 
-  const knowledgeConfidence = userPrompt ? assessCorpusConfidence(userPrompt, knowledgeBase) : undefined;
+  const knowledgeConfidence = userPrompt ? await assessCorpusConfidence(userPrompt, knowledgeBase) : undefined;
   const searchTriggerReason =
     !imageUrl && userPrompt ? shouldTriggerLiveWebSearch(userPrompt, settings, knowledgeConfidence) : false;
 

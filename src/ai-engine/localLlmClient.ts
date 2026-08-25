@@ -1,5 +1,6 @@
 const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || '').replace(/\/+$/, '');
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
+const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
 
 export interface OllamaGenerateOptions {
   temperature?: number;
@@ -144,6 +145,61 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     }
 
     return { status: 'success', text, latencyMs: Date.now() - startedAt };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      return { status: 'unavailable', reason: 'timeout' };
+    }
+    return { status: 'unavailable', reason: 'connection_error', detail: String(err?.message || err) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export type EmbedResult =
+  | { status: 'success'; vector: number[]; latencyMs: number }
+  | {
+      status: 'unavailable';
+      reason: 'not_configured' | 'connection_error' | 'timeout' | 'http_error' | 'empty_response';
+      detail?: string;
+    };
+
+/**
+ * Calls Ollama's /api/embed for real semantic embeddings (OLLAMA_EMBED_MODEL, default
+ * nomic-embed-text) — same never-throws/typed-unavailable contract as generate(), but a much
+ * shorter default timeout since this sits on the hot query path and must fail fast rather than
+ * hold up a response for 30s when the embed model/tunnel isn't reachable.
+ */
+export async function embed(text: string, options: { timeoutMs?: number } = {}): Promise<EmbedResult> {
+  if (!OLLAMA_BASE_URL) {
+    return { status: 'unavailable', reason: 'not_configured' };
+  }
+
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? 4000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
+
+  try {
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/embed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({ model: OLLAMA_EMBED_MODEL, input: text }),
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      return { status: 'unavailable', reason: 'http_error', detail: detail.slice(0, 300) };
+    }
+
+    const data: any = await res.json();
+    // /api/embed is batch-capable (embeddings: number[][]) even for a single input string.
+    const vector = Array.isArray(data?.embeddings) ? data.embeddings[0] : undefined;
+    if (!Array.isArray(vector) || vector.length === 0) {
+      return { status: 'unavailable', reason: 'empty_response' };
+    }
+
+    return { status: 'success', vector, latencyMs: Date.now() - startedAt };
   } catch (err: any) {
     if (err?.name === 'AbortError') {
       return { status: 'unavailable', reason: 'timeout' };

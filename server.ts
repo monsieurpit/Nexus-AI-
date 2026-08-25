@@ -920,7 +920,7 @@ app.post('/api/v1/nexus', async (req, res) => {
 
       // Autonomous Web Search Grounding
       const searchAllowed = req.body.search !== false && req.body.webSearch !== false;
-      const knowledgeConfidence = promptToEvaluate ? assessCorpusConfidence(promptToEvaluate, allKnowledge) : undefined;
+      const knowledgeConfidence = promptToEvaluate ? await assessCorpusConfidence(promptToEvaluate, allKnowledge) : undefined;
       const searchTriggerReason =
         !imagePart && promptToEvaluate && searchAllowed
           ? shouldTriggerLiveWebSearch(promptToEvaluate, settings, knowledgeConfidence)
@@ -1246,7 +1246,7 @@ app.post('/api/v1/generate', async (req, res) => {
       let outputText = '';
       let webSearchResults: WebSearchResult[] = [];
       const searchAllowed = body.webSearch !== false && body.search !== false;
-      const knowledgeConfidence = assessCorpusConfidence(promptText, allKnowledge);
+      const knowledgeConfidence = await assessCorpusConfidence(promptText, allKnowledge);
       const searchTriggerReason = searchAllowed ? shouldTriggerLiveWebSearch(promptText, settings, knowledgeConfidence) : false;
       if (searchTriggerReason) {
         try {
@@ -1355,7 +1355,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
       let outputText = '';
       let webSearchResults: WebSearchResult[] = [];
       const searchAllowed = webSearch !== false && search !== false;
-      const knowledgeConfidence = assessCorpusConfidence(promptText, allKnowledge);
+      const knowledgeConfidence = await assessCorpusConfidence(promptText, allKnowledge);
       const searchTriggerReason = searchAllowed ? shouldTriggerLiveWebSearch(promptText, settings, knowledgeConfidence) : false;
       if (searchTriggerReason) {
         try {

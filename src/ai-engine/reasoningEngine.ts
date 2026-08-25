@@ -8,6 +8,7 @@ import {
   WebSearchResult,
 } from '../types';
 import { extractQueryEntities, searchKnowledgeGraph, getBM25Engine } from './semanticEngine';
+import { hybridSearchKnowledgeGraph } from './vectorSearch';
 import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
@@ -1248,14 +1249,14 @@ type SearchHit = { item: KnowledgeItem; score: number; snippet?: string; relevan
  * phrasing (pronouns, filler words) can dilute BM25 scoring even when the corpus has a good match
  * for the underlying keywords.
  */
-function searchWithReformulation(
+async function searchWithReformulation(
   augmentedQuery: string,
   queryTerms: string[],
   allKnowledge: KnowledgeItem[],
   citedDocIds: Set<string>,
   topK: number
-): { results: SearchHit[]; reformulatedQuery: string | null } {
-  let results = applyContextBoost(searchKnowledgeGraph(augmentedQuery, allKnowledge, topK), citedDocIds);
+): Promise<{ results: SearchHit[]; reformulatedQuery: string | null }> {
+  let results = applyContextBoost(await hybridSearchKnowledgeGraph(augmentedQuery, allKnowledge, topK), citedDocIds);
   if (results.length > 0 && results[0].score >= CONFIDENT_MATCH_SCORE) {
     return { results, reformulatedQuery: null };
   }
@@ -1265,7 +1266,7 @@ function searchWithReformulation(
     return { results, reformulatedQuery: null };
   }
 
-  const retryResults = applyContextBoost(searchKnowledgeGraph(keywordQuery, allKnowledge, topK), citedDocIds);
+  const retryResults = applyContextBoost(await hybridSearchKnowledgeGraph(keywordQuery, allKnowledge, topK), citedDocIds);
   if (retryResults.length > 0 && (results.length === 0 || retryResults[0].score > results[0].score)) {
     return { results: retryResults, reformulatedQuery: keywordQuery };
   }
@@ -2853,7 +2854,7 @@ export async function generateReasoningPath(
         const partQuery = isVerdictPart ? `${part} ${comparative.entities.join(' ')}` : part;
         const partIntent = detectQueryIntent(part);
         const partTerms = processForSearch(partQuery);
-        const { results: partResults } = searchWithReformulation(partQuery, partTerms, allKnowledge, new Set(), 5);
+        const { results: partResults } = await searchWithReformulation(partQuery, partTerms, allKnowledge, new Set(), 5);
 
         if (partResults.length === 0 || partResults[0].score < WEAK_MATCH_SCORE) {
           sectionResults.push({ heading: part, body: unknownResponse(), hits: [], docTexts: [] });
@@ -3149,7 +3150,7 @@ export async function generateReasoningPath(
 
   // CRASHOUT MODE
   if (isCrashout) {
-    const { results, reformulatedQuery } = searchWithReformulation(
+    const { results, reformulatedQuery } = await searchWithReformulation(
       memory.augmentedQuery,
       queryTerms,
       allKnowledge,
@@ -3417,7 +3418,7 @@ export async function generateReasoningPath(
   // toolkit (math/logic/domain knowledge) per part instead of only corpus search, which this
   // spot never had access to anyway.
 
-  const { results, reformulatedQuery } = searchWithReformulation(
+  const { results, reformulatedQuery } = await searchWithReformulation(
     memory.augmentedQuery,
     queryTerms,
     allKnowledge,
@@ -3702,8 +3703,8 @@ export function computeConfidence(
  * cutoff — the score reflects generic word overlap, not whether the match is actually relevant.
  * computeConfidence()'s title/coverage-aware signals correctly separate the two.
  */
-export function assessCorpusConfidence(query: string, allKnowledge: KnowledgeItem[]): number {
-  const results = searchKnowledgeGraph(query, allKnowledge, 5);
+export async function assessCorpusConfidence(query: string, allKnowledge: KnowledgeItem[]): Promise<number> {
+  const results = await hybridSearchKnowledgeGraph(query, allKnowledge, 5);
   return computeConfidence(results, processForSearch(query));
 }
 
