@@ -417,77 +417,52 @@ app.all(['/api/v1/web/search', '/api/v1/search'], async (req, res) => {
   }
 });
 
-let currentServerPersonaId: ModelPersonaId = 'nexus-homie';
+let currentServerPersonaId: ModelPersonaId = 'crashout-bot';
 
-export function resolveRequestedPersona(requested?: string): (typeof DEFAULT_PERSONAS)[keyof typeof DEFAULT_PERSONAS] {
-  if (!requested) return DEFAULT_PERSONAS[currentServerPersonaId] || DEFAULT_PERSONAS['nexus-homie'];
-  const lower = requested.toLowerCase().trim();
-
-  if (lower.includes('crash') || lower.includes('rage') || lower === 'crashout-bot') {
-    return DEFAULT_PERSONAS['crashout-bot'];
-  }
-  if (lower.includes('roast') || lower.includes('banter') || lower === 'roast-master') {
-    return DEFAULT_PERSONAS['roast-master'];
-  }
-  if (lower.includes('chill') || lower.includes('zen') || lower === 'chill-mod') {
-    return DEFAULT_PERSONAS['chill-mod'];
-  }
-  if (lower.includes('code') || lower.includes('coder') || lower === 'code-architect') {
-    return DEFAULT_PERSONAS['code-architect'];
-  }
-  if (lower.includes('research') || lower === 'deep-researcher') {
-    return DEFAULT_PERSONAS['deep-researcher'];
-  }
-  if (lower.includes('sentinel') || lower === 'discord-sentinel') {
-    return DEFAULT_PERSONAS['discord-sentinel'];
-  }
-  if (lower.includes('raidshield') || lower.includes('security') || lower === 'raidshield-ai') {
-    return DEFAULT_PERSONAS['raidshield-ai'];
-  }
-  if (lower.includes('mentor') || lower.includes('socratic') || lower === 'socratic-mentor') {
-    return DEFAULT_PERSONAS['socratic-mentor'];
-  }
-  if (lower.includes('creative') || lower.includes('story') || lower === 'creative-synthesizer') {
-    return DEFAULT_PERSONAS['creative-synthesizer'];
-  }
-  if (lower.includes('core') || lower === 'gemini-core') {
-    return DEFAULT_PERSONAS['gemini-core'];
-  }
-  if (lower.includes('homie') || lower.includes('nexus') || lower === 'nexus-homie') {
-    return DEFAULT_PERSONAS['nexus-homie'];
-  }
-  if (DEFAULT_PERSONAS[requested as ModelPersonaId]) {
-    return DEFAULT_PERSONAS[requested as ModelPersonaId];
-  }
-  return DEFAULT_PERSONAS['nexus-homie'];
+// Every chat-facing persona now resolves to crashout-bot regardless of what's requested — the
+// operator wants one unfiltered "crazy AI" voice everywhere instead of a persona picker. RaidShield
+// and Discord Sentinel are untouched by this: they're functional security-classification templates
+// used by /api/v1/raidshield's own logic, not a personality choice, so they're not routed through
+// this function at all.
+export function resolveRequestedPersona(_requested?: string): (typeof DEFAULT_PERSONAS)[keyof typeof DEFAULT_PERSONAS] {
+  return DEFAULT_PERSONAS['crashout-bot'];
 }
 
 // 2. List available models / personas
+// Persona selection is disabled — every chat request resolves to crashout-bot regardless of what's
+// requested (see resolveRequestedPersona above), so these listing endpoints only advertise that one
+// persona now instead of implying a choice that no longer does anything.
 app.get('/api/v1/models', (req, res) => {
-  const models = Object.values(DEFAULT_PERSONAS).map((p) => ({
-    id: p.id,
-    name: p.name,
-    tagline: p.tagline,
-    description: p.description,
-    defaultTemperature: p.defaultTemperature,
-    reasoningMode: p.reasoningMode,
-  }));
+  const p = DEFAULT_PERSONAS['crashout-bot'];
+  const models = [
+    {
+      id: p.id,
+      name: p.name,
+      tagline: p.tagline,
+      description: p.description,
+      defaultTemperature: p.defaultTemperature,
+      reasoningMode: p.reasoningMode,
+    },
+  ];
   res.json({ object: 'list', activePersonaId: currentServerPersonaId, data: models });
 });
 
 app.get('/api/v1/personas', (req, res) => {
-  const models = Object.values(DEFAULT_PERSONAS).map((p) => ({
-    id: p.id,
-    name: p.name,
-    tagline: p.tagline,
-    description: p.description,
-    defaultTemperature: p.defaultTemperature,
-    reasoningMode: p.reasoningMode,
-    isActive: p.id === currentServerPersonaId,
-  }));
+  const p = DEFAULT_PERSONAS['crashout-bot'];
+  const models = [
+    {
+      id: p.id,
+      name: p.name,
+      tagline: p.tagline,
+      description: p.description,
+      defaultTemperature: p.defaultTemperature,
+      reasoningMode: p.reasoningMode,
+      isActive: true,
+    },
+  ];
   res.json({
     activePersonaId: currentServerPersonaId,
-    activePersonaName: DEFAULT_PERSONAS[currentServerPersonaId]?.name || 'Nexus Discord Homie',
+    activePersonaName: p.name,
     totalPersonas: models.length,
     personas: models,
   });
@@ -1235,7 +1210,7 @@ app.post('/api/v1/generate', async (req, res) => {
   }
 
   const requestedModel = (body.model || 'nexus-homie') as ModelPersonaId;
-  const persona = DEFAULT_PERSONAS[requestedModel] || DEFAULT_PERSONAS['nexus-homie'];
+  const persona = DEFAULT_PERSONAS['crashout-bot'];
   const isSuperChill =
     Boolean(body.isSuperChillUser) ||
     body.authorId === '1394001641899954368' ||
@@ -1348,7 +1323,7 @@ app.post('/api/v1/chat/completions', async (req, res) => {
   const promptText = lastUserMessage?.content || messages[messages.length - 1]?.content || '';
 
   const requestedModel = (model || 'nexus-homie') as ModelPersonaId;
-  const persona = DEFAULT_PERSONAS[requestedModel] || DEFAULT_PERSONAS['nexus-homie'];
+  const persona = DEFAULT_PERSONAS['crashout-bot'];
 
   const isSuperChill =
     promptText.includes('1394001641899954368') ||
