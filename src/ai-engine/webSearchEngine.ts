@@ -601,8 +601,12 @@ export function shouldTriggerLiveWebSearch(
     // rate-limited (429) — this keeps surfacing one new Polish small-talk phrasing at a time, so
     // this covers the common variants together instead of patching them one report at a time.
     /^(?:cześć|czesc|siema|siemka|hej|elo|witam)\b/i.test(q) ||
-    /\bjak\s+(?:tam|leci|się\s+masz|się\s+miewasz)\b/i.test(q) ||
-    /\bco\s+(?:tam|nowego|słychać|slychac|u\s+ciebie)\b/i.test(q) ||
+    // "tam" isn't always present by the time this runs (something upstream strips it in some
+    // paths) — observed live, "jak tam u ciebie?" reached this function as "jak u ciebie" and slid
+    // past the "tam" requirement, triggering the exact same 429 this whole block exists to avoid.
+    // "tam" is now optional everywhere it appears instead of assumed present.
+    /\bjak\s+(?:tam\s+)?(?:u\s+ciebie|leci|się\s+masz|się\s+miewasz)\b/i.test(q) ||
+    /\bco\s+(?:tam\s+)?(?:nowego|słychać|slychac|u\s+ciebie)\b/i.test(q) || /^co\s+tam\b/i.test(q) ||
     /^(?:dzięki|dzieki|dziękuję|dziekuje|pa|do\s+zobaczenia|na\s+razie)\b/i.test(q);
 
   if (isConversational) return false;
