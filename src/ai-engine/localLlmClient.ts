@@ -41,8 +41,10 @@ function isDegenerateRepetition(text: string): boolean {
   // Catches the other common small-model failure mode: the output devolves into one long
   // run-on token with no spaces/punctuation ("BYEBYEEEHHAAALLDDSS...ONEGOGOYOHOH...") instead of
   // word-level repetition. No legitimate English/French sentence produces a 35+ character
-  // unbroken alphabetic token.
-  if (words.some((w) => /^[a-zA-Z]{35,}$/.test(w))) return true;
+  // unbroken alphabetic run. Unanchored (not ^...$) — observed live, this reached a user because
+  // the gibberish run had trailing punctuation/emoji glued on with no space ("...WWWW!!!11️⃣"),
+  // which an anchored "the whole token is letters" check doesn't match.
+  if (/[a-zA-Z]{35,}/.test(text)) return true;
   // A third failure mode: the model echoes the style instruction as a literal fill-in-the-blank
   // placeholder instead of actually substituting real profanity — "<insert profanity>", "[insert
   // swear word here]", etc. — rather than following it. Observed live: "Shit <insert profanity>
