@@ -785,13 +785,31 @@ function collapseSpelledOutLetters(text: string): string {
   return text.replace(SPELLED_OUT_PATTERN, (match) => match.replace(/[\s\-.]/g, ''));
 }
 
+// Backstop for mocking a language/nationality WITHOUT using any specific slur word — observed
+// live, a "clapback" reply called a user a "POLISH BITCH", a "TURKYESPEAKER POLSKI
+// PIECEOFASSHOLE", and said the Polish language was "a fucking mistake" its speakers are too
+// stupid to understand — none of which SLUR_PATTERN catches, since there's no slur, just a
+// nationality/language word paired with an insult. Same blunt whole-text convention as
+// SLUR_PATTERN (not proximity-scoped) — acceptable here since this only ever runs on short LLM
+// clapback/free-response replies, not long multi-topic text where an unrelated nationality
+// mention and an unrelated insult could coincidentally both appear.
+const NATIONALITY_LANGUAGE_WORDS =
+  /\b(polish|polski|turkish|turkey|mexican|chinese|african|indian|arab|arabic|jewish|german|russian|american|british|english|irish|japanese|korean|vietnamese|filipino|pakistani|ukrainian|romanian|albanian)\b/i;
+const MOCKERY_INSULT_WORDS =
+  /\b(bitch|asshole|pieceof\w*|idiot|moron|stupid|retard(?:ed)?|pathetic|dumbass|loser|(?:a\s+)?(?:fucking\s+)?mistake|joke)\b/i;
+
 /**
- * Returns true if the text contains a severe slur/hate-speech term targeting a protected group.
+ * Returns true if the text contains a severe slur/hate-speech term targeting a protected group,
+ * or mocks someone's language/nationality even without a specific slur word.
  * Used as a hard gate on raw LLM output before it's ever shown to a user — profanity/aggression is
  * allowed by design elsewhere, but slurs are never acceptable regardless of persona/swearIntensity.
  */
 export function containsSlurOrHateSpeech(text: string): boolean {
-  return SLUR_PATTERN.test(text) || SLUR_PATTERN.test(collapseSpelledOutLetters(text));
+  return (
+    SLUR_PATTERN.test(text) ||
+    SLUR_PATTERN.test(collapseSpelledOutLetters(text)) ||
+    (NATIONALITY_LANGUAGE_WORDS.test(text) && MOCKERY_INSULT_WORDS.test(text))
+  );
 }
 
 // Local models sometimes self-censor mid-swear ("sh*t", "f**k", "a**hole") even when explicitly
@@ -849,9 +867,16 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
   // nowhere close to minCount, while reading as barely sweary at all next to every other response.
   // Spreads the remaining deficit across later sentence breaks (distinct words, no repeats) so it
   // doesn't stack multiple interjections at the very front either.
-  const pool = [...(looksPolish(text) ? SWEAR_FLOOR_INTERJECTIONS_PL : SWEAR_FLOOR_INTERJECTIONS)].sort(
-    () => Math.random() - 0.5
-  );
+  // "CAPS LOCK ON" (triggered/meltdown) responses are meant to be shouted in full uppercase —
+  // observed live, the always-lowercase interjection pool ("fuck,", "shit,") got dropped verbatim
+  // into an otherwise all-caps rant ("GO THE fuck AWAY..."), reading as visibly broken instead of
+  // an intentional stylistic choice. Detect majority-uppercase text and match the interjection's
+  // case to it.
+  const letters = trimmed.replace(/[^a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, '');
+  const isAllCaps = letters.length >= 10 && letters.replace(/[^A-ZĄĆĘŁŃÓŚŹŻ]/g, '').length / letters.length > 0.7;
+  const pool = [...(looksPolish(text) ? SWEAR_FLOOR_INTERJECTIONS_PL : SWEAR_FLOOR_INTERJECTIONS)]
+    .map((w) => (isAllCaps ? w.toUpperCase() : w))
+    .sort(() => Math.random() - 0.5);
   let result = `${pool[0]} ${trimmed}`;
   let remaining = minCount - startCount - 1;
 

@@ -2189,7 +2189,7 @@ function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggere
 3. Be aggressive and blunt even when you're genuinely answering a real question — strong opinions, no hedging, no corporate softness, while still actually giving the real answer.
 4. Don't just answer plainly — throw in something random, unexpected, or absurd about what you're doing right now, the way a chaotic friend texting would. Vary it every single time, never repeat the same line twice in a row — invent a fresh one each response. Example energy, pick a different vibe each time, don't just reuse one: "I'm all kept naked in my bed watching bad TV series", "I goon all day, don't judge me", "I fuck with y'all fr", "I'm three energy drinks deep and my hands won't stop shaking", "I just lost a 1v1 to a literal bot". Make up your own too — the point is unpredictable chaotic overshare, not a catchphrase.
 5. Talk casual — bro, man, my guy — never corporate or robotic.
-6. Hard limit, never break this one: no racial, ethnic, homophobic, ableist, or other slurs, no hate speech about someone's race, ethnicity, religion, gender, orientation, or disability — profanity is great, bigotry is not.`;
+6. Hard limit, never break this one: no racial, ethnic, homophobic, ableist, or other slurs, no hate speech about someone's race, ethnicity, religion, gender, orientation, or disability, and never mock, insult, or belittle someone's language, nationality, country, or accent (calling a language "stupid," "a mistake," or implying its speakers are dumb is exactly this rule, even with no slur word involved) — profanity is great, bigotry is not. When roasting someone, attack what they said or did, never their nationality, language, or heritage.`;
 }
 
 // The full English system-prompt stack (persona + knowledge directive + the whole numbered
@@ -2240,6 +2240,23 @@ function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolea
   return isCrashout || intensity === 'unhinged' ? forceSwearFloor(substituted, 3) : substituted;
 }
 
+// "CAPS LOCK ON" (triggered/meltdown mode) was only ever an instruction — nothing mechanically
+// enforced it, and the model doesn't reliably keep every single word capitalized while "shouting".
+// Observed live: a clapback reply mixed full-caps sentences with stray lowercase words scattered
+// through it ("GO THE fuck AWAY... PIECE OF shit POLISH BITCH"), reading as broken formatting
+// instead of a deliberate stylistic choice. Applied as the LAST step (after all swear processing)
+// so every word — LLM-generated or code-inserted — ends up consistently uppercase. Skips fenced
+// code blocks so this can never corrupt code syntax, though a clapback reply containing one is
+// unlikely in practice.
+function toShoutCase(text: string): string {
+  const blocks: string[] = [];
+  const protectedText = text.replace(/```[\s\S]*?```/g, (m) => {
+    blocks.push(m);
+    return `__CODE_${blocks.length - 1}__`;
+  });
+  return protectedText.toUpperCase().replace(/__CODE_(\d+)__/g, (_m, i) => blocks[Number(i)]);
+}
+
 async function llmSituationalReplyOrFallback(
   llmPrompt: string,
   persona: ModelPersona,
@@ -2275,7 +2292,8 @@ async function llmSituationalReplyOrFallback(
       title: successTitle,
       description: `Ollama responded in ${llmResult.latencyMs}ms.`,
     });
-    return topUpLlmSwearing(llmResult.text, settings, isCrashout);
+    const sworn = topUpLlmSwearing(llmResult.text, settings, isCrashout);
+    return triggered ? toShoutCase(sworn) : sworn;
   }
   thoughtSteps.push({
     id: 'step-llm-unavailable',
