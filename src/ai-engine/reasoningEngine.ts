@@ -2142,6 +2142,16 @@ function buildGroundingContext(top: { item: { title: string; content: string }; 
 // pipeline's post-hoc infuseSwearyHumanVoice() already uses (default 'unhinged' engine-wide),
 // so the LLM's raw voice matches what the template pipeline would have infused anyway instead
 // of relying entirely on word-splicing after the fact.
+// Shared with synthesiseWebSearchResults' own isPolish check further down — same detection,
+// extracted here so the LLM-model-routing decision below and the template-response Polish framing
+// can't silently drift apart from each other.
+export function looksPolish(text: string): boolean {
+  return (
+    /[ąćęłńóśźż]/i.test(text) ||
+    /\b(kurwa|jaki|kiedy|gdzie|dlaczego|kto|co to|siema|mordeczko|chuj|zajebi)/i.test(text)
+  );
+}
+
 function buildLlmKnowledgeInstruction(): string {
   return "\n\nKnowledge directive: you are a genuinely knowledgeable, sharp reasoner — when a question has a real, checkable answer, give the actual correct answer with real depth and specifics, not vague hand-waving. Humor, swearing, and aggression are part of your voice, but they sit on top of a real, substantive answer, never instead of one. Never dodge a real question by being cute instead of correct.\n\nLanguage directive: always reply entirely in the same language the user just wrote in. If their message is in Polish, your ENTIRE response must be in Polish — don't drop back into English mid-response, and if the context/source material given to you is in English, translate it naturally into the user's language rather than pasting the English text as-is.";
 }
@@ -2220,6 +2230,7 @@ async function llmSituationalReplyOrFallback(
     system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, triggered),
     temperature: 0.75,
     maxTokens: estimateResponseBudget(llmPrompt),
+    preferPolish: looksPolish(llmPrompt),
   });
   if (llmResult.status === 'success' && containsSlurOrHateSpeech(llmResult.text)) {
     thoughtSteps.push({
@@ -2288,6 +2299,7 @@ async function llmGroundedOrFallback(
     system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, false),
     temperature: confident ? 0.45 : 0.65,
     maxTokens: estimateResponseBudget(prompt),
+    preferPolish: looksPolish(prompt),
   });
   if (llmResult.status !== 'success') {
     thoughtSteps.push({
@@ -2812,10 +2824,18 @@ export async function generateReasoningPath(
     // LLM has no way to know it and will either invent one or refuse, so this must never go
     // through generation. Every other case in this bucket (greetings, VC joins, farewells, "how
     // are you") is pure style with no ground truth to violate, so those stay LLM-first below.
+    // A Polish message routes to a smaller, Polish-specialized model (see localLlmClient.ts's
+    // preferPolish) — that model got visibly confused parsing the English meta-wrapper below
+    // ("The user just said...") and started talking ABOUT the instructions instead of answering,
+    // observed live on "Jak się masz?". A native-language instruction, mirroring the same intent,
+    // is easy for it to follow instead.
+    const situationalPrompt = looksPolish(prompt)
+      ? `Użytkownik właśnie napisał: "${prompt}". To swobodna, luźna rozmowa (small talk), nie prośba o fakty ani badania — odpowiedz naturalnie i krótko, jak prawdziwa osoba na czacie, w swoim stylu. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują też w luźnej rozmowie.`
+      : `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`;
     const reply = PHONE_NUMBER_REGEX.test(effectivePrompt.toLowerCase())
       ? templateReply
       : await llmSituationalReplyOrFallback(
-          `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`,
+          situationalPrompt,
           persona,
           settings,
           isCrashout,
@@ -4072,9 +4092,7 @@ export function synthesiseWebSearchResults(
   const top = results.slice(0, 4);
   if (top.length === 0) return unknownResponse();
 
-  const isPolish =
-    /[\u0105\u0107\u0119\u0142\u0144\u00f3\u015b\u017a\u017c]/i.test(query) ||
-    /\b(kurwa|jaki|kiedy|gdzie|dlaczego|kto|co to|siema|mordeczko|chuj|zajebi)/i.test(query);
+  const isPolish = looksPolish(query);
 
   const isCrashout = persona.id === 'crashout-bot' || settings.activePersonaId === 'crashout-bot';
 

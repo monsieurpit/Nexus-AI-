@@ -1,6 +1,14 @@
 const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || '').replace(/\/+$/, '');
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
+// Benchmarked live against qwen2.5:3b on identical Polish prompts: qwen produced broken grammar,
+// invented words, and stray non-Polish characters, while this Polish-specialized model (SpeakLeash/
+// Bielik, trained specifically for Polish fluency) answered cleanly and correctly. NOT used as the
+// default model — benchmarked on English too, and it leaked raw template/stop tokens into real
+// output (e.g. "<|end_id: assistant>") and gave a completely unrelated answer to "whats up" — it's
+// only reliable for Polish. Callers opt in per-call via generate()'s preferPolish option once they've
+// detected the user's message is actually Polish; English stays on OLLAMA_MODEL as before.
+const OLLAMA_MODEL_POLISH = process.env.OLLAMA_MODEL_POLISH || 'SpeakLeash/bielik-1.5b-v3.0-instruct:Q8_0';
 
 // server.ts's request queue allows up to 5 requests to run truly concurrently, but a single Mac
 // Mini running Ollama locally can only actually generate for one request at a time — it doesn't
@@ -44,6 +52,11 @@ export interface OllamaGenerateOptions {
   system?: string;
   topP?: number;
   stopSequences?: string[];
+  // Set by callers that have already detected the user's message is Polish (see
+  // reasoningEngine.ts's looksPolish()) — routes this one call to OLLAMA_MODEL_POLISH instead of
+  // the default model. Never set automatically here since generate() only sees the fully-built
+  // prompt/system text, not the original raw user message language.
+  preferPolish?: boolean;
 }
 
 export type LocalLlmResult =
@@ -163,7 +176,7 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        model: OLLAMA_MODEL,
+        model: options.preferPolish ? OLLAMA_MODEL_POLISH : OLLAMA_MODEL,
         messages,
         stream: false,
         options: {
@@ -184,6 +197,15 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
 
     const data: any = await res.json();
     let text = typeof data?.message?.content === 'string' ? data.message.content.trim() : '';
+    if (!text) {
+      return { status: 'unavailable', reason: 'empty_response' };
+    }
+    // The Bielik GGUF (used for preferPolish) was observed leaking raw chat-template/stop tokens
+    // into real output — "<|end_id: assistant>" and "<|EOF|>" showed up verbatim in otherwise
+    // normal responses during benchmarking, presumably a template mismatch between the GGUF and
+    // Ollama's chat handling. Strips any "<|...|>"-style token, which qwen's own output never
+    // legitimately contains, so this is a no-op for the default model.
+    text = text.replace(/<\|[^|<>]{1,40}\|>/g, '').trim();
     if (!text) {
       return { status: 'unavailable', reason: 'empty_response' };
     }
