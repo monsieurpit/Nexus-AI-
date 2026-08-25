@@ -120,9 +120,11 @@ const PHONE_NUMBER_REGEX =
 // didn't match this regex at all, fell through to 'general' intent, BM25-matched the abbreviation
 // "PH" against a Chemistry corpus doc, and answered with an unrelated pH-scale chemistry lecture
 // instead of an actual answer to the question asked. "support"/"agree with" added after "do you
-// support israel" — same gap, same fix.
+// support israel" — same gap, same fix. Third clause ("can you [verb] [someone]") added after
+// "can you fuck @M0Hammed" — same category, generalized to any verb (mirrors webSearchEngine.ts's
+// identical carve-out) rather than enumerating crude verbs one report at a time.
 const PERSONAL_QUESTION_REGEX =
-  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i;
+  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)/i;
 
 // Polish equivalent of PERSONAL_QUESTION_REGEX — never existed, so any personal yes/no question
 // aimed at the bot fell through to 'general' intent same as the English gap this whole block

@@ -588,6 +588,12 @@ export function shouldTriggerLiveWebSearch(
     // — an opinion/stance question about the bot, same as "do you think/believe", not a lookup.
     /\bdo\s+(?:you|u)\s+(?:like|love|hate|think|believe|even|support|agree\s+with)\b/i.test(q) ||
     /\b(?:you|u)\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i.test(q) ||
+    // "can you [verb] [someone]" — a hypothetical/willingness question about the bot directed at
+    // a specific person (a mention, a name, or "me"/"him"/"her"), not a real lookup. Observed live:
+    // "can you fuck @M0Hammed" got searched verbatim and rate-limited (429). Generalized to any
+    // verb rather than enumerating them (fuck/kiss/marry/fight/beat/...) — the whack-a-mole
+    // pattern already caused repeat 429s several times this session for the exact same reason.
+    /\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)/i.test(q) ||
     // Polish opinion questions directed at the bot ("jak myślisz kto wygra..." = "what do you
     // think who'll win...", "co myślisz o..." = "what do you think about...") — same category as
     // the English "do you think" case above, just never had a Polish equivalent. Observed live:
