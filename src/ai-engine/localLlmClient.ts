@@ -43,6 +43,11 @@ function isDegenerateRepetition(text: string): boolean {
   // word-level repetition. No legitimate English/French sentence produces a 35+ character
   // unbroken alphabetic token.
   if (words.some((w) => /^[a-zA-Z]{35,}$/.test(w))) return true;
+  // A third failure mode: the model echoes the style instruction as a literal fill-in-the-blank
+  // placeholder instead of actually substituting real profanity — "<insert profanity>", "[insert
+  // swear word here]", etc. — rather than following it. Observed live: "Shit <insert profanity>
+  // 🤞 Hope your day's rollin' along smooth as silk".
+  if (/[<\[{]\s*insert\s+(?:profanity|swear|curse)/i.test(text)) return true;
   return false;
 }
 
