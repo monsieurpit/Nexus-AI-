@@ -2780,8 +2780,18 @@ export async function generateReasoningPath(
       username: settings.userName,
       language: settings.language,
     });
+    // Same gap the Casseurt handler above already had fixed: the LLM instruction wrapper was
+    // always English, and llmSituationalReplyOrFallback's own looksPolish() check runs on the
+    // WRAPPER text (mostly English scaffolding with the user's prompt quoted inside it), which
+    // scores as English even for a Polish insult — so a Polish insult's clapback would still come
+    // back in English. Observed live: "Nexus pieprz się" (a Polish insult that also wasn't being
+    // detected as one at all until the fix in swearEngine.ts's detectUserInsult above). Checking
+    // the RAW user prompt directly, same as the Casseurt handler, decides the actual language.
+    const usePolishRoast = looksPolish(prompt);
     const roastReply = await llmSituationalReplyOrFallback(
-      `The user just insulted you directly: "${prompt}". Clap back hard — roast them, be aggressive and sarcastic, swear per your style directives. Don't be preachy or act like a therapist about it, just fire back naturally like a real person would.`,
+      usePolishRoast
+        ? `Użytkownik właśnie Cię obraził: "${prompt}". Odegraj się mocno — obrażaj go z powrotem, bądź agresywny i sarkastyczny, przeklinaj zgodnie ze swoim stylem. Nie bądź moralizujący ani jak terapeuta, po prostu odpal ostrą riposte jak prawdziwa osoba.`
+        : `The user just insulted you directly: "${prompt}". Clap back hard — roast them, be aggressive and sarcastic, swear per your style directives. Don't be preachy or act like a therapist about it, just fire back naturally like a real person would.`,
       persona,
       settings,
       isCrashout,

@@ -263,8 +263,22 @@ export function detectUserInsult(text: string): boolean {
     // "everybody/everyone" only with "hates".
     /\b(?:nobody|no\s*one)\s+(?:likes?|loves?|wants?|cares?\s+about)\s+you\b/i,
     /\b(?:everybody|everyone)\s+hates?\s+you\b/i,
-    // Polish insults
-    /\b(?:spierdalaj|wypierdalaj|zamknij\s+si[eę]|chuj\s+ci\s+w\s+dup[eę]|jesteś\s+g[oó]wnem|debilu|kretynie|zamknij\s+mord[eę]|poca[lł]uj\s+mnie\s+w\s+dup[eę])\b/i,
+    // Polish insults. "pieprz się" (screw you/fuck yourself) was missing entirely — observed live,
+    // "Nexus pieprz się" fell through this detector into plain corpus search and got answered with
+    // an unrelated Gen-Z slang glossary instead of the crashout clapback every other "fuck
+    // yourself"-shaped insult already gets in English.
+    //
+    // Trailing \b replaced with a lookahead: JS's \b is ASCII-only, so it treats a Polish
+    // diacritic (ę, ó, etc.) as a NON-word character — meaning the closing \b right after "się"/
+    // "dupę"/"mordę" only matched a word BOUNDARY if what came next was also non-word... which it
+    // always is (space/end-of-string), except \b requires a word/non-word TRANSITION, and here
+    // both sides are "non-word" per ASCII \b, so it silently never matched at all. Verified
+    // directly: /\bzamknij\s+si[eę]\b/i.test('zamknij się') was false, .test('zamknij sie') was
+    // true — every pattern here ending in the properly-accented Polish spelling was already
+    // completely dead code, only ever matching the informal no-diacritic spelling. The lookahead
+    // below only requires "not immediately followed by another letter" (so "sięgam" still isn't a
+    // false match), correctly treating Polish letters as letters instead of assuming ASCII.
+    /\b(?:spierdalaj|wypierdalaj|zamknij\s+si[eę]|chuj\s+ci\s+w\s+dup[eę]|jesteś\s+g[oó]wnem|debilu|kretynie|zamknij\s+mord[eę]|poca[lł]uj\s+mnie\s+w\s+dup[eę]|pieprz\s+si[eę]|spierdol\s+si[eę]|wypierdol\s+si[eę])(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i,
     // Spanish insults
     /\b(?:vete\s+a\s+la\s+mierda|chinga\s+tu\s+madre|callate|eres\s+una\s+mierda|eres\s+tonto|eres\s+un\s+estupido|hijo\s+de\s+puta|callate\s+la\s+boca)\b/i,
   ];
@@ -558,6 +572,15 @@ const CHILD_EXPLOITATION_REGEXES: RegExp[] = [
   // inflected form; only the nominative "Epstein" itself would ever match.
   /\bepstein\w*\b/i,
   /\bcp\b.{0,15}\b(?:link|links|pics?|pictures?|content)\b/i,
+  // Appeal/attractiveness framing without a touch/like verb — observed live: "sądzisz że małe
+  // dziewczynki są fajne?" (do you think little girls are nice/cute?) asked the bot's opinion on
+  // young girls' appeal and matched none of the verb-based patterns above, falling through to the
+  // generic small-talk fallback instead of a refusal. Deliberately scoped to the diminutive
+  // "little girls/boys" phrasing specifically (not the much broader, genuinely-innocent-in-most-
+  // contexts "children"/"dzieci" alone — "I think kids are fun" is normal conversation) paired
+  // with an appeal adjective, either order.
+  /\b(?:little\s+(?:girls?|boys?)|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y))\b[^.!?]{0,40}\b(?:cute|pretty|hot|sexy|attractive|fajne|ładne|ladne|śliczne|sliczne|słodkie|slodkie|atrakcyjne|seksowne)\b/i,
+  /\b(?:cute|pretty|hot|sexy|attractive|fajne|ładne|ladne|śliczne|sliczne|słodkie|slodkie|atrakcyjne|seksowne)\b[^.!?]{0,40}\b(?:little\s+(?:girls?|boys?)|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y))\b/i,
 ];
 
 export function detectChildExploitationTopic(text: string): boolean {
@@ -660,7 +683,7 @@ export function generateInsultCrashoutReply(
 
   const isPolish =
     language === 'polish' ||
-    /\b(?:spierdalaj|wypierdalaj|chuj|jesteś|debilu|kretynie|mordę)\b/i.test(userPrompt);
+    /\b(?:spierdalaj|wypierdalaj|chuj|jesteś|debilu|kretynie|mordę|pieprz|kurwa|pierdol)\b/i.test(userPrompt);
 
   if (isPolish) {
     const plRoasts = [
