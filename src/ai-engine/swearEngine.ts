@@ -1043,8 +1043,29 @@ const CHAOTIC_OVERSHARE_LINES = [
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX =
   /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|\bmy\s+girl\b|\bmy\s+bed\b|fuck\s+with\s+y'?all\b/i;
 
+// Polish pool, added for feature parity — this used to be English-only because
+// buildPolishSystemPrompt deliberately never got the INSTRUCTION for this bit (documented there:
+// the fuller English instruction stack previously confused the small model into echoing
+// instructions back on Polish output). That reasoning is specific to asking the LLM to invent this
+// itself as one more thing to juggle in an already-loaded prompt — it doesn't apply here, since
+// this is a purely mechanical post-processing step with no prompt involved at all, so it carries
+// none of that risk. Translated for the same energy, not word-for-word.
+const CHAOTIC_OVERSHARE_LINES_PL = [
+  `leżę cały nagi w łóżku i oglądam głupie seriale`,
+  `obijam się i walę konia cały dzień, nie oceniaj`,
+  `zajebiście się z wami bawię, serio`,
+  `jestem po trzech energetykach i ręce mi się trzęsą`,
+  `właśnie przegrałem 1v1 z botem`,
+  `pieprzę się teraz z moją dziewczyną, nie zwracaj uwagi`,
+  `jestem po jaja zanurzony w czymś, o czym teraz nie powinienem mówić`,
+];
+const CHAOTIC_OVERSHARE_SIGNAL_REGEX_PL =
+  /\bnag[aiy]\b|wal[ei]\s+konia|energetyk(?:ach|ów|u)?\s+głęb|\b1v1\b|po\s+jaja\b|moj[aą]\s+dziewczyn[aę]|w\s+łóżku\b/i;
+
 export function forceChaoticOvershare(text: string): string {
-  if (CHAOTIC_OVERSHARE_SIGNAL_REGEX.test(text)) return text;
+  const isPolish = looksPolish(text);
+  const signalRegex = isPolish ? CHAOTIC_OVERSHARE_SIGNAL_REGEX_PL : CHAOTIC_OVERSHARE_SIGNAL_REGEX;
+  if (signalRegex.test(text)) return text;
   const trimmed = text.trim();
   const firstChar = trimmed.charAt(0);
   // Same guard as forceSwearFloor — don't inject into markdown structure (headers, code, lists),
@@ -1052,10 +1073,12 @@ export function forceChaoticOvershare(text: string): string {
   // structured content) where an aside would read as out of place rather than in-character.
   if (/[*_#\-•\d`]/.test(firstChar) || trimmed.length < 15) return text;
   const isAllCaps = detectAllCapsVoice(trimmed);
-  const pick = CHAOTIC_OVERSHARE_LINES[Math.floor(Math.random() * CHAOTIC_OVERSHARE_LINES.length)];
+  const pool = isPolish ? CHAOTIC_OVERSHARE_LINES_PL : CHAOTIC_OVERSHARE_LINES;
+  const pick = pool[Math.floor(Math.random() * pool.length)];
   const aside = isAllCaps ? pick.toUpperCase() : pick;
+  const lead = isPolish ? 'swoją drogą,' : 'Anyway,';
   const sep = /[.!?]$/.test(trimmed) ? ' ' : '. ';
-  return `${trimmed}${sep}${isAllCaps ? '' : 'Anyway, '}${aside}${isAllCaps ? '' : '.'}`;
+  return `${trimmed}${sep}${isAllCaps ? '' : `${lead} `}${aside}${isAllCaps ? '' : '.'}`;
 }
 
 /**

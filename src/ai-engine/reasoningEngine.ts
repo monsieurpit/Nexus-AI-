@@ -2457,12 +2457,14 @@ function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolea
   const substituted = enhanceNaturalSwearPhrasing(uncensored, isCrashout ? 'unhinged' : intensity);
   if (!(isCrashout || intensity === 'unhinged')) return substituted;
   const swornUp = forceSwearFloor(substituted, SWEAR_FLOOR_MIN_COUNT);
-  // English-only for now — buildPolishSystemPrompt deliberately never got this instruction at all
-  // (see its own comment: the fuller English instruction stack previously confused the model into
-  // echoing instructions back on Polish output), and the overshare pool itself is English text, so
-  // mechanically stapling it onto a Polish response would read as a jarring language switch rather
-  // than in-character flavor.
-  return looksPolish(swornUp) ? swornUp : forceChaoticOvershare(swornUp);
+  // forceChaoticOvershare now has its own Polish pool and picks it based on the text's own
+  // language, so this applies to both languages symmetrically — Polish never got the LLM
+  // INSTRUCTION for this bit (buildPolishSystemPrompt's own comment explains why: the fuller
+  // English instruction stack previously confused the model into echoing instructions back on
+  // Polish output), but that risk is specific to asking the model to invent this itself as one
+  // more thing in an already-loaded prompt. This is pure mechanical post-processing with no
+  // prompt involved, so it carries none of that risk and can safely cover both languages.
+  return forceChaoticOvershare(swornUp);
 }
 
 // "CAPS LOCK ON" (triggered/meltdown mode) was only ever an instruction — nothing mechanically
