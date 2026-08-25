@@ -593,7 +593,11 @@ export function shouldTriggerLiveWebSearch(
     // search for "Meaning of jak myślisz kto wygra ligę mistrzów" and rate-limited (429).
     /\b(?:jak|co)\s+myślisz\b/i.test(q) ||
     /\btwoim\s+zdaniem\b/i.test(q) ||
-    /\b(?:czy\s+)?lubisz\s+(?:mnie|go|ją|to)\b/i.test(q) ||
+    // Generalized from just (mnie|go|ją|to) after "czy lubisz pierogi" (do you like pierogi) got
+    // searched verbatim as "Meaning of czy lubisz pierogi" and rate-limited (429) — "czy lubisz X"
+    // is always a personal preference question directed at the bot, for ANY X, not just pronouns;
+    // there's never a real "meaning" lookup to do for it regardless of what X is.
+    /\b(?:czy\s+)?lubisz\s+\w+/i.test(q) ||
     // Polish greetings/small-talk ("jak tam u ciebie" = "how's it going with you", "co tam" =
     // "what's up", "co nowego" = "what's new", "jak leci"/"jak się masz" = "how are you") — the
     // same "how are you"/"what's up" English carve-out above never had Polish coverage at all.

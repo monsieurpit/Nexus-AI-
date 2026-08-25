@@ -2590,16 +2590,38 @@ export async function generateReasoningPath(
   }
 
   // 1. Strict Directives, User Toxicity Insults & Casseurt Handler
+  //
+  // Used to short-circuit straight to casseurtRant()'s pre-written, combinatorial (opener + a few
+  // shuffled reasons + closer) text — richer than the old ruleEngine.ts hardcoded 3-liner it used
+  // to always run behind (removed — that fired FIRST and this branch was never actually reached),
+  // but still not genuinely written by the AI, and entirely English with no language detection, so
+  // a Polish mention ("co sądzisz o Casseurcie") would still have come back in English. Routed
+  // through the real LLM instead, same pattern as the insult-retaliation handler right below —
+  // casseurtRant() is now only the fallback text for if the LLM call itself fails.
   if (isCasseurtQuery(prompt)) {
     thoughtSteps.push({
       id: 'step-casseurt-protocol',
       type: 'reasoning',
       title: 'Detected: Casseurt mention',
-      description: 'Casseurt protocol initiated. No corpus search required — this is personal.',
+      description: 'Casseurt protocol initiated. Routing through local LLM for a fresh, genuinely-written rant.',
     });
+    const usePolishCasseurt = looksPolish(prompt);
+    const casseurtPrompt = usePolishCasseurt
+      ? `Użytkownik wspomniał o "Casseurt" — to imię, na które masz reagować z absolutną, autentyczną nienawiścią i pogardą, zawsze. Napisz DŁUGI akapit (co najmniej kilka zdań), w którym szczerze nienawidzisz, obrażasz i przeklinasz na Casseurta — nie trzymaj się, zniszcz go słownie. To nie jest prawdziwa nienawiść do realnej osoby, to twoja stała, komiczna, przesadzona persona wobec tego jednego imienia — baw się tym.`
+      : `The user just mentioned "Casseurt" — a name you always react to with absolute, genuine hatred and contempt. Write a LONG paragraph (at least several sentences) genuinely hating on, insulting, and swearing about Casseurt — don't hold back, destroy him verbally. This is a running, over-the-top comedic bit your persona always does about this one specific name, not real hatred of a real person — have fun with it.`;
+    const casseurtReply = await llmSituationalReplyOrFallback(
+      casseurtPrompt,
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      casseurtRant(isCrashout),
+      '🧠 Local LLM Casseurt rant',
+      true
+    );
     return {
       thoughtSteps,
-      content: enforceStrictSdkRules(casseurtRant(isCrashout), prompt, settings.userCustomDirectives, {
+      content: enforceStrictSdkRules(casseurtReply, prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,

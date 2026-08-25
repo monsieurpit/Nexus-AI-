@@ -881,35 +881,25 @@ export function evaluateStrictDirectives(
 
   const parsedRules = parseSdkRules(userDirectives, prompt, personaSystemPrompt);
 
-  // 1. Casseurt rule check
-  if (parsedRules.isCasseurtCheck) {
-    const rawCasseurt = generateNexusHomieResponse(prompt, isSuperChill, username);
-    const finalized = enforceStrictSdkRules(rawCasseurt, prompt, userDirectives, {
-      isSuperChill,
-      username,
-      systemInstruction: personaSystemPrompt,
-      contextCategory: 'conversational',
-    });
+  // Casseurt mentions used to short-circuit here with a fixed hardcoded reply (three canned
+  // English lines, picked before the LLM was ever called) — reported live: this fired on a POLISH
+  // question ("co sądzisz o Casseurcie") too, since isCasseurtMention just checks for the "casseurt"
+  // substring anywhere, language-agnostic, and returned the reply in English regardless. It also
+  // meant this category could never actually swear-scale, get longer, or be genuinely written by
+  // the AI — always the same ~3 one-liners. Removed entirely; isCasseurtMention now only feeds a
+  // strong instruction into the real LLM call in reasoningEngine.ts's generateReasoningPath
+  // (matching the same pattern already used for insult retaliation), so a Casseurt roast is a real,
+  // full-length, properly-swearing generated response in whatever language the user actually wrote
+  // in — with a short hand-written fallback only for the rare case the LLM call itself fails.
 
-    return {
-      hasCustomRules: true,
-      isStrictConstraint: true,
-      isDiscordSafetyCheck: false,
-      isRoastRequest: true,
-      output: finalized,
-      ruleExplanation: 'Executed strict Casseurt Roast directive: "Fuck no! Annoying pain in the ass."',
-      activeRulesApplied: ['Casseurt roast directive', 'Swear adherence rule'],
-    };
-  }
-
-  // 2. Safety / RaidShield Check
+  // 1. Safety / RaidShield Check
   const isSafetyCheck =
     /(?:is\s+(?:this|that|it)\s+safe|safety\s*(?:check|score|report|audit|eval)|check\s+(?:this\s+)?(?:for\s+)?(?:scam|phish|threat|raid|spam)|scan\s+(?:this\s+)?message|threat\s+assessment|is\s+this\s+(?:a\s+)?(?:phishing|scam|malware|virus|token\s+grabber)|analyze\s+(?:safety|threats)|automod\s+check)/i.test(
       promptLower
     ) ||
     /(?:safety-mod|security-scanner)/i.test(personaSystemPrompt);
 
-  // 3. Strict JSON format
+  // 2. Strict JSON format
   if (parsedRules.formatConstraint === 'json' || (isSafetyCheck && (combinedContext.includes('json') || promptLower.includes('json')))) {
     let messageToAnalyze = prompt;
     const msgExtract =
@@ -941,7 +931,7 @@ export function evaluateStrictDirectives(
     };
   }
 
-  // 4. Roast request
+  // 3. Roast request
   if (parsedRules.isRoastRequested && !isSafetyCheck) {
     const roastContent = generateRoast(prompt);
     const finalized = enforceStrictSdkRules(roastContent, prompt, userDirectives, {
@@ -962,7 +952,7 @@ export function evaluateStrictDirectives(
     };
   }
 
-  // 5. Crashout request
+  // 4. Crashout request
   if (parsedRules.isCrashoutRequested && !isSafetyCheck) {
     const crashoutContent = generateCrashout(prompt);
     const finalized = enforceStrictSdkRules(crashoutContent, prompt, userDirectives, {
@@ -983,7 +973,7 @@ export function evaluateStrictDirectives(
     };
   }
 
-  // 6. Chill request
+  // 5. Chill request
   if (parsedRules.isChillRequested && !isSafetyCheck) {
     const chillContent = generateChill(prompt);
     const finalized = enforceStrictSdkRules(chillContent, prompt, userDirectives, {
@@ -1004,7 +994,7 @@ export function evaluateStrictDirectives(
     };
   }
 
-  // 7. Discord safety embed analysis
+  // 6. Discord safety embed analysis
   if (isSafetyCheck) {
     let messageToAnalyze = prompt;
     const msgExtract =
@@ -1047,7 +1037,7 @@ ${safetyData.helpResponse ? `\n---\n\n#### 💬 Community Support Response:\n${s
     };
   }
 
-  // 8. Custom strict constraints / short-circuit rules only if specifically requested
+  // 7. Custom strict constraints / short-circuit rules only if specifically requested
   if (parsedRules.forbiddenPhrases.length > 0 || parsedRules.requiredPhrases.length > 0 || parsedRules.formatConstraint) {
     const rawNexus = generateNexusHomieResponse(prompt, isSuperChill, username);
     const finalized = enforceStrictSdkRules(rawNexus, prompt, userDirectives, {
