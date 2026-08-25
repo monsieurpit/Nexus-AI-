@@ -19,6 +19,7 @@ import {
   enhanceNaturalSwearPhrasing,
   uncensorProfanity,
   forceSwearFloor,
+  forceChaoticOvershare,
   SWEAR_DICTIONARY,
   detectUserInsult,
   generateInsultCrashoutReply,
@@ -148,6 +149,18 @@ const PERSONAL_QUESTION_REGEX_PL =
 // query, which came back with unrelated Japanese-grammar and diss-track results.
 const REASSURANCE_REGEX =
   /\b(?:don'?t\s+worry|everyone\s+loves?\s+you|we\s+(?:all\s+)?love\s+you|you'?re\s+(?:the\s+best|amazing|doing\s+great|appreciated))\b/i;
+
+// Polish equivalent of REASSURANCE_REGEX — never existed, so "nexus kocham cię" (I love you) fell
+// through to 'general' intent same as the English gap this whole block documents. Observed live:
+// got an entirely unrelated English UEFA Champions League history lecture in response to a simple
+// declaration of affection.
+//
+// Trailing \b replaced with a lookahead, same fix and same reason as swearEngine.ts's Polish
+// insult list: JS's \b is ASCII-only and treats "ę" as non-word, so the closing \b right after
+// "cię" never actually matched — verified directly, .test('kocham cię') was false while
+// .test('kocham cie') was true.
+const REASSURANCE_REGEX_PL =
+  /\b(?:nie\s+martw\s+si[eę]|kocham\s+ci[eę]|kochamy\s+ci[eę]|uwielbiam\s+ci[eę]|jesteś\s+(?:najlepsz[ay]|super|świetn[ay]|swietn[ay]|niesamowit[ay]))(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i;
 
 // "how are you"/"who are you" substring-matched ANY message containing that phrase, including
 // real questions that only happen to be phrased with it — "how are you supposed to configure
@@ -869,6 +882,7 @@ export function detectQueryIntent(query: string): QueryIntent {
     PERSONAL_QUESTION_REGEX.test(q) ||
     PERSONAL_QUESTION_REGEX_PL.test(q) ||
     REASSURANCE_REGEX.test(q) ||
+    REASSURANCE_REGEX_PL.test(q) ||
     classifyPraiseOrFlame(q) !== null ||
     classifyCookedPhrase(q) !== null ||
     classifySlangReaction(q) !== null ||
@@ -1982,6 +1996,13 @@ function crashoutConversationalPolish(query: string): string {
       `leżę cały w łóżku i oglądam głupie seriale, ale poza tym git, o co pytasz?`,
     ]);
   }
+  if (REASSURANCE_REGEX_PL.test(q)) {
+    return pickReply([
+      `kurwa, ja ciebie też, jesteś ogarnięty, wiesz o tym?`,
+      `no i nawzajem, jesteś zajebisty, co dalej?`,
+      `chuj, miło to słyszeć. jesteś moim ulubionym człowiekiem tu, co potrzebujesz?`,
+    ]);
+  }
   if (q.includes('spokojnie') || q.includes('spoko') || q === 'luz' || q.includes('wyluzuj')) {
     return pickReply([
       `spokojnie kurwa jestem, co się dzieje?`,
@@ -2419,7 +2440,17 @@ function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolea
   const intensity = settings.swearIntensity || 'unhinged';
   if (!isCrashout && intensity !== 'unhinged' && intensity !== 'heavy') return uncensored;
   const substituted = enhanceNaturalSwearPhrasing(uncensored, isCrashout ? 'unhinged' : intensity);
-  return isCrashout || intensity === 'unhinged' ? forceSwearFloor(substituted, 3) : substituted;
+  if (!(isCrashout || intensity === 'unhinged')) return substituted;
+  // Matches buildFinalDirective's own stated minimum ("at least 4 real swear words... mandatory,
+  // every single time") — the mechanical floor here was still set to 3, undercutting the
+  // instruction it's supposed to be a safety net for.
+  const swornUp = forceSwearFloor(substituted, 4);
+  // English-only for now — buildPolishSystemPrompt deliberately never got this instruction at all
+  // (see its own comment: the fuller English instruction stack previously confused the model into
+  // echoing instructions back on Polish output), and the overshare pool itself is English text, so
+  // mechanically stapling it onto a Polish response would read as a jarring language switch rather
+  // than in-character flavor.
+  return looksPolish(swornUp) ? swornUp : forceChaoticOvershare(swornUp);
 }
 
 // "CAPS LOCK ON" (triggered/meltdown mode) was only ever an instruction — nothing mechanically
@@ -3167,7 +3198,8 @@ export async function generateReasoningPath(
     // already matched the Polish personal-question regex above, the language is certain regardless
     // of what the generic detector thinks, so that match forces the Polish path.
     const isPersonalQuestionPl = PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase());
-    const isPolishConversation = looksPolish(prompt) || isPersonalQuestionPl;
+    const isReassurancePl = REASSURANCE_REGEX_PL.test(effectivePrompt.toLowerCase());
+    const isPolishConversation = looksPolish(prompt) || isPersonalQuestionPl || isReassurancePl;
     const templateReply = isPersonalQuestionPl
       ? personalQuestionReplyPolish()
       : isPolishConversation

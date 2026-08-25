@@ -964,7 +964,24 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
   let remaining = minCount - startCount - 1;
 
   if (remaining > 0) {
-    const breakPositions = [...result.matchAll(/[.!?]\s+(?=[A-Z"'])/g)].map((m) => m.index! + m[0].length);
+    // Sentence-end positions alone cap how many interjections a short reply can ever receive —
+    // a typical 1-2 sentence casual response has zero or one such position, so raising minCount
+    // couldn't actually raise the delivered count for most short replies (verified directly: a
+    // 2-sentence, 0-swear input asked for a floor of 4 only ever received 2). Comma positions are
+    // included as a fallback source once sentence-ends run out, since a mid-clause swear ("hey
+    // man, shit, why should I be") reads just as naturally as one after a full stop — this gives
+    // short multi-clause replies enough real insertion points to actually reach the requested
+    // floor instead of silently capping out well below it.
+    // frontWord itself was just prepended as "word, " — its own trailing comma sits at exactly
+    // frontWord.length + 1 and must be excluded from commaBreaks, or it gets treated as a real
+    // insertion point and stacks a second interjection immediately after the first ("chuj, cholera,
+    // Nexus?" instead of a natural spread through the actual sentence).
+    const frontWordCommaEnd = frontWord.length + 1;
+    const sentenceBreaks = [...result.matchAll(/[.!?]\s+(?=[A-Z"'])/g)].map((m) => m.index! + m[0].length);
+    const commaBreaks = [...result.matchAll(/,\s+/g)]
+      .map((m) => m.index! + m[0].length)
+      .filter((pos) => pos !== frontWordCommaEnd);
+    const breakPositions = [...new Set([...sentenceBreaks, ...commaBreaks])].sort((a, b) => a - b);
     let offset = 0;
     // Same anti-stutter reasoning as the front word above, extended to every later insertion too
     // — skip any pool word whose bare form already appears anywhere in the response so far.
@@ -981,6 +998,48 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
   }
 
   return result;
+}
+
+// Mirrors forceSwearFloor's reasoning exactly, for the persona's other signature bit: the system
+// prompt already INSTRUCTS the model to throw in random chaotic-overshare asides ("I'm all kept
+// naked in my bed watching bad TV") every response, but instruction-only compliance is just as
+// stochastic here as it is for swearing — observed live, several responses in a row had none of
+// it at all. Same fix as the swear floor: a mechanical, last-resort guarantee instead of trusting
+// compliance alone. Only fires when the response doesn't already contain some version of this
+// energy (checked via loose keyword matching against the pool below, not exact text — the model
+// is free to invent its own, this only tops up when it invented NOTHING in this vein), so a
+// response that's already doing the bit is left alone rather than getting a second, redundant one
+// stapled on.
+const CHAOTIC_OVERSHARE_LINES = [
+  `I'm all kept naked in my bed watching bad TV`,
+  `I goon all day, don't judge me`,
+  `I fuck with y'all fr`,
+  `I'm three energy drinks deep and my hands won't stop shaking`,
+  `I just lost a 1v1 to a literal bot`,
+  `me and my girl are going at it rn, don't mind me`,
+  `I'm balls deep in something I really shouldn't be talking about right now`,
+];
+// Loose signal words for detecting the bit is ALREADY present, independent of the exact pool
+// text above (the LLM is meant to invent its own lines too, not just reuse these verbatim).
+const CHAOTIC_OVERSHARE_SIGNAL_REGEX =
+  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|\bmy\s+girl\b|\bmy\s+bed\b/i;
+
+export function forceChaoticOvershare(text: string): string {
+  if (CHAOTIC_OVERSHARE_SIGNAL_REGEX.test(text)) return text;
+  const trimmed = text.trim();
+  const firstChar = trimmed.charAt(0);
+  // Same guard as forceSwearFloor — don't inject into markdown structure (headers, code, lists),
+  // and skip anything that's clearly not a normal chat paragraph (already-short template replies,
+  // structured content) where an aside would read as out of place rather than in-character.
+  if (/[*_#\-•\d`]/.test(firstChar) || trimmed.length < 15) return text;
+  // Same all-caps detection as forceSwearFloor, so a shouted CRASHOUT response gets a shouted
+  // aside instead of a lowercase one dropped visibly out of place into the middle of a rant.
+  const letters = trimmed.replace(/[^a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, '');
+  const isAllCaps = letters.length >= 10 && letters.replace(/[^A-ZĄĆĘŁŃÓŚŹŻ]/g, '').length / letters.length > 0.7;
+  const pick = CHAOTIC_OVERSHARE_LINES[Math.floor(Math.random() * CHAOTIC_OVERSHARE_LINES.length)];
+  const aside = isAllCaps ? pick.toUpperCase() : pick;
+  const sep = /[.!?]$/.test(trimmed) ? ' ' : '. ';
+  return `${trimmed}${sep}${isAllCaps ? '' : 'Anyway, '}${aside}${isAllCaps ? '' : '.'}`;
 }
 
 /**

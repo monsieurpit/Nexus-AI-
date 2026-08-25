@@ -35,6 +35,9 @@ const POLISH_SIGNAL_WORDS = new Set([
   // one-word message ("spokojnie") scored 0-0 and looksPolish wrongly returned false — observed
   // live, this sent a Polish "calm down" message down the English fallback path.
   'spokojnie', 'spoko', 'luz', 'wyluzuj',
+  // "kocham cie" (no-diacritic spelling of "kocham cię", I love you) has neither a diacritic nor
+  // any word already in this list — same 0-0 tie failure mode as "spokojnie" above.
+  'kocham', 'kochamy', 'uwielbiam',
 ]);
 // Deliberately excludes short words that are ALSO common, unrelated Polish words — "to" (English
 // preposition vs. Polish "this/it"), "on" (vs. Polish "he"), "a" (vs. Polish "and/but"), "i" (vs.
@@ -166,6 +169,24 @@ function isDegenerateRepetition(text: string): boolean {
   // swear word here]", etc. — rather than following it. Observed live: "Shit <insert profanity>
   // 🤞 Hope your day's rollin' along smooth as silk".
   if (/[<\[{]\s*insert\s+(?:profanity|swear|curse)/i.test(text)) return true;
+  // A related but distinct leakage mode: instead of a literal placeholder token, the model
+  // narrates or announces the swearing instruction itself as part of the reply — "BUST OUT SOME
+  // OF MY BEST SWEAR WORDS AGAIN JUST FOR FUN 'CAUSE THAT'S HOW WE ARE NOW", "as instructed, here
+  // are some curse words" — instead of just naturally swearing. Reads as visibly robotic/breaking
+  // character (the whole point of an in-character style directive is that it's invisible), the
+  // opposite of what the instruction was for. Observed live in a fully English response with no
+  // Polish involved, so this isn't the same "small model confused by prompt complexity" issue
+  // documented elsewhere for Polish — it's a distinct, language-agnostic leakage mode.
+  if (
+    /\b(?:bust|break|whip)\s+out\s+(?:some\s+of\s+)?(?:my|those|these)\s+(?:best\s+)?(?:swear|curse)\s*words?\b/i.test(
+      text
+    ) ||
+    /\b(?:swear|curse)\s*words?\s+(?:again\s+)?(?:just\s+)?for\s+fun\b/i.test(text) ||
+    /\b(?:as|per)\s+(?:instructed|(?:my|the|your)\s+(?:style\s+)?(?:directive|instruction)s?)\b/i.test(text) ||
+    /\bfollowing\s+(?:my|the)\s+(?:style\s+)?(?:directive|instruction)s?\b/i.test(text)
+  ) {
+    return true;
+  }
   // A fourth failure mode: a whole phrase/paragraph looping verbatim, not just a single word —
   // observed live, a ~250-character rant block repeated 5 times back to back at high temperature
   // on a long generation. Sample fixed-length windows across the text and check whether any of
