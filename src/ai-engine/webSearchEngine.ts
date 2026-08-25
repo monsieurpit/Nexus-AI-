@@ -613,7 +613,14 @@ export function shouldTriggerLiveWebSearch(
     // a live web search in favor of a normal local/LLM reply, not a hard failure either way, and a
     // handful of nouns share that ending (kosz, grosz) which is an acceptable false-positive rate
     // for a NEVER-SEARCH gate.
-    /^(?:czy\s+)?(?:nie\s+)?[a-ząćęłńóśźż]{2,}(?:sz|łeś|łaś)\b/i.test(q) ||
+    // Trailing \b replaced with a negative lookahead — a code review caught that JS's \b is
+    // ASCII-only and silently fails to assert a boundary right after a Polish diacritic (the same
+    // defect already fixed elsewhere this session, e.g. swearEngine.ts's Polish insult list and
+    // reasoningEngine.ts's REASSURANCE_REGEX_PL). Verified live: as originally written with a
+    // trailing \b, this regex never matched ANY -łeś/-łaś past-tense verb (both end in "ś"),
+    // including the exact "pracowałeś z epsteinem" example the comment above cites as the reason
+    // this fallback exists — so every past-tense Polish question was silently still 429-ing.
+    /^(?:czy\s+)?(?:nie\s+)?[a-ząćęłńóśźż]{2,}(?:sz|łeś|łaś)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(q) ||
     // "czy powiesz X" (will you say X) — a request for the bot to say/repeat something, not a
     // lookup. Observed live: "czy powiesz "Mommy 🤤"" got searched verbatim and rate-limited.
     /\bczy\s+powiesz\b/i.test(q) ||
@@ -623,14 +630,20 @@ export function shouldTriggerLiveWebSearch(
     // Observed live: "jak tam u ciebie" got searched verbatim as "Meaning of jak tam u ciebie" and
     // rate-limited (429) — this keeps surfacing one new Polish small-talk phrasing at a time, so
     // this covers the common variants together instead of patching them one report at a time.
-    /^(?:cześć|czesc|siema|siemka|hej|elo|witam)\b/i.test(q) ||
+    // "cześć" ends in "ć" — same ASCII-\b defect as above, fixed the same way; "czesc" (informal,
+    // ASCII) was already fine and is the only spelling that was ever actually matching.
+    /^(?:cześć|czesc|siema|siemka|hej|elo|witam)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(q) ||
     // "tam" isn't always present by the time this runs (something upstream strips it in some
     // paths) — observed live, "jak tam u ciebie?" reached this function as "jak u ciebie" and slid
     // past the "tam" requirement, triggering the exact same 429 this whole block exists to avoid.
     // "tam" is now optional everywhere it appears instead of assumed present.
     /\bjak\s+(?:tam\s+)?(?:u\s+ciebie|leci|się\s+masz|się\s+miewasz)\b/i.test(q) ||
-    /\bco\s+(?:tam\s+)?(?:nowego|słychać|slychac|u\s+ciebie)\b/i.test(q) || /^co\s+tam\b/i.test(q) ||
-    /^(?:dzięki|dzieki|dziękuję|dziekuje|pa|do\s+zobaczenia|na\s+razie)\b/i.test(q) ||
+    // "słychać" ends in "ć" — same defect; "slychac" (ASCII fallback spelling) was the only one
+    // that ever matched despite "słychać" being the far more common, correctly-accented spelling.
+    /\bco\s+(?:tam\s+)?(?:nowego|słychać|slychac|u\s+ciebie)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(q) ||
+    /^co\s+tam\b/i.test(q) ||
+    // "dziękuję" ends in "ę" — same defect; only the informal "dziekuje" spelling ever matched.
+    /^(?:dzięki|dzieki|dziękuję|dziekuje|pa|do\s+zobaczenia|na\s+razie)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(q) ||
     // Meta-commentary/questions about the bot's own swearing, in Polish ("będzie pierdolił po
     // polsku czaisz" = "[it]'ll be swearing in Polish, you get it") — observed live, got searched
     // verbatim as "Meaning of będzie pierdolił po polsku czaisz" and rate-limited (429). There's

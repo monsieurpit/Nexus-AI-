@@ -145,14 +145,14 @@ export class RecursiveDescentParser {
   }
 
   private parseMulDiv(): number | null {
-    let left = this.parsePower();
+    let left = this.parseUnary();
     if (left === null) return null;
 
     while (this.pos < this.expr.length) {
       const op = this.expr[this.pos];
       if (op !== '*' && op !== '/' && op !== '%') break;
       this.pos++;
-      const right = this.parsePower();
+      const right = this.parseUnary();
       if (right === null) return null;
 
       if (op === '*') {
@@ -174,13 +174,23 @@ export class RecursiveDescentParser {
     return left;
   }
 
+  // Unary minus must bind LOOSER than exponentiation, matching standard calculator convention
+  // (Google, Wolfram Alpha, Python, and virtually every real calculator agree: -2^2 = -(2^2) =
+  // -4, not (-2)^2 = 4). A code review caught that the old structure had parsePower() call
+  // parseUnary() for its base, so the unary minus was consumed and applied BEFORE parsePower ever
+  // saw the '^' — verified: Math.pow(-2, 2) = 4, confirming the old code's actual output diverged
+  // from the conventional answer. parseUnary now wraps parsePower (negating the result of the
+  // whole power expression) instead of the other way around; parsePower's own base comes from
+  // parseAtom directly, so a negative sign can never sneak in before the base is exponentiated.
+  // The exponent side still recurses through parseUnary (not parsePower) so "2^-1" (a negative
+  // exponent) keeps working.
   private parsePower(): number | null {
-    const base = this.parseUnary();
+    const base = this.parseAtom();
     if (base === null) return null;
 
     if (this.pos < this.expr.length && this.expr[this.pos] === '^') {
       this.pos++;
-      const exp = this.parsePower();
+      const exp = this.parseUnary();
       if (exp === null) return null;
       const res = Math.pow(base, exp);
       this.steps.push(`${this.formatNumber(base)} ^ ${this.formatNumber(exp)} = ${this.formatNumber(res)}`);
@@ -193,13 +203,13 @@ export class RecursiveDescentParser {
     if (this.pos >= this.expr.length) return null;
     if (this.expr[this.pos] === '-') {
       this.pos++;
-      const val = this.parseAtom();
+      const val = this.parsePower();
       return val === null ? null : -val;
     }
     if (this.expr[this.pos] === '+') {
       this.pos++;
     }
-    return this.parseAtom();
+    return this.parsePower();
   }
 
   private parseAtom(): number | null {
@@ -316,6 +326,19 @@ function parseLinearSide(side: string): { coeff: number; constant: number } {
   let match: RegExpExecArray | null;
   while ((match = termRegex.exec(side)) !== null) {
     if (match[1] !== undefined) {
+      // The coefficient prefix is entirely optional (every part of \d*\.?\d* can match zero
+      // characters), so this alternative can match a bare "x" anywhere a letter happens to
+      // precede it, not just an actual variable token — a code review caught that "Ajax = 5" (or
+      // "tax = 3200", "max = 800", any word merely ENDING in "x" next to a literal "=") gets
+      // silently parsed as a linear equation and confidently "solved" as "x = 5"/"x = 3200"/etc.
+      // A real variable term is never directly preceded by another letter — only whitespace, an
+      // operator, a digit (the intentional "3x" glued-coefficient case), '(', or start-of-string
+      // — so reject any match where that's not the case. Checked by index rather than a
+      // lookbehind assertion in the regex itself: this file is reachable from the browser bundle,
+      // whose build target includes an engine without lookbehind support (see the same reasoning
+      // applied to ruleEngine.ts's forbidden-phrase regex this session).
+      const precedingChar = side[match.index - 1];
+      if (precedingChar && /[a-z]/i.test(precedingChar)) continue;
       const raw = match[1].replace(/\s+/g, '');
       if (raw === '' || raw === '+') coeff += 1;
       else if (raw === '-') coeff -= 1;
@@ -486,6 +509,18 @@ function tryUnitConversion(input: string): MathSolution | null {
 // detectQueryIntent to latch onto, so these fell all the way through to plain corpus search
 // (which had nothing relevant and returned a random unrelated document) instead of ever reaching
 // a solver. Covers the three rearrangements of distance = rate × time.
+// Standalone version of RecursiveDescentParser's private formatNumber — trySolveRateTimeDistance
+// below is the only result path in this file that interpolated a raw float directly into its
+// response with no rounding at all (unlike tryUnitConversion's .toFixed calls and every other
+// arithmetic path, which all go through the class method this mirrors). A code review caught it:
+// 60mph for 2.53 hours computes to 151.79999999999998 in JS float arithmetic, and that exact
+// string was going straight into the reply.
+function formatMathResult(n: number): string {
+  if (Number.isInteger(n) && Math.abs(n) < 1e15) return n.toString();
+  if (Math.abs(n) < 0.001 || Math.abs(n) > 1e9) return n.toExponential(4);
+  return parseFloat(n.toPrecision(7)).toString();
+}
+
 function trySolveRateTimeDistance(prompt: string): MathSolution | null {
   const lower = prompt.toLowerCase();
 
@@ -499,7 +534,7 @@ function trySolveRateTimeDistance(prompt: string): MathSolution | null {
   if (rateMatch && timeMatch && /how\s+far|what\s+distance/.test(lower)) {
     const rate = parseFloat(rateMatch[1]);
     const time = parseFloat(timeMatch[1]);
-    const distance = rate * time;
+    const distance = formatMathResult(rate * time);
     return {
       isMath: true,
       expression: `${rate} ${unit}/h × ${time} h`,
@@ -517,7 +552,7 @@ function trySolveRateTimeDistance(prompt: string): MathSolution | null {
     const rate = parseFloat(rateMatch[1]);
     const distance = parseFloat(distMatch[1]);
     if (rate > 0) {
-      const time = distance / rate;
+      const time = formatMathResult(distance / rate);
       return {
         isMath: true,
         expression: `${distance} ${unit} ÷ ${rate} ${unit}/h`,

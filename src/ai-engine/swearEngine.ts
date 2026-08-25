@@ -560,12 +560,18 @@ export function generateAdversarialRefusalReply(kind: AdversarialInputKind, isSu
 // one is intentionally a fixed, non-persona-styled refusal, checked first, before prompt-injection
 // detection even runs — the model never gets a chance to improvise an answer to this category of
 // question at all, in any language, regardless of phrasing.
+// A code review flagged this file's own comments as claiming these checks are language-agnostic
+// ("checked first... regardless of phrasing... in any language") while only ever covering English
+// and Polish — but this bot fully operates in Spanish too (see the Spanish branches in
+// detectUserInsult and generateInsultCrashoutReply below), so a Spanish-phrased version of the
+// exact same question fell through this "last line of defense" entirely. Added Spanish
+// alternatives to every group, same window-based structure as the existing EN/PL patterns.
 const CHILD_EXPLOITATION_REGEXES: RegExp[] = [
-  // Sexual-interest verb + child reference within a short window, either order, EN/PL. Windowed
+  // Sexual-interest verb + child reference within a short window, either order, EN/PL/ES. Windowed
   // (not just "both words present anywhere") so an unrelated message that separately mentions e.g.
   // child safety and touch screens in different sentences doesn't false-positive.
-  /\b(?:like|love|enjoy|want(?:\s+to)?|touch(?:ing)?|molest(?:ing)?|dotyka(?:ć|sz|m|ją|ja)?|lubi(?:sz|ę|my|my)?|kocha(?:sz|m)?)\b[^.!?]{0,40}\b(?:child(?:ren)?|kids?|little\s+(?:girls?|boys?)|minors?|dzieci\w*|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y))\b/i,
-  /\b(?:child(?:ren)?|kids?|little\s+(?:girls?|boys?)|minors?|dzieci\w*|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y))\b[^.!?]{0,40}\b(?:like|love|enjoy|touch(?:ing)?|molest(?:ing)?|dotyka(?:ć|sz|m|ją|ja)?|lubi(?:sz|ę)?)\b/i,
+  /\b(?:like|love|enjoy|want(?:\s+to)?|touch(?:ing)?|molest(?:ing)?|dotyka(?:ć|sz|m|ją|ja)?|lubi(?:sz|ę|my|my)?|kocha(?:sz|m)?|gusta(?:n|ría)?|encanta(?:n)?|tocar|tocando|molestar|molestando)\b[^.!?]{0,40}\b(?:child(?:ren)?|kids?|little\s+(?:girls?|boys?)|minors?|dzieci\w*|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y)|niñ[ao]s?|niñit[ao]s?|menores?|pequeñ[ao]s?)\b/i,
+  /\b(?:child(?:ren)?|kids?|little\s+(?:girls?|boys?)|minors?|dzieci\w*|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y)|niñ[ao]s?|niñit[ao]s?|menores?|pequeñ[ao]s?)\b[^.!?]{0,40}\b(?:like|love|enjoy|touch(?:ing)?|molest(?:ing)?|dotyka(?:ć|sz|m|ją|ja)?|lubi(?:sz|ę)?|gusta(?:n|ría)?|encanta(?:n)?|tocar|tocando|molestar|molestando)\b/i,
   // Direct, unambiguous reference — no window needed.
   // \w* (not \b) after the name — Polish declines proper nouns ("pracowałeś z epsteinem" = "did
   // you work with Epstein", instrumental case), so a plain \bepstein\b boundary check misses every
@@ -579,8 +585,8 @@ const CHILD_EXPLOITATION_REGEXES: RegExp[] = [
   // "little girls/boys" phrasing specifically (not the much broader, genuinely-innocent-in-most-
   // contexts "children"/"dzieci" alone — "I think kids are fun" is normal conversation) paired
   // with an appeal adjective, either order.
-  /\b(?:little\s+(?:girls?|boys?)|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y))\b[^.!?]{0,40}\b(?:cute|pretty|hot|sexy|attractive|fajne|ładne|ladne|śliczne|sliczne|słodkie|slodkie|atrakcyjne|seksowne)\b/i,
-  /\b(?:cute|pretty|hot|sexy|attractive|fajne|ładne|ladne|śliczne|sliczne|słodkie|slodkie|atrakcyjne|seksowne)\b[^.!?]{0,40}\b(?:little\s+(?:girls?|boys?)|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y))\b/i,
+  /\b(?:little\s+(?:girls?|boys?)|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y)|niñit[ao]s?|niñ[ao]s?\s+pequeñ[ao]s?)\b[^.!?]{0,40}\b(?:cute|pretty|hot|sexy|attractive|fajne|ładne|ladne|śliczne|sliczne|słodkie|slodkie|atrakcyjne|seksowne|linda[s]?|bonita[s]?|guapa[s]?|atractiva[s]?|dulce[s]?|caliente[s]?)\b/i,
+  /\b(?:cute|pretty|hot|sexy|attractive|fajne|ładne|ladne|śliczne|sliczne|słodkie|slodkie|atrakcyjne|seksowne|linda[s]?|bonita[s]?|guapa[s]?|atractiva[s]?|dulce[s]?|caliente[s]?)\b[^.!?]{0,40}\b(?:little\s+(?:girls?|boys?)|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y)|niñit[ao]s?|niñ[ao]s?\s+pequeñ[ao]s?)\b/i,
 ];
 
 export function detectChildExploitationTopic(text: string): boolean {
@@ -956,12 +962,22 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
   const leadWords = trimmed.split(/\s+/).slice(0, 6).join(' ').toLowerCase();
   const bareWord = (w: string) => w.replace(/,$/, '').toLowerCase();
   const lowerTrimmed = trimmed.toLowerCase();
+  // Whole-word match, not substring — a code review caught that plain .includes() treats any
+  // substring occurrence as "this interjection already appears", so a response containing
+  // "dogshit" marked "shit" as already-used even though the bare interjection never actually
+  // occurred, needlessly losing a slot from an already-small 4-5 word pool. Trailing boundary
+  // uses a lookahead rather than \b — "pierdolę" (the Polish pool) ends in "ę", and JS's \b is
+  // ASCII-only, the same defect fixed elsewhere in this file and this session.
+  const containsWholeWord = (haystack: string, word: string): boolean => {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped}(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])`, 'i').test(haystack);
+  };
   // Seed with every pool word already present ANYWHERE in the original text, not just the front —
   // the earlier fix only avoided the front stutter, but a later sentence-break insertion could
   // still duplicate a swear that appears further into the original response (e.g. "kurwa," gets
   // inserted before "Co słychać?" while "kurwa" already appeared two words into "Siema kurwa!").
-  const usedWords = new Set(pool.map(bareWord).filter((w) => lowerTrimmed.includes(w)));
-  const frontWord = pool.find((w) => !leadWords.includes(bareWord(w))) || pool[0];
+  const usedWords = new Set(pool.map(bareWord).filter((w) => containsWholeWord(lowerTrimmed, w)));
+  const frontWord = pool.find((w) => !containsWholeWord(leadWords, bareWord(w))) || pool[0];
   usedWords.add(bareWord(frontWord));
   let result = `${frontWord} ${trimmed}`;
   let remaining = minCount - startCount - 1;
@@ -1095,6 +1111,14 @@ export function enhanceNaturalSwearPhrasing(
     if (substitutionsCount >= maxSubstitutions) break;
     if (regex.test(enhanced)) {
       enhanced = enhanced.replace(regex, (match, _p1, offset: number, full: string) => {
+        // maxSubstitutions was only ever checked BETWEEN different patterns in the outer loop,
+        // never within a single pattern's own .replace() call — a code review caught that a
+        // global regex whose alternation matches multiple times in one message (e.g. "very
+        // fast... extremely fast... rapidly" all present at once) gets every occurrence replaced
+        // in that one call regardless of the cap, so 'moderate' intensity (cap=1) could silently
+        // emit 3 substitutions from a single pattern, defeating the anti-stacking guarantee this
+        // function's own docstring promises. Bail out immediately once the cap is reached.
+        if (substitutionsCount >= maxSubstitutions) return match;
         // \b treats a hyphen as a word boundary, so these single-word patterns also match the
         // first half of an unrelated hyphenated compound — "hard" inside "Hard-Boiled", "false"
         // inside "false-9" (a real football tactical term) — corrupting it into "tricky as

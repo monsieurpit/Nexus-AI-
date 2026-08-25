@@ -521,13 +521,20 @@ export function enforceStrictSdkRules(
   const intensity = options.swearIntensity || 'heavy';
 
   // 1. Swear Rule Enforcement (Infuse authentic profanity, punchlines, and natural swear flow)
+  // A code review caught that parseSdkRules correctly detects an "always swear"/"must swear"/
+  // "swear a lot" directive and sets swearDirective = 'always_swear' (parsed above), but this
+  // function never actually checked for that value — forceSwear was hardcoded false in both
+  // branches below regardless, so a configured always-swear rule behaved identically to the
+  // default 'natural' directive the moment a response already had a couple of swears from normal
+  // generation, silently failing to honor the one thing it exists to guarantee.
+  const forceSwear = parsed.swearDirective === 'always_swear';
   if (parsed.swearDirective === 'never_swear') {
     result = sanitizeSwearWords(result);
   } else if (parsed.swearDirective === 'polish_swear' || parsed.language === 'polish') {
     result = infuseSwearyHumanVoice(result, {
       language: 'polish',
       isSuperChill: options.isSuperChill,
-      forceSwear: false,
+      forceSwear,
       intensity,
       contextCategory: options.contextCategory,
     });
@@ -535,7 +542,7 @@ export function enforceStrictSdkRules(
     result = infuseSwearyHumanVoice(result, {
       language: 'english',
       isSuperChill: options.isSuperChill,
-      forceSwear: false,
+      forceSwear,
       intensity,
       contextCategory: options.contextCategory,
     });
@@ -544,7 +551,18 @@ export function enforceStrictSdkRules(
   // 2. Forbidden phrases filtering
   for (const forbidden of parsed.forbiddenPhrases) {
     if (forbidden && forbidden.length > 1) {
-      const reg = new RegExp(`\\b${forbidden.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      // Trailing \b replaced with a lookahead — a code review verified live that a configured
+      // forbidden phrase ending in a Polish diacritic (e.g. "muszę") never actually got redacted:
+      // JS's \b is ASCII-only, so it silently fails to assert a boundary right after ę/ą/ć/etc.
+      // Same defect already fixed this session in several other regexes (swearEngine.ts's insult
+      // list, reasoningEngine.ts's Polish personal-question/reassurance regexes). Not using a
+      // lookbehind for the LEADING boundary — this file is reachable from the client Vite bundle
+      // (App.tsx -> generator.ts -> reasoningEngine.ts -> ruleEngine.ts), whose build target list
+      // includes Safari 14, which doesn't support lookbehind assertions; risking that class of
+      // build breakage again (see the dictionary-pl top-level-await fix earlier this session)
+      // isn't worth it for the rarer case of a forbidden phrase that STARTS with a diacritic.
+      const escaped = forbidden.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const reg = new RegExp(`\\b${escaped}(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])`, 'gi');
       result = result.replace(reg, '[REDACTED_BY_RULE]');
     }
   }
@@ -899,8 +917,15 @@ export function evaluateStrictDirectives(
     ) ||
     /(?:safety-mod|security-scanner)/i.test(personaSystemPrompt);
 
-  // 2. Strict JSON format
-  if (parsedRules.formatConstraint === 'json' || (isSafetyCheck && (combinedContext.includes('json') || promptLower.includes('json')))) {
+  // 2. Strict JSON format — RaidShield safety-scan JSON output, only for an actual safety check.
+  // A code review caught that this used to be `formatConstraint === 'json' || (isSafetyCheck &&
+  // ...)` — operator precedence meant ANY persona configured with a plain "always respond in
+  // JSON" formatting directive hit this branch unconditionally, on every single message, and got
+  // a RaidShield classification JSON blob back instead of an actual answer to whatever they asked.
+  // isSafetyCheck must gate the whole condition; JSON (via directive or contextual mention) is
+  // just one of the signals that this is actually a safety-check request, not a format override
+  // for a live user question.
+  if (isSafetyCheck && (parsedRules.formatConstraint === 'json' || combinedContext.includes('json') || promptLower.includes('json'))) {
     let messageToAnalyze = prompt;
     const msgExtract =
       prompt.match(/(?:message|text|content|input|is that message safe|is this safe|safe)\s*:\s*["'`]([^"'`]+)["'`]/i) ||

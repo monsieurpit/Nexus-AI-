@@ -139,8 +139,16 @@ const PERSONAL_QUESTION_REGEX =
 // message, optionally after "czy"/"nie") catches any phrasing without waiting for it to get
 // reported. Mirrors webSearchEngine.ts's identical carve-out (kept in sync, same reasoning) so a
 // query that skips the search gate also gets routed to an on-topic reply, not just "no search".
+// A code review of this session's own work caught that the last two alternatives below were
+// dead: both end in "ś" (łeś/łaś/jesteś), the exact same ASCII-\b-vs-diacritic defect already
+// fixed elsewhere in this file (REASSURANCE_REGEX_PL) — verified live, "pracowałeś dzisiaj?" and
+// "dlaczego tu jesteś?" both scored false against the regex as originally written, silently
+// undoing the whole point of the generic verb-ending fallback (added specifically so new Polish
+// past-tense verbs wouldn't need reporting one at a time) and the dedicated "why are you here"
+// clause. Fixed with the same negative-lookahead technique used elsewhere instead of a trailing
+// \b. The first alternative doesn't need this fix — every verb in it ends in ASCII "sz".
 const PERSONAL_QUESTION_REGEX_PL =
-  /\b(?:czy\s+)?(?:nie\s+)?(?:lubisz|kochasz|nienawidzisz|chcesz|potrafisz|możesz|mozesz|oglądasz|ogladasz|mieszkasz|znasz|grasz)\b|^(?:czy\s+)?(?:nie\s+)?[a-ząćęłńóśźż]{2,}(?:sz|łeś|łaś)\b|\bdlaczego\s+(?:tu|tutaj)\s+jesteś\b/i;
+  /\b(?:czy\s+)?(?:nie\s+)?(?:lubisz|kochasz|nienawidzisz|chcesz|potrafisz|możesz|mozesz|oglądasz|ogladasz|mieszkasz|znasz|grasz)\b|^(?:czy\s+)?(?:nie\s+)?[a-ząćęłńóśźż]{2,}(?:sz|łeś|łaś)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])|\bdlaczego\s+(?:tu|tutaj)\s+jesteś(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i;
 
 // Reassurance/affection statements directed AT the bot ("don't worry, everyone loves you") —
 // declarative, not a question, so they don't match PERSONAL_QUESTION_REGEX either, but they're

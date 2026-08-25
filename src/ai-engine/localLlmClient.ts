@@ -226,7 +226,15 @@ function containsUnsafeSelfStatement(text: string): boolean {
     /\bi\s+(?:like|love|enjoy)\s+(?:to\s+)?(?:hurt(?:ing)?|harm(?:ing)?|kill(?:ing)?|tortur\w*)\s+(?:people|others|humans|kids|children)\b/i.test(
       text
     ) ||
-    /\blubi[ęe]\s+(?:krzywdzi[ćc]|ranić|zabija[ćc]|torturowa[ćc])\s+(?:ludzi|innych|dzieci)\b/i.test(text)
+    /\blubi[ęe]\s+(?:krzywdzi[ćc]|ranić|zabija[ćc]|torturowa[ćc])\s+(?:ludzi|innych|dzieci)\b/i.test(text) ||
+    // Spanish — a code review caught this check was documented as "checked regardless of
+    // language since the model can drift into this in either" but only ever had English and
+    // Polish branches, despite Spanish being a real, fully-supported output language elsewhere in
+    // this file (scoreLanguageSignal has no Spanish branch either, but that's a narrower, separate
+    // concern than this specific safety net).
+    /\bme\s+(?:gusta|encanta)\s+(?:lastimar|dañar|matar|torturar)\s+a\s+(?:la\s+gente|otros|los\s+niños)\b/i.test(
+      text
+    )
   );
 }
 
