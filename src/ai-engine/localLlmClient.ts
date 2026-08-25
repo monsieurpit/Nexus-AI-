@@ -48,6 +48,20 @@ function isDegenerateRepetition(text: string): boolean {
   // swear word here]", etc. — rather than following it. Observed live: "Shit <insert profanity>
   // 🤞 Hope your day's rollin' along smooth as silk".
   if (/[<\[{]\s*insert\s+(?:profanity|swear|curse)/i.test(text)) return true;
+  // A fourth failure mode: a whole phrase/paragraph looping verbatim, not just a single word —
+  // observed live, a ~250-character rant block repeated 5 times back to back at high temperature
+  // on a long generation. Sample fixed-length windows across the text and check whether any of
+  // them reappears verbatim later on; no legitimate long-form response repeats a 50+ character
+  // chunk exactly, so this is safe from false positives.
+  const WINDOW = 50;
+  if (text.length >= WINDOW * 2) {
+    const step = Math.max(20, Math.floor(text.length / 12));
+    for (let i = 0; i + WINDOW <= text.length; i += step) {
+      const chunk = text.slice(i, i + WINDOW);
+      const firstIdx = text.indexOf(chunk);
+      if (firstIdx !== -1 && text.indexOf(chunk, firstIdx + WINDOW) !== -1) return true;
+    }
+  }
   return false;
 }
 

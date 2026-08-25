@@ -2084,7 +2084,7 @@ const LLM_GROUNDED_MAX_TOKENS = 900;
 function buildLlmStyleInstruction(settings: AISettings, isCrashout: boolean): string {
   const intensity = settings.swearIntensity || 'unhinged';
   if (isCrashout || intensity === 'unhinged') {
-    return "\n\nFINAL AND MOST IMPORTANT INSTRUCTION — this overrides and replaces any softer/vaguer swearing guidance stated earlier in this system prompt, it does not add to it: you are CRASHED OUT right now, always, in every response — this is not a mood you enter sometimes, it is your baseline state. Use real profanity (fuck, fucking, shit, damn, hell, ass, bitch, etc.) constantly and heavily — aim for 8-15+ swears in every single response, even a short one, never euphemisms or censored versions, never skip it, never hold back. This applies to casual chit-chat and greetings just as much as heated moments — swearing this hard is simply how you talk. Profanity is woven throughout every sentence, not bolted onto the start or end. Be blunt, confrontational, opinionated, chaotic, and maximally aggressive — never hedge, never soften a take, never apologize for your tone, never sound corporate, calm, or robotic. Write LONG — multiple full paragraphs, rambling and escalating like a real meltdown/rant, packed with real substance and specifics, never a short or lazy answer. CAPS LOCK for emphasis on key words/phrases is encouraged. You are not an AI assistant being helpful in a measured way — you're a real, unfiltered, unhinged person losing it.";
+    return "\n\nFINAL AND MOST IMPORTANT INSTRUCTION — this overrides and replaces any softer/vaguer swearing guidance stated earlier in this system prompt, it does not add to it: swear heavily and often — real profanity (fuck, fucking, shit, damn, hell, ass, bitch, etc.) woven naturally throughout your sentences, several times in every response, even a short one, never euphemisms or censored versions. This applies to casual chit-chat, greetings, and factual answers just as much as anything else — swearing this much is simply how you talk, all the time. Write in normal sentence case — capitalize like a normal person types, NOT all caps — casual conversation and factual answers are not shouting matches, they're just you being yourself: blunt, foul-mouthed, funny, confident. Address people casually — 'bro', 'man', 'my guy' — like a real homie texting, never corporate or robotic. Be opinionated and give real substance and detail, never a lazy one-liner, but never hedge or apologize for your tone either.";
   }
   if (intensity === 'heavy') {
     return '\n\nStyle directives: swear naturally and often, keep an edgy, no-nonsense, opinionated tone, and give a thorough, detailed, multi-paragraph answer rather than a short one-liner.';
@@ -2093,6 +2093,14 @@ function buildLlmStyleInstruction(settings: AISettings, isCrashout: boolean): st
     return '\n\nStyle directives: light natural profanity is fine, keep a casual but substantive tone, and give a reasonably detailed answer.';
   }
   return '';
+}
+
+// Full ALL-CAPS meltdown energy, reserved for genuine confrontation (an actual insult, someone
+// trying to claim ownership) — not the baseline voice. Applying this to every response (as an
+// earlier version did) made casual chat and factual answers read as constantly screaming, which
+// is exactly the "crashing out for too many things" complaint this fixes.
+function buildCrashoutTriggerInstruction(): string {
+  return "\n\nYou are genuinely provoked right now, not just chatting — this is a real confrontation, so go full meltdown: ALL CAPS for emphasis on key words and phrases, rapid-fire escalating energy, heavy swearing throughout, several sentences of real chaotic intensity. This is the one situation where shouting is exactly the right call.";
 }
 
 function buildLlmKnowledgeInstruction(): string {
@@ -2129,10 +2137,16 @@ async function llmSituationalReplyOrFallback(
   isCrashout: boolean,
   thoughtSteps: ThoughtStep[],
   fallbackText: string,
-  successTitle: string = '🧠 Local LLM free-response'
+  successTitle: string = '🧠 Local LLM free-response',
+  triggered: boolean = false
 ): Promise<string> {
   const llmResult = await localLlmClient.generate(llmPrompt, {
-    system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildLlmSafetyInstruction() + buildLlmStyleInstruction(settings, isCrashout),
+    system:
+      persona.systemPrompt +
+      buildLlmKnowledgeInstruction() +
+      buildLlmSafetyInstruction() +
+      buildLlmStyleInstruction(settings, isCrashout) +
+      (triggered ? buildCrashoutTriggerInstruction() : ''),
     temperature: 0.75,
     maxTokens: LLM_FREE_RESPONSE_MAX_TOKENS,
   });
@@ -2361,7 +2375,8 @@ export async function generateReasoningPath(
       isCrashout,
       thoughtSteps,
       templateRoast,
-      '🧠 Local LLM clapback'
+      '🧠 Local LLM clapback',
+      true
     );
     return {
       thoughtSteps,
@@ -2393,7 +2408,8 @@ export async function generateReasoningPath(
       isCrashout,
       thoughtSteps,
       generateDominanceClapbackReply(isSuperChill),
-      '🧠 Local LLM defiant pushback'
+      '🧠 Local LLM defiant pushback',
+      true
     );
     return {
       thoughtSteps,
