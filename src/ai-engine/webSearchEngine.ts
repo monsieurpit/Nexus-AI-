@@ -1,6 +1,7 @@
 import { AISettings, KnowledgeItem, WebSearchResult } from '../types';
 import { processForSearch, BM25Engine } from './bm25Engine';
 import { isCasseurtMention, detectUserInsult } from './swearEngine';
+import { postToDiscordLog } from './discordLogWebhook';
 
 /**
  * Autonomous Zero-API-Key Web Search Engine
@@ -104,7 +105,9 @@ export async function searchGoogleDirect(query: string, maxResults: number = 5):
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.warn(`[Google Search] HTTP ${response.status} returned for query "${query}"`);
+      const msg = `[Google Search] HTTP ${response.status} returned for query "${query}"`;
+      console.warn(msg);
+      postToDiscordLog(msg, 'warn');
       return [];
     }
 
@@ -220,6 +223,7 @@ export async function searchGoogleDirect(query: string, maxResults: number = 5):
     return results;
   } catch (err: any) {
     console.warn('[Google Search] Failed:', err?.message || err);
+    postToDiscordLog(`[Google Search] Failed: ${err?.message || err}`, 'warn');
     return [];
   }
 }
@@ -304,6 +308,7 @@ export async function searchDuckDuckGoDirect(query: string, maxResults: number =
     return results;
   } catch (err: any) {
     console.warn('[DuckDuckGo Search] Failed:', err?.message || err);
+    postToDiscordLog(`[DuckDuckGo Search] Failed: ${err?.message || err}`, 'warn');
     return [];
   }
 }
@@ -371,6 +376,7 @@ export async function searchWikipediaKnowledge(query: string, maxResults: number
     return results;
   } catch (err: any) {
     console.warn('[Wikipedia Search] Failed:', err?.message || err);
+    postToDiscordLog(`[Wikipedia Search] Failed: ${err?.message || err}`, 'warn');
     return [];
   }
 }

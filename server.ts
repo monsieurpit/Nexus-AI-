@@ -11,6 +11,7 @@ import {
 } from './src/ai-engine/ruleEngine';
 import { generateReasoningPath, assessCorpusConfidence } from './src/ai-engine/reasoningEngine';
 import { checkAvailability as checkLocalLlmAvailability } from './src/ai-engine/localLlmClient';
+import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
 import {
   BUILTIN_KNOWLEDGE,
   getAllKnowledge,
@@ -1718,4 +1719,19 @@ async function startServer() {
 
 startServer().catch((err) => {
   console.error('Failed to start server:', err);
+  postToDiscordLog(`Failed to start server: ${err?.message || err}`, 'error');
+});
+
+// Forwards genuine process-level crashes to Discord (via DISCORD_LOG_WEBHOOK_URL, see
+// discordLogWebhook.ts) — same pattern the Discord bot's own app.js already uses for its crash
+// handlers, so an operational problem on either side of the AI-engine/bot pair is visible in the
+// same place instead of only ever showing up in Railway's own log viewer.
+process.on('uncaughtException', (error) => {
+  console.error('[Nexus] Uncaught exception:', error);
+  postToDiscordLog(`Uncaught exception: ${error?.stack || error?.message || error}`, 'error');
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Nexus] Unhandled rejection:', reason);
+  postToDiscordLog(`Unhandled rejection: ${(reason as any)?.message || reason}`, 'error');
 });
