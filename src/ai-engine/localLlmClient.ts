@@ -10,6 +10,51 @@ const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
 // detected the user's message is actually Polish; English stays on OLLAMA_MODEL as before.
 const OLLAMA_MODEL_POLISH = process.env.OLLAMA_MODEL_POLISH || 'SpeakLeash/bielik-1.5b-v3.0-instruct:Q8_0';
 
+// Shared language-signal classifier — used both to decide which model handles a message
+// (looksPolish, called by reasoningEngine.ts before generate()) and, below, to verify the model's
+// OUTPUT actually landed in the language the caller expected. Deliberately word-COUNT/density
+// based, not "does this text contain any signal at all" — a single embedded foreign word inside an
+// otherwise normal sentence must not flip the whole message's classification. Observed live: "Can I
+// see your stopki" (one Polish noun in an English question) and "what does X mean" (asking ABOUT a
+// Polish word, in English) both need to stay English; only a message where one language's signal
+// words genuinely outnumber the other's counts as that language.
+const POLISH_SIGNAL_WORDS = new Set([
+  'się', 'jest', 'czy', 'jak', 'co', 'gdzie', 'kiedy', 'dlaczego', 'ale', 'nie', 'tak', 'ja', 'ty',
+  'on', 'ona', 'my', 'wy', 'oni', 'znaczy', 'oznacza', 'jaki', 'jaka', 'jakie', 'jakich', 'proszę',
+  'dziękuję', 'dzięki', 'mogę', 'chcę', 'też', 'kurwa', 'siema', 'mordeczko', 'chuj', 'zajebiście',
+  'cześć', 'czesc', 'hej', 'witam', 'słowo', 'słowa', 'znasz', 'jesteś', 'masz',
+]);
+const ENGLISH_SIGNAL_WORDS = new Set([
+  'what', 'does', 'do', 'did', 'is', 'are', 'was', 'were', 'can', 'could', 'would', 'should', 'will',
+  'you', 'your', 'yours', 'i', 'my', 'me', 'we', 'us', 'our', 'the', 'a', 'an', 'this', 'that',
+  'these', 'those', 'how', 'why', 'where', 'when', 'who', 'whom', 'mean', 'means', 'meaning',
+  'explain', 'tell', 'see', 'show', 'please', 'thanks', 'thank', 'and', 'or', 'but', 'not', 'no',
+  'yes', 'have', 'has', 'had', 'with', 'for', 'to', 'of', 'in', 'on', 'at', 'it', 'define',
+  'definition', 'called', 'name', 'about',
+]);
+const POLISH_DIACRITIC_REGEX = /[ąćęłńóśźż]/i;
+
+function scoreLanguageSignal(text: string): { polish: number; english: number; wordCount: number } {
+  const words = text.toLowerCase().match(/[a-ząćęłńóśźż]+/gi) || [];
+  let polish = 0;
+  let english = 0;
+  for (const w of words) {
+    if (POLISH_SIGNAL_WORDS.has(w) || POLISH_DIACRITIC_REGEX.test(w)) polish++;
+    if (ENGLISH_SIGNAL_WORDS.has(w)) english++;
+  }
+  return { polish, english, wordCount: words.length };
+}
+
+/**
+ * True only when Polish signal words genuinely OUTNUMBER English ones in the message — not merely
+ * present. See scoreLanguageSignal's comment for why a raw "contains any Polish word" check is
+ * wrong.
+ */
+export function looksPolish(text: string): boolean {
+  const { polish, english } = scoreLanguageSignal(text);
+  return polish > english;
+}
+
 // server.ts's request queue allows up to 5 requests to run truly concurrently, but a single Mac
 // Mini running Ollama locally can only actually generate for one request at a time — it doesn't
 // run 5 requests in parallel internally, it serializes them. Without this, 5 concurrent requests
@@ -69,7 +114,8 @@ export type LocalLlmResult =
         | 'timeout'
         | 'http_error'
         | 'empty_response'
-        | 'degenerate_output';
+        | 'degenerate_output'
+        | 'wrong_language';
       detail?: string;
     };
 
@@ -219,6 +265,23 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     }
     if (isDegenerateRepetition(text)) {
       return { status: 'unavailable', reason: 'degenerate_output', detail: text.slice(0, 100) };
+    }
+    // Small local models occasionally drift into an entirely different (often incoherent) language
+    // mid-generation even on a plain-English prompt with an all-English system message — observed
+    // live: an English-only "explain how photosynthesis works" prompt with zero Polish anywhere in
+    // it came back as Dutch/Afrikaans-looking gibberish ("planta's", "grondnevel", "Jezus
+    // christus"). Since the caller already tells us which language it expects via preferPolish,
+    // verify the output's own language-signal density actually clears a low bar for that language
+    // before shipping it — this isn't Polish-vs-English specific, a near-zero density of EITHER
+    // language's signal words on a long-enough response means it drifted into something else
+    // entirely. Only checked on responses with enough words to judge reliably (8+) — a short reply
+    // has no real signal either way and would false-positive on legitimate short slangy text.
+    const signal = scoreLanguageSignal(text);
+    if (signal.wordCount >= 8) {
+      const density = (options.preferPolish ? signal.polish : signal.english) / signal.wordCount;
+      if (density < 0.06) {
+        return { status: 'unavailable', reason: 'wrong_language', detail: text.slice(0, 100) };
+      }
     }
 
     return { status: 'success', text, latencyMs: Date.now() - startedAt };

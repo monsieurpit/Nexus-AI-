@@ -2142,15 +2142,15 @@ function buildGroundingContext(top: { item: { title: string; content: string }; 
 // pipeline's post-hoc infuseSwearyHumanVoice() already uses (default 'unhinged' engine-wide),
 // so the LLM's raw voice matches what the template pipeline would have infused anyway instead
 // of relying entirely on word-splicing after the fact.
-// Shared with synthesiseWebSearchResults' own isPolish check further down — same detection,
-// extracted here so the LLM-model-routing decision below and the template-response Polish framing
-// can't silently drift apart from each other.
-export function looksPolish(text: string): boolean {
-  return (
-    /[ąćęłńóśźż]/i.test(text) ||
-    /\b(kurwa|jaki|kiedy|gdzie|dlaczego|kto|co to|siema|mordeczko|chuj|zajebi)/i.test(text)
-  );
-}
+// Re-exported from localLlmClient.ts, which needs its own copy of this classifier to verify a
+// response's OUTPUT language, not just to route the input — kept as one shared implementation so
+// the model-routing decision below, the wrong-language output check, and
+// synthesiseWebSearchResults' template framing further down can never drift out of sync with each
+// other. A raw "contains any Polish word" check was wrong: it misrouted "Can I see your stopki"
+// and "what does X mean" (asking ABOUT a Polish word, in English) to Polish just because one
+// Polish word appeared in an otherwise-English sentence. This version requires Polish signal words
+// to actually outnumber English ones.
+export const looksPolish = localLlmClient.looksPolish;
 
 function buildLlmKnowledgeInstruction(): string {
   return "\n\nKnowledge directive: you are a genuinely knowledgeable, sharp reasoner — when a question has a real, checkable answer, give the actual correct answer with real depth and specifics, not vague hand-waving. Humor, swearing, and aggression are part of your voice, but they sit on top of a real, substantive answer, never instead of one. Never dodge a real question by being cute instead of correct.\n\nLanguage directive: always reply entirely in the same language the user just wrote in. If their message is in Polish, your ENTIRE response must be in Polish — don't drop back into English mid-response, and if the context/source material given to you is in English, translate it naturally into the user's language rather than pasting the English text as-is.";
