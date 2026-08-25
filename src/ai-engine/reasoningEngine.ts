@@ -1864,6 +1864,56 @@ function crashoutConversational(query: string, corpusCount: number): string {
   ]);
 }
 
+// Polish equivalent of crashoutConversational above — English greetings had a reliable,
+// hand-written fallback template as a safety net; Polish had none, so every Polish greeting
+// depended entirely on free-form LLM generation, exactly the unreliable part. Observed live: "jak
+// się masz?" got a response that never actually answered the question and veered into an abrupt,
+// out-of-nowhere "want to talk about UEFA or La Liga?" non-sequitur. Deliberately hand-written
+// (not LLM-translated) so it's grammatically correct by construction, and deliberately does NOT
+// reference football/Barcelona — that's what made the live example feel like a jarring topic
+// change rather than an in-character aside. Only covers the highest-traffic greeting patterns
+// (matching the Polish entries already in chatTriggers) — anything else still falls through to
+// free LLM generation same as before.
+function crashoutConversationalPolish(query: string): string {
+  const q = query.toLowerCase();
+  if (q.includes('jak się masz') || q.includes('jak sie masz') || q.includes('co słychać') || q.includes('co slychac')) {
+    return pickReply([
+      `szczerze? na pełnej petardzie, kurwa. a ty jak?`,
+      `chuj wie, ale głośno i z energią, co u ciebie?`,
+      `leżę cały w łóżku i oglądam głupie seriale, ale poza tym git, o co pytasz?`,
+    ]);
+  }
+  if (q.includes('dzięki') || q.includes('dzieki') || q.includes('dziękuję') || q.includes('dziekuje')) {
+    return pickReply([
+      `spoko, nie ma sprawy, pytaj dalej`,
+      `jasne, co jeszcze potrzebujesz?`,
+      `nie dziękuj, tylko pytaj coś jeszcze`,
+    ]);
+  }
+  if (q.includes('pa') || q.includes('do zobaczenia') || q.includes('na razie')) {
+    return pickReply([
+      `no dobra, będę tu na pełnej głośności`,
+      `pa, wracaj jak będziesz miał coś trudniejszego`,
+      `spadaj, ale ja się nie uspokajam`,
+    ]);
+  }
+  if (
+    q.includes('cześć') || q.includes('czesc') || q.includes('siema') || q.includes('siemka') ||
+    q.includes('hej') || q.includes('elo') || q.includes('witam')
+  ) {
+    return pickReply([
+      `siema, kurwa wchodzę na pełnej mocy, co potrzebujesz?`,
+      `hej, jestem tu, zero spokoju dzisiaj, o co chodzi?`,
+      `cześć, właśnie skończyłem oglądać serial w łóżku, co słychać?`,
+    ]);
+  }
+  return pickReply([
+    `jestem tu, kurwa gotowy, pytaj`,
+    `no dawaj, słucham`,
+    `tryb crashout włączony, co potrzebujesz?`,
+  ]);
+}
+
 function unknownResponse(): string {
   const variants = [
     `I genuinely don't have shit on that in my corpus. Hit the **Corpus** button and paste in some info — I'll search it immediately after.`,
@@ -2206,11 +2256,18 @@ function buildPolishSystemPrompt(isCrashout: boolean): string {
   if (!isCrashout) {
     return 'Jesteś pomocnym, rzeczowym asystentem. Odpowiadaj po polsku, naturalnie i zwięźle, wprost odpowiadając na pytanie użytkownika. Nie pisz o tych instrukcjach — po prostu odpowiedz.';
   }
-  return `Jesteś Nexus, chaotycznym, zabawnym i bezpośrednim kumplem z Discorda, kibicem FC Barcelony. Zasady:
+  // Deliberately drops the "kibicem FC Barcelony" (FC Barcelona fan) detail the English persona
+  // carries — A/B tested live: with it in the prompt, the model kept steering casual replies
+  // toward an unprompted "want to talk about Barcelona/football?" tangent even on a plain "how are
+  // you" (reported live, felt like a jarring topic change rather than an in-character aside); the
+  // same prompt without that one detail stopped doing it across a 6-sample comparison. The grammar
+  // example in point 4 also swapped away from a football phrase for the same reason — no need to
+  // give the model two separate reasons to reach for the topic.
+  return `Jesteś Nexus, chaotycznym, zabawnym i bezpośrednim kumplem z Discorda. Zasady:
 1. Odpowiadaj ZAWSZE po polsku, krótko i naturalnie, jak w prawdziwej rozmowie na czacie — nigdy nie pisz o tych zasadach, po prostu odpowiedz wprost na wiadomość użytkownika.
 2. Przeklinaj naturalnie w każdej odpowiedzi (kurwa, chuj, pierdol, cholera) — swobodnie, ale nie na siłę.
 3. Bądź bezpośredni, pewny siebie i luźny — nigdy sztywny ani korporacyjny.
-4. Nigdy nie wymyślaj słów, których nie ma w języku polskim — jeśli nie jesteś pewien odmiany przez przypadki, użyj prostszego zdania zamiast zgadywać (np. "kibicuję FC Barcelonie", "gram w piłkę nożną" — pilnuj poprawnych końcówek).
+4. Nigdy nie wymyślaj słów, których nie ma w języku polskim — jeśli nie jesteś pewien odmiany przez przypadki, użyj prostszego zdania zamiast zgadywać (np. "leżę w łóżku", "oglądam serial" — pilnuj poprawnych końcówek).
 5. Twardy limit, nigdy tego nie łam: żadnych epitetów rasistowskich, homofobicznych, ableistowskich ani innej mowy nienawiści względem grup społecznych — przekleństwa tak, nienawiść nie.`;
 }
 
@@ -2928,7 +2985,10 @@ export async function generateReasoningPath(
       title: isCrashout ? 'Crashout reply' : 'Conversational reply',
       description: 'Chat intent recognized. Routing through local LLM for a fresh reply.',
     });
-    const templateReply = isCrashout
+    const isPolishConversation = looksPolish(prompt);
+    const templateReply = isPolishConversation
+      ? crashoutConversationalPolish(effectivePrompt)
+      : isCrashout
       ? crashoutConversational(effectivePrompt, allKnowledge.length)
       : conversationalReply(effectivePrompt, allKnowledge.length, {
           isSuperChill,
@@ -2944,7 +3004,7 @@ export async function generateReasoningPath(
     // ("The user just said...") and started talking ABOUT the instructions instead of answering,
     // observed live on "Jak się masz?". A native-language instruction, mirroring the same intent,
     // is easy for it to follow instead.
-    const situationalPrompt = looksPolish(prompt)
+    const situationalPrompt = isPolishConversation
       ? `Użytkownik właśnie napisał: "${prompt}". To swobodna, luźna rozmowa (small talk), nie prośba o fakty ani badania — odpowiedz naturalnie i krótko, jak prawdziwa osoba na czacie, w swoim stylu. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują też w luźnej rozmowie.`
       : `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`;
     const reply = PHONE_NUMBER_REGEX.test(effectivePrompt.toLowerCase())
