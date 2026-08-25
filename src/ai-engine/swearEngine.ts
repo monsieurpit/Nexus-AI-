@@ -783,12 +783,12 @@ export function containsSlurOrHateSpeech(text: string): boolean {
 // told to use real, uncensored profanity — leftover behavior from base-model safety training that
 // prompt instructions don't fully override. Un-censors the common cases back to real words.
 const CENSORED_SWEAR_REPLACEMENTS: [RegExp, string][] = [
-  [/\bf\*+ck(ing)?\b/gi, 'fuck$1'],
+  [/\bf\*+ck(\w{0,3})\b/gi, 'fuck$1'],
   [/\bf\*\*+\b/gi, 'fuck'],
-  [/\bsh\*+t\b/gi, 'shit'],
-  [/\ba\*+hole\b/gi, 'asshole'],
+  [/\bsh\*+t(\w{0,3})\b/gi, 'shit$1'],
+  [/\ba\*+hole(\w{0,2})\b/gi, 'asshole$1'],
   [/\ba\*+\b/gi, 'ass'],
-  [/\bb\*+tch\b/gi, 'bitch'],
+  [/\bb\*+tch(\w{0,2})\b/gi, 'bitch$1'],
   [/\bd\*+mn\b/gi, 'damn'],
   [/\bh\*+ll\b/gi, 'hell'],
 ];
