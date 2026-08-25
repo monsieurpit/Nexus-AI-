@@ -101,8 +101,13 @@ const PHONE_NUMBER_REGEX =
 // nonsense (nothing in a knowledge corpus or on the web actually answers "why are you here") or,
 // worse, searches the web for whatever topic word happens to be in the sentence (e.g. searching
 // for the song "Right Now" because someone asked "do you like the songs playing right now").
+// "am I your X" ("am i your papa", "am i your dad", "am i your king") is the first-person mirror
+// of "are you my X" — same playful/trolling intent, just phrased the other way round. Without it,
+// these fell through to 'general' intent, hit a loose corpus match on the literal word ("papa"
+// pulling up a Madonna song, a random book), and got a bizarre off-topic "answer" instead of a
+// witty comeback.
 const PERSONAL_QUESTION_REGEX =
-  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i;
+  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i;
 
 // Reassurance/affection statements directed AT the bot ("don't worry, everyone loves you") —
 // declarative, not a question, so they don't match PERSONAL_QUESTION_REGEX either, but they're
