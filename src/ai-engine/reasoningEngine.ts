@@ -2212,7 +2212,7 @@ async function llmGroundedOrFallback(
   persona: ModelPersona,
   settings: AISettings,
   isCrashout: boolean,
-  top: { item: KnowledgeItem }[],
+  top: { item: { title: string; content: string } }[],
   templateFallback: string,
   intent: QueryIntent,
   queryTerms: string[],
@@ -3021,6 +3021,14 @@ export async function generateReasoningPath(
   }
 
   // 6. General & Specialised Domain Intelligence (Science, Football, History, Everyday How-Tos)
+  //
+  // This is a hand-authored fact bank, same nature as a corpus document — the exact fact behind
+  // gkResult.response must stay accurate, but unlike math/code (where the LLM could silently
+  // mistranscribe a number or mangle syntax — a real regression, not an improvement), prose facts
+  // are safe to have the LLM re-deliver in-character, same pattern already proven for corpus
+  // grounding: feed the fact bank's own text as ground-truth context, verify the LLM's answer
+  // shape with the same verifyAnswer() used for corpus, and fall back to the raw fact-bank text
+  // unchanged on any failure.
   const gkResult = solveGeneralKnowledge(effectivePrompt, isSuperChill) || solveGeneralKnowledge(prompt, isSuperChill);
   if (gkResult && gkResult.matched) {
     thoughtSteps.push({
@@ -3029,9 +3037,22 @@ export async function generateReasoningPath(
       title: `📚 Domain Intelligence: ${gkResult.title || gkResult.category}`,
       description: `High-confidence exact answer resolved directly for query: "${prompt}".`,
     });
+    const gkContent = await llmGroundedOrFallback(
+      prompt,
+      persona,
+      settings,
+      isCrashout,
+      [{ item: { title: gkResult.title || gkResult.category || 'Domain Knowledge', content: gkResult.response } }],
+      gkResult.response,
+      intent,
+      queryTerms,
+      entities,
+      thoughtSteps,
+      true
+    );
     return {
       thoughtSteps,
-      content: enforceStrictSdkRules(gkResult.response, prompt, settings.userCustomDirectives, {
+      content: enforceStrictSdkRules(gkContent, prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
