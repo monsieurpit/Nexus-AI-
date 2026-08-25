@@ -2272,7 +2272,15 @@ async function llmSituationalReplyOrFallback(
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
       : persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, triggered),
-    temperature: 0.75,
+    // 0.75 is tuned for creative, varied English swearing/tangents, but the model is far less
+    // stable in Polish (a much weaker secondary language for it) at that temperature — observed
+    // live, two separate real users got genuinely garbled output ("Jak sieMaszc?", words fused
+    // together with no space) and one response leaked a literal system-prompt line into the reply
+    // ("Pierdól za każdym razem w odpowiedziach, pamiętaj" — a paraphrase of its own swearing
+    // instruction). A direct 5-run comparison at temperature 0.3 produced zero corruption and zero
+    // instruction leakage, all on-topic — lower temperature trades away some of the creative
+    // variety for reliability, which matters far more when the model is already on shakier ground.
+    temperature: usePolish ? 0.3 : 0.75,
     maxTokens: estimateResponseBudget(llmPrompt),
     preferPolish: usePolish,
   });
@@ -2352,7 +2360,9 @@ async function llmGroundedOrFallback(
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
       : persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, false),
-    temperature: confident ? 0.45 : 0.65,
+    // See the temperature comment in llmSituationalReplyOrFallback above — Polish needs a lower
+    // temperature across the board for reliability, same reasoning applied to the grounded path.
+    temperature: usePolish ? (confident ? 0.25 : 0.35) : confident ? 0.45 : 0.65,
     maxTokens: estimateResponseBudget(prompt),
     preferPolish: usePolish,
   });
