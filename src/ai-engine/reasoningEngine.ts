@@ -2716,15 +2716,21 @@ export async function generateReasoningPath(
           personaId: persona.id,
           username: settings.userName,
         });
-    const reply = await llmSituationalReplyOrFallback(
-      `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`,
-      persona,
-      settings,
-      isCrashout,
-      thoughtSteps,
-      templateReply,
-      '🧠 Local LLM conversational reply'
-    );
+    // Phone number requests are a real fact (a specific number), not a personality choice — the
+    // LLM has no way to know it and will either invent one or refuse, so this must never go
+    // through generation. Every other case in this bucket (greetings, VC joins, farewells, "how
+    // are you") is pure style with no ground truth to violate, so those stay LLM-first below.
+    const reply = PHONE_NUMBER_REGEX.test(effectivePrompt.toLowerCase())
+      ? templateReply
+      : await llmSituationalReplyOrFallback(
+          `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`,
+          persona,
+          settings,
+          isCrashout,
+          thoughtSteps,
+          templateReply,
+          '🧠 Local LLM conversational reply'
+        );
     const finalContent = enforceStrictSdkRules(reply, prompt, settings.userCustomDirectives, {
       isSuperChill,
       username: settings.userName,
