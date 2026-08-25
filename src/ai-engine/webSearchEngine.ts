@@ -594,6 +594,11 @@ export function shouldTriggerLiveWebSearch(
     // verb rather than enumerating them (fuck/kiss/marry/fight/beat/...) — the whack-a-mole
     // pattern already caused repeat 429s several times this session for the exact same reason.
     /\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)/i.test(q) ||
+    // "can I [verb] ... you/yo/ur/ya" — the "I" mirror of the above, same dead-end-for-search
+    // category. Observed live: "can i nut in yo butt 😂" got searched verbatim and rate-limited
+    // (429). Wider gap between verb and target than the "can you" case since these often have a
+    // few words in between ("nut IN YO butt" vs. a direct object right after the verb).
+    /\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b/i.test(q) ||
     // Polish opinion questions directed at the bot ("jak myślisz kto wygra..." = "what do you
     // think who'll win...", "co myślisz o..." = "what do you think about...") — same category as
     // the English "do you think" case above, just never had a Polish equivalent. Observed live:

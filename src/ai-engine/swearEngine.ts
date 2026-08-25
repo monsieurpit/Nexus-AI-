@@ -237,6 +237,14 @@ export function detectUserInsult(text: string): boolean {
     /\b(?:you|u)\s+(?:suck|are\s+shit|are\s+trash|are\s+dumb|are\s+stupid|are\s+useless|are\s+ass|are\s+garbage|are\s+bad|are\s+a\s+clown|are\s+a\s+bitch|are\s+a\s+dick|are\s+a\s+retard|are\s+a\s+failure|are\s+terrible|are\s+horrible)\b/i,
     /\b(?:fuck\s+you|fuck\s+u|fuk\s+u|(?:go\s+)?fuck\s+yourself|(?:go\s+)?fuck\s+urself|screw\s+you|screw\s+u|eat\s+shit|eat\s+a\s+dick|suck\s+my\s+dick|suck\s+a\s+dick|kiss\s+my\s+ass)\b/i,
     /\b(?:shut\s+up|shut\s+the\s+fuck\s+up|stfu|shut\s+ur\s+mouth|shut\s+your\s+mouth|piss\s+off|fuck\s+off|gtfo)\b/i,
+    // Phonetically mashed-together "shut the fuck up" with no spaces and loose vowels
+    // ("shatafakap") — observed live, fell through this detector entirely (none of the spaced-out
+    // patterns above match a single run-together word) and landed on 'general' intent, which
+    // BM25-matched several unrelated corpus documents and stitched their content into one
+    // incoherent multi-topic response instead of the insult clapback this deserved. Loose enough
+    // to catch phonetic variants generally, verified not to false-positive on unrelated words
+    // containing similar letter runs (shuttle, shampoo, shakalaka).
+    /\bsh[a-u]*t+[a-u]*f+[a-u]*[ck]+[a-u]*p\b/i,
     /\b(?:dumb|stupid|trash|useless|clown|bad|shit|shitty|crap|crappy|garbage|retarded|idiot|worthless)\s+bot\b/i,
     // Reversed order — "this bot is garbage/useless" — the "ADJ bot" pattern above only covers
     // the adjective-first phrasing.

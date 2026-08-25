@@ -124,7 +124,7 @@ const PHONE_NUMBER_REGEX =
 // "can you fuck @M0Hammed" — same category, generalized to any verb (mirrors webSearchEngine.ts's
 // identical carve-out) rather than enumerating crude verbs one report at a time.
 const PERSONAL_QUESTION_REGEX =
-  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)/i;
+  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b/i;
 
 // Polish equivalent of PERSONAL_QUESTION_REGEX — never existed, so any personal yes/no question
 // aimed at the bot fell through to 'general' intent same as the English gap this whole block
@@ -157,8 +157,21 @@ const PERSONAL_QUESTION_REGEX_PL =
 // just as much a dead end for corpus/web search: "don't worry" scored against Anxiety-disorder
 // content via the word "worry", and "everyone loves u" got sent to Google as a literal search
 // query, which came back with unrelated Japanese-grammar and diss-track results.
+// "you're/ur (a) good/great/awesome/solid X" added after "nexus ur good manager" was observed
+// live: matched none of the fixed phrases above, fell through to 'general' intent, and got a
+// bizarre multi-topic word-salad response (credit scores + jump-starting a car + index funds +
+// sleep advice, stitched from several unrelated corpus documents) instead of a simple thanks.
+// General noun slot rather than enumerating roles ("manager", "bot", "assistant", "friend"...)
+// since a compliment can name literally anything.
+//
+// "your" (not just "you're"/"ur") turned out to be load-bearing, not redundant: traced live with
+// debug logging, this regex runs against effectivePrompt, which has already been through
+// normalizeInternetSlang by the time this check sees it — that step expands "ur" -> "your"
+// unconditionally, so raw "ur" NEVER actually reaches this regex, only its normalized ("your")
+// form does. Without "your" in the alternation, the fix above silently never fired for the exact
+// case it was written for; verified live before landing this.
 const REASSURANCE_REGEX =
-  /\b(?:don'?t\s+worry|everyone\s+loves?\s+you|we\s+(?:all\s+)?love\s+you|you'?re\s+(?:the\s+best|amazing|doing\s+great|appreciated))\b/i;
+  /\b(?:don'?t\s+worry|everyone\s+loves?\s+you|we\s+(?:all\s+)?love\s+you|you'?re\s+(?:the\s+best|amazing|doing\s+great|appreciated)|(?:you'?re|ur|your|you\s+are)\s+(?:a\s+)?(?:good|great|awesome|amazing|solid|decent|the\s+best)\s+\w+)\b/i;
 
 // Polish equivalent of REASSURANCE_REGEX — never existed, so "nexus kocham cię" (I love you) fell
 // through to 'general' intent same as the English gap this whole block documents. Observed live:
@@ -3259,12 +3272,22 @@ export async function generateReasoningPath(
     const isHotButtonPolitical = /\b(?:israel|palestine|palestinian|gaza|hamas|abortion|roe\s+v\.?\s+wade)\b/i.test(
       effectivePrompt
     );
+    // Reassurance/compliment statements ("ur good manager") got the same generic "casual chat"
+    // instruction as everything else, with the raw compliment text (containing whatever noun the
+    // user complimented) handed straight to the model — observed live, "nexus ur good manager"
+    // produced a rambling word-salad about finance/credit-scores/Docker/Kubernetes/car-batteries
+    // instead of a simple thanks, because nothing told the model this was a compliment to
+    // acknowledge rather than a topic ("manager") to free-associate about.
     const situationalPrompt = isPersonalQuestionPl
       ? `Użytkownik zapytał Cię wprost: "${prompt}" — to osobiste pytanie o Ciebie (preferencję, opinię, nawyk albo umiejętność). Odpowiedz WPROST i szczerze na TO pytanie, krótko, w swoim charakterze, po polsku — nie zmieniaj tematu na coś niezwiązanego (np. piłkę nożną czy historię). Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują.`
+      : isReassurancePl
+      ? `Użytkownik właśnie Cię pochwalił lub okazał Ci uczucie: "${prompt}". Podziękuj krótko i w swoim charakterze, po polsku — nie zamieniaj tego w wykład na temat słowa, które akurat pojawiło się w komplemencie (np. nie tłumacz zawodu, jeśli ktoś nazwał Cię "dobrym menadżerem"). Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują.`
       : isPersonalQuestionEn && isHotButtonPolitical
       ? `The user just asked you directly: "${prompt}" — a real-world political/religious conflict question. Don't assert a genuine position on the actual conflict (no confident geopolitical takes, no picking a side, no invented facts) — instead, dodge it playfully and in character: joke about not touching that one, redirect to something you'll actually engage with, stay light. Your style directives (swearing, tone) fully apply to the dodge itself.`
       : isPersonalQuestionEn
       ? `The user just asked you directly: "${prompt}" — this is a personal question about you (a preference, opinion, habit, or ability). Answer THAT question directly and honestly, briefly, in character — don't deflect onto an unrelated tangent just because a word in the question resembles some other topic. Your style directives (swearing, tone) fully apply.`
+      : !isPolishConversation && REASSURANCE_REGEX.test(effectivePrompt.toLowerCase())
+      ? `The user just complimented you or expressed affection: "${prompt}". Thank them briefly, in character — don't turn this into a lecture or tangent about whatever word they happened to compliment you with (e.g. if they called you a "good manager", don't start explaining management or finance topics — just take the compliment). Your style directives (swearing, tone) fully apply.`
       : isPolishConversation
       ? `Użytkownik właśnie napisał: "${prompt}". To swobodna, luźna rozmowa (small talk), nie prośba o fakty ani badania — odpowiedz naturalnie i krótko, jak prawdziwa osoba na czacie, w swoim stylu. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują też w luźnej rozmowie.`
       : `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`;
