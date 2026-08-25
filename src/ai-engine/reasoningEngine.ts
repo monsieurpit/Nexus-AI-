@@ -2076,12 +2076,58 @@ function renderComparativeAnswer(
   return out.filter(Boolean).join('\n\n');
 }
 
-// Trimmed back from 900 (which itself had been raised from an original 400 for longer, more
-// thorough answers) after live reports of 7-13s response times — a 3B model generating up to 900
-// tokens is genuinely slow for a Discord bot. 550 is a middle ground: still noticeably longer and
-// more thorough than the original 400, while meaningfully cutting worst-case generation time.
-const LLM_FREE_RESPONSE_MAX_TOKENS = 550;
-const LLM_GROUNDED_MAX_TOKENS = 550;
+// A flat 550-token cap was trimmed down from 900 after live reports of 7-13s response times, but
+// that traded away real quality: genuinely broad/multi-part questions ("explain X and how it
+// relates to Y", "compare A and B") got cut off mid-sentence at 550 tokens just as often as they
+// were saved by it on simple ones. The actual latency cost of a token budget only shows up when
+// the model uses it — a short "what's the capital of france"-style question naturally stops itself
+// well under 550 regardless of the cap, so raising the ceiling for genuinely broad questions costs
+// nothing on the simple ones and only pays the extra generation time when the question actually
+// needs it. narrow ones stay capped low so a stray verbose reply doesn't run long for no reason.
+const LLM_MAX_TOKENS_NARROW = 450;
+const LLM_MAX_TOKENS_DEFAULT = 550;
+const LLM_MAX_TOKENS_BROAD = 900;
+
+const BROAD_QUESTION_PATTERN =
+  /\b(explain|compare|difference between|pros and cons|walk me through|breakdown|in detail|everything about|all the|list (?:all|every)|how does .+ work|why (?:does|is|do)|what are the)\b/i;
+
+// groundingDocCount is deliberately NOT used as a broadness signal — callers slice results to a
+// fixed length (top 4-5) before this ever runs regardless of how many of those actually scored as
+// real matches, so a padded-but-mostly-irrelevant list would otherwise always read as "broad" and
+// every query would get the expensive budget. The query's own shape is the only honest signal here.
+function estimateResponseBudget(prompt: string): number {
+  const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
+  const hasMultipleQuestions = (prompt.match(/\?/g) || []).length > 1 || / and (?:how|why|what|when|where) /i.test(prompt);
+  if (BROAD_QUESTION_PATTERN.test(prompt) || hasMultipleQuestions) {
+    return LLM_MAX_TOKENS_BROAD;
+  }
+  if (wordCount <= 6) {
+    return LLM_MAX_TOKENS_NARROW;
+  }
+  return LLM_MAX_TOKENS_DEFAULT;
+}
+
+// Dumping every matched document's FULL content into the prompt (observed live: ~7,100 chars for
+// a single grounded answer, ~9.5s of pure generate() latency just from prefill) is most of why the
+// bot "feels crashed" — the LLM never got a chance to be slow, the prompt itself was the size of a
+// short essay. bm25Engine.ts already extracts each document's most relevant sentences
+// (relevantSentences) for the template-fallback synthesizers; reusing that here for the LLM prompt
+// too shrinks the context to just the parts that actually matter for THIS query, instead of the
+// entire source document. Falls back to a hard-capped slice of the raw content for hits that don't
+// carry relevantSentences (e.g. a vector-only RRF discovery, which only carries a score).
+const GROUNDING_CONTENT_FALLBACK_CHARS = 500;
+
+function buildGroundingContext(top: { item: { title: string; content: string }; relevantSentences?: string[] }[]): string {
+  return top
+    .map((t, i) => {
+      const body =
+        t.relevantSentences && t.relevantSentences.length > 0
+          ? t.relevantSentences.slice(0, 4).join(' ')
+          : t.item.content.slice(0, GROUNDING_CONTENT_FALLBACK_CHARS);
+      return `[${i + 1}] ${t.item.title}: ${body}`;
+    })
+    .join('\n\n');
+}
 
 // Swearing/aggression/length are driven off the same swearIntensity setting the template
 // pipeline's post-hoc infuseSwearyHumanVoice() already uses (default 'unhinged' engine-wide),
@@ -2164,7 +2210,7 @@ async function llmSituationalReplyOrFallback(
   const llmResult = await localLlmClient.generate(llmPrompt, {
     system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, triggered),
     temperature: 0.75,
-    maxTokens: LLM_FREE_RESPONSE_MAX_TOKENS,
+    maxTokens: estimateResponseBudget(llmPrompt),
   });
   if (llmResult.status === 'success' && containsSlurOrHateSpeech(llmResult.text)) {
     thoughtSteps.push({
@@ -2217,7 +2263,7 @@ async function llmGroundedOrFallback(
   persona: ModelPersona,
   settings: AISettings,
   isCrashout: boolean,
-  top: { item: { title: string; content: string } }[],
+  top: { item: { title: string; content: string }; relevantSentences?: string[] }[],
   templateFallback: string,
   intent: QueryIntent,
   queryTerms: string[],
@@ -2225,14 +2271,14 @@ async function llmGroundedOrFallback(
   thoughtSteps: ThoughtStep[],
   confident: boolean
 ): Promise<string> {
-  const groundingContext = top.map((t, i) => `[${i + 1}] ${t.item.title}: ${t.item.content}`).join('\n\n');
+  const groundingContext = buildGroundingContext(top);
   const groundedPrompt = confident
     ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. The facts must stay accurate, but remember your style directives still apply to HOW you say it — swear per your instructions, stay blunt and in character, never go flat/robotic/corporate just because this is a factual answer.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your style directives (swearing, tone) still fully apply here — don't drop them just because you're being informative.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, false),
     temperature: confident ? 0.45 : 0.65,
-    maxTokens: LLM_GROUNDED_MAX_TOKENS,
+    maxTokens: estimateResponseBudget(prompt),
   });
   if (llmResult.status !== 'success') {
     thoughtSteps.push({
