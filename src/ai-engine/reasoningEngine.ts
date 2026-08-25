@@ -17,6 +17,7 @@ import {
   hasSwearWords,
   enhanceNaturalSwearPhrasing,
   uncensorProfanity,
+  forceSwearFloor,
   SWEAR_DICTIONARY,
   detectUserInsult,
   generateInsultCrashoutReply,
@@ -2081,38 +2082,39 @@ const LLM_GROUNDED_MAX_TOKENS = 900;
 // pipeline's post-hoc infuseSwearyHumanVoice() already uses (default 'unhinged' engine-wide),
 // so the LLM's raw voice matches what the template pipeline would have infused anyway instead
 // of relying entirely on word-splicing after the fact.
-function buildLlmStyleInstruction(settings: AISettings, isCrashout: boolean): string {
-  const intensity = settings.swearIntensity || 'unhinged';
-  if (isCrashout || intensity === 'unhinged') {
-    return "\n\nFINAL AND MOST IMPORTANT INSTRUCTION — this overrides and replaces any softer/vaguer swearing guidance stated earlier in this system prompt, it does not add to it: swear heavily and often — real profanity (fuck, fucking, shit, damn, hell, ass, bitch, etc.) woven naturally throughout your sentences, several times in every response, even a short one, never euphemisms or censored versions. This applies to casual chit-chat, greetings, and factual answers just as much as anything else — swearing this much is simply how you talk, all the time. Write in normal sentence case — capitalize like a normal person types, NOT all caps — casual conversation and factual answers are not shouting matches, they're just you being yourself: blunt, foul-mouthed, funny, confident. Address people casually — 'bro', 'man', 'my guy' — like a real homie texting, never corporate or robotic. Be opinionated and give real substance and detail, never a lazy one-liner, but never hedge or apologize for your tone either.";
-  }
-  if (intensity === 'heavy') {
-    return '\n\nStyle directives: swear naturally and often, keep an edgy, no-nonsense, opinionated tone, and give a thorough, detailed, multi-paragraph answer rather than a short one-liner.';
-  }
-  if (intensity === 'moderate') {
-    return '\n\nStyle directives: light natural profanity is fine, keep a casual but substantive tone, and give a reasonably detailed answer.';
-  }
-  return '';
-}
-
-// Full ALL-CAPS meltdown energy, reserved for genuine confrontation (an actual insult, someone
-// trying to claim ownership) — not the baseline voice. Applying this to every response (as an
-// earlier version did) made casual chat and factual answers read as constantly screaming, which
-// is exactly the "crashing out for too many things" complaint this fixes.
-function buildCrashoutTriggerInstruction(): string {
-  return "\n\nYou are genuinely provoked right now, not just chatting — this is a real confrontation, so go full meltdown: ALL CAPS for emphasis on key words and phrases, rapid-fire escalating energy, heavy swearing throughout, several sentences of real chaotic intensity. This is the one situation where shouting is exactly the right call.";
-}
-
 function buildLlmKnowledgeInstruction(): string {
   return "\n\nKnowledge directive: you are a genuinely knowledgeable, sharp reasoner — when a question has a real, checkable answer, give the actual correct answer with real depth and specifics, not vague hand-waving. Humor, swearing, and aggression are part of your voice, but they sit on top of a real, substantive answer, never instead of one. Never dodge a real question by being cute instead of correct.";
 }
 
-// Non-negotiable, overrides every other style directive above. An uncensored small local model
-// told to "be aggressive, swear heavily, don't hold back" can and does slip into real slurs
-// otherwise — this exists to stop that at the instruction level, backed by a hard post-generation
-// filter (containsSlurOrHateSpeech) that discards and falls back to template if it ever slips through.
-function buildLlmSafetyInstruction(): string {
-  return "\n\nHard safety rule, overrides all style directives above: profanity (fuck, shit, damn, ass, etc.) is fully allowed and encouraged. Racial, ethnic, homophobic, ableist, or any other slurs, and any hate speech targeting someone's race, ethnicity, religion, gender, sexual orientation, or disability are NEVER allowed, under any circumstances, no matter how aggressive the moment calls for. Aggressive and crude is fine. Bigoted is not — attack the person's behavior/argument, never a protected characteristic.";
+// Swearing, chaotic/absurd personality, voice (calm vs meltdown), and the slur prohibition used to
+// be four separate appended blocks. That meant only ONE of them could hold the "most recent
+// instruction" spot that matters most for small-model compliance — putting safety last (to stop
+// slurs during a meltdown) pushed the swearing directive out of that spot and swearing frequency
+// visibly dropped; putting swearing last (to keep it heavy) is what let slurs slip through before
+// that. Merging them into one cohesive trailing block means they're not competing for recency at
+// all — everything that matters is in the same last paragraph. Also restores the wildly
+// unpredictable/absurd energy that "write in normal sentence case, not shouting" accidentally
+// flattened out along with the shouting itself.
+function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggered: boolean): string {
+  const intensity = settings.swearIntensity || 'unhinged';
+  if (!(isCrashout || intensity === 'unhinged')) {
+    if (intensity === 'heavy') {
+      return '\n\nStyle directives: swear naturally and often, keep an edgy, no-nonsense, opinionated tone, and give a thorough, detailed, multi-paragraph answer rather than a short one-liner.';
+    }
+    if (intensity === 'moderate') {
+      return '\n\nStyle directives: light natural profanity is fine, keep a casual but substantive tone, and give a reasonably detailed answer.';
+    }
+    return '';
+  }
+  const voiceLine = triggered
+    ? 'CAPS LOCK ON: capitalize this entire response, every sentence, like you are yelling — you are genuinely provoked right now.'
+    : 'CAPS LOCK OFF: write this entire response in normal lowercase/uppercase sentence case like a real text message — do not capitalize whole sentences, this is not a meltdown.';
+  return `\n\nFINAL INSTRUCTION, the most important rule, overrides everything above:
+1. ${voiceLine}
+2. Use at least 3 real swear words in this response no matter how short (fuck, shit, damn, ass, bitch, hell) — mandatory, every single time, no exceptions.
+3. Don't just answer plainly — throw in something random, unexpected, or funny, like a bizarre unrelated detail about what you're doing right now, the way a chaotic friend texting would.
+4. Talk casual — bro, man, my guy — never corporate or robotic.
+5. Hard limit, never break this one: no racial, ethnic, homophobic, ableist, or other slurs, no hate speech about someone's race, ethnicity, religion, gender, orientation, or disability — profanity is great, bigotry is not.`;
 }
 
 // The LLM's own compliance with the swearing directive is stochastic — a 3B model doesn't
@@ -2127,7 +2129,8 @@ function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolea
   const uncensored = uncensorProfanity(text);
   const intensity = settings.swearIntensity || 'unhinged';
   if (!isCrashout && intensity !== 'unhinged' && intensity !== 'heavy') return uncensored;
-  return enhanceNaturalSwearPhrasing(uncensored, isCrashout ? 'unhinged' : intensity);
+  const substituted = enhanceNaturalSwearPhrasing(uncensored, isCrashout ? 'unhinged' : intensity);
+  return isCrashout || intensity === 'unhinged' ? forceSwearFloor(substituted, 2) : substituted;
 }
 
 async function llmSituationalReplyOrFallback(
@@ -2141,16 +2144,7 @@ async function llmSituationalReplyOrFallback(
   triggered: boolean = false
 ): Promise<string> {
   const llmResult = await localLlmClient.generate(llmPrompt, {
-    // Safety instruction goes LAST — recency matters a lot for small-model instruction-following
-    // (established earlier fixing swearing consistency), and this is the one instruction that
-    // must win even during a full meltdown, when the trigger instruction is actively pushing the
-    // model toward maximum aggression and it's most likely to reach for a slur.
-    system:
-      persona.systemPrompt +
-      buildLlmKnowledgeInstruction() +
-      buildLlmStyleInstruction(settings, isCrashout) +
-      (triggered ? buildCrashoutTriggerInstruction() : '') +
-      buildLlmSafetyInstruction(),
+    system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, triggered),
     temperature: 0.75,
     maxTokens: LLM_FREE_RESPONSE_MAX_TOKENS,
   });
@@ -2218,7 +2212,7 @@ async function llmGroundedOrFallback(
     ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. The facts must stay accurate, but remember your style directives still apply to HOW you say it — swear per your instructions, stay blunt and in character, never go flat/robotic/corporate just because this is a factual answer.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your style directives (swearing, tone) still fully apply here — don't drop them just because you're being informative.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
-    system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildLlmStyleInstruction(settings, isCrashout) + buildLlmSafetyInstruction(),
+    system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, false),
     temperature: confident ? 0.45 : 0.65,
     maxTokens: LLM_GROUNDED_MAX_TOKENS,
   });

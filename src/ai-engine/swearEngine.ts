@@ -801,6 +801,29 @@ export function uncensorProfanity(text: string): string {
   return result;
 }
 
+// Every entry here must actually match getSwearCount's regex below, or injecting one wouldn't
+// raise the count at all — a bug this shipped with once already ("ngl,"/"fr,"/"bro," don't count
+// as profanity, so the floor silently did nothing when one of those got picked).
+const SWEAR_FLOOR_INTERJECTIONS = ['damn,', 'shit,', 'hell,', 'fuck,', 'goddamn,'];
+
+// Instruction-only compliance on "swear N times" tops out well under 100% for a small local
+// model (confirmed by direct testing — several instruction rewordings all landed short-response
+// swear counts around 0-1 despite explicitly asking for 3+). enhanceNaturalSwearPhrasing's
+// word-substitution can only add swears where a matching bland word exists to replace, so a short
+// reply with no matching filler stays under-count regardless. This is the last-resort mechanical
+// floor: if the response is still short on profanity after that substitution pass, blend one more
+// interjection into the very start — unlike the old header/footer template stamp (correctly
+// killed), this is a single word folded into the first clause, on text that's already unique per
+// response, so it doesn't reintroduce the "obviously templated" feel that killed the original.
+export function forceSwearFloor(text: string, minCount: number = 2): string {
+  if (getSwearCount(text) >= minCount) return text;
+  const trimmed = text.trim();
+  const firstChar = trimmed.charAt(0);
+  if (/[*_#\-•\d`]/.test(firstChar)) return text;
+  const interjection = SWEAR_FLOOR_INTERJECTIONS[Math.floor(Math.random() * SWEAR_FLOOR_INTERJECTIONS.length)];
+  return `${interjection} ${trimmed}`;
+}
+
 /**
  * Natural In-Body Swear Enhancer:
  * Intelligently replaces bland neutral adjectives and transition words with authentic, punchy swearing.
