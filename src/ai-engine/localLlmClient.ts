@@ -1,3 +1,5 @@
+import { computeInvalidPolishWordRatio } from './polishSpellCheck';
+
 const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || '').replace(/\/+$/, '');
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
@@ -123,7 +125,8 @@ export type LocalLlmResult =
         | 'http_error'
         | 'empty_response'
         | 'degenerate_output'
-        | 'wrong_language';
+        | 'wrong_language'
+        | 'poor_polish_grammar';
       detail?: string;
     };
 
@@ -289,6 +292,19 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
       const density = (options.preferPolish ? signal.polish : signal.english) / signal.wordCount;
       if (density < 0.06) {
         return { status: 'unavailable', reason: 'wrong_language', detail: text.slice(0, 100) };
+      }
+    }
+
+    // The check above only asks "is this Polish at all" (word-density against a small signal-word
+    // list) — it doesn't catch a response that's clearly Polish but full of invented/garbled words
+    // ("nacieszyło...zaznaczysz...Chocío" — reported live). computeInvalidPolishWordRatio checks
+    // against a real, offline Polish dictionary instead, catching that class of failure directly.
+    // Only runs when Polish was actually requested — checking English text against a Polish
+    // dictionary would flag everything.
+    if (options.preferPolish) {
+      const invalidRatio = computeInvalidPolishWordRatio(text);
+      if (invalidRatio > 0.25) {
+        return { status: 'unavailable', reason: 'poor_polish_grammar', detail: text.slice(0, 100) };
       }
     }
 
