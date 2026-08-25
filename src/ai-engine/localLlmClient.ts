@@ -1,4 +1,4 @@
-import { computeInvalidPolishWordRatio } from './polishSpellCheck';
+import { computeInvalidPolishWordRatio, autoCorrectPolishText } from './polishSpellCheck';
 
 const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || '').replace(/\/+$/, '');
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
@@ -302,6 +302,11 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     // Only runs when Polish was actually requested — checking English text against a Polish
     // dictionary would flag everything.
     if (options.preferPolish) {
+      // Fixes the confident, small-edit cases first (a wrong case ending like "Footballa" ->
+      // "Football", reported live) before deciding whether to give up on the response entirely —
+      // so an otherwise-good reply with one fixable slip ships corrected instead of getting
+      // discarded for a template fallback over something this easy to actually fix.
+      text = autoCorrectPolishText(text);
       const invalidRatio = computeInvalidPolishWordRatio(text);
       if (invalidRatio > 0.25) {
         return { status: 'unavailable', reason: 'poor_polish_grammar', detail: text.slice(0, 100) };
