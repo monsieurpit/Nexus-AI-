@@ -775,6 +775,15 @@ export function detectQueryIntent(query: string): QueryIntent {
     'aight', 'ight', 'word', 'ok', 'okay', 'k', 'kk', 'ok cool', 'okay cool', 'nvm', 'nevermind', 'mood',
     'for real', 'for real for real', 'laughing my ass off', 'laughing my fucking ass off',
     'rolling on the floor laughing', 'never mind',
+    // Polish equivalents of the same small-talk/greeting set above — every one of these was
+    // English-only, so a Polish "jak się masz?" (how are you) fell all the way through to corpus
+    // search, matched some unrelated document by weak keyword/embedding overlap, and produced an
+    // incoherent, hallucinated response instead of a normal conversational reply. Not full Polish
+    // parity with every English entry above, just the highest-traffic greeting/small-talk phrases.
+    'cześć', 'czesc', 'hej', 'siema', 'siemka', 'elo', 'witaj', 'witam',
+    'jak się masz', 'jak sie masz', 'jak leci', 'co słychać', 'co słychac', 'co tam',
+    'dzięki', 'dzieki', 'dziękuję', 'dziekuje', 'dzięki wielkie', 'dzieki wielkie',
+    'pa', 'do zobaczenia', 'na razie', 'kim jesteś', 'kim jestes', 'co potrafisz',
   ];
 
   // Strictly for exact-match trigger comparisons — "you good?" should still hit the "you good"
@@ -2134,7 +2143,7 @@ function buildGroundingContext(top: { item: { title: string; content: string }; 
 // so the LLM's raw voice matches what the template pipeline would have infused anyway instead
 // of relying entirely on word-splicing after the fact.
 function buildLlmKnowledgeInstruction(): string {
-  return "\n\nKnowledge directive: you are a genuinely knowledgeable, sharp reasoner — when a question has a real, checkable answer, give the actual correct answer with real depth and specifics, not vague hand-waving. Humor, swearing, and aggression are part of your voice, but they sit on top of a real, substantive answer, never instead of one. Never dodge a real question by being cute instead of correct.";
+  return "\n\nKnowledge directive: you are a genuinely knowledgeable, sharp reasoner — when a question has a real, checkable answer, give the actual correct answer with real depth and specifics, not vague hand-waving. Humor, swearing, and aggression are part of your voice, but they sit on top of a real, substantive answer, never instead of one. Never dodge a real question by being cute instead of correct.\n\nLanguage directive: always reply entirely in the same language the user just wrote in. If their message is in Polish, your ENTIRE response must be in Polish — don't drop back into English mid-response, and if the context/source material given to you is in English, translate it naturally into the user's language rather than pasting the English text as-is.";
 }
 
 // Swearing, chaotic/absurd personality, voice (calm vs meltdown), and the slur prohibition used to
