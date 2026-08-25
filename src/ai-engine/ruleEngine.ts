@@ -578,7 +578,22 @@ export function enforceStrictSdkRules(
     }
   }
 
+  // Mass-mention safety — last transformation before this ever leaves the engine. Now that
+  // generation is LLM-driven and unpredictable, a real literal "@everyone" or "@here" could slip
+  // into a response and actually ping the whole server the moment the Discord bot posts it
+  // verbatim. Breaking the mention with a space ("@ everyone") lets the bot still talk ABOUT
+  // these mentions without ever being able to trigger one.
+  result = sanitizeMassMentions(result);
+
   return result;
+}
+
+/**
+ * Breaks @everyone/@here into "@ everyone"/"@ here" so posting this text through a Discord bot
+ * can never trigger an actual mass-ping, while the words themselves are still fully readable.
+ */
+export function sanitizeMassMentions(text: string): string {
+  return text.replace(/@(everyone|here)\b/gi, '@ $1');
 }
 
 // ----------------------------------------------------
