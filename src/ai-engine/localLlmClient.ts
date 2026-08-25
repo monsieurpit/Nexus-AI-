@@ -323,14 +323,14 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
       // "Football", reported live) before deciding whether to give up on the response entirely —
       // so an otherwise-good reply with one fixable slip ships corrected instead of getting
       // discarded for a template fallback over something this easy to actually fix.
-      text = fixKnownPolishPhraseMistakes(autoCorrectPolishText(text));
-      const invalidRatio = computeInvalidPolishWordRatio(text);
+      text = fixKnownPolishPhraseMistakes(await autoCorrectPolishText(text));
+      const invalidRatio = await computeInvalidPolishWordRatio(text);
       // The ratio alone was calibrated to separate overall-clean from overall-broken responses
       // (see the commit that added it), and undershoots on a longer response that's mostly fine
       // but has a handful of standout invented words — reported live, a ~35-word response with
       // 3-4 genuinely nonsense words ("trączonicy", "szaleniecński") only hit ~11%. An absolute
       // floor catches that regardless of how long the rest of the response is.
-      const invalidCount = countInvalidPolishWords(text);
+      const invalidCount = await countInvalidPolishWords(text);
       if (invalidRatio > 0.25 || invalidCount >= 3) {
         return { status: 'unavailable', reason: 'poor_polish_grammar', detail: text.slice(0, 100) };
       }

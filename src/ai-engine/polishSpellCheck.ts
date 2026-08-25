@@ -1,14 +1,38 @@
-import nspell from 'nspell';
-import dictionary from 'dictionary-pl';
 import { levenshteinDistance } from './bm25Engine';
 
 // Real, free, offline Polish dictionary (MIT/GPL/LGPL/MPL — the same one Firefox/LibreOffice spell
 // -check with) used as a quality gate on Polish LLM output, not just a language-identity check.
-// Constructing the spell-checker parses the full affix/dictionary files (~2s) — done once here at
-// module load, not per-request; every actual correct() call after that is sub-millisecond.
-// dictionary-pl exports its affix/dic data as Uint8Array; @types/nspell's signature wants a
-// Node Buffer specifically (Buffer is a Uint8Array subclass, not the reverse) — wrap explicitly.
-const spell = nspell(Buffer.from(dictionary.aff), Buffer.from(dictionary.dic));
+//
+// 'nspell'/'dictionary-pl' are loaded lazily via dynamic import, NOT as static top-level imports,
+// and only when actually running in Node. This file is reachable from the browser bundle too (App
+// .tsx -> generator.ts -> reasoningEngine.ts -> localLlmClient.ts -> here, for the client-side
+// generation path), and dictionary-pl's own module uses top-level await internally — Vite's
+// production build tries to transform every statically-reachable module for its configured browser
+// targets (chrome87 etc.), which don't support top-level await, and fails the whole build over a
+// dependency that never actually runs in the browser in the first place (this quality gate only
+// matters for real Ollama-backed Polish generation, which requires OLLAMA_BASE_URL — never set in
+// a browser context). A dynamic import deferred until first real use, combined with these packages
+// marked `external` in vite.config.ts (so Vite never attempts to bundle/transform them for the
+// client target at all), keeps this working server-side while making it truly inert in the browser
+// bundle instead of just "unlikely to run".
+let spellPromise: Promise<{ correct: (w: string) => boolean; suggest: (w: string) => string[] } | null> | null =
+  null;
+
+function getSpell() {
+  if (typeof window !== 'undefined') return Promise.resolve(null);
+  if (!spellPromise) {
+    spellPromise = (async () => {
+      const [{ default: nspell }, { default: dictionary }] = await Promise.all([
+        import('nspell'),
+        import('dictionary-pl'),
+      ]);
+      // dictionary-pl exports its affix/dic data as Uint8Array; @types/nspell's signature wants a
+      // Node Buffer specifically (Buffer is a Uint8Array subclass, not the reverse) — wrap explicitly.
+      return nspell(Buffer.from(dictionary.aff), Buffer.from(dictionary.dic));
+    })();
+  }
+  return spellPromise;
+}
 
 // Words the bot's persona/topics legitimately use that a general-purpose dictionary won't know
 // (platform/brand names) — checked against these before being counted as "invalid" so a perfectly
@@ -24,10 +48,12 @@ const KNOWN_PROPER_NOUNS = new Set(['discord', 'nexus', 'spotify', 'youtube', 't
  * valid Polish word either. Returns 0 (not flagged) when there isn't enough content to judge
  * reliably, so a short reply never gets wrongly penalized for having too little signal.
  */
-export function computeInvalidPolishWordRatio(text: string): number {
+export async function computeInvalidPolishWordRatio(text: string): Promise<number> {
   const tokens = text.match(/[a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ]+/g) || [];
   const judgeable = tokens.filter((w) => w.length >= 3);
   if (judgeable.length < 3) return 0;
+  const spell = await getSpell();
+  if (!spell) return 0;
   const invalid = judgeable.filter((w) => !spell.correct(w) && !KNOWN_PROPER_NOUNS.has(w.toLowerCase()));
   return invalid.length / judgeable.length;
 }
@@ -42,10 +68,12 @@ export function computeInvalidPolishWordRatio(text: string): number {
  * ratio threshold (and risk over-rejecting genuinely fine longer responses that just have more
  * total words).
  */
-export function countInvalidPolishWords(text: string): number {
+export async function countInvalidPolishWords(text: string): Promise<number> {
   const tokens = text.match(/[a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ]+/g) || [];
   const judgeable = tokens.filter((w) => w.length >= 3);
   if (judgeable.length < 3) return 0;
+  const spell = await getSpell();
+  if (!spell) return 0;
   return judgeable.filter((w) => !spell.correct(w) && !KNOWN_PROPER_NOUNS.has(w.toLowerCase())).length;
 }
 
@@ -82,12 +110,29 @@ export function fixKnownPolishPhraseMistakes(text: string): string {
  * than an honest fallback, so this only acts when it's actually confident, and leaves everything
  * else for computeInvalidPolishWordRatio's gate (localLlmClient.ts) to catch and fall back on.
  */
-export function autoCorrectPolishText(text: string): string {
-  return text.replace(/[a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ]+/g, (word) => {
-    if (word.length < 3) return word;
-    if (spell.correct(word) || KNOWN_PROPER_NOUNS.has(word.toLowerCase())) return word;
+export async function autoCorrectPolishText(text: string): Promise<string> {
+  const spell = await getSpell();
+  if (!spell) return text;
 
-    const suggestions = spell.suggest(word);
+  // Async replacement isn't supported by String.replace's callback, so matches are collected
+  // first (with their positions) and the string is reassembled afterward instead.
+  const matches = Array.from(text.matchAll(/[a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ]+/g));
+  let result = '';
+  let lastIndex = 0;
+  for (const match of matches) {
+    const word = match[0];
+    const index = match.index ?? 0;
+    result += text.slice(lastIndex, index) + correctWord(word);
+    lastIndex = index + word.length;
+  }
+  result += text.slice(lastIndex);
+  return result;
+
+  function correctWord(word: string): string {
+    if (word.length < 3) return word;
+    if (spell!.correct(word) || KNOWN_PROPER_NOUNS.has(word.toLowerCase())) return word;
+
+    const suggestions = spell!.suggest(word);
     if (suggestions.length === 0) return word;
 
     // nspell's own suggestion ORDER isn't purely edit-distance — it's frequency-weighted too, so
@@ -126,5 +171,5 @@ export function autoCorrectPolishText(text: string): string {
     const shortestLength = Math.min(...tiedCandidates.map((c) => c.length));
     const shortestCandidates = tiedCandidates.filter((c) => c.length === shortestLength);
     return shortestCandidates.length === 1 ? shortestCandidates[0] : word;
-  });
+  }
 }
