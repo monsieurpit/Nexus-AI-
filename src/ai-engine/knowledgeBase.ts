@@ -36,6 +36,7 @@ import { GAMING_CORPUS } from './corpus/gaming';
 import { MUSIC_CORPUS } from './corpus/music';
 import { AUTOMOTIVE_CORPUS } from './corpus/automotive';
 import { AI_TECH_CORPUS } from './corpus/aiTech';
+import { FOOTBALL_GAMES_CORPUS } from './corpus/footballGames';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -580,6 +581,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...MUSIC_CORPUS,
   ...AUTOMOTIVE_CORPUS,
   ...AI_TECH_CORPUS,
+  ...FOOTBALL_GAMES_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
