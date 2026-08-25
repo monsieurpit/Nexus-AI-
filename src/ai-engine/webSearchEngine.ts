@@ -584,7 +584,9 @@ export function shouldTriggerLiveWebSearch(
     // and rate-limited by Google (429) since neither is a real, searchable lookup — they're
     // personal opinion questions directed at the bot, same category as the "do you" case already
     // handled below, just in text-speak spelling.
-    /\bdo\s+(?:you|u)\s+(?:like|love|hate|think|believe|even)\b/i.test(q) ||
+    // "support" added after "do you support israel" got searched verbatim and rate-limited (429)
+    // — an opinion/stance question about the bot, same as "do you think/believe", not a lookup.
+    /\bdo\s+(?:you|u)\s+(?:like|love|hate|think|believe|even|support|agree\s+with)\b/i.test(q) ||
     /\b(?:you|u)\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i.test(q) ||
     // Polish opinion questions directed at the bot ("jak myślisz kto wygra..." = "what do you
     // think who'll win...", "co myślisz o..." = "what do you think about...") — same category as

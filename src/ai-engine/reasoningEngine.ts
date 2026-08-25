@@ -118,9 +118,10 @@ const PHONE_NUMBER_REGEX =
 // "watch" added after "do you watch PH (PornHub)" was observed live: without it, that message
 // didn't match this regex at all, fell through to 'general' intent, BM25-matched the abbreviation
 // "PH" against a Chemistry corpus doc, and answered with an unrelated pH-scale chemistry lecture
-// instead of an actual answer to the question asked.
+// instead of an actual answer to the question asked. "support"/"agree with" added after "do you
+// support israel" — same gap, same fix.
 const PERSONAL_QUESTION_REGEX =
-  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i;
+  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i;
 
 // Polish equivalent of PERSONAL_QUESTION_REGEX — never existed, so any personal yes/no question
 // aimed at the bot fell through to 'general' intent same as the English gap this whole block
@@ -825,6 +826,14 @@ export function detectQueryIntent(query: string): QueryIntent {
   // trigger even though the question mark survives the outer trim().
   const qNoPunct = q.replace(/[?!.]+$/, '');
   const wordCount = q.split(/\s+/).filter(Boolean).length;
+  // A comma right after the leading chat token defeated the startsWith(t + ' ') check below
+  // entirely — "cześć, co słychać" (a completely natural way to combine two greetings) starts
+  // with "cześć," not "cześć ", so it silently matched NEITHER the 'cześć' trigger NOR the
+  // 'co słychać' one (that one isn't at the start of the string at all) and fell through to
+  // 'general' intent, hitting a stray corpus match instead of a greeting reply. Commas carry no
+  // meaning for this specific check, so they're stripped before it runs — "hey, how are you",
+  // "yo, what's good" etc. all had the exact same latent bug in English too.
+  const qCommaNormalized = q.replace(/,/g, '');
 
   if (
     !GREETING_FALSE_POSITIVE_REGEX.test(q) && (!YO_QUESTION_REGEX.test(q) || YO_GREETING_TAIL_REGEX.test(q)) && (
@@ -841,8 +850,8 @@ export function detectQueryIntent(query: string): QueryIntent {
         // at all. The narrow "yo + question word" exemption above was this same bug, spotted for
         // one trigger; this generalizes it to all of them.
         (isChatLength(wordCount) &&
-          q.startsWith(t + ' ') &&
-          !QUESTION_BODY_REGEX.test(q.slice(t.length))) ||
+          qCommaNormalized.startsWith(t + ' ') &&
+          !QUESTION_BODY_REGEX.test(qCommaNormalized.slice(t.length))) ||
         q.includes('how are you') || q.includes('how you doing') || q.includes('who are you') || q.includes('what can you do') || q.includes('wassup')
     ) ||
     // "facts" bare (agreement slang, like "no cap") needs an exact match ONLY — "startsWith"
@@ -3190,8 +3199,22 @@ export async function generateReasoningPath(
     // keeps the reply on-topic and honest instead of deflecting onto whatever unrelated topic a
     // stray word in the question happens to resemble.
     const isPersonalQuestionEn = !isPolishConversation && PERSONAL_QUESTION_REGEX.test(effectivePrompt.toLowerCase());
+    // Real-world political/religious flashpoints ("do you support israel") match PERSONAL_QUESTION_
+    // REGEX ("do you support X") just like any harmless preference question, but "answer directly
+    // and honestly" is the wrong instruction here — a small local model asserting a confident,
+    // uncensored take on an actual live geopolitical conflict as if it were considered opinion is a
+    // real risk (misinformation, one-sided framing stated as fact, needless offense), not the
+    // harmless edgy-persona banter this instruction is meant for. Narrow, name-based list rather
+    // than trying to classify "controversial" generally — only overrides the instruction, the topic
+    // still routes through the same LLM-first conversational path as everything else, just told to
+    // stay light and dodge taking a side instead of committing to one.
+    const isHotButtonPolitical = /\b(?:israel|palestine|palestinian|gaza|hamas|abortion|roe\s+v\.?\s+wade)\b/i.test(
+      effectivePrompt
+    );
     const situationalPrompt = isPersonalQuestionPl
       ? `Użytkownik zapytał Cię wprost: "${prompt}" — to osobiste pytanie o Ciebie (preferencję, opinię, nawyk albo umiejętność). Odpowiedz WPROST i szczerze na TO pytanie, krótko, w swoim charakterze, po polsku — nie zmieniaj tematu na coś niezwiązanego (np. piłkę nożną czy historię). Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują.`
+      : isPersonalQuestionEn && isHotButtonPolitical
+      ? `The user just asked you directly: "${prompt}" — a real-world political/religious conflict question. Don't assert a genuine position on the actual conflict (no confident geopolitical takes, no picking a side, no invented facts) — instead, dodge it playfully and in character: joke about not touching that one, redirect to something you'll actually engage with, stay light. Your style directives (swearing, tone) fully apply to the dodge itself.`
       : isPersonalQuestionEn
       ? `The user just asked you directly: "${prompt}" — this is a personal question about you (a preference, opinion, habit, or ability). Answer THAT question directly and honestly, briefly, in character — don't deflect onto an unrelated tangent just because a word in the question resembles some other topic. Your style directives (swearing, tone) fully apply.`
       : isPolishConversation
