@@ -2141,12 +2141,16 @@ async function llmSituationalReplyOrFallback(
   triggered: boolean = false
 ): Promise<string> {
   const llmResult = await localLlmClient.generate(llmPrompt, {
+    // Safety instruction goes LAST — recency matters a lot for small-model instruction-following
+    // (established earlier fixing swearing consistency), and this is the one instruction that
+    // must win even during a full meltdown, when the trigger instruction is actively pushing the
+    // model toward maximum aggression and it's most likely to reach for a slur.
     system:
       persona.systemPrompt +
       buildLlmKnowledgeInstruction() +
-      buildLlmSafetyInstruction() +
       buildLlmStyleInstruction(settings, isCrashout) +
-      (triggered ? buildCrashoutTriggerInstruction() : ''),
+      (triggered ? buildCrashoutTriggerInstruction() : '') +
+      buildLlmSafetyInstruction(),
     temperature: 0.75,
     maxTokens: LLM_FREE_RESPONSE_MAX_TOKENS,
   });
@@ -2214,7 +2218,7 @@ async function llmGroundedOrFallback(
     ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. The facts must stay accurate, but remember your style directives still apply to HOW you say it — swear per your instructions, stay blunt and in character, never go flat/robotic/corporate just because this is a factual answer.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your style directives (swearing, tone) still fully apply here — don't drop them just because you're being informative.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
-    system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildLlmSafetyInstruction() + buildLlmStyleInstruction(settings, isCrashout),
+    system: persona.systemPrompt + buildLlmKnowledgeInstruction() + buildLlmStyleInstruction(settings, isCrashout) + buildLlmSafetyInstruction(),
     temperature: confident ? 0.45 : 0.65,
     maxTokens: LLM_GROUNDED_MAX_TOKENS,
   });
