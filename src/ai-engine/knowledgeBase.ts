@@ -30,6 +30,7 @@ import { COOKING_CORPUS } from './corpus/cooking';
 import { WORLD_GEOGRAPHY_CORPUS } from './corpus/worldGeography';
 import { ENTERTAINMENT_CORPUS } from './corpus/entertainment';
 import { CULTURE_CORPUS } from './corpus/culture';
+import { SLANG_CORPUS } from './corpus/slang';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -568,6 +569,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...WORLD_GEOGRAPHY_CORPUS,
   ...ENTERTAINMENT_CORPUS,
   ...CULTURE_CORPUS,
+  ...SLANG_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
