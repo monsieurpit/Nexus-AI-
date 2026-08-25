@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
-import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from './src/ai-engine/memoryStore';
+import { DEFAULT_PERSONAS, DEFAULT_SETTINGS, extractMemorableFact } from './src/ai-engine/memoryStore';
 import {
   evaluateStrictDirectives,
   evaluateRaidShieldRules,
@@ -29,7 +29,7 @@ import {
   sanitizeSwearWords,
 } from './src/ai-engine/swearEngine';
 import { countTokens } from './src/ai-engine/tokenizer';
-import { ModelPersonaId, ReasoningMode, WebSearchResult } from './src/types';
+import { ModelPersonaId, ReasoningMode, UserMemory, WebSearchResult } from './src/types';
 import {
   executeUnifiedWebSearch,
   searchGoogleDirect,
@@ -849,8 +849,30 @@ app.post('/api/v1/nexus', async (req, res) => {
     messages: requestedMessages,
     deepThink: requestedDeepThink,
     crashout: requestedCrashout,
+    memories: requestedMemories,
   } = req.body;
   const userText = prompt || content || text || message || '';
+
+  // Cross-conversation memory — the caller (the Discord bot) persists facts about a user between
+  // separate conversations (Discord messages aren't a single continuous session the way this
+  // engine's own history array is) and sends them back on each request. Previously this endpoint
+  // had no way to receive them at all, so generateReasoningPath's userMemories parameter — which
+  // already has real logic reading and injecting stored facts — was always called with a
+  // hardcoded empty array. Accepts a simple {key, fact}[] shape rather than requiring the caller
+  // to construct a full UserMemory object; confidence/timestamp are filled in here since the
+  // caller has no reason to track those itself.
+  const userMemories: UserMemory[] = Array.isArray(requestedMemories)
+    ? requestedMemories
+        .filter((m: any) => m && typeof m.fact === 'string' && m.fact.trim())
+        .slice(0, 20)
+        .map((m: any, i: number) => ({
+          id: `mem-${i}`,
+          key: typeof m.key === 'string' ? m.key : `fact-${i}`,
+          fact: m.fact,
+          confidence: typeof m.confidence === 'number' ? m.confidence : 1,
+          timestamp: typeof m.timestamp === 'number' ? m.timestamp : Date.now(),
+        }))
+    : [];
 
   const effectiveAuthorId = authorId || userId || '';
   const isSuperChill =
@@ -949,7 +971,7 @@ app.post('/api/v1/nexus', async (req, res) => {
           persona,
           settings,
           allKnowledge,
-          [],
+          userMemories,
           webSearchResults
         );
         outputText = reasoningResult.content;
@@ -984,10 +1006,17 @@ app.post('/api/v1/nexus', async (req, res) => {
         }
       }
 
+      // Only extract from real text messages (not image analysis) and skip if the caller already
+      // has this exact key stored, so the bot isn't asked to persist a duplicate/no-op update.
+      const existingKeys = new Set(userMemories.map((m) => m.key));
+      const candidateFact = !imagePart && promptToEvaluate ? extractMemorableFact(promptToEvaluate) : null;
+      const newMemory = candidateFact && !existingKeys.has(candidateFact.key) ? candidateFact : null;
+
       return {
         response: outputText,
         text: outputText,
         persona: persona.id,
+        newMemory,
         personaName: persona.name,
         authorId: effectiveAuthorId || null,
         isSuperChillUser: isSuperChill,

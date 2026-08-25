@@ -361,6 +361,63 @@ export function saveKnowledge(items: KnowledgeItem[]): void {
   }
 }
 
+// Heuristic extraction of one durable, worth-remembering personal fact from a single message —
+// used server-side (server.ts's /api/v1/nexus) to build actual cross-conversation memory for
+// Discord users, previously entirely absent: userMemories was always passed as a hardcoded empty
+// array, so the memory-injection logic in reasoningEngine.ts (which already reads userMemories
+// and works fine when given any) had nothing to ever read. Deliberately a plain regex extractor,
+// not an extra LLM call per message — that would double latency/cost on every single message just
+// to maybe catch a fact, for a feature that's inherently best-effort anyway. Only ever returns ONE
+// fact per message (the first, strongest match) and only for clear, unambiguous self-disclosure
+// patterns — silently returning nothing on anything less clear-cut is much better than guessing
+// wrong and "remembering" something false forever.
+const FACT_PATTERNS: Array<{ regex: RegExp; key: string; label: (m: RegExpMatchArray) => string }> = [
+  // Which football game they actually play — explicitly requested context (FC26/FIFA/FC Mobile/eFootball).
+  {
+    regex: /\bi\s+(?:play|main(?:ly\s+play)?)\s+(fc\s?26|fifa(?:\s?\d{2})?|fc\s?mobile|e-?football)\b/i,
+    key: 'favoriteFootballGame',
+    label: (m) => `Plays ${m[1].replace(/\s+/g, ' ').trim()}`,
+  },
+  // Capture stops at a comma/sentence-end, a following connector word, or end of string — NOT a
+  // fixed position in the message, since real chat rarely ends right after the fact itself
+  // ("i support Barcelona, always have" needs "Barcelona" captured despite trailing text).
+  {
+    regex: /\b(?:i\s+support|i'?m\s+a\s+(?:big\s+)?fan\s+of|my\s+favor?ite\s+team\s+is)\s+([A-Za-z][A-Za-z .]{1,25}?)(?=[,.!?]|\s+(?:and|because|since|but|so|who|which|too|tbh|fr|ngl|lol|lmao|rn|imo|honestly)\b|$)/i,
+    key: 'favoriteTeam',
+    label: (m) => `Supports ${m[1].trim()}`,
+  },
+  {
+    regex: /\bmy\s+favor?ite\s+player\s+is\s+([A-Za-z][A-Za-z .]{1,25}?)(?=[,.!?]|\s+(?:and|because|since|but|so|who|which|too|tbh|fr|ngl|lol|lmao|rn|imo|honestly)\b|$)/i,
+    key: 'favoritePlayer',
+    label: (m) => `Favorite player: ${m[1].trim()}`,
+  },
+  {
+    regex: /\bcall\s+me\s+([A-Za-z][A-Za-z'-]{1,20})\b/i,
+    key: 'preferredName',
+    label: (m) => `Prefers to be called ${m[1].trim()}`,
+  },
+  {
+    regex: /\bi'?m\s+(?:from|based\s+in)\s+([A-Za-z][A-Za-z .]{1,35}?)(?=[,.!?]|\s+(?:and|because|since|but|so|who|which|too|tbh|fr|ngl|lol|lmao|rn|imo|honestly)\b|$)/i,
+    key: 'location',
+    label: (m) => `From ${m[1].trim()}`,
+  },
+  {
+    regex: /\bi\s*(?:'m|\s+am)\s+(\d{1,2})\s+years?\s+old\b/i,
+    key: 'age',
+    label: (m) => `Age: ${m[1]}`,
+  },
+];
+
+export function extractMemorableFact(prompt: string): { key: string; fact: string } | null {
+  const text = prompt.trim();
+  if (!text || text.length > 300) return null; // long messages are unlikely one-liners of self-disclosure
+  for (const { regex, key, label } of FACT_PATTERNS) {
+    const match = text.match(regex);
+    if (match) return { key, fact: label(match) };
+  }
+  return null;
+}
+
 export function loadMemories(): UserMemory[] {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
