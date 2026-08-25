@@ -116,6 +116,18 @@ const PHONE_NUMBER_REGEX =
 const PERSONAL_QUESTION_REGEX =
   /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i;
 
+// Polish equivalent of PERSONAL_QUESTION_REGEX — never existed, so "lubisz mnie?" (do you like
+// me?), "kochasz mnie?" (do you love me?), "nienawidzisz mnie?" (do you hate me?) fell through to
+// 'general' intent same as the English gap this whole block already documents. Observed live:
+// "nexus lubisz mnie?" got classified as 'general', found no real corpus match, and the free-form
+// LLM response veered into an entirely unrelated, English-language rant about La Liga and El
+// Clásico — not just wrong-language (looksPolish() has weak signal on a two-word message with no
+// diacritics) but topically nonsensical, since nothing told the model what it was actually being
+// asked. Routing this into 'conversational' the same way the English case is means it gets the
+// dedicated, on-topic Polish situational prompt below instead of the generic small-talk one.
+const PERSONAL_QUESTION_REGEX_PL =
+  /\b(?:czy\s+)?(?:nie\s+)?(?:lubisz|kochasz|nienawidzisz)\s+(?:mnie|mię)\b|\bdlaczego\s+(?:tu|tutaj)\s+jesteś\b/i;
+
 // Reassurance/affection statements directed AT the bot ("don't worry, everyone loves you") —
 // declarative, not a question, so they don't match PERSONAL_QUESTION_REGEX either, but they're
 // just as much a dead end for corpus/web search: "don't worry" scored against Anxiety-disorder
@@ -828,6 +840,7 @@ export function detectQueryIntent(query: string): QueryIntent {
     VC_JOIN_REGEX.test(q) ||
     PHONE_NUMBER_REGEX.test(q) ||
     PERSONAL_QUESTION_REGEX.test(q) ||
+    PERSONAL_QUESTION_REGEX_PL.test(q) ||
     REASSURANCE_REGEX.test(q) ||
     classifyPraiseOrFlame(q) !== null ||
     classifyCookedPhrase(q) !== null ||
@@ -3007,7 +3020,13 @@ export async function generateReasoningPath(
       title: isCrashout ? 'Crashout reply' : 'Conversational reply',
       description: 'Chat intent recognized. Routing through local LLM for a fresh reply.',
     });
-    const isPolishConversation = looksPolish(prompt);
+    // looksPolish() has weak signal on a short message with no diacritics ("lubisz mnie?" is only
+    // two words) — it missed the live "nexus lubisz mnie?" case entirely, sending it down the
+    // English prompt below and getting an English reply to a Polish question. When the message
+    // already matched the Polish personal-question regex above, the language is certain regardless
+    // of what the generic detector thinks, so that match forces the Polish path.
+    const isPersonalQuestionPl = PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase());
+    const isPolishConversation = looksPolish(prompt) || isPersonalQuestionPl;
     const templateReply = isPolishConversation
       ? crashoutConversationalPolish(effectivePrompt)
       : isCrashout
@@ -3026,7 +3045,15 @@ export async function generateReasoningPath(
     // ("The user just said...") and started talking ABOUT the instructions instead of answering,
     // observed live on "Jak się masz?". A native-language instruction, mirroring the same intent,
     // is easy for it to follow instead.
-    const situationalPrompt = isPolishConversation
+    // Personal preference questions ("lubisz mnie?" / "kochasz mnie?" / "nienawidzisz mnie?") got
+    // the same generic "swobodna rozmowa" instruction as any other small talk, with nothing telling
+    // the model what it was actually being asked — observed live, that produced a completely
+    // unrelated rant about La Liga and El Clásico instead of an answer to the question. A specific
+    // instruction naming the actual question, mirroring the targeted Casseurt-prompt pattern above
+    // rather than the generic one, keeps the reply on-topic.
+    const situationalPrompt = isPersonalQuestionPl
+      ? `Użytkownik zapytał Cię wprost: "${prompt}" — to pytanie o Twój osobisty stosunek do niego (lubisz go/ją, kochasz, czy raczej nie znosisz). Odpowiedz WPROST na to pytanie, krótko, w swoim charakterze, po polsku — nie zmieniaj tematu na coś niezwiązanego (np. piłkę nożną). Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują.`
+      : isPolishConversation
       ? `Użytkownik właśnie napisał: "${prompt}". To swobodna, luźna rozmowa (small talk), nie prośba o fakty ani badania — odpowiedz naturalnie i krótko, jak prawdziwa osoba na czacie, w swoim stylu. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują też w luźnej rozmowie.`
       : `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`;
     const reply = PHONE_NUMBER_REGEX.test(effectivePrompt.toLowerCase())
