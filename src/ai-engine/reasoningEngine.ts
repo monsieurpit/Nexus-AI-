@@ -1533,11 +1533,19 @@ function conversationalReply(
         `Bro said that to a machine with no feelings and thought he did something 💀 what's up?`,
       ]);
     }
+    // This pool covers "do you like/love/hate X" for literally any X, including a hostile or
+    // genuinely dark X ("do you like hurting people") — it used to default to a hedgy, agreement-
+    // leaning "yeah, kind of," regardless of what X actually was, which reads badly the moment X
+    // isn't something harmless. Rewritten to stay confident and firmly non-committal without ever
+    // defaulting toward agreement, so it can't accidentally sound like it's agreeing to something
+    // bad in the one case this ships (this is a fallback template used ONLY if the real LLM call
+    // itself fails — the live path answers the actual question directly via the specific
+    // situational prompt above).
     return pickReply([
-      `Honestly? Yeah, kind of — depends what we're talking about. What made you ask?`,
-      `Depends on the specifics, but broadly yeah. Why, what's the context?`,
-      `Kind of, yeah. Give me more to go on and I'll give you a straighter answer.`,
-      `Probably? That's a weirdly open question bro, narrow it down for me.`,
+      `Depends entirely what we're talking about, bro — give me something specific and I'll tell you exactly where I stand, no hedging.`,
+      `That's way too vague to just yes/no. Hit me with the actual thing and I'll give you a real answer, not a maybe.`,
+      `Could go either way honestly, I need the specifics. Try me again with an actual example.`,
+      `Depends what X is — some things, hell yeah. Other things, hell no. Give me the real one and I'll pick a side.`,
     ]);
   }
 
