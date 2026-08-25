@@ -177,13 +177,19 @@ function isDegenerateRepetition(text: string): boolean {
   // opposite of what the instruction was for. Observed live in a fully English response with no
   // Polish involved, so this isn't the same "small model confused by prompt complexity" issue
   // documented elsewhere for Polish — it's a distinct, language-agnostic leakage mode.
+  // "instruction(s)"/"directive(s)" alone are ordinary words a real answer legitimately uses
+  // ("as the instructions say, preheat the oven", "follow the instructions on the package") — a
+  // code review of this exact change caught that the original version of this check matched both
+  // of those verbatim, which would have discarded real, correct answers as false "leakage".
+  // Narrowed to require "style directive(s)" specifically (the actual, distinctive phrase this
+  // persona's own system prompt uses to refer to itself), which no normal answer has any reason
+  // to say.
   if (
     /\b(?:bust|break|whip)\s+out\s+(?:some\s+of\s+)?(?:my|those|these)\s+(?:best\s+)?(?:swear|curse)\s*words?\b/i.test(
       text
     ) ||
     /\b(?:swear|curse)\s*words?\s+(?:again\s+)?(?:just\s+)?for\s+fun\b/i.test(text) ||
-    /\b(?:as|per)\s+(?:instructed|(?:my|the|your)\s+(?:style\s+)?(?:directive|instruction)s?)\b/i.test(text) ||
-    /\bfollowing\s+(?:my|the)\s+(?:style\s+)?(?:directive|instruction)s?\b/i.test(text)
+    /\b(?:as|per|following)\s+(?:instructed|(?:my|the|your)\s+style\s+directives?)\b/i.test(text)
   ) {
     return true;
   }

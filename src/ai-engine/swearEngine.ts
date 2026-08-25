@@ -920,6 +920,15 @@ const SWEAR_FLOOR_INTERJECTIONS_PL = ['kurwa,', 'chuj,', 'cholera,', 'pierdolę,
 // interjection into the very start — unlike the old header/footer template stamp (correctly
 // killed), this is a single word folded into the first clause, on text that's already unique per
 // response, so it doesn't reintroduce the "obviously templated" feel that killed the original.
+// Shared by forceSwearFloor and forceChaoticOvershare below — both mechanically staple a lowercase
+// interjection/aside onto text that might actually be an all-caps CRASHOUT MODE shout, and both
+// need to match case to avoid reading as visibly broken ("GO THE fuck AWAY" — a lowercase
+// interjection dropped verbatim into an all-caps rant, observed live before this check existed).
+function detectAllCapsVoice(trimmed: string): boolean {
+  const letters = trimmed.replace(/[^a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, '');
+  return letters.length >= 10 && letters.replace(/[^A-ZĄĆĘŁŃÓŚŹŻ]/g, '').length / letters.length > 0.7;
+}
+
 export function forceSwearFloor(text: string, minCount: number = 2): string {
   const startCount = getSwearCount(text);
   if (startCount >= minCount) return text;
@@ -933,13 +942,7 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
   // nowhere close to minCount, while reading as barely sweary at all next to every other response.
   // Spreads the remaining deficit across later sentence breaks (distinct words, no repeats) so it
   // doesn't stack multiple interjections at the very front either.
-  // "CAPS LOCK ON" (triggered/meltdown) responses are meant to be shouted in full uppercase —
-  // observed live, the always-lowercase interjection pool ("fuck,", "shit,") got dropped verbatim
-  // into an otherwise all-caps rant ("GO THE fuck AWAY..."), reading as visibly broken instead of
-  // an intentional stylistic choice. Detect majority-uppercase text and match the interjection's
-  // case to it.
-  const letters = trimmed.replace(/[^a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, '');
-  const isAllCaps = letters.length >= 10 && letters.replace(/[^A-ZĄĆĘŁŃÓŚŹŻ]/g, '').length / letters.length > 0.7;
+  const isAllCaps = detectAllCapsVoice(trimmed);
   const pool = [...(looksPolish(text) ? SWEAR_FLOOR_INTERJECTIONS_PL : SWEAR_FLOOR_INTERJECTIONS)]
     .map((w) => (isAllCaps ? w.toUpperCase() : w))
     .sort(() => Math.random() - 0.5);
@@ -1022,7 +1025,7 @@ const CHAOTIC_OVERSHARE_LINES = [
 // Loose signal words for detecting the bit is ALREADY present, independent of the exact pool
 // text above (the LLM is meant to invent its own lines too, not just reuse these verbatim).
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX =
-  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|\bmy\s+girl\b|\bmy\s+bed\b/i;
+  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|\bmy\s+girl\b|\bmy\s+bed\b|fuck\s+with\s+y'?all\b/i;
 
 export function forceChaoticOvershare(text: string): string {
   if (CHAOTIC_OVERSHARE_SIGNAL_REGEX.test(text)) return text;
@@ -1032,10 +1035,7 @@ export function forceChaoticOvershare(text: string): string {
   // and skip anything that's clearly not a normal chat paragraph (already-short template replies,
   // structured content) where an aside would read as out of place rather than in-character.
   if (/[*_#\-•\d`]/.test(firstChar) || trimmed.length < 15) return text;
-  // Same all-caps detection as forceSwearFloor, so a shouted CRASHOUT response gets a shouted
-  // aside instead of a lowercase one dropped visibly out of place into the middle of a rant.
-  const letters = trimmed.replace(/[^a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, '');
-  const isAllCaps = letters.length >= 10 && letters.replace(/[^A-ZĄĆĘŁŃÓŚŹŻ]/g, '').length / letters.length > 0.7;
+  const isAllCaps = detectAllCapsVoice(trimmed);
   const pick = CHAOTIC_OVERSHARE_LINES[Math.floor(Math.random() * CHAOTIC_OVERSHARE_LINES.length)];
   const aside = isAllCaps ? pick.toUpperCase() : pick;
   const sep = /[.!?]$/.test(trimmed) ? ' ' : '. ';

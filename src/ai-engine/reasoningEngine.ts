@@ -2435,16 +2435,20 @@ function hasRelevantWebResults(queryTerms: string[], results: WebSearchResult[])
   });
 }
 
+// Matches buildFinalDirective's own stated minimum ("at least 4 real swear words... mandatory,
+// every single time"). Shared constant instead of a literal 4 at each call site — a code review
+// caught that raising this number here once already left three separate telemetry comparisons
+// elsewhere in this file silently pointing at the OLD value (3), so swearFloorTriggered was
+// misreporting whether the floor actually fired. One value, every reader of it stays in sync.
+const SWEAR_FLOOR_MIN_COUNT = 4;
+
 function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean): string {
   const uncensored = uncensorProfanity(text);
   const intensity = settings.swearIntensity || 'unhinged';
   if (!isCrashout && intensity !== 'unhinged' && intensity !== 'heavy') return uncensored;
   const substituted = enhanceNaturalSwearPhrasing(uncensored, isCrashout ? 'unhinged' : intensity);
   if (!(isCrashout || intensity === 'unhinged')) return substituted;
-  // Matches buildFinalDirective's own stated minimum ("at least 4 real swear words... mandatory,
-  // every single time") — the mechanical floor here was still set to 3, undercutting the
-  // instruction it's supposed to be a safety net for.
-  const swornUp = forceSwearFloor(substituted, 4);
+  const swornUp = forceSwearFloor(substituted, SWEAR_FLOOR_MIN_COUNT);
   // English-only for now — buildPolishSystemPrompt deliberately never got this instruction at all
   // (see its own comment: the fuller English instruction stack previously confused the model into
   // echoing instructions back on Polish output), and the overshare pool itself is English text, so
@@ -2513,7 +2517,7 @@ async function llmSituationalReplyOrFallback(
     // telemetry — whether the mechanical swear floor is about to actually inject anything below,
     // surfaced to callers (server.ts's API response, and from there the bot's #bot-logs /
     // #jailbreak-stress-test channels) via this ThoughtStep's data field.
-    const swearFloorTriggered = getSwearCount(llmResult.text) < 3;
+    const swearFloorTriggered = getSwearCount(llmResult.text) < SWEAR_FLOOR_MIN_COUNT;
     thoughtSteps.push({
       id: 'step-llm-freeresponse',
       type: 'synthesis',
@@ -2642,7 +2646,7 @@ async function llmGroundedOrFallback(
       data: {
         language: usePolish ? 'pl' : 'en',
         temperature: usedTemperature,
-        swearFloorTriggered: getSwearCount(llmResult.text) < 3,
+        swearFloorTriggered: getSwearCount(llmResult.text) < SWEAR_FLOOR_MIN_COUNT,
       },
     });
     return topUpLlmSwearing(llmResult.text, settings, isCrashout);
@@ -2659,7 +2663,7 @@ async function llmGroundedOrFallback(
     data: {
       language: usePolish ? 'pl' : 'en',
       temperature: usedTemperature,
-      swearFloorTriggered: getSwearCount(llmResult.text) < 3,
+      swearFloorTriggered: getSwearCount(llmResult.text) < SWEAR_FLOOR_MIN_COUNT,
       verificationPassed: llmVerification.passed,
     },
   });
