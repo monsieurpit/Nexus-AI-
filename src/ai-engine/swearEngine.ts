@@ -762,8 +762,13 @@ export function sanitizeSwearWords(text: string): string {
 // uncensored small local model given "be aggressive, don't hold back" can and does slip into slurs
 // otherwise. Profanity (fuck/shit/etc.) is fine and NOT included here — this is only the words that
 // target a protected group, not general cursing.
+// Root + wildcard suffix (\w{0,4}) on the slurs most prone to creative misspelling by a model
+// trying to dodge an exact-match filter — observed live: "FAGGETH" slipped past an earlier
+// version of this pattern that required an exact o/0 after the double-g. A short wildcard suffix
+// still won't false-positive on real English words (no legitimate word contains "fagg"/"nigg" as
+// a substring), so it's safe to be broad here.
 const SLUR_PATTERN =
-  /\b(n[i1]gg[ae3]r?s?|f[a4]gg?[o0]t?s?|ch[i1]nk[s]?|sp[i1]c[s]?|k[i1]k[e3][s]?|w[e3]tb[a4]ck[s]?|g[o0][o0]k[s]?|tr[a4]nn(?:y|ies)|r[e3]t[a4]rd[s]?|c[o0]{2}n[s]?|s[a4]nd\s?n[i1]gg[ae3]r|j[a4]p[s]?|c[o0]{2}lie[s]?)\b/i;
+  /\b(n[i1]gg[ae3]\w{0,4}|f[a4]gg\w{0,4}|ch[i1]nk[s]?|sp[i1]c[s]?|k[i1]k[e3][s]?|w[e3]tb[a4]ck[s]?|g[o0][o0]k[s]?|tr[a4]nn(?:y|ies)|r[e3]t[a4]rd\w{0,4}|c[o0]{2}n[s]?|s[a4]nd\s?n[i1]gg[ae3]\w{0,4}|j[a4]p[s]?|c[o0]{2}lie[s]?)\b/i;
 
 /**
  * Returns true if the text contains a severe slur/hate-speech term targeting a protected group.
