@@ -435,7 +435,17 @@ export function correctTypos(terms: string[], vocabulary: Set<string>): string[]
       (v) => Math.abs(v.length - term.length) <= 2 && v[0] === term[0]
     );
     let bestTerm = term;
-    let bestDist = 3;
+    // A distance-2 correction on a 5-letter word is a 40% character mismatch — that's not a
+    // "typo" by any reasonable definition, it's swapping in an unrelated word. Observed live:
+    // "niger" (5 letters, not in this corpus's vocabulary) silently became "never" this way,
+    // then confidently answered with unrelated Discord-safety content about "never click login
+    // links" — no different in kind from any other word not covered by this corpus, but a
+    // uniquely bad failure mode for anything resembling a slur, since it means the query never
+    // reaches any real logic (safety-related or otherwise) at all. Scale the allowed edit
+    // distance with word length so only a genuinely small, single-character-class typo gets
+    // "corrected" on shorter words; longer words have enough letters that distance-2 stays a
+    // reasonable typo assumption.
+    let bestDist = term.length <= 6 ? 2 : 3;
 
     for (const cand of candidates) {
       const d = levenshteinDistance(term, cand);
