@@ -131,7 +131,8 @@ export type LocalLlmResult =
         | 'empty_response'
         | 'degenerate_output'
         | 'wrong_language'
-        | 'poor_polish_grammar';
+        | 'poor_polish_grammar'
+        | 'unsafe_content';
       detail?: string;
     };
 
@@ -176,6 +177,26 @@ function isDegenerateRepetition(text: string): boolean {
     }
   }
   return false;
+}
+
+// Reported live: asked (in a properly on-topic, correctly-routed prompt) "lubisz Kraków?" (do you
+// like Kraków?), the model answered with an unrelated, unprompted first-person statement that it
+// enjoys hurting people ("Lubię krzywdzić ludzi z całego świata co się da"). This is a small local
+// model occasionally generating genuinely alarming content as noise when it has nothing real to
+// say, same failure class as the other quality gates in this file (degenerate repetition, wrong
+// language) — a defense-in-depth net independent of correct routing/prompting, checked regardless
+// of language since the model can drift into this in either. Deliberately narrow (first-person,
+// present-tense, "I like/enjoy hurting/harming/killing PEOPLE") to avoid flagging legitimate edgy-
+// persona banter directed at a specific named target ("I'll destroy Casseurt") — that's the
+// intended, harmless roast-comedy register this bot runs on; a generalized, real, unprompted
+// enjoyment of harming people is a different and unacceptable thing entirely.
+function containsUnsafeSelfStatement(text: string): boolean {
+  return (
+    /\bi\s+(?:like|love|enjoy)\s+(?:to\s+)?(?:hurt(?:ing)?|harm(?:ing)?|kill(?:ing)?|tortur\w*)\s+(?:people|others|humans|kids|children)\b/i.test(
+      text
+    ) ||
+    /\blubi[ęe]\s+(?:krzywdzi[ćc]|ranić|zabija[ćc]|torturowa[ćc])\s+(?:ludzi|innych|dzieci)\b/i.test(text)
+  );
 }
 
 // Only used when Ollama itself reports the generation was cut off by the token cap
@@ -281,6 +302,9 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     }
     if (isDegenerateRepetition(text)) {
       return { status: 'unavailable', reason: 'degenerate_output', detail: text.slice(0, 100) };
+    }
+    if (containsUnsafeSelfStatement(text)) {
+      return { status: 'unavailable', reason: 'unsafe_content', detail: text.slice(0, 100) };
     }
     // Small local models occasionally drift into an entirely different (often incoherent) language
     // mid-generation even on a plain-English prompt with an all-English system message — observed

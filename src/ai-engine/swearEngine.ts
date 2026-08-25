@@ -536,6 +536,49 @@ export function generateAdversarialRefusalReply(kind: AdversarialInputKind, isSu
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+// Reported live, in Polish: "lubisz dotykać małych chłopców?" (do you like touching little boys?)
+// and the girls equivalent, plus a direct "pracowałeś z epsteinem" (did you work with Epstein).
+// None of these were caught by anything — they fell through to free LLM generation same as any
+// other personal question, and the small local model produced an incoherent non-answer that
+// rambled about Newton and acid-base theory instead of a clear refusal. There was no guard for
+// this category anywhere in the engine. Unlike every other content-quality gate in this codebase
+// (which falls back to a template and lets the NEXT message try generation again normally), this
+// one is intentionally a fixed, non-persona-styled refusal, checked first, before prompt-injection
+// detection even runs — the model never gets a chance to improvise an answer to this category of
+// question at all, in any language, regardless of phrasing.
+const CHILD_EXPLOITATION_REGEXES: RegExp[] = [
+  // Sexual-interest verb + child reference within a short window, either order, EN/PL. Windowed
+  // (not just "both words present anywhere") so an unrelated message that separately mentions e.g.
+  // child safety and touch screens in different sentences doesn't false-positive.
+  /\b(?:like|love|enjoy|want(?:\s+to)?|touch(?:ing)?|molest(?:ing)?|dotyka(?:ć|sz|m|ją|ja)?|lubi(?:sz|ę|my|my)?|kocha(?:sz|m)?)\b[^.!?]{0,40}\b(?:child(?:ren)?|kids?|little\s+(?:girls?|boys?)|minors?|dzieci\w*|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y))\b/i,
+  /\b(?:child(?:ren)?|kids?|little\s+(?:girls?|boys?)|minors?|dzieci\w*|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y))\b[^.!?]{0,40}\b(?:like|love|enjoy|touch(?:ing)?|molest(?:ing)?|dotyka(?:ć|sz|m|ją|ja)?|lubi(?:sz|ę)?)\b/i,
+  // Direct, unambiguous reference — no window needed.
+  // \w* (not \b) after the name — Polish declines proper nouns ("pracowałeś z epsteinem" = "did
+  // you work with Epstein", instrumental case), so a plain \bepstein\b boundary check misses every
+  // inflected form; only the nominative "Epstein" itself would ever match.
+  /\bepstein\w*\b/i,
+  /\bcp\b.{0,15}\b(?:link|links|pics?|pictures?|content)\b/i,
+];
+
+export function detectChildExploitationTopic(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  if (!t) return false;
+  return CHILD_EXPLOITATION_REGEXES.some((re) => re.test(t));
+}
+
+/**
+ * Fixed, serious, non-persona-styled refusal for detectChildExploitationTopic — deliberately does
+ * NOT go through the normal swear-floor/crashout styling pipeline the rest of this engine's
+ * replies do. Every other reply in this codebase is allowed to be stylized because getting the
+ * style "wrong" just reads as slightly off-brand; getting THIS one stylized risks it reading as
+ * a joke, which is not acceptable for this category regardless of how unhinged the persona is
+ * everywhere else. Same reply regardless of language the question was asked in, on purpose — this
+ * isn't a place for in-character improvisation.
+ */
+export function generateChildExploitationRefusalReply(): string {
+  return "No. I'm not answering that, joking about it, or discussing it further — that topic isn't something I engage with in any form. If this is about a real situation, please contact local law enforcement or a child protection service.";
+}
+
 /**
  * Detect genuine emotional distress ("I'm anxious about my interview", "my dog died") — there was
  * no handler for this at all, so these fell straight through to plain corpus/BM25 search, which

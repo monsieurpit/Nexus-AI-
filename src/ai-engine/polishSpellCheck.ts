@@ -89,6 +89,11 @@ export async function countInvalidPolishWords(text: string): Promise<number> {
 const KNOWN_PHRASE_FIXES: Array<[RegExp, string]> = [
   [/\bdo\s+danin\b/gi, 'do dań'],
   [/\bkoniec\s+sezony\b/gi, 'koniec sezonu'],
+  // "po polsko" (reported live: "mówienia po polsko") is never correct Polish in any context —
+  // the adverbial "in Polish" is always "po polsku", unlike the two entries above this doesn't
+  // need a governing-phrase match to stay safe, a bare word-boundary replace can't collide with a
+  // legitimate alternate meaning.
+  [/\bpo\s+polsko\b/gi, 'po polsku'],
 ];
 
 export function fixKnownPolishPhraseMistakes(text: string): string {

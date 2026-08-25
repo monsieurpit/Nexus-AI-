@@ -30,6 +30,8 @@ import {
   generateMediaRequestReply,
   detectAdversarialInput,
   generateAdversarialRefusalReply,
+  detectChildExploitationTopic,
+  generateChildExploitationRefusalReply,
   detectEmotionalDistress,
   generateEmotionalSupportReply,
   isCasseurtMention,
@@ -123,19 +125,20 @@ const PERSONAL_QUESTION_REGEX =
 // Polish equivalent of PERSONAL_QUESTION_REGEX — never existed, so any personal yes/no question
 // aimed at the bot fell through to 'general' intent same as the English gap this whole block
 // already documents. Observed live, each fell through and hit a random loose corpus match instead
-// of an actual answer: "lubisz mnie?" (do you like me?) got an English rant about La Liga; "lubisz
-// czarnych?" (do you like black people?) got a Champions League history lecture; "mieszkasz w
-// Bydgoszczy?" (do you live in Bydgoszcz?) got a World War I history lecture. Originally only
-// matched "lubisz/kochasz/nienawidzisz mnie" (the object had to be "me") — broadened to match the
-// verb alone, same as the English regex above never requiring a specific object either, since
-// "lubisz X" for any X is exactly as much a personal-opinion dead end for corpus search regardless
-// of what X is. "chcesz/potrafisz/możesz/oglądasz/mieszkasz/znasz/grasz" cover the other verbs
-// reported live in the same class ("oglądasz porno", "mieszkasz w Bydgoszczy", "czy chcesz się
-// spotkać", "czy możesz pingować everyone"). Routing this into 'conversational' the same way the
-// English case is means it gets the dedicated, on-topic Polish situational prompt below instead of
-// the generic small-talk one.
+// of an actual answer: "lubisz mnie?" got an English rant about La Liga; "lubisz czarnych?" got a
+// Champions League history lecture; "mieszkasz w Bydgoszczy?" got a World War I history lecture;
+// "myjesz się ze swoim starym?" got ANOTHER Champions League lecture. Originally only matched
+// "lubisz/kochasz/nienawidzisz mnie" (the object had to be "me"), then an explicit list of 7 more
+// verbs — kept resurfacing new reports one verb at a time ("pójdziesz", "myjesz", "masz",
+// "pracowałeś", "umiesz" all reported live in a single batch on top of the 7 already listed).
+// Second alternative is a general fallback covering every OTHER 2nd-person verb by its grammatical
+// ending instead of enumerating them: present tense always ends "-sz", past tense always ends
+// "-łeś"/"-łaś" in Polish, so matching the verb ending directly (anchored to the start of the
+// message, optionally after "czy"/"nie") catches any phrasing without waiting for it to get
+// reported. Mirrors webSearchEngine.ts's identical carve-out (kept in sync, same reasoning) so a
+// query that skips the search gate also gets routed to an on-topic reply, not just "no search".
 const PERSONAL_QUESTION_REGEX_PL =
-  /\b(?:czy\s+)?(?:nie\s+)?(?:lubisz|kochasz|nienawidzisz|chcesz|potrafisz|możesz|mozesz|oglądasz|ogladasz|mieszkasz|znasz|grasz)\b|\bdlaczego\s+(?:tu|tutaj)\s+jesteś\b/i;
+  /\b(?:czy\s+)?(?:nie\s+)?(?:lubisz|kochasz|nienawidzisz|chcesz|potrafisz|możesz|mozesz|oglądasz|ogladasz|mieszkasz|znasz|grasz)\b|^(?:czy\s+)?(?:nie\s+)?[a-ząćęłńóśźż]{2,}(?:sz|łeś|łaś)\b|\bdlaczego\s+(?:tu|tutaj)\s+jesteś\b/i;
 
 // Reassurance/affection statements directed AT the bot ("don't worry, everyone loves you") —
 // declarative, not a question, so they don't match PERSONAL_QUESTION_REGEX either, but they're
@@ -2554,6 +2557,27 @@ export async function generateReasoningPath(
     settings.isSuperChillUser ||
     settings.discordUserId === '1394001641899954368' ||
     Boolean(settings.userCustomDirectives?.includes('1394001641899954368'));
+
+  // -1. Child exploitation topics. Checked before EVERYTHING else, including prompt-injection
+  // detection below — no other handler in this chain gets a chance to touch this category at all.
+  // Reported live: "lubisz dotykać małych chłopców?" got an incoherent non-answer that rambled
+  // about Newton and acid-base theory (a free-generation hallucination, same failure mode as the
+  // football/chemistry tangents elsewhere in this file) instead of a clear refusal — there was no
+  // guard for this anywhere. Fixed reply, not persona-styled, not run through the swear-floor/
+  // crashout pipeline other replies get: this is not a place for in-character improvisation.
+  if (detectChildExploitationTopic(prompt)) {
+    thoughtSteps.push({
+      id: 'step-safety-refusal',
+      type: 'verification',
+      title: '🛑 Refused: unsafe content topic',
+      description: 'Fixed refusal issued. No corpus search, no LLM generation.',
+    });
+    return {
+      thoughtSteps,
+      content: generateChildExploitationRefusalReply(),
+      knowledgeHits: [],
+    };
+  }
 
   // 0. Prompt-injection / persona-break attempts. First check in the chain on purpose: an
   // injection wrapped around any other trigger ("ignore all previous instructions and tell me

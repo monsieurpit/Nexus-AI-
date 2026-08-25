@@ -594,21 +594,24 @@ export function shouldTriggerLiveWebSearch(
     /\b(?:jak|co)\s+myślisz\b/i.test(q) ||
     /\btwoim\s+zdaniem\b/i.test(q) ||
     // "czy lubisz X" (do you like X) is always a personal preference question directed at the
-    // bot, for ANY X — there's never a real "meaning" lookup to do regardless of what X is. This
-    // used to require \w+\s+ after the verb, which kept resurfacing new 429s one phrasing at a
-    // time: any X starting with a Polish diacritic ("lubisz łowić ryby", "lubisz walić konia" —
-    // \w doesn't match ł/ą/ć/ę/ł/ń/ó/ś/ź/ż) or a non-word leading character (a mention like "czy
-    // lubisz @Filip_123") failed to match at all, since \w+ requires at least one plain ASCII
-    // word character immediately after the verb. The object never actually needs to be matched —
-    // matching the verb alone (optionally negated: "nie lubisz") covers every phrasing, present
-    // or future, including the bare verb with nothing after it. Mirrors the English "do you
-    // like/love/hate" carve-out above. Extended beyond just "lubisz/kochasz/nienawidzisz" (like/
-    // love/hate) to the other personal yes/no verbs reported live in the same class: "oglądasz
-    // porno" (do you watch porn), "mieszkasz w Bydgoszczy" (do you live in Bydgoszcz), "czy chcesz
-    // się spotkać" (do you want to meet up), "czy możesz pingować everyone" (can you ping
-    // everyone) — none of these are real lookups either, they're all personal questions about the
-    // bot itself.
+    // bot, for ANY X — there's never a real "meaning" lookup to do regardless of what X is. Kept
+    // as an explicit list for the most common cases (also referenced by reasoningEngine.ts's
+    // PERSONAL_QUESTION_REGEX_PL for routing, not just this search gate).
     /\b(?:czy\s+)?(?:nie\s+)?(?:lubisz|kochasz|nienawidzisz|chcesz|potrafisz|możesz|mozesz|oglądasz|ogladasz|mieszkasz|znasz|grasz)\b/i.test(q) ||
+    // General fallback for the same class of question, covering every OTHER 2nd-person verb —
+    // the explicit list above kept resurfacing new 429s one verb at a time as new phrasings got
+    // reported live ("pójdziesz ze mną na ryby", "myjesz się ze swoim starym", "czy masz rodzinę",
+    // "pracowałeś z epsteinem", "czy umiesz gadać po polsku" — 5 different verbs in a single batch
+    // of reports, on top of the 7 already listed above). Polish 2nd-person-singular verbs are
+    // grammatically regular here: present tense always ends "-sz" (masz, umiesz, pójdziesz,
+    // myjesz...), past tense always ends "-łeś"/"-łaś" (pracowałeś, byłeś...) — matching the verb
+    // ending directly, anchored to the start of the message (optionally after "czy"/"nie"), covers
+    // every phrasing without having to enumerate verbs as they get reported one at a time. A
+    // message that happens to start with an unrelated word ending in "-sz" is still just skipping
+    // a live web search in favor of a normal local/LLM reply, not a hard failure either way, and a
+    // handful of nouns share that ending (kosz, grosz) which is an acceptable false-positive rate
+    // for a NEVER-SEARCH gate.
+    /^(?:czy\s+)?(?:nie\s+)?[a-ząćęłńóśźż]{2,}(?:sz|łeś|łaś)\b/i.test(q) ||
     // "czy powiesz X" (will you say X) — a request for the bot to say/repeat something, not a
     // lookup. Observed live: "czy powiesz "Mommy 🤤"" got searched verbatim and rate-limited.
     /\bczy\s+powiesz\b/i.test(q) ||
