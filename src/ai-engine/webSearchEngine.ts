@@ -572,9 +572,14 @@ export function shouldTriggerLiveWebSearch(
     // so a corpus miss here should fall through to a normal conversational reply, not a web search
     // for whatever topic word happens to be in the sentence (e.g. searching for the literal song
     // "Right Now" because someone asked "do you like the songs playing right now").
-    /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you)\b/i.test(q) ||
-    /\bdo\s+you\s+(?:like|love|hate|think|believe|even)\b/i.test(q) ||
-    /\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i.test(q);
+    /^(?:why\s+are\s+(?:you|u)|why\s+do\s+(?:you|u)|are\s+(?:you|u))\b/i.test(q) ||
+    // "do u" (not just "do you") — observed live: "do u like me" and "what do u think about X"
+    // both slipped past this as literal search queries, rephrased as "Meaning of do u like me"
+    // and rate-limited by Google (429) since neither is a real, searchable lookup — they're
+    // personal opinion questions directed at the bot, same category as the "do you" case already
+    // handled below, just in text-speak spelling.
+    /\bdo\s+(?:you|u)\s+(?:like|love|hate|think|believe|even)\b/i.test(q) ||
+    /\b(?:you|u)\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i.test(q);
 
   if (isConversational) return false;
 
