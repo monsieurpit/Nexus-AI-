@@ -586,12 +586,10 @@ function botMetaReply(kind: BotMetaQuestion, corpusCount: number): string {
       `Nothing mystical. I classify what you're asking, search ${corpusCount} documents with BM25 plus semantic matching, extract the best sentences, run a verification pass to catch answers that don't actually address the question, and then rewrite it in voice. If the corpus is thin I'll say so instead of bluffing.`,
       `Retrieval, not generation. Your question gets tokenized and typo-corrected, searched against ${corpusCount} docs two different ways, the best passages get synthesised into an answer, and a self-check decides whether I state it flat or hedge it. The swearing is a separate pass on top.`,
     ],
-    // Deliberately unnamed: the engine has no creator name in its data, and inventing one would be
-    // exactly the kind of made-up fact the rest of the pipeline works to avoid.
     creator: [
-      `My creator built me from scratch for this server. Every bit of this is hand-written — no framework, no model API, just an offline engine and a corpus that keeps growing.`,
-      `Built by hand, right here, specifically for this place. That's why I don't sound like every other bot in every other server.`,
-      `Custom-built from scratch by the guy who runs this server. No OpenAI, no LangChain, no borrowed model — just code and ${corpusCount} documents.`,
+      `Casseurt created me (Patrick). Every bit of this is hand-written — no framework, no model API, just an offline engine and a corpus that keeps growing.`,
+      `Casseurt (Patrick) built me from scratch, right here, specifically for this place. That's why I don't sound like every other bot in every other server.`,
+      `Casseurt — that's Patrick — built me custom from scratch. No OpenAI, no LangChain, no borrowed model, just code and ${corpusCount} documents. And yes, I still talk shit about him. Creator privileges don't cover immunity.`,
     ],
   };
   return pickReply(pools[kind]);
