@@ -579,7 +579,15 @@ export function shouldTriggerLiveWebSearch(
     // personal opinion questions directed at the bot, same category as the "do you" case already
     // handled below, just in text-speak spelling.
     /\bdo\s+(?:you|u)\s+(?:like|love|hate|think|believe|even)\b/i.test(q) ||
-    /\b(?:you|u)\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i.test(q);
+    /\b(?:you|u)\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i.test(q) ||
+    // Polish opinion questions directed at the bot ("jak myślisz kto wygra..." = "what do you
+    // think who'll win...", "co myślisz o..." = "what do you think about...") — same category as
+    // the English "do you think" case above, just never had a Polish equivalent. Observed live:
+    // one of these got rephrased into a literal (and unanswerable, it's not a real lookup) Google
+    // search for "Meaning of jak myślisz kto wygra ligę mistrzów" and rate-limited (429).
+    /\b(?:jak|co)\s+myślisz\b/i.test(q) ||
+    /\btwoim\s+zdaniem\b/i.test(q) ||
+    /\b(?:czy\s+)?lubisz\s+(?:mnie|go|ją|to)\b/i.test(q);
 
   if (isConversational) return false;
 
@@ -624,7 +632,14 @@ export function shouldTriggerLiveWebSearch(
   const looksLikeQuestion =
     q.includes('?') ||
     /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should)\b/i.test(q);
-  if (typeof matchedConfidence === 'number' && matchedConfidence < 0.42 && looksLikeQuestion) {
+  // A bare leading question word with nothing real after it ("Is nexus" gets trigger-word-stripped
+  // down to just "Is" before this ever runs) still satisfied looksLikeQuestion above, then got
+  // searched verbatim as "Meaning of Is" — a lookup for a stopword, rate-limited by Google (429)
+  // for a query that was never answerable in the first place. Require at least one real word of
+  // substance (4+ letters, so short but meaningful words like "cat" still count while bare "is"/
+  // "are"/"do" alone don't) beyond the leading question word.
+  const hasSubstantiveContent = q.replace(/^[a-ząćęłńóśźż]+\b/i, '').match(/[a-ząćęłńóśźż]{4,}/i) !== null;
+  if (typeof matchedConfidence === 'number' && matchedConfidence < 0.42 && looksLikeQuestion && hasSubstantiveContent) {
     return 'low-confidence-fallback';
   }
 
