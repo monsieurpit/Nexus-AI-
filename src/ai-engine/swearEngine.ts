@@ -877,16 +877,36 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
   const pool = [...(looksPolish(text) ? SWEAR_FLOOR_INTERJECTIONS_PL : SWEAR_FLOOR_INTERJECTIONS)]
     .map((w) => (isAllCaps ? w.toUpperCase() : w))
     .sort(() => Math.random() - 0.5);
-  let result = `${pool[0]} ${trimmed}`;
+
+  // Observed live: the LLM's own text already opened with a swear a few words in ("Siema kurwa!"
+  // — a completely normal, natural placement on its own), and prepending the SAME word at the very
+  // front produced "kurwa, Siema kurwa!" — an awkward back-to-back stutter, not two separate
+  // natural swears. Prefer a pool word that doesn't already appear in the opening few words; only
+  // fall back to the first pool word if every option is already present there (pool has 4-5 words,
+  // so this is rare).
+  const leadWords = trimmed.split(/\s+/).slice(0, 6).join(' ').toLowerCase();
+  const bareWord = (w: string) => w.replace(/,$/, '').toLowerCase();
+  const lowerTrimmed = trimmed.toLowerCase();
+  // Seed with every pool word already present ANYWHERE in the original text, not just the front —
+  // the earlier fix only avoided the front stutter, but a later sentence-break insertion could
+  // still duplicate a swear that appears further into the original response (e.g. "kurwa," gets
+  // inserted before "Co słychać?" while "kurwa" already appeared two words into "Siema kurwa!").
+  const usedWords = new Set(pool.map(bareWord).filter((w) => lowerTrimmed.includes(w)));
+  const frontWord = pool.find((w) => !leadWords.includes(bareWord(w))) || pool[0];
+  usedWords.add(bareWord(frontWord));
+  let result = `${frontWord} ${trimmed}`;
   let remaining = minCount - startCount - 1;
 
   if (remaining > 0) {
     const breakPositions = [...result.matchAll(/[.!?]\s+(?=[A-Z"'])/g)].map((m) => m.index! + m[0].length);
     let offset = 0;
-    let poolIdx = 1;
+    // Same anti-stutter reasoning as the front word above, extended to every later insertion too
+    // — skip any pool word whose bare form already appears anywhere in the response so far.
+    const remainingPool = pool.filter((w) => !usedWords.has(bareWord(w)));
+    let poolIdx = 0;
     for (const pos of breakPositions) {
-      if (remaining <= 0 || poolIdx >= pool.length) break;
-      const word = pool[poolIdx++];
+      if (remaining <= 0 || poolIdx >= remainingPool.length) break;
+      const word = remainingPool[poolIdx++];
       const insertAt = pos + offset;
       result = `${result.slice(0, insertAt)}${word} ${result.slice(insertAt)}`;
       offset += word.length + 1;
