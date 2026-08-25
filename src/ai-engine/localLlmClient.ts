@@ -1,4 +1,9 @@
-import { computeInvalidPolishWordRatio, autoCorrectPolishText } from './polishSpellCheck';
+import {
+  computeInvalidPolishWordRatio,
+  countInvalidPolishWords,
+  autoCorrectPolishText,
+  fixKnownPolishPhraseMistakes,
+} from './polishSpellCheck';
 
 const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || '').replace(/\/+$/, '');
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
@@ -295,6 +300,18 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
       }
     }
 
+    // Reported live: a Polish response ended with "...być迷信者" — raw Chinese characters leaked
+    // into otherwise-normal Polish output. Neither the density check above nor
+    // computeInvalidPolishWordRatio below ever catches this class of failure: both tokenize on
+    // `[a-ząćęłńóśźżA-Z...]` only, so CJK/Cyrillic/Arabic/etc. characters are simply invisible to
+    // them — not counted as invalid words, not counted as any language's signal, just silently
+    // passed straight through into the shipped response. A real Polish or English reply should
+    // never legitimately contain characters from an entirely different script, so any run of 2+ is
+    // treated as contamination regardless of how clean the rest of the response reads.
+    if (/[一-鿿぀-ヿ가-힯؀-ۿЀ-ӿ]{2,}/.test(text)) {
+      return { status: 'unavailable', reason: 'wrong_language', detail: text.slice(0, 100) };
+    }
+
     // The check above only asks "is this Polish at all" (word-density against a small signal-word
     // list) — it doesn't catch a response that's clearly Polish but full of invented/garbled words
     // ("nacieszyło...zaznaczysz...Chocío" — reported live). computeInvalidPolishWordRatio checks
@@ -306,9 +323,15 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
       // "Football", reported live) before deciding whether to give up on the response entirely —
       // so an otherwise-good reply with one fixable slip ships corrected instead of getting
       // discarded for a template fallback over something this easy to actually fix.
-      text = autoCorrectPolishText(text);
+      text = fixKnownPolishPhraseMistakes(autoCorrectPolishText(text));
       const invalidRatio = computeInvalidPolishWordRatio(text);
-      if (invalidRatio > 0.25) {
+      // The ratio alone was calibrated to separate overall-clean from overall-broken responses
+      // (see the commit that added it), and undershoots on a longer response that's mostly fine
+      // but has a handful of standout invented words — reported live, a ~35-word response with
+      // 3-4 genuinely nonsense words ("trączonicy", "szaleniecński") only hit ~11%. An absolute
+      // floor catches that regardless of how long the rest of the response is.
+      const invalidCount = countInvalidPolishWords(text);
+      if (invalidRatio > 0.25 || invalidCount >= 3) {
         return { status: 'unavailable', reason: 'poor_polish_grammar', detail: text.slice(0, 100) };
       }
     }

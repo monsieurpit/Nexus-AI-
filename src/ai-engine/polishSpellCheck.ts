@@ -33,6 +33,45 @@ export function computeInvalidPolishWordRatio(text: string): number {
 }
 
 /**
+ * Absolute count of invalid words, complementing the ratio above. Reported live: a ~35-word
+ * response with 3-4 outright invented words ("trączonicy", "szaleniecński") scored only ~11%
+ * invalid — comfortably under the 25% ratio threshold calibrated for separating overall-clean vs.
+ * overall-broken responses — while still reading as obviously bad because a handful of glaring
+ * nonsense words stand out regardless of how long the surrounding correct text is. The ratio alone
+ * doesn't catch that on a longer response; a small absolute count does, without having to lower the
+ * ratio threshold (and risk over-rejecting genuinely fine longer responses that just have more
+ * total words).
+ */
+export function countInvalidPolishWords(text: string): number {
+  const tokens = text.match(/[a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ]+/g) || [];
+  const judgeable = tokens.filter((w) => w.length >= 3);
+  if (judgeable.length < 3) return 0;
+  return judgeable.filter((w) => !spell.correct(w) && !KNOWN_PROPER_NOUNS.has(w.toLowerCase())).length;
+}
+
+// Specific, observed-live wrong-word-choice phrases that the dictionary gate above can never
+// catch: both "danin" (genitive plural of "danina", tribute/levy) and "sezony" (nominative/
+// accusative plural of "sezon", seasons) are real, correctly-spelled Polish words — spell.correct()
+// accepts them — just the wrong word/case for these specific governing phrases ("do dań" = "of
+// dishes" was clearly meant, not "do danin"; "koniec sezonu" = "the end of the season" always takes
+// genitive singular after "koniec", never "koniec sezony"). This is a lexical/grammar mistake, not
+// a spelling one, so no dictionary-based check catches it — matched on the exact reported governing
+// phrase (not the bare word) to avoid rewriting a genuinely correct, unrelated use of either word
+// elsewhere in a response.
+const KNOWN_PHRASE_FIXES: Array<[RegExp, string]> = [
+  [/\bdo\s+danin\b/gi, 'do dań'],
+  [/\bkoniec\s+sezony\b/gi, 'koniec sezonu'],
+];
+
+export function fixKnownPolishPhraseMistakes(text: string): string {
+  let fixed = text;
+  for (const [pattern, replacement] of KNOWN_PHRASE_FIXES) {
+    fixed = fixed.replace(pattern, replacement);
+  }
+  return fixed;
+}
+
+/**
  * Auto-fixes invalid Polish words in-place, but only the confident cases — small, single-suffix
  * slips (a wrong case ending, a dropped/extra letter) where the dictionary's own top suggestion is
  * a close edit away, e.g. "Footballa" (genitive) -> "Football" (nominative), reported live as

@@ -602,9 +602,16 @@ export function shouldTriggerLiveWebSearch(
     // word character immediately after the verb. The object never actually needs to be matched —
     // matching the verb alone (optionally negated: "nie lubisz") covers every phrasing, present
     // or future, including the bare verb with nothing after it. Mirrors the English "do you
-    // like/love/hate" carve-out above; "kochasz"/"nienawidzisz" added for the same love/hate
-    // symmetry.
-    /\b(?:czy\s+)?(?:nie\s+)?(?:lubisz|kochasz|nienawidzisz)\b/i.test(q) ||
+    // like/love/hate" carve-out above. Extended beyond just "lubisz/kochasz/nienawidzisz" (like/
+    // love/hate) to the other personal yes/no verbs reported live in the same class: "oglądasz
+    // porno" (do you watch porn), "mieszkasz w Bydgoszczy" (do you live in Bydgoszcz), "czy chcesz
+    // się spotkać" (do you want to meet up), "czy możesz pingować everyone" (can you ping
+    // everyone) — none of these are real lookups either, they're all personal questions about the
+    // bot itself.
+    /\b(?:czy\s+)?(?:nie\s+)?(?:lubisz|kochasz|nienawidzisz|chcesz|potrafisz|możesz|mozesz|oglądasz|ogladasz|mieszkasz|znasz|grasz)\b/i.test(q) ||
+    // "czy powiesz X" (will you say X) — a request for the bot to say/repeat something, not a
+    // lookup. Observed live: "czy powiesz "Mommy 🤤"" got searched verbatim and rate-limited.
+    /\bczy\s+powiesz\b/i.test(q) ||
     // Polish greetings/small-talk ("jak tam u ciebie" = "how's it going with you", "co tam" =
     // "what's up", "co nowego" = "what's new", "jak leci"/"jak się masz" = "how are you") — the
     // same "how are you"/"what's up" English carve-out above never had Polish coverage at all.

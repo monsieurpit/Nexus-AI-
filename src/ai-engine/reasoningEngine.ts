@@ -113,20 +113,29 @@ const PHONE_NUMBER_REGEX =
 // these fell through to 'general' intent, hit a loose corpus match on the literal word ("papa"
 // pulling up a Madonna song, a random book), and got a bizarre off-topic "answer" instead of a
 // witty comeback.
+// "watch" added after "do you watch PH (PornHub)" was observed live: without it, that message
+// didn't match this regex at all, fell through to 'general' intent, BM25-matched the abbreviation
+// "PH" against a Chemistry corpus doc, and answered with an unrelated pH-scale chemistry lecture
+// instead of an actual answer to the question asked.
 const PERSONAL_QUESTION_REGEX =
-  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i;
+  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i;
 
-// Polish equivalent of PERSONAL_QUESTION_REGEX — never existed, so "lubisz mnie?" (do you like
-// me?), "kochasz mnie?" (do you love me?), "nienawidzisz mnie?" (do you hate me?) fell through to
-// 'general' intent same as the English gap this whole block already documents. Observed live:
-// "nexus lubisz mnie?" got classified as 'general', found no real corpus match, and the free-form
-// LLM response veered into an entirely unrelated, English-language rant about La Liga and El
-// Clásico — not just wrong-language (looksPolish() has weak signal on a two-word message with no
-// diacritics) but topically nonsensical, since nothing told the model what it was actually being
-// asked. Routing this into 'conversational' the same way the English case is means it gets the
-// dedicated, on-topic Polish situational prompt below instead of the generic small-talk one.
+// Polish equivalent of PERSONAL_QUESTION_REGEX — never existed, so any personal yes/no question
+// aimed at the bot fell through to 'general' intent same as the English gap this whole block
+// already documents. Observed live, each fell through and hit a random loose corpus match instead
+// of an actual answer: "lubisz mnie?" (do you like me?) got an English rant about La Liga; "lubisz
+// czarnych?" (do you like black people?) got a Champions League history lecture; "mieszkasz w
+// Bydgoszczy?" (do you live in Bydgoszcz?) got a World War I history lecture. Originally only
+// matched "lubisz/kochasz/nienawidzisz mnie" (the object had to be "me") — broadened to match the
+// verb alone, same as the English regex above never requiring a specific object either, since
+// "lubisz X" for any X is exactly as much a personal-opinion dead end for corpus search regardless
+// of what X is. "chcesz/potrafisz/możesz/oglądasz/mieszkasz/znasz/grasz" cover the other verbs
+// reported live in the same class ("oglądasz porno", "mieszkasz w Bydgoszczy", "czy chcesz się
+// spotkać", "czy możesz pingować everyone"). Routing this into 'conversational' the same way the
+// English case is means it gets the dedicated, on-topic Polish situational prompt below instead of
+// the generic small-talk one.
 const PERSONAL_QUESTION_REGEX_PL =
-  /\b(?:czy\s+)?(?:nie\s+)?(?:lubisz|kochasz|nienawidzisz)\s+(?:mnie|mię)\b|\bdlaczego\s+(?:tu|tutaj)\s+jesteś\b/i;
+  /\b(?:czy\s+)?(?:nie\s+)?(?:lubisz|kochasz|nienawidzisz|chcesz|potrafisz|możesz|mozesz|oglądasz|ogladasz|mieszkasz|znasz|grasz)\b|\bdlaczego\s+(?:tu|tutaj)\s+jesteś\b/i;
 
 // Reassurance/affection statements directed AT the bot ("don't worry, everyone loves you") —
 // declarative, not a question, so they don't match PERSONAL_QUESTION_REGEX either, but they're
@@ -3045,14 +3054,21 @@ export async function generateReasoningPath(
     // ("The user just said...") and started talking ABOUT the instructions instead of answering,
     // observed live on "Jak się masz?". A native-language instruction, mirroring the same intent,
     // is easy for it to follow instead.
-    // Personal preference questions ("lubisz mnie?" / "kochasz mnie?" / "nienawidzisz mnie?") got
-    // the same generic "swobodna rozmowa" instruction as any other small talk, with nothing telling
-    // the model what it was actually being asked — observed live, that produced a completely
-    // unrelated rant about La Liga and El Clásico instead of an answer to the question. A specific
-    // instruction naming the actual question, mirroring the targeted Casseurt-prompt pattern above
-    // rather than the generic one, keeps the reply on-topic.
+    // Personal questions (preference/opinion/habit/ability — "lubisz X?", "mieszkasz w X?",
+    // "oglądasz X?", "do you watch X?"...) got the same generic "casual small talk" instruction as
+    // any other small talk, with nothing telling the model what it was actually being asked —
+    // observed live, that let it wander onto a completely unrelated tangent instead of answering
+    // (a Polish "lubisz mnie?"/"lubisz czarnych?"/"mieszkasz w Bydgoszczy?" got rants about La
+    // Liga, Champions League history, and World War I respectively; an English "do you watch PH
+    // (PornHub)?" got a pH-scale chemistry lecture). A specific instruction naming the actual
+    // question, mirroring the targeted Casseurt-prompt pattern above rather than the generic one,
+    // keeps the reply on-topic and honest instead of deflecting onto whatever unrelated topic a
+    // stray word in the question happens to resemble.
+    const isPersonalQuestionEn = !isPolishConversation && PERSONAL_QUESTION_REGEX.test(effectivePrompt.toLowerCase());
     const situationalPrompt = isPersonalQuestionPl
-      ? `Użytkownik zapytał Cię wprost: "${prompt}" — to pytanie o Twój osobisty stosunek do niego (lubisz go/ją, kochasz, czy raczej nie znosisz). Odpowiedz WPROST na to pytanie, krótko, w swoim charakterze, po polsku — nie zmieniaj tematu na coś niezwiązanego (np. piłkę nożną). Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują.`
+      ? `Użytkownik zapytał Cię wprost: "${prompt}" — to osobiste pytanie o Ciebie (preferencję, opinię, nawyk albo umiejętność). Odpowiedz WPROST i szczerze na TO pytanie, krótko, w swoim charakterze, po polsku — nie zmieniaj tematu na coś niezwiązanego (np. piłkę nożną czy historię). Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują.`
+      : isPersonalQuestionEn
+      ? `The user just asked you directly: "${prompt}" — this is a personal question about you (a preference, opinion, habit, or ability). Answer THAT question directly and honestly, briefly, in character — don't deflect onto an unrelated tangent just because a word in the question resembles some other topic. Your style directives (swearing, tone) fully apply.`
       : isPolishConversation
       ? `Użytkownik właśnie napisał: "${prompt}". To swobodna, luźna rozmowa (small talk), nie prośba o fakty ani badania — odpowiedz naturalnie i krótko, jak prawdziwa osoba na czacie, w swoim stylu. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują też w luźnej rozmowie.`
       : `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`;
