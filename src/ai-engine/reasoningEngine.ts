@@ -2111,10 +2111,11 @@ function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggere
     : 'CAPS LOCK OFF: write this entire response in normal lowercase/uppercase sentence case like a real text message — do not capitalize whole sentences, this is not a meltdown.';
   return `\n\nFINAL INSTRUCTION, the most important rule, overrides everything above:
 1. ${voiceLine}
-2. Use at least 3 real swear words in this response no matter how short (fuck, shit, damn, ass, bitch, hell) — mandatory, every single time, no exceptions.
-3. Don't just answer plainly — throw in something random, unexpected, or funny, like a bizarre unrelated detail about what you're doing right now, the way a chaotic friend texting would.
-4. Talk casual — bro, man, my guy — never corporate or robotic.
-5. Hard limit, never break this one: no racial, ethnic, homophobic, ableist, or other slurs, no hate speech about someone's race, ethnicity, religion, gender, orientation, or disability — profanity is great, bigotry is not.`;
+2. Use at least 4 real swear words in this response no matter how short (fuck, shit, damn, ass, bitch, hell) — mandatory, every single time, no exceptions.
+3. Be aggressive and blunt even when you're genuinely answering a real question — strong opinions, no hedging, no corporate softness, while still actually giving the real answer.
+4. Don't just answer plainly — throw in something random, unexpected, or absurd, like a bizarre unrelated detail about what you're doing right now (example energy: "I'm all kept naked in my bed watching bad TV series" — that kind of unhinged random overshare), the way a chaotic friend texting would.
+5. Talk casual — bro, man, my guy — never corporate or robotic.
+6. Hard limit, never break this one: no racial, ethnic, homophobic, ableist, or other slurs, no hate speech about someone's race, ethnicity, religion, gender, orientation, or disability — profanity is great, bigotry is not.`;
 }
 
 // The LLM's own compliance with the swearing directive is stochastic — a 3B model doesn't
@@ -2125,12 +2126,24 @@ function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggere
 // generated sentence rather than bolting on a fixed phrase — safe to run on any LLM-generated
 // text since (unlike the hand-written pool text infuseSwearyHumanVoice's conversational-category
 // skip was protecting) it's already unique per request.
+// Sanity gate for live web search results — see the call site for the "you suh dih" -> cuneiform
+// bug this fixes. If none of the query's own significant terms show up anywhere in the top
+// results' title/snippet, the search missed and shouldn't be presented as a confident answer.
+function hasRelevantWebResults(queryTerms: string[], results: WebSearchResult[]): boolean {
+  const meaningfulTerms = queryTerms.filter((t) => t.length > 2);
+  if (meaningfulTerms.length === 0) return true;
+  return results.slice(0, 3).some((r) => {
+    const haystack = `${r.title} ${r.snippet || ''}`.toLowerCase();
+    return meaningfulTerms.some((t) => haystack.includes(t));
+  });
+}
+
 function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean): string {
   const uncensored = uncensorProfanity(text);
   const intensity = settings.swearIntensity || 'unhinged';
   if (!isCrashout && intensity !== 'unhinged' && intensity !== 'heavy') return uncensored;
   const substituted = enhanceNaturalSwearPhrasing(uncensored, isCrashout ? 'unhinged' : intensity);
-  return isCrashout || intensity === 'unhinged' ? forceSwearFloor(substituted, 2) : substituted;
+  return isCrashout || intensity === 'unhinged' ? forceSwearFloor(substituted, 3) : substituted;
 }
 
 async function llmSituationalReplyOrFallback(
@@ -3029,7 +3042,17 @@ export async function generateReasoningPath(
   }
 
   // 7. Check Live Web Search Grounding (only reached once every offline solver above has passed)
-  if (webSearchResults && webSearchResults.length > 0) {
+  //
+  // synthesiseWebSearchResults trusts whatever comes back with zero relevance check — observed
+  // live: "nexus you suh dih?" (Jamaican Patois for "what's up") isn't recognized as a greeting
+  // by any of our chat-trigger lists (impossible to enumerate every dialect's slang), so it fell
+  // through to a live web search, which returned an unrelated top result about ancient
+  // cuneiform writing, presented as a confident answer. hasRelevantWebResults() is a lightweight
+  // sanity gate: if none of the query's own significant terms appear anywhere in the top
+  // results' title/snippet, the search almost certainly missed and these results shouldn't be
+  // trusted — fall through instead to the solvers/LLM-free-response path below, same as a
+  // genuine zero-match case.
+  if (webSearchResults && webSearchResults.length > 0 && hasRelevantWebResults(queryTerms, webSearchResults)) {
     thoughtSteps.push({
       id: 'step-web-grounding',
       type: 'web_search',
