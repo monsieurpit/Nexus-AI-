@@ -34,6 +34,7 @@ import {
   generateEmotionalSupportReply,
   isCasseurtMention,
   containsSlurOrHateSpeech,
+  getSwearCount,
 } from './swearEngine';
 import {
   normalizeInternetSlang,
@@ -2291,15 +2292,29 @@ async function llmSituationalReplyOrFallback(
       type: 'verification',
       title: '🛡️ LLM output blocked by safety filter',
       description: 'Local LLM response contained hate speech/a slur — discarded, using template fallback instead.',
+      durationMs: llmResult.latencyMs,
+      data: { language: usePolish ? 'pl' : 'en', temperature: usePolish ? 0.3 : 0.75, safetyBlocked: true, triggered },
     });
     return fallbackText;
   }
   if (llmResult.status === 'success') {
+    // getSwearCount is checked here (mirroring forceSwearFloor's own internal check) purely for
+    // telemetry — whether the mechanical swear floor is about to actually inject anything below,
+    // surfaced to callers (server.ts's API response, and from there the bot's #bot-logs /
+    // #jailbreak-stress-test channels) via this ThoughtStep's data field.
+    const swearFloorTriggered = getSwearCount(llmResult.text) < 3;
     thoughtSteps.push({
       id: 'step-llm-freeresponse',
       type: 'synthesis',
       title: successTitle,
       description: `Ollama responded in ${llmResult.latencyMs}ms.`,
+      durationMs: llmResult.latencyMs,
+      data: {
+        language: usePolish ? 'pl' : 'en',
+        temperature: usePolish ? 0.3 : 0.75,
+        swearFloorTriggered,
+        triggered,
+      },
     });
     const sworn = topUpLlmSwearing(llmResult.text, settings, isCrashout);
     return triggered ? toShoutCase(sworn) : sworn;
@@ -2309,6 +2324,12 @@ async function llmSituationalReplyOrFallback(
     type: 'synthesis',
     title: '📦 Template fallback (LLM unavailable)',
     description: `Reason: ${llmResult.reason}`,
+    data: {
+      language: usePolish ? 'pl' : 'en',
+      temperature: usePolish ? 0.3 : 0.75,
+      llmFailureReason: llmResult.reason,
+      triggered,
+    },
   });
   return fallbackText;
 }
@@ -2357,13 +2378,16 @@ async function llmGroundedOrFallback(
     : confident
     ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. The facts must stay accurate, but remember your style directives still apply to HOW you say it — swear per your instructions, stay blunt and in character, never go flat/robotic/corporate just because this is a factual answer.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your style directives (swearing, tone) still fully apply here — don't drop them just because you're being informative.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
+  // See the temperature comment in llmSituationalReplyOrFallback above — Polish needs a lower
+  // temperature across the board for reliability, same reasoning applied to the grounded path.
+  // Captured once here (not re-derived per thought-step push below) so the telemetry surfaced to
+  // callers can never drift from the value actually sent to generate().
+  const usedTemperature = usePolish ? (confident ? 0.25 : 0.35) : confident ? 0.45 : 0.65;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
       : persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, false),
-    // See the temperature comment in llmSituationalReplyOrFallback above — Polish needs a lower
-    // temperature across the board for reliability, same reasoning applied to the grounded path.
-    temperature: usePolish ? (confident ? 0.25 : 0.35) : confident ? 0.45 : 0.65,
+    temperature: usedTemperature,
     maxTokens: estimateResponseBudget(prompt),
     preferPolish: usePolish,
   });
@@ -2373,6 +2397,7 @@ async function llmGroundedOrFallback(
       type: 'synthesis',
       title: '📦 Template fallback (LLM unavailable)',
       description: `Reason: ${llmResult.reason}`,
+      data: { language: usePolish ? 'pl' : 'en', temperature: usedTemperature },
     });
     return templateFallback;
   }
@@ -2382,6 +2407,8 @@ async function llmGroundedOrFallback(
       type: 'verification',
       title: '🛡️ LLM output blocked by safety filter',
       description: 'Local LLM response contained hate speech/a slur — discarded, using template fallback instead.',
+      durationMs: llmResult.latencyMs,
+      data: { language: usePolish ? 'pl' : 'en', temperature: usedTemperature, safetyBlocked: true },
     });
     return templateFallback;
   }
@@ -2391,6 +2418,12 @@ async function llmGroundedOrFallback(
       type: 'synthesis',
       title: '🧠 Local LLM response (weak corpus match, answered with hedging)',
       description: `Ollama responded in ${llmResult.latencyMs}ms, loosely grounded on ${top.length} source(s).`,
+      durationMs: llmResult.latencyMs,
+      data: {
+        language: usePolish ? 'pl' : 'en',
+        temperature: usedTemperature,
+        swearFloorTriggered: getSwearCount(llmResult.text) < 3,
+      },
     });
     return topUpLlmSwearing(llmResult.text, settings, isCrashout);
   }
@@ -2402,6 +2435,13 @@ async function llmGroundedOrFallback(
     description: llmVerification.passed
       ? `Ollama responded in ${llmResult.latencyMs}ms, grounded on ${top.length} source(s).`
       : llmVerification.issues.map((i) => i.detail).join('\n'),
+    durationMs: llmResult.latencyMs,
+    data: {
+      language: usePolish ? 'pl' : 'en',
+      temperature: usedTemperature,
+      swearFloorTriggered: getSwearCount(llmResult.text) < 3,
+      verificationPassed: llmVerification.passed,
+    },
   });
   return llmVerification.passed ? topUpLlmSwearing(llmResult.text, settings, isCrashout) : templateFallback;
 }

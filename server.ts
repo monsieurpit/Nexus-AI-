@@ -1006,7 +1006,32 @@ app.post('/api/v1/nexus', async (req, res) => {
           type: t.type,
           title: t.title,
           description: t.description,
+          ...(t.data ? { data: t.data } : {}),
+          ...(typeof t.durationMs === 'number' ? { durationMs: t.durationMs } : {}),
         })),
+        // Convenience summary for callers (e.g. the Discord bot's telemetry logging) that don't
+        // want to parse thoughtSteps themselves — lifted from whichever thought step actually made
+        // an LLM call (reasoningEngine.ts's llmGroundedOrFallback/llmSituationalReplyOrFallback are
+        // the only ones that populate ThoughtStep.data with a `language` field). null when the
+        // response never called the LLM at all (a template-only reply, a hardcoded fact, etc.) —
+        // that's a real, meaningful distinction, not a missing value.
+        telemetry: (() => {
+          const llmStep = [...thoughtStepsResult].reverse().find((t) => t.data && typeof t.data.language === 'string');
+          if (!llmStep) return null;
+          return {
+            latencyMs: llmStep.durationMs ?? null,
+            language: llmStep.data!.language,
+            temperature: llmStep.data!.temperature ?? null,
+            swearFloorTriggered: Boolean(llmStep.data!.swearFloorTriggered),
+            triggered: Boolean(llmStep.data!.triggered),
+            safetyBlocked: Boolean(llmStep.data!.safetyBlocked),
+            // Set only when the LLM call itself failed (timeout, degenerate output, wrong
+            // language, etc.) — null on a normal successful response. This is exactly what
+            // #prompt-workbench-style crash/failure logging needs to distinguish "the LLM
+            // produced a bad response" from "the LLM never produced a response at all".
+            llmFailureReason: llmStep.data!.llmFailureReason ?? null,
+          };
+        })(),
         totalDocumentsLoaded: allKnowledge.length,
         rulesRespected: true,
         activeRules: strictEvaluation.activeRulesApplied || ['Strict SDK rule adherence', 'Swear rule adherence'],
