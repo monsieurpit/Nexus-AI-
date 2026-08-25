@@ -10,7 +10,11 @@ import corpusEmbeddings from './corpus/embeddings.generated.json';
 // own computeEmbedding(); populating it with real 768-dim vectors would silently break that
 // fallback (cosineSimilarity returns 0 on any dimension mismatch, so every comparison there would
 // fail). Keeping real vectors in this separate map means the legacy fallback is untouched.
-const REAL_EMBEDDINGS: Record<string, number[]> = (corpusEmbeddings as { vectors: Record<string, number[]> }).vectors || {};
+const REAL_EMBEDDINGS: Record<string, number[]> = Object.fromEntries(
+  Object.entries(
+    (corpusEmbeddings as { vectors: Record<string, { vector: number[]; textHash: string }> }).vectors || {}
+  ).map(([id, entry]) => [id, entry.vector])
+);
 
 // A single user message can trigger several search calls with different-but-overlapping query
 // strings (initial query, reformulated keyword query, sub-questions) — this avoids redundant
