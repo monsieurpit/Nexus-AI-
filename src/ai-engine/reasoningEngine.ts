@@ -95,8 +95,12 @@ const FOLLOW_UP_PRONOUNS = new Set([
 const VC_JOIN_REGEX =
   /\b(?:join|hop|pull\s+up|come)\s+(?:in\s+|into\s+|to\s+)?(?:the\s+)?(?:vc|voice\s*chat|voice\s*channel|call)\b/i;
 
+// "numer telefonu" (Polish for "phone number") — observed live: asked in Polish, this fell
+// through the English-only regex to the free-response LLM path, which (exactly the failure mode
+// this whole carve-out exists to prevent) had no real number to give and hallucinated a rambling
+// refusal instead of the actual hardcoded number.
 const PHONE_NUMBER_REGEX =
-  /\b(?:phone\s*number|telephone\s*number|(?:what(?:'s| is|\s+is)?|give\s+me|tell\s+me|whats)\s+(?:your|his|the\s+ai(?:'s)?)\s+(?:phone\s+)?number|(?:his|your|the\s+ai(?:'s)?)\s+phone\s+number|(?:what(?:'s| is|\s+is)?|whats)\s+(?:his|your)\s+number)\b/i;
+  /\b(?:phone\s*number|telephone\s*number|numer\s*telefonu|(?:what(?:'s| is|\s+is)?|give\s+me|tell\s+me|whats)\s+(?:your|his|the\s+ai(?:'s)?)\s+(?:phone\s+)?number|(?:his|your|the\s+ai(?:'s)?)\s+phone\s+number|(?:what(?:'s| is|\s+is)?|whats)\s+(?:his|your)\s+number)\b/i;
 
 // Personal banter/questions directed AT the bot ("why are you here", "are you gay", "do you like
 // X", "you freak") — these were falling through to corpus/web search, which either returns
