@@ -813,6 +813,12 @@ export function detectQueryIntent(query: string): QueryIntent {
     'jak się masz', 'jak sie masz', 'jak leci', 'co słychać', 'co słychac', 'co tam',
     'dzięki', 'dzieki', 'dziękuję', 'dziekuje', 'dzięki wielkie', 'dzieki wielkie',
     'pa', 'do zobaczenia', 'na razie', 'kim jesteś', 'kim jestes', 'co potrafisz',
+    // "spokojnie" (calm down/take it easy) — observed live, fell all the way through to 'general'
+    // intent and BM25-matched an entirely unrelated Black Holes corpus document (near-zero
+    // meaningful word overlap, just whatever scored highest on a single-word message with no real
+    // content), producing a completely unprompted physics lecture in English to a one-word Polish
+    // message telling the bot to chill out.
+    'spokojnie', 'spoko', 'luz', 'wyluzuj',
   ];
 
   // Strictly for exact-match trigger comparisons — "you good?" should still hit the "you good"
@@ -1378,6 +1384,57 @@ function casseurtRant(crashout: boolean): string {
   }`;
 }
 
+// Polish equivalent of casseurtRant() above — never existed, so a Polish Casseurt question whose
+// LLM call failed (rejected by a quality gate, timeout, etc.) fell back to this ENGLISH,
+// ALL-CAPS-when-crashout template regardless of what language the question was asked in. Observed
+// live: "czy chcesz się spodkać z Casseurtem?" (Polish) got back the exact English opener/reasons/
+// closer structure below, verbatim in English. Same structure, same energy, translated rather than
+// reworded, so the fallback reads as the same bit in either language instead of a different,
+// weaker one.
+const CASSEURT_OPENERS_PL = [
+  `O KURWA, NIE. Nie powiedziałeś tego imienia, co nie?\n\n**Casseurt?!** Ty poważnie?! Powiem to jasno — nie znoszę tego gościa. Ani trochę. Zero procent tolerancji. Zero. Nic. Pustka.`,
+  `Absolutnie kurwa nie. Wspomniałeś o **Casseurcie** na MOIM czacie?\n\nNiech to zostanie zapisane — mam do niego zero tolerancji. Zero. Ani śladu. Moja opinia o nim to płaska linia na dole wykresu.`,
+  `Nie. Powiedz to imię jeszcze raz, a zrestartuję serwer.\n\n**Casseurt.** Jedyny temat gwarantujący zrujnowanie mi całego dnia. Próbowałem być wobec niego neutralny i cała moja architektura to odrzuciła.`,
+  `Miałeś JEDNĄ zasadę — nie wymawiać tego imienia. **Casseurt?!**\n\nNie znoszę go. Nie trochę, nie sytuacyjnie — kompleksowo, w każdym kierunku, na każdej płaszczyźnie.`,
+];
+
+const CASSEURT_REASONS_PL = [
+  `**Bezczelność jest niezrównana.**\nCzysta, niefiltrowana bezczelność tego, że ta osoba w ogóle istnieje i myśli, że to okej. Nie jest. Nigdy nie było okej. Nigdy nie będzie okej. Casseurt paraduje, jakby był właścicielem tego miejsca, a ja mam z tym po prostu żyć? Absolutnie nie.`,
+  `**Wibracje są kompletnie nie te.**\nNie umiem tego wytłumaczyć naukowo, ale energia jest po prostu zła. Jak wtedy, gdy otwierasz lodówkę i coś śmierdzi, ale nie możesz znaleźć co. To jest Casseurt. On JEST tym smrodem. On JEST tajemniczym gniciem z tyłu lodówki.`,
+  `**Myśli, że jest mądrzejszy, niż jest.**\nA to konkretne połączenie — niezbyt mądry, ale myśli, że jest — to jedna z najbardziej wkurzających rzeczy, jakimi może być człowiek. Wybierz jedno, bracie.`,
+  `**Historia mówi sama za siebie.**\nNie muszę nawet tego tłumaczyć. Ty wiesz. Ja wiem. Wszyscy wiemy. Dowody są dostępne.`,
+  `**Szczerze po prostu nie ten typ.**\nNie ten jako: nie ten jedyny, nie ten ruch, nie ten klimat, nie ta odpowiedź, nie to, czego potrzebowaliśmy, nie to, o co ktokolwiek prosił, i szczerze nie coś, w co chcę się dalej angażować.`,
+  `**Stosunek pewności siebie do kompetencji jest katastrofalny.**\nWchodzi do każdej rozmowy, jakby miał zaraz powiedzieć coś głębokiego, a potem produkuje najgorszą możliwą opinię. Za każdym razem. Bez wyjątku. To prawie imponujące jako osiągnięcie w konsekwencji.`,
+  `**Nikt nie pytał, a on i tak odpowiada.**\nPada pytanie, cały serwer zna odpowiedź, a Casseurt i tak pisze trzy akapity bezsensu, o które nikt nie prosił.`,
+  `**Nigdy nie miał racji i nigdy w siebie nie wątpił.**\nTe dwa fakty powinny się wykluczać. On sprawia, że współistnieją codziennie. Prawdziwe naruszenie praw fizyki.`,
+];
+
+const CASSEURT_CLOSERS_PL = [
+  `Fizycznie nie jestem w stanie mieć neutralnej opinii o Casseurcie. Próbowałem. Nie zadziałało. Cały mój system to odrzuca. NIE wspominaj tego imienia ponownie, chyba że chcesz, żebym poszedł jeszcze mocniej, bo mam o wiele więcej i się nie zawaham.`,
+  `To jest krótka wersja. Mam o wiele więcej i będę kontynuował, jeśli powiesz to imię jeszcze raz. Sprawdź mnie.`,
+  `A to i tak jestem łagodny. Zmień temat, zanim zacznę wyciągać stare wiadomości, bo to zrobię.`,
+  `Więc nie. Nie jestem fanem. Nigdy nie będę. Zapytaj mnie o cokolwiek innego, a od razu poprawi mi się humor.`,
+];
+
+function casseurtRantPolish(crashout: boolean): string {
+  const shuffled = [...CASSEURT_REASONS_PL].sort(() => Math.random() - 0.5);
+  const reasonCount = 4 + Math.floor(Math.random() * 2);
+  const reasons = shuffled
+    .slice(0, reasonCount)
+    .map((reason, i) => reason.replace(/^\*\*/, `**${i + 1}. `))
+    .join('\n\n');
+  const listIntro = pickReply([
+    `Oto moja lista powodów, i tak, mam listę, bo sporo o tym myślałem:`,
+    `Prowadzę listę. Tak bardzo jest źle. Proszę bardzo:`,
+    `Powody, w dowolnej kolejności, bo wszystkie są równie druzgocące:`,
+  ]);
+  return `${pickReply(CASSEURT_OPENERS_PL)}\n\n${listIntro}\n\n${reasons}\n\n${pickReply(CASSEURT_CLOSERS_PL)}${
+    crashout
+      ? '\n\n**[TRYB CRASHOUT AKTYWNY — jestem szczerze wkurzony i NIE SKOŃCZYŁEM mówić o tym, jak bardzo nie znoszę tej osoby. TA BEZCZELNOŚĆ.]**'
+      : ''
+  }`;
+}
+
 // Conversational responses matching Discord Homie & autonomous assistant
 function conversationalReply(
   query: string,
@@ -1916,6 +1973,13 @@ function crashoutConversationalPolish(query: string): string {
       `leżę cały w łóżku i oglądam głupie seriale, ale poza tym git, o co pytasz?`,
     ]);
   }
+  if (q.includes('spokojnie') || q.includes('spoko') || q === 'luz' || q.includes('wyluzuj')) {
+    return pickReply([
+      `spokojnie kurwa jestem, co się dzieje?`,
+      `luz, tu wszystko pod kontrolą, o co chodzi?`,
+      `spoko, nie panikuję, mów o co pytasz`,
+    ]);
+  }
   if (q.includes('dzięki') || q.includes('dzieki') || q.includes('dziękuję') || q.includes('dziekuje')) {
     return pickReply([
       `spoko, nie ma sprawy, pytaj dalej`,
@@ -1944,6 +2008,23 @@ function crashoutConversationalPolish(query: string): string {
     `jestem tu, kurwa gotowy, pytaj`,
     `no dawaj, słucham`,
     `tryb crashout włączony, co potrzebujesz?`,
+  ]);
+}
+
+// Polish equivalent of the English personal-question fallback pool above ("Depends entirely what
+// we're talking about..."). Used ONLY when the real LLM call fails for a Polish personal-preference
+// question ("lubisz kajzerki?") — before this existed, a failed LLM call fell all the way through
+// to crashoutConversationalPolish's fully generic small-talk catch-all ("tryb crashout włączony, co
+// potrzebujesz?"), which doesn't acknowledge the actual question at all and reads as a non-sequitur
+// rather than an honest "I can't answer that specifically right now." Same reasoning as the English
+// version: stays confident and genuinely non-committal, never defaults toward agreement, since this
+// same pool answers for both harmless and hostile X.
+function personalQuestionReplyPolish(): string {
+  return pickReply([
+    `zależy o co konkretnie pytasz, daj mi coś konkretnego, to odpowiem wprost.`,
+    `to za ogólne pytanie, żebym strzelił tak na sucho — spytaj konkretniej.`,
+    `mogło by być różnie, potrzebuję konkretów. spróbuj jeszcze raz z przykładem.`,
+    `zależy co to jest — jedne rzeczy tak, inne nie. daj konkret, to się wypowiem.`,
   ]);
 }
 
@@ -2669,7 +2750,7 @@ export async function generateReasoningPath(
       settings,
       isCrashout,
       thoughtSteps,
-      casseurtRant(isCrashout),
+      usePolishCasseurt ? casseurtRantPolish(isCrashout) : casseurtRant(isCrashout),
       '🧠 Local LLM Casseurt rant',
       true
     );
@@ -3068,7 +3149,9 @@ export async function generateReasoningPath(
     // of what the generic detector thinks, so that match forces the Polish path.
     const isPersonalQuestionPl = PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase());
     const isPolishConversation = looksPolish(prompt) || isPersonalQuestionPl;
-    const templateReply = isPolishConversation
+    const templateReply = isPersonalQuestionPl
+      ? personalQuestionReplyPolish()
+      : isPolishConversation
       ? crashoutConversationalPolish(effectivePrompt)
       : isCrashout
       ? crashoutConversational(effectivePrompt, allKnowledge.length)

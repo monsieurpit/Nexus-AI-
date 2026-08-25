@@ -31,6 +31,10 @@ const POLISH_SIGNAL_WORDS = new Set([
   'on', 'ona', 'my', 'wy', 'oni', 'znaczy', 'oznacza', 'jaki', 'jaka', 'jakie', 'jakich', 'proszę',
   'dziękuję', 'dzięki', 'mogę', 'chcę', 'też', 'kurwa', 'siema', 'mordeczko', 'chuj', 'zajebiście',
   'cześć', 'czesc', 'hej', 'witam', 'słowo', 'słowa', 'znasz', 'jesteś', 'masz',
+  // "spokojnie" (calm down) has zero diacritics and no overlap with anything above, so a bare
+  // one-word message ("spokojnie") scored 0-0 and looksPolish wrongly returned false — observed
+  // live, this sent a Polish "calm down" message down the English fallback path.
+  'spokojnie', 'spoko', 'luz', 'wyluzuj',
 ]);
 // Deliberately excludes short words that are ALSO common, unrelated Polish words — "to" (English
 // preposition vs. Polish "this/it"), "on" (vs. Polish "he"), "a" (vs. Polish "and/but"), "i" (vs.
