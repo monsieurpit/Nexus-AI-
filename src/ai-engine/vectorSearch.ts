@@ -71,40 +71,42 @@ export async function vectorSearch(
 }
 
 /**
- * Reciprocal Rank Fusion — uses the standard RRF formula (1/(k+rank)) ONLY to decide the merged
- * ORDER of two independently-ranked lists, keyed by item id. Deliberately does NOT expose the
- * raw RRF fraction (~0.01-0.03) as the returned score — that's a completely different scale from
- * BM25's real scores (0-10+), which CONFIDENT_MATCH_SCORE/computeConfidence downstream assume.
- * Items BM25 already found keep their real BM25 score untouched, so confidence gating behaves
- * exactly as before for anything BM25 already covers. A vector-only discovery (BM25 found
- * nothing for it at all — the actual paraphrase case this exists for) gets a conservative
- * synthetic score anchored in [0.5, 0.8] using its cosine similarity: high enough to be treated
- * as a real, hedge-worthy match, but never able to cross CONFIDENT_MATCH_SCORE (1.0) on its own,
- * which is the correct caution level for a match with no literal keyword overlap.
+ * Merges two independently-ranked lists (BM25 and vector-cosine) into one, keyed by item id.
+ *
+ * NOT a textbook Reciprocal Rank Fusion despite the name/history — an earlier version sorted by
+ * the raw RRF formula (1/(k+rank)) while reporting a differently-scaled score, which broke a real
+ * invariant: results[0].score >= CONFIDENT_MATCH_SCORE and computeConfidence() downstream assume
+ * the returned list is sorted by the SAME score it reports, with results[0] genuinely the
+ * highest-scored item — observed live, "Budgeting" (score 5.8) was returned before "What is
+ * Discord" (score 8.9) because Budgeting's RRF rank was better, silently corrupting confidence
+ * gating and grounding-context selection for every hybrid-search response.
+ *
+ * Items BM25 already found keep their real BM25 score untouched (so confidence gating behaves
+ * exactly as before for anything BM25 already covers). A vector-only discovery (BM25 found
+ * nothing for it at all — the actual paraphrase case this whole feature exists for) gets a
+ * conservative synthetic score anchored in [0.5, 0.8] from its cosine similarity — high enough to
+ * be treated as a real, hedge-worthy match, but never able to cross CONFIDENT_MATCH_SCORE (1.0)
+ * on its own. The merged union is then sorted by that single reported score, so it naturally
+ * favors real BM25 hits when BM25 found several strong ones, and only lets a vector-only
+ * discovery rise to the top when BM25's own list is thin — which is exactly when it should.
  */
 export function reciprocalRankFusion(
   listA: { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }[],
-  listB: { item: KnowledgeItem; score: number }[],
-  k: number = 60
+  listB: { item: KnowledgeItem; score: number }[]
 ): { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }[] {
-  const rrfRank = new Map<string, number>();
   const merged = new Map<string, { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }>();
 
-  listA.forEach((entry, rank) => {
-    rrfRank.set(entry.item.id, (rrfRank.get(entry.item.id) || 0) + 1 / (k + rank + 1));
+  listA.forEach((entry) => {
     merged.set(entry.item.id, entry);
   });
 
-  listB.forEach((entry, rank) => {
-    rrfRank.set(entry.item.id, (rrfRank.get(entry.item.id) || 0) + 1 / (k + rank + 1));
+  listB.forEach((entry) => {
     if (!merged.has(entry.item.id)) {
       merged.set(entry.item.id, { item: entry.item, score: 0.5 + entry.score * 0.3 });
     }
   });
 
-  return Array.from(merged.keys())
-    .sort((a, b) => (rrfRank.get(b) || 0) - (rrfRank.get(a) || 0))
-    .map((id) => merged.get(id)!);
+  return Array.from(merged.values()).sort((a, b) => b.score - a.score);
 }
 
 /**
