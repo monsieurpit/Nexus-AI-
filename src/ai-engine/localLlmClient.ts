@@ -2,6 +2,41 @@ const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || '').replace(/\/+$/, '');
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
 
+// server.ts's request queue allows up to 5 requests to run truly concurrently, but a single Mac
+// Mini running Ollama locally can only actually generate for one request at a time — it doesn't
+// run 5 requests in parallel internally, it serializes them. Without this, 5 concurrent requests
+// each started their own 30s client-side timeout clock immediately, but requests 2-5 sat waiting
+// their turn inside Ollama and often didn't even start real generation until close to or past that
+// 30s mark — observed live as a burst of "context canceled" cancellations on the tunnel, all
+// clustered in the same second, whenever several requests landed close together. This semaphore
+// caps how many requests are allowed to actually be inside an Ollama call at once; anything past
+// that limit waits here first — the request's own timeout clock (below) only starts once it
+// actually begins, so waiting for a turn no longer eats into that budget. The outer request queue
+// in server.ts already bounds total worst-case wait via its own 45s per-task timeout, so no
+// separate wait-timeout is needed here. Applies to both generate() and embed() since they compete
+// for the same underlying model-serving capacity on the same machine.
+const OLLAMA_MAX_CONCURRENT = Math.max(1, Number(process.env.OLLAMA_MAX_CONCURRENT) || 1);
+let activeOllamaCalls = 0;
+const ollamaWaitQueue: (() => void)[] = [];
+
+function acquireOllamaSlot(): Promise<() => void> {
+  return new Promise((resolve) => {
+    const grant = () => {
+      activeOllamaCalls++;
+      resolve(() => {
+        activeOllamaCalls--;
+        const next = ollamaWaitQueue.shift();
+        if (next) next();
+      });
+    };
+    if (activeOllamaCalls < OLLAMA_MAX_CONCURRENT) {
+      grant();
+    } else {
+      ollamaWaitQueue.push(grant);
+    }
+  });
+}
+
 export interface OllamaGenerateOptions {
   temperature?: number;
   maxTokens?: number;
@@ -111,6 +146,7 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     return { status: 'unavailable', reason: 'not_configured' };
   }
 
+  const release = await acquireOllamaSlot();
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? 30000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -171,6 +207,7 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     return { status: 'unavailable', reason: 'connection_error', detail: String(err?.message || err) };
   } finally {
     clearTimeout(timer);
+    release();
   }
 }
 
@@ -193,6 +230,7 @@ export async function embed(text: string, options: { timeoutMs?: number } = {}):
     return { status: 'unavailable', reason: 'not_configured' };
   }
 
+  const release = await acquireOllamaSlot();
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? 4000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -226,5 +264,6 @@ export async function embed(text: string, options: { timeoutMs?: number } = {}):
     return { status: 'unavailable', reason: 'connection_error', detail: String(err?.message || err) };
   } finally {
     clearTimeout(timer);
+    release();
   }
 }
