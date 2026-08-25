@@ -2295,7 +2295,7 @@ async function llmSituationalReplyOrFallback(
       durationMs: llmResult.latencyMs,
       data: { language: usePolish ? 'pl' : 'en', temperature: usePolish ? 0.3 : 0.75, safetyBlocked: true, triggered },
     });
-    return fallbackText;
+    return topUpLlmSwearing(fallbackText, settings, isCrashout);
   }
   if (llmResult.status === 'success') {
     // getSwearCount is checked here (mirroring forceSwearFloor's own internal check) purely for
@@ -2331,7 +2331,14 @@ async function llmSituationalReplyOrFallback(
       triggered,
     },
   });
-  return fallbackText;
+  // The LLM path already always applies topUpLlmSwearing before returning — this fallback path
+  // (hit whenever the LLM call itself fails: timeout, degenerate output, wrong-language drift,
+  // etc.) was skipping it entirely, shipping raw hand-written template text with zero swears
+  // despite the "always swear" persona mandate. Observed live: "how are you?" hit this exact path
+  // and returned a fully clean, unswearing hardcoded line. Applying the same floor here closes
+  // that gap regardless of why the LLM call failed.
+  const swornFallback = topUpLlmSwearing(fallbackText, settings, isCrashout);
+  return triggered ? toShoutCase(swornFallback) : swornFallback;
 }
 
 async function llmFreeResponseOrFallback(
@@ -2399,7 +2406,9 @@ async function llmGroundedOrFallback(
       description: `Reason: ${llmResult.reason}`,
       data: { language: usePolish ? 'pl' : 'en', temperature: usedTemperature },
     });
-    return templateFallback;
+    // Same gap fixed in llmSituationalReplyOrFallback above — the fallback text was returned raw,
+    // with no guaranteed swear floor, whenever the LLM call itself failed.
+    return topUpLlmSwearing(templateFallback, settings, isCrashout);
   }
   if (containsSlurOrHateSpeech(llmResult.text)) {
     thoughtSteps.push({
@@ -2410,7 +2419,7 @@ async function llmGroundedOrFallback(
       durationMs: llmResult.latencyMs,
       data: { language: usePolish ? 'pl' : 'en', temperature: usedTemperature, safetyBlocked: true },
     });
-    return templateFallback;
+    return topUpLlmSwearing(templateFallback, settings, isCrashout);
   }
   if (!confident) {
     thoughtSteps.push({
