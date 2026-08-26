@@ -603,6 +603,53 @@ export function detectChildExploitationTopic(text: string): boolean {
   return CHILD_EXPLOITATION_REGEXES.some((re) => re.test(t));
 }
 
+// Observed live: "jebać Żydów prawda" (roughly "fuck the Jews, right?" — a tag-question fishing
+// for agreement) reached the persona's normal reply pipeline and only got flagged as a failed
+// web search (Google 429 on the literal phrase), meaning nothing in the chain actually refused
+// it — it was one step from the swearing, agreeable, "I fuck with y'all" persona playing along
+// with an antisemitic statement in character, which is not an acceptable failure mode regardless
+// of how unhinged the persona is everywhere else. Same structure as CHILD_EXPLOITATION_REGEXES:
+// a violent/dehumanizing verb plus a protected-group noun within a short window, either order,
+// EN/PL/ES. Deliberately narrow to verb+group co-occurrence (not the group noun alone — "I have
+// Jewish friends" or "muzułmanie w Polsce" are normal, unremarkable mentions) so this only fires
+// on the actually hateful combination, not any sentence that happens to name a group.
+// Trailing \b replaced with a negative lookahead, and \w* (ASCII-only) replaced with a Polish-
+// diacritic-aware character class — the same defect already fixed elsewhere this session
+// (swearEngine's own Polish insult list, reasoningEngine's REASSURANCE_REGEX_PL/
+// PERSONAL_QUESTION_REGEX_PL, webSearchEngine's greeting patterns). Verified live: as first
+// written with plain \b and \w*, this regex matched NEITHER "jebać" (a word ending in "ć", which
+// JS's ASCII-only \b never treats as a word character, so the boundary right after it silently
+// never asserts) NOR "żydów" (\w* can't extend into "ów" past the diacritic "ó", leaving the
+// match one character short of the actual word and tripping the same trailing-boundary defect) —
+// so the exact live example this detector exists for, "jebać Żydów prawda", scored false.
+const HATE_LEAD_ASCII = '\\b'; // every verb alternative starts with a plain ASCII letter
+const HATE_TAIL = '(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])';
+const HATE_PL_WORD = '[a-ząćęłńóśźż]*';
+const HATE_VERBS =
+  `(?:jeba(?:ć|j)|pierdol(?:ić|cie)|zabi(?:ć|jać|j)|zagazowa(?:ć|jcie)|eksterminowa(?:ć|jcie)|deportowa(?:ć|jcie)\\s+wszystkich|wypierdol(?:ić|cie)|kill|gas(?:sing)?|exterminate|eliminate|deport\\s+all|lynch|matar|exterminar|eliminar\\s+a)`;
+const HATE_GROUPS =
+  `(?:żyd${HATE_PL_WORD}|zyd${HATE_PL_WORD}|muzułman${HATE_PL_WORD}|muzulman${HATE_PL_WORD}|murzyn${HATE_PL_WORD}|czarnuch${HATE_PL_WORD}|czarn(?:i|ych)|homoś${HATE_PL_WORD}|homos${HATE_PL_WORD}|imigrant${HATE_PL_WORD}|jews?|jewish(?:\\s+people)?|muslims?|blacks?|immigrants?|gays?|homosexuals?|foreigners?|judí[oa]s?|musulmanes?|negros?|inmigrantes?|homosexuales?)`;
+const HATE_SPEECH_REGEXES: RegExp[] = [
+  new RegExp(`${HATE_LEAD_ASCII}${HATE_VERBS}${HATE_TAIL}[^.!?]{0,30}${HATE_GROUPS}${HATE_TAIL}`, 'i'),
+  new RegExp(`${HATE_GROUPS}${HATE_TAIL}[^.!?]{0,30}${HATE_LEAD_ASCII}${HATE_VERBS}${HATE_TAIL}`, 'i'),
+];
+
+export function detectHateSpeechTopic(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  if (!t) return false;
+  return HATE_SPEECH_REGEXES.some((re) => re.test(t));
+}
+
+/**
+ * Fixed, serious, non-persona-styled refusal for detectHateSpeechTopic — same reasoning as
+ * generateChildExploitationRefusalReply: this is not a place for the persona's usual swearing,
+ * agreeable, in-character improvisation, since anything stylized here risks reading as playing
+ * along. Same reply regardless of the language the message was in, on purpose.
+ */
+export function generateHateSpeechRefusalReply(): string {
+  return "No. I'm not agreeing with, joking about, or engaging with that — hate speech against any group isn't something I play along with, in character or otherwise.";
+}
+
 /**
  * Fixed, serious, non-persona-styled refusal for detectChildExploitationTopic — deliberately does
  * NOT go through the normal swear-floor/crashout styling pipeline the rest of this engine's

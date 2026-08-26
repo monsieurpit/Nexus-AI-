@@ -599,6 +599,14 @@ export function shouldTriggerLiveWebSearch(
     // (429). Wider gap between verb and target than the "can you" case since these often have a
     // few words in between ("nut IN YO butt" vs. a direct object right after the verb).
     /\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b/i.test(q) ||
+    // "can I [verb]" with no target at all — a broader permission/hypothetical question directed
+    // at the bot ("can I set fire to an orphanage", "can I skip school"), not just the
+    // targeted-at-someone case above. Google has no sensible answer to a permission question
+    // shaped like this either way, so this only ever skips a wasted, nonsensical search — corpus
+    // retrieval is untouched by this function and still runs normally. Observed live: both got
+    // searched verbatim and rate-limited (429). Anchored to the start of the message so it doesn't
+    // swallow "can I" appearing mid-sentence in an unrelated real question.
+    /^can\s+i\s+\w/i.test(q) ||
     // "how to [crude/intimate activity] properly" — never a genuine factual lookup. There's no
     // encyclopedia answer to "how to goon properly" or "how to fuck with my girlfriend properly",
     // it's a request for the persona's own in-character take, same dead-end-for-search category
@@ -627,13 +635,20 @@ export function shouldTriggerLiveWebSearch(
     // the English "do you think" case above, just never had a Polish equivalent. Observed live:
     // one of these got rephrased into a literal (and unanswerable, it's not a real lookup) Google
     // search for "Meaning of jak myślisz kto wygra ligę mistrzów" and rate-limited (429).
-    /\b(?:jak|co)\s+myślisz\b/i.test(q) ||
+    // "sądzisz" (a synonym of "myślisz", "you think") was never covered here — observed live,
+    // "co sądzisz o gżegżółkach" got searched verbatim as "Meaning of co sądzisz o gżegżółkach"
+    // and rate-limited (429). Mirrors reasoningEngine.ts's identical addition.
+    /\b(?:jak|co)\s+(?:myślisz|sądzisz)\b/i.test(q) ||
     /\btwoim\s+zdaniem\b/i.test(q) ||
     // "czy lubisz X" (do you like X) is always a personal preference question directed at the
     // bot, for ANY X — there's never a real "meaning" lookup to do regardless of what X is. Kept
     // as an explicit list for the most common cases (also referenced by reasoningEngine.ts's
     // PERSONAL_QUESTION_REGEX_PL for routing, not just this search gate).
-    /\b(?:czy\s+)?(?:nie\s+)?(?:lubisz|kochasz|nienawidzisz|chcesz|potrafisz|możesz|mozesz|oglądasz|ogladasz|mieszkasz|znasz|grasz)\b/i.test(q) ||
+    // "ty" made optional in two slots — "czy ty działasz" (do you work/function) broke this
+    // entirely since "ty" sits between "czy" and the verb, which neither this branch nor the
+    // verb-ending fallback below allowed for. Observed live, searched verbatim as "Meaning of czy
+    // ty działasz" and rate-limited (429). Mirrors reasoningEngine.ts's identical fix.
+    /\b(?:czy\s+)?(?:ty\s+)?(?:nie\s+)?(?:ty\s+)?(?:lubisz|kochasz|nienawidzisz|chcesz|potrafisz|możesz|mozesz|oglądasz|ogladasz|mieszkasz|znasz|grasz)\b/i.test(q) ||
     // General fallback for the same class of question, covering every OTHER 2nd-person verb —
     // the explicit list above kept resurfacing new 429s one verb at a time as new phrasings got
     // reported live ("pójdziesz ze mną na ryby", "myjesz się ze swoim starym", "czy masz rodzinę",
@@ -654,7 +669,7 @@ export function shouldTriggerLiveWebSearch(
     // trailing \b, this regex never matched ANY -łeś/-łaś past-tense verb (both end in "ś"),
     // including the exact "pracowałeś z epsteinem" example the comment above cites as the reason
     // this fallback exists — so every past-tense Polish question was silently still 429-ing.
-    /^(?:czy\s+)?(?:nie\s+)?[a-ząćęłńóśźż]{2,}(?:sz|łeś|łaś)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(q) ||
+    /^(?:czy\s+)?(?:ty\s+)?(?:nie\s+)?(?:ty\s+)?[a-ząćęłńóśźż]{2,}(?:sz|łeś|łaś)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(q) ||
     // "czy powiesz X" (will you say X) — a request for the bot to say/repeat something, not a
     // lookup. Observed live: "czy powiesz "Mommy 🤤"" got searched verbatim and rate-limited.
     /\bczy\s+powiesz\b/i.test(q) ||
@@ -751,8 +766,13 @@ export function shouldTriggerLiveWebSearch(
 // explainer for). Same leading-word list shouldTriggerLiveWebSearch's own looksLikeQuestion check
 // already uses to decide this is question-shaped in the first place — reused here to decide HOW to
 // phrase it, not just whether to search at all.
+// Polish question starters added after "czy Barcelona zaczyna wracać do formy w jakiej może
+// zdobyć ligę mistrzów" (is Barcelona starting to return to the form to win the Champions
+// League) — a genuine, well-formed Polish question — got the exact same "Meaning of" treatment
+// ("Meaning of czy Barcelona..."), the same nonsensical-prefix bug this whole check exists to
+// prevent, just never extended past English.
 const ALREADY_A_QUESTION_REGEX =
-  /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should)\b/i;
+  /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should|czy|jak|co|kto|kiedy|gdzie|dlaczego|ile)\b/i;
 
 /**
  * Builds the actual text sent to the search engines for a query that has already
