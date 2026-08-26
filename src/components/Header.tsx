@@ -47,6 +47,32 @@ export const Header: React.FC<HeaderProps> = ({
   messageCount,
 }) => {
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
+  const personaMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!dropdownOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && !personaMenuRef.current?.contains(target)) {
+        setDropdownOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDropdownOpen(false);
+        document.getElementById('persona-dropdown-trigger')?.focus();
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [dropdownOpen]);
 
   const getPersonaIcon = (id: ModelPersonaId) => {
     switch (id) {
@@ -89,7 +115,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-stone-900 text-base tracking-tight">
-                  Custom AI Studio
+                  Nexus AI
                 </span>
                 <span className="text-[11px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -103,9 +129,13 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Quick Persona Dropdown */}
-          <div className="relative">
+          <div ref={personaMenuRef} className="relative">
             <button
               id="persona-dropdown-trigger"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={dropdownOpen}
+              aria-controls="persona-menu"
               onClick={() => setDropdownOpen(!dropdownOpen)}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-800 text-xs font-medium transition"
             >
@@ -120,13 +150,20 @@ export const Header: React.FC<HeaderProps> = ({
                   className="fixed inset-0 z-40"
                   onClick={() => setDropdownOpen(false)}
                 />
-                <div className="absolute right-0 sm:left-0 sm:right-auto mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-stone-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div
+                  id="persona-menu"
+                  role="menu"
+                  aria-label="AI personas"
+                  className="absolute right-0 sm:left-0 sm:right-auto mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-stone-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100"
+                >
                   <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-stone-400">
                     Select AI Persona
                   </div>
                   {Object.values(DEFAULT_PERSONAS).map((p) => (
                     <button
                       key={p.id}
+                      type="button"
+                      role="menuitem"
                       onClick={() => {
                         onSelectPersona(p.id);
                         setDropdownOpen(false);

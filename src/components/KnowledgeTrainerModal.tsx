@@ -141,7 +141,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
             <div>
               <h2 className="text-base font-bold text-stone-900">Knowledge Graph & Real-Time Trainer</h2>
               <p className="text-xs text-stone-500">
-                Teach your custom AI new facts, private memories, and verified reference documents
+                Teach Nexus AI new facts, private memories, and verified reference documents
               </p>
             </div>
           </div>

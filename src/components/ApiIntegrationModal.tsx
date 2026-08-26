@@ -741,7 +741,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </span>
               </div>
               <p className="text-xs text-stone-500">
-                Plug this custom AI engine directly into your Discord bot with JavaScript & environment variables
+                Plug Nexus AI directly into your Discord bot with JavaScript & environment variables
               </p>
             </div>
           </div>
