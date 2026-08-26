@@ -296,4 +296,37 @@ export const EVERYDAY_BASICS_CORPUS: KnowledgeItem[] = [
 - **Sleep Pressure & Melatonin**: Adenosine builds up in the brain during wakefulness creating sleep pressure (caffeine blocks adenosine receptors). Darkness signals the suprachiasmatic nucleus (SCN) in the hypothalamus to trigger melatonin secretion from the pineal gland.`,
     createdAt: Date.now(),
   },
+  {
+    id: 'kb-everyday-temperature-conversion',
+    title: 'Temperature Conversion: Celsius, Fahrenheit, and Quick Mental Math',
+    category: 'everyday-science',
+    keywords: [
+      'celsius to fahrenheit', 'fahrenheit to celsius', 'temperature conversion', 'convert temperature',
+      'what is 20 celsius in fahrenheit', 'unit conversion basics',
+    ],
+    content: `The exact formulas: Fahrenheit = (Celsius × 9/5) + 32, and Celsius = (Fahrenheit − 32) × 5/9. For a fast mental-math approximation that's close enough for everyday use (weather, cooking, casual conversation): double the Celsius number and add 30 to estimate Fahrenheit — 20°C doubled is 40, plus 30 is ~70°F (the exact value is 68°F, close enough to be useful without a calculator). A few fixed reference points worth memorizing: 0°C = 32°F (water freezes), 100°C = 212°F (water boils at sea level), 37°C = 98.6°F (normal human body temperature), 20-22°C = 68-72°F (typical comfortable room temperature). The two scales cross at −40° — that's the one temperature where Celsius and Fahrenheit read the same number. Celsius (part of the metric system) is used by most of the world; Fahrenheit is mainly used in the United States and a few territories. Kelvin, a third scale used in science, has the same size degree as Celsius but starts at absolute zero (0K = −273.15°C) rather than water's freezing point — converting Celsius to Kelvin is just Celsius + 273.15, no multiplication needed.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-everyday-wifi-basics',
+    title: 'How WiFi Actually Works: Routers, Signals, and Common Fixes',
+    category: 'everyday-science',
+    keywords: [
+      'how does wifi work', 'wifi basics', 'router vs modem', 'wifi keeps dropping', 'wifi dead zones',
+      '2.4ghz vs 5ghz', 'wifi troubleshooting',
+    ],
+    content: `WiFi sends data over radio waves, the same basic physics as an old cordless phone or walkie-talkie, just at a much higher frequency and with far more complex encoding. A router and a modem are different devices commonly bundled into one box: the modem is what actually connects your home to your internet provider (over cable, fiber, or DSL line), while the router takes that single connection and creates a local wireless (and often wired) network, letting multiple devices share it and talk to each other. Most modern routers broadcast on two frequency bands: 2.4GHz has a longer range and better wall penetration but slower max speed and more interference (since many household devices — microwaves, baby monitors, Bluetooth — also use 2.4GHz); 5GHz is faster with less interference but has shorter range and struggles more with walls/floors — a device near the router benefits from 5GHz, a device far away often does better on 2.4GHz. Common causes of WiFi dropping or slowing down: too many devices on one network competing for bandwidth, physical obstructions (thick walls, mirrors, appliances) between the device and router, being far from the router (signal strength drops with the square of distance), interference from neighboring networks on the same channel, and outdated router firmware. Basic troubleshooting in order of least-to-most drastic: restart the router (unplug 30 seconds, plug back in — genuinely fixes a large share of issues by clearing its memory/temporary state), move closer to the router or move the router to a more central location, switch bands (2.4GHz vs 5GHz) if the option exists, check for firmware updates, and only replace/upgrade the router if none of that helps and the hardware is genuinely old (5+ years is common for meaningful improvement).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-everyday-food-spoilage-safety',
+    title: 'Food Safety Basics: How to Tell If Food Has Gone Bad',
+    category: 'everyday-science',
+    keywords: [
+      'how to know if food is bad', 'food spoilage signs', 'is this food still good', 'food safety basics',
+      'expiration date vs best by', 'when to throw out leftovers',
+    ],
+    content: `Trust your senses first: an off smell (sour, ammonia-like, or just "wrong"), slimy texture, visible mold (fuzzy spots, often white/green/black), or a notably different color than normal are all reliable signs food has spoiled — when in doubt, the old rule "when in doubt, throw it out" is genuinely sound advice, since tasting a small amount to check is not a safe test (some bacteria that cause food poisoning don't change taste, smell, or appearance at all). "Best by," "use by," and "sell by" dates are about peak QUALITY, not safety — most shelf-stable and refrigerated foods are still safe to eat some time after a "best by" date if stored properly and showing no spoilage signs (this is a manufacturer freshness estimate, not a hard safety cutoff in most countries); "use by" is closer to an actual safety-relevant date and worth taking more seriously, especially for foods known for bacterial risk (deli meat, soft cheese, ready-to-eat items). General cooked-leftover guidance: refrigerate within 2 hours of cooking (1 hour if the room is above ~32°C/90°F), and most cooked leftovers are safe for about 3-4 days in the fridge — after that, the safety risk rises even without obvious spoilage signs, so a "smells fine" leftover past that window is still worth discarding. Freezing stops spoilage almost entirely (food stays safe indefinitely at 0°F/-18°C, though quality/taste degrades over time) — if in doubt whether you'll eat something in time, freezing it immediately is a reliable way to preserve it. Raw meat, poultry, and seafood spoil faster than most people expect and carry higher food-poisoning risk — when raw meat turns grey/brown with a sour smell or sticky film, discard it regardless of the date on the package.`,
+    createdAt: Date.now(),
+  },
 ];
