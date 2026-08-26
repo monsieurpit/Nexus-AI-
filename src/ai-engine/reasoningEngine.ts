@@ -4247,6 +4247,18 @@ function contentOverlap(a: KnowledgeItem, b: KnowledgeItem): number {
   return union === 0 ? 1 : shared / union;
 }
 
+// A single incidental mention buried in a doc's body ("...elderly, pregnant, or disabled
+// people...") is not a second *sense* of the word — it's noise. Genuine word-sense collisions
+// (mole the animal vs. mole the unit, root the DNS term vs. root the music term) have the term
+// as an actual subject of the doc: present in the title or one of its keywords, not just
+// somewhere in a sentence about something else. Gating on that keeps the "which one" prompt for
+// real collisions without firing on every doc that happens to use the word once in passing.
+function isPrimarySubject(item: KnowledgeItem, term: string): boolean {
+  const titleTerms = new Set(processForSearch(item.title));
+  if (titleTerms.has(term)) return true;
+  return item.keywords.some((k) => processForSearch(k).includes(term));
+}
+
 function detectAmbiguousMatch(
   prompt: string,
   queryTerms: string[],
@@ -4263,6 +4275,8 @@ function detectAmbiguousMatch(
   if (second.score / first.score < AMBIGUITY_TIE_RATIO) return null;
   if (first.item.category.toLowerCase() === second.item.category.toLowerCase()) return null;
   if (contentOverlap(first.item, second.item) >= AMBIGUITY_MAX_OVERLAP) return null;
+  const term = queryTerms[0];
+  if (!isPrimarySubject(first.item, term) || !isPrimarySubject(second.item, term)) return null;
   return [first.item, second.item];
 }
 
