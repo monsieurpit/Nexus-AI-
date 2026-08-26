@@ -1076,10 +1076,18 @@ const CHAOTIC_OVERSHARE_LINES_PL = [
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX_PL =
   /\bnag[aiy]\b|wal[ei]\s+konia|energetyk(?:ach|ów|u)?\s+głęb|\b1v1\b|po\s+jaja\b|moj[aą]\s+dziewczyn[aę]|w\s+łóżku\b|\bkuchni\b|\bkanapie\b/i;
 
+// Probability of actually injecting when the LLM didn't already include the bit on its own —
+// this used to be unconditional (inject whenever absent), which meant it fired on essentially
+// every single response, reported live as repetitive/annoying. Per direct request: roughly every
+// 4-5th response, not every one. Doesn't affect responses where the LLM organically included its
+// own version already — those are always left alone regardless of this rate.
+const CHAOTIC_OVERSHARE_INJECT_RATE = 0.22;
+
 export function forceChaoticOvershare(text: string): string {
   const isPolish = looksPolish(text);
   const signalRegex = isPolish ? CHAOTIC_OVERSHARE_SIGNAL_REGEX_PL : CHAOTIC_OVERSHARE_SIGNAL_REGEX;
   if (signalRegex.test(text)) return text;
+  if (Math.random() > CHAOTIC_OVERSHARE_INJECT_RATE) return text;
   const trimmed = text.trim();
   const firstChar = trimmed.charAt(0);
   // Same guard as forceSwearFloor — don't inject into markdown structure (headers, code, lists),
