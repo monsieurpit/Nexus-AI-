@@ -41,6 +41,8 @@ import { OTHER_SPORTS_CORPUS } from './corpus/otherSports';
 import { PETS_AND_ANIMALS_CORPUS } from './corpus/petsAndAnimals';
 import { RELATIONSHIPS_CORPUS } from './corpus/relationships';
 import { SEXUAL_HEALTH_CORPUS } from './corpus/sexualHealth';
+import { TRAVEL_CORPUS } from './corpus/travel';
+import { SUBSTANCE_SAFETY_CORPUS } from './corpus/substanceSafety';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -590,6 +592,8 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...PETS_AND_ANIMALS_CORPUS,
   ...RELATIONSHIPS_CORPUS,
   ...SEXUAL_HEALTH_CORPUS,
+  ...TRAVEL_CORPUS,
+  ...SUBSTANCE_SAFETY_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API

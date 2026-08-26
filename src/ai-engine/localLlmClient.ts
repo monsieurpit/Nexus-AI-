@@ -28,7 +28,16 @@ const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
 // words genuinely outnumber the other's counts as that language.
 const POLISH_SIGNAL_WORDS = new Set([
   'się', 'jest', 'czy', 'jak', 'co', 'gdzie', 'kiedy', 'dlaczego', 'ale', 'nie', 'tak', 'ja', 'ty',
-  'on', 'ona', 'my', 'wy', 'oni', 'znaczy', 'oznacza', 'jaki', 'jaka', 'jakie', 'jakich', 'proszę',
+  // "on" (he) and "my" (we) were both here as Polish pronouns, but they're also two of the most
+  // common English words — a real, previously-undiscovered bug, found live testing an entirely
+  // English sentence ("does my passport need to be valid past my trip") that got answered back in
+  // Polish. "my" alone scored a false Polish point since it's not in ENGLISH_SIGNAL_WORDS below,
+  // and with no other signal words present, that one false point was enough to win. The comment
+  // on ENGLISH_SIGNAL_WORDS below already documents this exact class of collision and deliberately
+  // excludes "on"/"to"/"a"/"i"/"do"/"no" for the identical reason — this list just never got the
+  // same treatment applied to it. "ona"/"wy"/"oni" (she/you-plural/they) aren't real English words
+  // and stay.
+  'ona', 'wy', 'oni', 'znaczy', 'oznacza', 'jaki', 'jaka', 'jakie', 'jakich', 'proszę',
   'dziękuję', 'dzięki', 'mogę', 'chcę', 'też', 'kurwa', 'siema', 'mordeczko', 'chuj', 'zajebiście',
   'cześć', 'czesc', 'hej', 'witam', 'słowo', 'słowa', 'znasz', 'jesteś', 'masz',
   // "spokojnie" (calm down) has zero diacritics and no overlap with anything above, so a bare
