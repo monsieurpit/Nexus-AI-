@@ -166,4 +166,70 @@ export const EVERYDAY_SCIENCE_HEALTH_2_CORPUS: KnowledgeItem[] = [
     content: `When you click a link or open an app, the request doesn't travel as one continuous stream — it's broken into small chunks called packets, each labeled with the destination address and a sequence number, sent independently (sometimes over different physical routes) and reassembled in the correct order once they arrive, which is what makes the internet resilient — if one path is congested or broken, packets can be automatically rerouted around it rather than the whole connection failing. Physically, the vast majority of international internet traffic — genuinely over 95% of it — travels through undersea fiber-optic cables laid along ocean floors connecting continents, not through satellites as many people assume; these cables use pulses of light through incredibly thin glass fiber strands to move data at close to the speed of light, and there are hundreds of them crisscrossing the world's oceans, owned by a mix of telecom companies and, increasingly, big tech companies themselves (Google, Meta, and Amazon now co-own or fully own a significant share of new undersea cable capacity). Once data reaches land, it moves through a hierarchy of networks — from your device to a local router, to your Internet Service Provider (ISP), through regional and backbone networks (huge, ultra-high-capacity connections between major hubs), and eventually to whatever data center hosts the website or service you're requesting — with each "hop" handled by specialized routing hardware reading the packet's destination address and forwarding it toward the next best path, similar in concept to how a piece of mail gets sorted and forwarded through multiple postal facilities toward its final address. The response (a webpage, a video stream, a game server update) travels back the same fundamental way, broken into packets and reassembled at your device — and the entire round trip for a simple request, even to a server on the other side of the planet, commonly takes well under half a second, largely because light-speed fiber transmission is extraordinarily fast even over genuinely enormous physical distances.`,
     createdAt: Date.now(),
   },
+  {
+    id: 'kb-esh2-bluetooth-pairing',
+    title: 'How Bluetooth Pairing Actually Works',
+    category: 'everyday-science',
+    keywords: [
+      'how does bluetooth pairing work', 'bluetooth pairing explained', 'why wont my bluetooth connect',
+      'bluetooth vs wifi', 'how does bluetooth work',
+    ],
+    content: `Bluetooth is a short-range radio technology (typically effective up to about 10 meters/33 feet for common devices, though newer versions can reach further) designed specifically for low-power, low-data-rate connections between nearby devices — headphones, keyboards, speakers, fitness trackers — unlike WiFi, which is built for higher bandwidth over a wider area and generally uses more power. "Pairing" is the one-time process of two devices exchanging a security key so they can recognize and trust each other going forward: when you put a device into pairing/discoverable mode, it broadcasts its presence, and once you select it on the other device, both exchange a cryptographic key (sometimes with a PIN or on-screen confirmation for extra security) that gets stored on both sides. After that initial pairing, reconnecting doesn't require repeating the process — the devices just automatically recognize each other's stored key and connect (or "bond") whenever they're both powered on and in range, which is why your headphones just reconnect to your phone automatically after the first setup. Common connection problems usually come down to a handful of causes: a device only remembers a limited number of paired devices and may need an old one manually removed/forgotten to make room, interference from other 2.4GHz devices (WiFi routers, microwaves) sharing the same frequency band Bluetooth uses, a device still being connected to a DIFFERENT previously-paired gadget (most Bluetooth devices can only actively connect to one thing at a time even if paired with several), or simply being out of range or having a low battery, which weakens the radio signal significantly. "Forgetting" a device and re-pairing from scratch is the standard fix for a persistently flaky connection, since it clears out a potentially corrupted stored key and starts the trust relationship fresh.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-esh2-incognito-private-browsing',
+    title: 'What Incognito / Private Browsing Actually Hides (and Doesn’t)',
+    category: 'everyday-science',
+    keywords: [
+      'what does incognito mode hide', 'does incognito hide your ip', 'is incognito really private',
+      'private browsing explained', 'does incognito mode work',
+    ],
+    content: `Incognito/private browsing mode is a genuinely common misconception: it does NOT make you anonymous on the internet or hide your activity from your internet service provider, employer, school network, or the websites you visit — those can all still see exactly what you're doing, in real time, the same as normal browsing. What it actually does is purely local: it prevents your browser from SAVING anything to your own device after you close the window — no browsing history, no cookies, no site data, no autofill entries, no search suggestions based on that session get stored. This is genuinely useful for specific local scenarios: using a shared or public computer without leaving a trace for the next person, logging into a second account on a site that only allows one active session per browser, or checking prices/search results without your normal cookies and login skewing what you see. It does NOT hide your IP address (your network and any site you visit can still see it), doesn't encrypt your traffic (unlike a VPN, which actually does route and encrypt traffic through a different server), doesn't stop your ISP from seeing which sites you connect to, and doesn't make downloaded files or bookmarks disappear — those persist normally. For actual anonymity or hiding traffic from your network provider, a VPN or Tor is the relevant tool, not private browsing mode — they solve a genuinely different problem than what incognito mode was ever designed for.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-esh2-cellular-5g-vs-4g',
+    title: '5G vs 4G Cellular Networks: What Actually Changed',
+    category: 'everyday-science',
+    keywords: [
+      'what is 5g', '5g vs 4g', 'how is 5g different from 4g', 'is 5g actually faster',
+      'does 5g cause health problems',
+    ],
+    content: `5G is the fifth generation of cellular mobile network technology (following 3G and 4G/LTE), and the actual improvement is threefold, not just "faster downloads": significantly higher peak speeds (often several times faster than 4G under good conditions), much lower latency (the delay between a request and a response — important for things like cloud gaming or real-time applications, not just raw download speed), and the ability to handle vastly more connected devices simultaneously in the same area without congestion, which matters as more everyday objects (not just phones) connect to cellular networks. 5G achieves this partly by using additional radio frequency bands beyond what 4G used, including some much higher-frequency "millimeter wave" bands that carry more data but travel shorter distances and are blocked more easily by buildings and even trees — which is why true high-band 5G needs many more, closer-together cell towers than 4G to provide consistent coverage, and why "5G" service quality varies enormously by carrier and location (a lot of "5G" in practice actually runs on lower/mid-band frequencies that behave much more like an improved 4G in terms of range, with the dramatic gigabit speeds reserved for high-band coverage in dense urban areas). On the widely-circulated health concern: the scientific and regulatory consensus (from major health and radiation-safety bodies worldwide) is that 5G, like 4G and WiFi before it, uses non-ionizing radiation — a fundamentally different and far lower-energy category of radiation than X-rays or nuclear radiation, without the mechanism to damage DNA or cells the way ionizing radiation can — and no credible evidence has linked normal 5G exposure to health harm.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-esh2-knuckle-cracking',
+    title: 'Why Knuckles Crack, and Whether It Causes Arthritis',
+    category: 'everyday-science',
+    keywords: [
+      'why do knuckles crack', 'is cracking your knuckles bad for you', 'does cracking knuckles cause arthritis',
+      'what causes the popping sound in joints',
+    ],
+    content: `The popping sound from cracking a knuckle comes from gas bubbles forming and collapsing inside the synovial fluid — the natural lubricant inside your joints. Stretching or bending the joint slightly expands the space inside the joint capsule, which drops the pressure inside it; this pressure drop causes dissolved gases (mostly carbon dioxide) already present in the fluid to rapidly form a bubble (a process called cavitation), and the sound is produced by that bubble's formation and/or its rapid collapse — the exact mechanism was debated by researchers for decades, with real-time MRI studies eventually showing the sound corresponds to bubble formation itself. After a joint is cracked, it typically can't be cracked again immediately — it takes roughly 15-20 minutes for the gas to fully redissolve back into the fluid before another audible pop is possible. On the common worry: multiple long-term studies, including ones specifically comparing habitual knuckle-crackers to non-crackers over years, have found no meaningful link between the habit and arthritis — hand strength and grip were also not found to be significantly different. It's not risk-free in absolute terms (a small number of case reports link genuinely aggressive, forceful joint-cracking to soft tissue injury), but for the ordinary way most people crack their knuckles, the popular fear that it "causes arthritis" is not supported by the actual research.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-esh2-onions-make-you-cry',
+    title: 'Why Cutting Onions Makes You Cry',
+    category: 'everyday-science',
+    keywords: [
+      'why do onions make you cry', 'how to cut onions without crying', 'onion tear gas chemical',
+      'why does cutting onions hurt your eyes',
+    ],
+    content: `Cutting an onion ruptures its cells, releasing enzymes and sulfur-containing compounds that were previously kept separate inside different parts of the cell. These react together to form a volatile gas called syn-propanethial-S-oxide — informally nicknamed "onion tear gas" — which drifts up into the air and reaches your eyes, where it reacts with the natural moisture on the eye's surface to form a mild sulfuric acid, irritating the eye and triggering your tear glands to flush it out as a protective reflex; the stinging and tearing are literally your eyes trying to dilute and wash away that irritant. Onions absorb sulfur compounds from the soil they grow in, which is why cause varies noticeably: freshly harvested, more pungent onions (and certain varieties bred for stronger flavor) release more of the compound than milder ones. Practical ways to reduce the effect actually target the mechanism directly: chilling the onion beforehand slows the chemical reaction and the gas's rate of release; cutting near an active exhaust fan or running water disperses the gas away from your face before it reaches your eyes; using a very sharp knife (a dull blade crushes more cells than it cleanly slices, releasing more of the compound); and cutting the root end last, since the root has the highest concentration of the sulfur compounds. Wearing goggles or contact lenses (which physically block the gas from reaching the eye's surface) is the most reliably effective single fix, if slightly impractical for everyday cooking.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-esh2-why-yawning-is-contagious',
+    title: 'Why Yawning Is Contagious',
+    category: 'everyday-science',
+    keywords: [
+      'why is yawning contagious', 'why do we yawn when others yawn', 'contagious yawning explained',
+      'what causes yawning',
+    ],
+    content: `Why we yawn at all is still not fully settled science — leading theories include cooling the brain (yawning increases blood flow and may help regulate brain temperature), increasing alertness during boredom or fatigue by stretching jaw muscles and taking in a large breath, or simply being a leftover ancient reflex with reduced modern function, similar to some other automatic reflexes humans retain. Contagious yawning — yawning specifically because you saw, heard, or even just read about someone else yawning — is a separate, better-understood phenomenon linked to empathy and social bonding: brain imaging studies show contagious yawning activates regions of the brain associated with empathy and social awareness (overlapping with areas involved in recognizing and mirroring others' emotional states), and it's notably more common between people who are emotionally close (family, close friends, romantic partners) than between strangers, and less common in people with certain conditions affecting social/empathic processing, like some autism spectrum presentations. Contagious yawning isn't uniquely human — it's been documented in chimpanzees, dogs (notably, dogs yawn contagiously in response to human yawns, not just other dogs, suggesting real cross-species empathic response), and some other social animals, but essentially never observed in animals that aren't strongly social, supporting the idea that it's tied to social bonding rather than being a random physiological quirk. Interestingly, most people can't stop a "yawn urge" they get from seeing this kind of description — even reading or thinking hard about yawning is itself a well-documented trigger.`,
+    createdAt: Date.now(),
+  },
 ];
