@@ -599,6 +599,16 @@ export function shouldTriggerLiveWebSearch(
     // (429). Wider gap between verb and target than the "can you" case since these often have a
     // few words in between ("nut IN YO butt" vs. a direct object right after the verb).
     /\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b/i.test(q) ||
+    // "how to [crude/intimate activity] properly" — never a genuine factual lookup. There's no
+    // encyclopedia answer to "how to goon properly" or "how to fuck with my girlfriend properly",
+    // it's a request for the persona's own in-character take, same dead-end-for-search category
+    // as the "can you"/"can I" cases above. Observed live: both got searched verbatim and
+    // rate-limited (429). Generalized via a shared crude-verb list plus a "my [partner]" mention
+    // rather than enumerating exact phrasings one report at a time.
+    (/\bhow\s+(?:to|do\s+i|can\s+i)\b/i.test(q) &&
+      /\b(?:properly|right|correctly|well)\b/i.test(q) &&
+      (/\b(?:goon(?:ing)?|jerk(?:ing)?\s*off|edg(?:e|ing)|nut(?:ting)?|smash(?:ing)?|bang(?:ing)?|fuck(?:ing)?|screw(?:ing)?|eat(?:ing)?\s+(?:her|him)\s+out)\b/i.test(q) ||
+        /\bmy\s+(?:girlfriend|boyfriend|wife|husband|girl|bae|partner|gf|bf)\b/i.test(q))) ||
     // "what does X have to do with Y" — a fixed English idiom that always means "why is X
     // relevant/being brought up", a meta-callout about the conversation itself, never a real
     // factual lookup. Observed live: "what does my question have to you being naked watching some
