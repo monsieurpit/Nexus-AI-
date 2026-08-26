@@ -2369,6 +2369,9 @@ function renderComparativeAnswer(
 const LLM_MAX_TOKENS_NARROW = 450;
 const LLM_MAX_TOKENS_DEFAULT = 550;
 const LLM_MAX_TOKENS_BROAD = 900;
+// Casual/situational replies (small talk, roasts, no corpus grounding involved) — a real chaotic
+// friend texting back doesn't write essays in response to "lol" or a passing complaint.
+const LLM_MAX_TOKENS_CASUAL = 220;
 
 const BROAD_QUESTION_PATTERN =
   /\b(explain|compare|difference between|pros and cons|walk me through|breakdown|in detail|everything about|all the|list (?:all|every)|how does .+ work|why (?:does|is|do)|what are the)\b/i;
@@ -2624,7 +2627,13 @@ async function llmSituationalReplyOrFallback(
     // instruction leakage, all on-topic — lower temperature trades away some of the creative
     // variety for reliability, which matters far more when the model is already on shakier ground.
     temperature: usePolish ? 0.3 : 0.75,
-    maxTokens: estimateResponseBudget(llmPrompt),
+    // This path is casual chit-chat/situational replies with no corpus grounding — estimateResponseBudget
+    // was built for fact-based questions (up to 900 tokens for genuinely broad ones) and handing that
+    // same budget to "no one cares that the chat is dead" is exactly why casual replies kept turning
+    // into rambling multi-paragraph essays. A real person's crashout reply to a passing remark is a
+    // few sentences, not a wall of text — capped well below the informational-answer budget regardless
+    // of what estimateResponseBudget would otherwise allow.
+    maxTokens: Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL),
     preferPolish: usePolish,
   });
   if (llmResult.status === 'success' && containsSlurOrHateSpeech(llmResult.text)) {
@@ -3377,11 +3386,14 @@ export async function generateReasoningPath(
   // input) and stitches them into a long, unrelated, lecture-style answer instead of recognizing
   // there was never a real question here. Every one of these got a different wrong topic (Gen Z
   // slang, epistemology/Descartes, DNS/TCP/TLS, sleep hygiene) purely from incidental word
-  // overlap. Narrow and conservative on purpose: only short messages (<=6 words) with no
-  // question mark and no leading question/info-request word get redirected to a normal
-  // conversational reply instead — long or clearly-phrased-as-a-request messages are left
-  // completely alone so a real troubleshooting statement ("my wifi keeps disconnecting") still
-  // reaches actual help.
+  // overlap. Also caught live: "no one cares that the chat is dead" (7 words, a passing
+  // complaint, not a question) matched a Twitch-chat-culture corpus doc purely because it
+  // contains the word "chat", and got stitched into a rambling non-answer about emotes and
+  // jumper cables. Conservative on purpose: only messages (<=12 words) with no question mark and
+  // no leading question/info-request word get redirected to a normal conversational reply
+  // instead — long or clearly-phrased-as-a-request messages are left completely alone so a real
+  // troubleshooting statement ("my wifi keeps disconnecting, any idea why") still reaches actual
+  // help.
   if (intent !== 'conversational') {
     const wordCount = effectivePrompt.trim().split(/\s+/).filter(Boolean).length;
     const looksLikeRealRequest =
@@ -3389,7 +3401,7 @@ export async function generateReasoningPath(
       /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should|explain|tell\s+me|describe|define|give\s+me|show\s+me|list|write|calculate|solve|translate|summarize|compare|czy|jak|co|kto|kiedy|gdzie|dlaczego)\b/i.test(
         effectivePrompt.trim()
       );
-    if (wordCount <= 6 && !looksLikeRealRequest) {
+    if (wordCount <= 12 && !looksLikeRealRequest) {
       intent = 'conversational';
     }
   }
