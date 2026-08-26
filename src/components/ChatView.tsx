@@ -64,6 +64,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   } | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [previewModalImage, setPreviewModalImage] = useState<string | null>(null);
+  const [waitEscalation, setWaitEscalation] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -77,6 +78,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamingChunk, isGenerating]);
+
+  // Generation is a single opaque server round-trip once it reaches the real "Thinking..." stage
+  // (see generator.ts's module comment) — there's no live signal for how long that wait will
+  // actually be, especially under real concurrent load where requests queue behind Ollama's
+  // single-slot semaphore. Silence past a few seconds reads as broken/frozen rather than busy.
+  // This is honest, elapsed-time-based reassurance (not a fabricated queue position, which this
+  // client genuinely has no way to know) — only ever shown once streaming content hasn't started
+  // yet and the real progressStage has had time to settle.
+  useEffect(() => {
+    if (!isGenerating || streamingChunk) {
+      setWaitEscalation(null);
+      return;
+    }
+    const timers = [
+      setTimeout(() => setWaitEscalation('Still working on it...'), 6000),
+      setTimeout(() => setWaitEscalation('Taking a bit longer than usual — could be a busier moment.'), 15000),
+      setTimeout(() => setWaitEscalation("Still here, still working — thanks for hanging in there."), 30000),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [isGenerating, streamingChunk]);
 
   // Auto resize textarea
   useEffect(() => {
@@ -649,10 +670,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   // Real content isn't ready yet — the label above already shows honest,
                   // real-time progress (progressStage). This is just a visual "something is
                   // happening" cue underneath it, not a placeholder pretending to be content.
-                  <div className="flex items-center gap-1 mt-2" aria-hidden="true">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce [animation-delay:-0.3s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce [animation-delay:-0.15s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce" />
+                  <div className="mt-2 space-y-1.5" aria-hidden="true">
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce [animation-delay:-0.3s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce [animation-delay:-0.15s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce" />
+                    </div>
+                    {waitEscalation && (
+                      <p className="text-xs text-[var(--nx-text-faint)] animate-in fade-in duration-300">
+                        {waitEscalation}
+                      </p>
+                    )}
                   </div>
                 )}
                 {streamingChunk && (
