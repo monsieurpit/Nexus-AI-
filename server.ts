@@ -153,40 +153,51 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   next(err);
 });
 
-// Public launch (12.2k-member Discord server + open website) needs real abuse protection that
-// simply didn't exist before: every request was accepted unconditionally, with only a shared,
-// process-wide concurrency queue standing between traffic and the single local Ollama instance.
-// Keyed by Discord author/user id when present (all Discord traffic arrives from the bot's one
-// Railway IP, so per-IP keying alone would rate-limit the entire 12.2k-member server as a single
-// caller) and falls back to IP for the website, where each browser really is a separate caller.
-function rateLimitKey(req: express.Request): string {
+// Rate limiting keyed ONLY by Discord author/user id — deliberately no IP-based keying or
+// fallback at all. IP keying broke real traffic: express-rate-limit's own IPv6-safety validation
+// (see https://express-rate-limit.github.io/ERR_ERL_KEY_GEN_IPV6/) threw on raw req.ip being used
+// in a custom keyGenerator, and it fired specifically on the Discord bot's traffic (which routes
+// over Railway's internal network) — breaking the AI entirely through that path while the website
+// kept working. Explicit operator decision: no IP lock anywhere; requests carrying a Discord
+// author/user id are limited per-user, everything else (the anonymous website) is exempt from
+// this limiter and relies on the request queue's own concurrency bound + prompt-length cap for
+// protection instead. Trade-off: a caller can trivially bypass this by omitting/rotating the id
+// field, since nothing here authenticates it — acceptable given the explicit no-IP-tracking
+// requirement; revisit if that's ever actually exploited.
+function discordUserRateLimitKey(req: express.Request): string {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const idFromBody = body.authorId || body.userId || body.discordUserId;
-  if (typeof idFromBody === 'string' && idFromBody.trim()) return `uid:${idFromBody.trim()}`;
-  return `ip:${req.ip}`;
+  return typeof idFromBody === 'string' && idFromBody.trim() ? `uid:${idFromBody.trim()}` : 'anon';
+}
+function skipUnlessDiscordUser(req: express.Request): boolean {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const idFromBody = body.authorId || body.userId || body.discordUserId;
+  return !(typeof idFromBody === 'string' && idFromBody.trim());
 }
 
-// Generous floor against pure floods on every route (cheap utility endpoints included).
+// Generous floor against pure floods, Discord-user traffic only (see above).
 const globalFloodLimiter = rateLimit({
   windowMs: 60_000,
   max: 90,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: rateLimitKey,
+  keyGenerator: discordUserRateLimitKey,
+  skip: skipUnlessDiscordUser,
   message: { error: 'Too many requests — slow down a bit and try again shortly.' },
 });
 app.use(globalFloodLimiter);
 
 // Tighter limit specifically on the endpoints that actually pay the cost of a real Ollama
 // generation — the single most exhaustible resource in this whole system (one local 3B model,
-// OLLAMA_MAX_CONCURRENT capped by real hardware). Without this, one user spamming messages could
-// starve the shared queue for every other user in the server.
+// OLLAMA_MAX_CONCURRENT capped by real hardware). Without this, one Discord user spamming
+// messages could starve the shared queue for every other user in the server.
 const aiComputeLimiter = rateLimit({
   windowMs: 15_000,
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: rateLimitKey,
+  keyGenerator: discordUserRateLimitKey,
+  skip: skipUnlessDiscordUser,
   message: { error: 'Slow down — you are sending messages faster than Nexus can think. Try again in a few seconds.' },
 });
 
