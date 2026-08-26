@@ -400,18 +400,31 @@ Tone guidelines:
                 <label className="font-semibold text-[var(--nx-text)] text-xs block">
                   System 2 Reasoning Depth
                 </label>
+                <p className="text-[11px] text-[var(--nx-text-faint)] -mt-1">
+                  How much the model thinks before answering. Higher depth means a slower reply in
+                  exchange for a more carefully worked-through one — pick based on what the question needs.
+                </p>
                 <div className="grid grid-cols-3 gap-2">
-                  {(['fast', 'thorough', 'deep-cot'] as ReasoningMode[]).map((mode) => (
+                  {(
+                    [
+                      { id: 'fast', label: 'Fast', desc: 'No extra thinking step — best for casual chat' },
+                      { id: 'thorough', label: 'Thorough', desc: 'Works through key facts first — real questions' },
+                      { id: 'deep-cot', label: 'Deep', desc: 'Weighs multiple angles — hardest questions, slowest' },
+                    ] as { id: ReasoningMode; label: string; desc: string }[]
+                  ).map((mode) => (
                     <button
-                      key={mode}
-                      onClick={() => setLocalSettings((prev) => ({ ...prev, reasoningMode: mode }))}
-                      className={`px-3 py-2.5 rounded-xl border text-xs font-medium text-center capitalize transition ${
-                        localSettings.reasoningMode === mode
+                      key={mode.id}
+                      onClick={() => setLocalSettings((prev) => ({ ...prev, reasoningMode: mode.id }))}
+                      className={`p-2.5 rounded-xl border text-left transition ${
+                        localSettings.reasoningMode === mode.id
                           ? 'border-[var(--nx-accent)] bg-[var(--nx-accent-soft)] text-[var(--nx-text)] font-bold'
                           : 'border-[var(--nx-border)] hover:bg-[var(--nx-surface)] text-[var(--nx-text-muted)]'
                       }`}
                     >
-                      {mode === 'deep-cot' ? 'Deep Chain-of-Thought' : mode}
+                      <div className="text-xs">{mode.label}</div>
+                      <div className="text-[9px] text-[var(--nx-text-faint)] font-normal leading-tight mt-0.5 line-clamp-2">
+                        {mode.desc}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -440,23 +453,35 @@ Tone guidelines:
 
               {/* Streaming Speed */}
               <div className="space-y-2">
-                <label className="font-semibold text-[var(--nx-text)] text-xs block">Generation Cadence</label>
+                <label className="font-semibold text-[var(--nx-text)] text-xs block">Reply Typing Effect</label>
+                <p className="text-[11px] text-[var(--nx-text-faint)] -mt-1">
+                  Purely visual — how fast the already-finished reply appears to type out. Does not
+                  change how long the model actually takes to think; use Reasoning Depth above for that.
+                </p>
                 <div className="grid grid-cols-4 gap-2">
-                  {(['instant', 'fast', 'natural', 'reflective'] as AISettings['streamingSpeed'][]).map(
-                    (speed) => (
-                      <button
-                        key={speed}
-                        onClick={() => setLocalSettings((prev) => ({ ...prev, streamingSpeed: speed }))}
-                        className={`px-2.5 py-2 rounded-lg border text-xs capitalize transition ${
-                          localSettings.streamingSpeed === speed
-                            ? 'border-[var(--nx-accent)] bg-[var(--nx-accent-soft)] text-[var(--nx-text)] font-semibold'
-                            : 'border-[var(--nx-border)] hover:bg-[var(--nx-surface)] text-[var(--nx-text-muted)]'
-                        }`}
-                      >
-                        {speed}
-                      </button>
-                    )
-                  )}
+                  {(
+                    [
+                      { id: 'instant', desc: 'Appears all at once' },
+                      { id: 'fast', desc: 'Quick type-out' },
+                      { id: 'natural', desc: 'Human typing pace' },
+                      { id: 'reflective', desc: 'Slow, deliberate' },
+                    ] as { id: AISettings['streamingSpeed']; desc: string }[]
+                  ).map((speed) => (
+                    <button
+                      key={speed.id}
+                      onClick={() => setLocalSettings((prev) => ({ ...prev, streamingSpeed: speed.id }))}
+                      className={`p-2 rounded-lg border text-left transition ${
+                        localSettings.streamingSpeed === speed.id
+                          ? 'border-[var(--nx-accent)] bg-[var(--nx-accent-soft)] text-[var(--nx-text)] font-semibold'
+                          : 'border-[var(--nx-border)] hover:bg-[var(--nx-surface)] text-[var(--nx-text-muted)]'
+                      }`}
+                    >
+                      <div className="text-xs capitalize">{speed.id}</div>
+                      <div className="text-[9px] text-[var(--nx-text-faint)] font-normal leading-tight mt-0.5 line-clamp-1">
+                        {speed.desc}
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
 
