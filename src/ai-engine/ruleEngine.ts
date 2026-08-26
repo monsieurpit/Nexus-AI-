@@ -596,6 +596,26 @@ export function enforceStrictSdkRules(
     }
   }
 
+  // Hashtags — the system prompt explicitly instructs "no hashtags, ever" (reads as a brand
+  // account, not a real person texting), but instruction-only compliance is stochastic like
+  // everywhere else in this engine — observed live, a response still ended in
+  // "#BadTVSeriesWatcherHQ" despite the directive. Mechanical strip as a backstop, same pattern
+  // as the swear floor/chaotic-overshare guarantees. Skips fenced code blocks and never touches a
+  // "#" directly after a letter (protects "C#"/"F#" as legitimate language names) — only a "#"
+  // that's clearly starting a hashtag token (preceded by nothing, whitespace, or line start).
+  {
+    const codeBlocks: string[] = [];
+    let withoutCode = result.replace(/```[\s\S]*?```/g, (m) => {
+      codeBlocks.push(m);
+      return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+    });
+    withoutCode = withoutCode
+      .replace(/(^|\s)#[A-Za-z][A-Za-z0-9_]*\b/g, '$1')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/[ \t]+(?=[.!?]|$)/gm, '');
+    result = withoutCode.replace(/__CODE_BLOCK_(\d+)__/g, (_m, i) => codeBlocks[Number(i)]).trim();
+  }
+
   // Mass-mention safety — last transformation before this ever leaves the engine. Now that
   // generation is LLM-driven and unpredictable, a real literal "@everyone" or "@here" could slip
   // into a response and actually ping the whole server the moment the Discord bot posts it

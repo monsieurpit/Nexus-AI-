@@ -369,9 +369,13 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     // `[a-ząćęłńóśźżA-Z...]` only, so CJK/Cyrillic/Arabic/etc. characters are simply invisible to
     // them — not counted as invalid words, not counted as any language's signal, just silently
     // passed straight through into the shipped response. A real Polish or English reply should
-    // never legitimately contain characters from an entirely different script, so any run of 2+ is
-    // treated as contamination regardless of how clean the rest of the response reads.
-    if (/[一-鿿぀-ヿ가-힯؀-ۿЀ-ӿ]{2,}/.test(text)) {
+    // never legitimately contain characters from an entirely different script, so contamination is
+    // rejected regardless of how clean the rest of the response reads. Originally required a run
+    // of 2+, which missed a single stray character — observed live, a response otherwise entirely
+    // in English shipped with one lone "蚪" sitting between two emoji. There's no legitimate
+    // single-character case either (no real English/Polish/Spanish word is one CJK/Cyrillic/
+    // Arabic glyph), so even one is enough to reject.
+    if (/[一-鿿぀-ヿ가-힯؀-ۿЀ-ӿ]/.test(text)) {
       return { status: 'unavailable', reason: 'wrong_language', detail: text.slice(0, 100) };
     }
 

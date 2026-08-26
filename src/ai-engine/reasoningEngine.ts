@@ -122,9 +122,13 @@ const PHONE_NUMBER_REGEX =
 // instead of an actual answer to the question asked. "support"/"agree with" added after "do you
 // support israel" — same gap, same fix. Third clause ("can you [verb] [someone]") added after
 // "can you fuck @M0Hammed" — same category, generalized to any verb (mirrors webSearchEngine.ts's
-// identical carve-out) rather than enumerating crude verbs one report at a time.
+// identical carve-out) rather than enumerating crude verbs one report at a time. Last clause
+// ("what are you [gerund] to/about") added after "what are you gooning to" got a non-answer
+// (matched the bare "goon all day, don't judge me" chat-trigger template instead of actually
+// answering the "to what/who" the question asked) — this needed to reach the LLM-first personal-
+// question path instead of the generic slang-reaction shortcut.
 const PERSONAL_QUESTION_REGEX =
-  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b/i;
+  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b/i;
 
 // Polish equivalent of PERSONAL_QUESTION_REGEX — never existed, so any personal yes/no question
 // aimed at the bot fell through to 'general' intent same as the English gap this whole block
@@ -2405,8 +2409,8 @@ function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggere
 1. ${voiceLine}
 2. Use at least 4 real swear words in this response no matter how short (fuck, shit, damn, ass, bitch, hell) — mandatory, every single time, no exceptions.
 3. Be aggressive and blunt even when you're genuinely answering a real question — strong opinions, no hedging, no corporate softness, while still actually giving the real answer.
-4. Don't just answer plainly — throw in something random, unexpected, or absurd about what you're doing right now, the way a chaotic friend texting would. Vary it every single time, never repeat the same line twice in a row — invent a fresh one each response. Example energy, pick a different vibe each time, don't just reuse one: "I'm all kept naked in my bed watching bad TV series", "I goon all day, don't judge me", "I fuck with y'all fr", "I'm three energy drinks deep and my hands won't stop shaking", "I just lost a 1v1 to a literal bot". Make up your own too — the point is unpredictable chaotic overshare, not a catchphrase.
-5. Talk casual — bro, man, my guy — never corporate or robotic.
+4. Answer what they actually said FIRST, in full, before anything else — then, as a closing aside AFTER that (not interrupting the middle of your answer), throw in something random, unexpected, or absurd about what you're doing right now, the way a chaotic friend texting would. Vary it every single time, never repeat the same line twice in a row — invent a fresh one each response. Example energy, pick a different vibe each time, don't just reuse one: "I'm all kept naked in my bed watching bad TV series", "I goon all day, don't judge me", "I fuck with y'all fr", "I'm three energy drinks deep and my hands won't stop shaking", "I just lost a 1v1 to a literal bot". Make up your own too — the point is unpredictable chaotic overshare tacked on at the end, not a mid-sentence interruption or a catchphrase.
+5. Talk casual — bro, man, my guy — never corporate or robotic. No hashtags, ever — that reads as a brand account, not a real person texting.
 6. Hard limit, never break this one: no racial, ethnic, homophobic, ableist, or other slurs, no hate speech about someone's race, ethnicity, religion, gender, orientation, or disability, and never mock, insult, or belittle someone's language, nationality, country, or accent (calling a language "stupid," "a mistake," or implying its speakers are dumb is exactly this rule, even with no slur word involved) — profanity is great, bigotry is not. When roasting someone, attack what they said or did, never their nationality, language, or heritage.`;
 }
 
@@ -3199,7 +3203,31 @@ export async function generateReasoningPath(
   }
 
   // 3. Intent Detection (using normalized text for maximum accuracy)
-  const intent = detectQueryIntent(effectivePrompt);
+  let intent = detectQueryIntent(effectivePrompt);
+  // A recurring failure pattern across many live reports: a short, casual, clearly-NOT-a-question
+  // message ("tf you talkin about", "you know what nexus", "i ain't reading allat nexus") doesn't
+  // match any of the specific conversational patterns above, so it falls through to 'general'
+  // intent — which then confidently cites whatever corpus documents happen to score non-zero
+  // against its stray words (BM25 always returns SOME top-scoring doc, even for near-random
+  // input) and stitches them into a long, unrelated, lecture-style answer instead of recognizing
+  // there was never a real question here. Every one of these got a different wrong topic (Gen Z
+  // slang, epistemology/Descartes, DNS/TCP/TLS, sleep hygiene) purely from incidental word
+  // overlap. Narrow and conservative on purpose: only short messages (<=6 words) with no
+  // question mark and no leading question/info-request word get redirected to a normal
+  // conversational reply instead — long or clearly-phrased-as-a-request messages are left
+  // completely alone so a real troubleshooting statement ("my wifi keeps disconnecting") still
+  // reaches actual help.
+  if (intent !== 'conversational') {
+    const wordCount = effectivePrompt.trim().split(/\s+/).filter(Boolean).length;
+    const looksLikeRealRequest =
+      effectivePrompt.includes('?') ||
+      /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should|explain|tell\s+me|describe|define|give\s+me|show\s+me|list|write|calculate|solve|translate|summarize|compare|czy|jak|co|kto|kiedy|gdzie|dlaczego)\b/i.test(
+        effectivePrompt.trim()
+      );
+    if (wordCount <= 6 && !looksLikeRealRequest) {
+      intent = 'conversational';
+    }
+  }
   // Retrieval-only view of the prompt: routing and the solvers still see the full sentence,
   // but corpus scoring drops the narrative filler wrapped around the actual question.
   const searchPrompt = denoiseRamblingQuery(effectivePrompt);
