@@ -2727,23 +2727,69 @@ async function llmGroundedOrFallback(
     });
     return topUpLlmSwearing(llmResult.text, settings, isCrashout);
   }
-  const llmVerification = verifyAnswer(llmResult.text, intent, queryTerms, entities, prompt);
+  let llmVerification = verifyAnswer(llmResult.text, intent, queryTerms, entities, prompt);
+  let finalText = llmResult.text;
+  let finalLatency = llmResult.latencyMs;
+  let retryAttempted = false;
+  let retryFixed = false;
+
+  // Reflect-and-retry: previously, a failed self-check discarded the model's output entirely for
+  // the canned template — the model never got a chance to fix its own mistake, even though
+  // verifyAnswer() already tells us exactly what was wrong (off-topic, missing-entity, no-causal,
+  // too-few-items...). One corrective regeneration, naming the specific issue, costs one extra
+  // Ollama call only in the failure case (the common case — a passing first attempt — is
+  // completely unaffected) and gives the model a real shot at self-correction instead of
+  // confidence-demotion standing in for correction. Falls back to the template only if this
+  // second attempt ALSO fails verification, exactly as before this existed.
+  if (!llmVerification.passed) {
+    retryAttempted = true;
+    const issueSummary = llmVerification.issues.map((i) => i.detail).join(' ');
+    const correctionNote = usePolish
+      ? `\n\nTwoja poprzednia odpowiedź miała problem: ${issueSummary} Popraw to i odpowiedz ponownie, konkretnie na pytanie: ${prompt}`
+      : `\n\nYour previous answer had a problem: ${issueSummary} Fix that and answer again, specifically addressing: ${prompt}`;
+    const retryResult = await localLlmClient.generate(groundedPrompt + correctionNote, {
+      system: usePolish
+        ? buildPolishSystemPrompt(isCrashout)
+        : persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, false),
+      temperature: usedTemperature,
+      maxTokens: estimateResponseBudget(prompt),
+      preferPolish: usePolish,
+    });
+    // The retry attempt goes through the exact same safety gate as the first — a corrective
+    // regeneration is not exempt from anything the original response had to pass.
+    if (retryResult.status === 'success' && !containsSlurOrHateSpeech(retryResult.text)) {
+      const retryVerification = verifyAnswer(retryResult.text, intent, queryTerms, entities, prompt);
+      if (retryVerification.passed) {
+        llmVerification = retryVerification;
+        finalText = retryResult.text;
+        finalLatency = retryResult.latencyMs;
+        retryFixed = true;
+      }
+    }
+  }
+
   thoughtSteps.push({
     id: 'step-llm-grounded',
     type: 'synthesis',
-    title: llmVerification.passed ? '🧠 Local LLM grounded response' : '📦 LLM answer failed self-check — using template',
+    title: llmVerification.passed
+      ? retryFixed
+        ? '🧠 Local LLM grounded response (fixed on retry)'
+        : '🧠 Local LLM grounded response'
+      : '📦 LLM answer failed self-check twice — using template',
     description: llmVerification.passed
-      ? `Ollama responded in ${llmResult.latencyMs}ms, grounded on ${top.length} source(s).`
+      ? `Ollama responded in ${finalLatency}ms, grounded on ${top.length} source(s).${retryFixed ? ' First attempt failed self-check and was corrected on retry.' : ''}`
       : llmVerification.issues.map((i) => i.detail).join('\n'),
-    durationMs: llmResult.latencyMs,
+    durationMs: finalLatency,
     data: {
       language: usePolish ? 'pl' : 'en',
       temperature: usedTemperature,
-      swearFloorTriggered: getSwearCount(llmResult.text) < SWEAR_FLOOR_MIN_COUNT,
+      swearFloorTriggered: getSwearCount(finalText) < SWEAR_FLOOR_MIN_COUNT,
       verificationPassed: llmVerification.passed,
+      retryAttempted,
+      retryFixed,
     },
   });
-  return llmVerification.passed ? topUpLlmSwearing(llmResult.text, settings, isCrashout) : templateFallback;
+  return llmVerification.passed ? topUpLlmSwearing(finalText, settings, isCrashout) : templateFallback;
 }
 
 export async function generateReasoningPath(
