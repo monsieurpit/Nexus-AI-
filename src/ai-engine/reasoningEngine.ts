@@ -1411,7 +1411,7 @@ async function searchWithReformulation(
 }
 
 function applyContextBoost(
-  results: { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }[],
+  results: { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[]; semanticScore?: number; semanticDoubt?: number }[],
   citedIds: Set<string>
 ) {
   if (citedIds.size === 0) return results;
@@ -4393,7 +4393,7 @@ function ambiguityClarificationReply(
 }
 
 export function computeConfidence(
-  results: { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }[],
+  results: { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[]; semanticScore?: number; semanticDoubt?: number }[],
   queryTerms: string[]
 ): number {
   if (results.length === 0) return 0;
@@ -4420,7 +4420,27 @@ export function computeConfidence(
 
   const raw =
     0.25 * gapSignal + 0.23 * coverageSignal + 0.2 * magnitudeSignal + 0.14 * supportSignal + 0.18 * titleSignal;
-  return Math.max(0.15, Math.min(raw, 0.97));
+  const clamped = Math.max(0.15, Math.min(raw, 0.97));
+
+  // semanticDoubt is populated only when hybridSearchKnowledgeGraph ran with ENABLE_HYBRID_SEARCH
+  // on, Ollama's embed endpoint was reachable, AND vector search's own best-matching document
+  // disagrees with this (BM25) top pick — see vectorSearch.ts's annotateSemanticDoubt. Every
+  // other caller/config sees results[0].semanticDoubt === undefined and this function's output is
+  // byte-identical to before this signal existed. Deliberately penalty-only (never a boost) and
+  // capped modestly (max -15%): an early version tried scoring the top pick's raw cosine
+  // similarity against a fixed absolute threshold and blending that in directly — verified live,
+  // it backfired, since this embedding model's typical same-domain cosine similarity runs high
+  // (0.5-0.7) whether the match is actually correct or not, so an absolute threshold pushed
+  // confidence UP uniformly, including on wrong matches. A same-query relative disagreement
+  // (vector search's own top choice scoring clearly higher than BM25's pick, on a DIFFERENT
+  // document) is a much more trustworthy signal, but real embeddings are still noisy enough on
+  // short, topically-clustered corpus docs that it's kept as a bounded nudge, not a hard veto.
+  const semanticDoubt = results[0].semanticDoubt;
+  if (typeof semanticDoubt === 'number' && semanticDoubt > 0) {
+    return Math.max(0.15, clamped - semanticDoubt * 0.15);
+  }
+
+  return clamped;
 }
 
 /**

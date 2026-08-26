@@ -1,7 +1,6 @@
 import { KnowledgeItem } from '../types';
 import { searchKnowledgeGraph, cosineSimilarity } from './semanticEngine';
 import * as localLlmClient from './localLlmClient';
-import corpusEmbeddings from './corpus/embeddings.generated.json';
 
 // Real per-document embedding vectors, keyed by KnowledgeItem.id, loaded from a file precomputed
 // offline (scripts/generateEmbeddings.ts) and committed to git. Deliberately NOT stored on
@@ -10,11 +9,35 @@ import corpusEmbeddings from './corpus/embeddings.generated.json';
 // own computeEmbedding(); populating it with real 768-dim vectors would silently break that
 // fallback (cosineSimilarity returns 0 on any dimension mismatch, so every comparison there would
 // fail). Keeping real vectors in this separate map means the legacy fallback is untouched.
-const REAL_EMBEDDINGS: Record<string, number[]> = Object.fromEntries(
-  Object.entries(
-    (corpusEmbeddings as { vectors: Record<string, { vector: number[]; textHash: string }> }).vectors || {}
-  ).map(([id, entry]) => [id, entry.vector])
-);
+//
+// Loaded lazily via dynamic import, NOT a static top-level import, and only when actually running
+// in Node — mirrors polishSpellCheck.ts's getSpell() pattern exactly, for the same reason. This
+// file is reachable from the browser bundle too (App.tsx -> generator.ts -> reasoningEngine.ts ->
+// here, for the client-side generation path), and the embeddings file is a multi-MB JSON blob
+// (290 documents x 768 floats each) — a static import would ship all of it to every browser
+// visitor's initial page load even though hybrid search can never actually function client-side
+// in the first place (ENABLE_HYBRID_SEARCH reads process.env, which Vite's browser build replaces
+// with `{}`, so the flag is always false in a browser context regardless of any .env setting).
+// Confirmed live: this file's static import alone accounted for ~600KB of the production JS
+// bundle before this fix, entirely dead weight for every non-Node execution context. Combined
+// with marking the JSON path `external` in vite.config.ts (so Vite never attempts to bundle/
+// transform it for the client target at all — the same treatment nspell/dictionary-pl already
+// get there), this keeps real embeddings working server-side while being truly inert in the
+// browser bundle instead of just "unlikely to run".
+let embeddingsPromise: Promise<Record<string, number[]>> | null = null;
+
+function loadRealEmbeddings(): Promise<Record<string, number[]>> {
+  if (typeof window !== 'undefined') return Promise.resolve({});
+  if (!embeddingsPromise) {
+    embeddingsPromise = import('./corpus/embeddings.generated.json').then((mod) => {
+      const corpusEmbeddings = (mod as any).default ?? mod;
+      const vectors = (corpusEmbeddings as { vectors: Record<string, { vector: number[]; textHash: string }> })
+        .vectors || {};
+      return Object.fromEntries(Object.entries(vectors).map(([id, entry]) => [id, entry.vector]));
+    });
+  }
+  return embeddingsPromise;
+}
 
 // A single user message can trigger several search calls with different-but-overlapping query
 // strings (initial query, reformulated keyword query, sub-questions) — this avoids redundant
@@ -45,6 +68,22 @@ export interface VectorScoredItem {
   score: number;
 }
 
+// Result shape shared by searchKnowledgeGraph/hybridSearchKnowledgeGraph and consumed by
+// reasoningEngine.ts's computeConfidence(). semanticScore/semanticDoubt are optional — every
+// existing caller that doesn't read them (or that runs with the flag off / embed unavailable)
+// sees byte-identical behavior to before these fields existed. semanticDoubt is only ever set
+// when vector search's own best match disagrees with this (BM25) top pick — see
+// annotateSemanticDoubt's comment for why it's a relative, penalty-only signal rather than an
+// absolute-cosine score.
+export interface RankedResult {
+  item: KnowledgeItem;
+  score: number;
+  snippet?: string;
+  relevantSentences?: string[];
+  semanticScore?: number;
+  semanticDoubt?: number;
+}
+
 /**
  * Real semantic search over precomputed corpus embeddings. Returns null (not an empty array)
  * specifically when Ollama's embed endpoint is unavailable, so callers can distinguish "ran and
@@ -59,9 +98,10 @@ export async function vectorSearch(
   const queryVec = await embedQueryCached(prompt);
   if (!queryVec) return null;
 
+  const realEmbeddings = await loadRealEmbeddings();
   const scored: VectorScoredItem[] = [];
   for (const item of knowledgeList) {
-    const itemVec = REAL_EMBEDDINGS[item.id];
+    const itemVec = realEmbeddings[item.id];
     if (!itemVec) continue;
     const score = cosineSimilarity(queryVec, itemVec);
     if (score > 0) scored.push({ item, score });
@@ -91,10 +131,10 @@ export async function vectorSearch(
  * discovery rise to the top when BM25's own list is thin — which is exactly when it should.
  */
 export function reciprocalRankFusion(
-  listA: { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }[],
+  listA: RankedResult[],
   listB: { item: KnowledgeItem; score: number }[]
-): { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }[] {
-  const merged = new Map<string, { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }>();
+): RankedResult[] {
+  const merged = new Map<string, RankedResult>();
 
   listA.forEach((entry) => {
     merged.set(entry.item.id, entry);
@@ -109,6 +149,58 @@ export function reciprocalRankFusion(
   return Array.from(merged.values()).sort((a, b) => b.score - a.score);
 }
 
+// A/B-tested live against real corpus queries: reciprocalRankFusion's union-merge (BM25 keeps its
+// own score; a vector-only discovery is capped in [0.5, 0.8]) means a genuinely correct
+// vector-only match can NEVER outrank a wrong-but-nonzero BM25 top pick, since raw BM25 scores on
+// this corpus commonly land at 4-9 even for irrelevant matches — confirmed live, "my partner
+// lives in a different city, is that doomed" scored kb-relationships-long-distance (the right
+// answer) as vector's #1 pick at cosine 0.60, while BM25's wrong top pick
+// (kb-relationships-healthy-communication, pure keyword coincidence) scored 5.61 and swallowed
+// the fusion slot before the vector discovery ever got a chance. So merging alone doesn't change
+// which document gets used — it only ever fills gaps when BM25 returns fewer than topK results.
+//
+// The fix that actually matters is a DOUBT signal, not a re-rank and not an absolute-cosine
+// score: an early version of this tried scoring the top pick's raw cosine similarity against a
+// fixed threshold and feeding that into confidence directly — verified live, it backfired. On
+// this corpus/embedding model, cosine similarity between a query and ANY topically-adjacent
+// document commonly lands in 0.5-0.7 whether the document is actually the right answer or not
+// (nomic-embed-text's baseline similarity for same-domain short text runs high), so an absolute
+// threshold pushed confidence UP uniformly, including on the wrong-match cases it was meant to
+// catch.
+//
+// What actually discriminates: whether vector search's OWN best match (vecList[0], the single
+// highest-cosine document in the whole corpus for this query) is a genuinely DIFFERENT document
+// than BM25's top pick, and scores meaningfully higher than BM25's pick does on the same
+// embedding. That's a same-query, same-embedding-space, relative comparison — immune to whatever
+// the model's absolute baseline happens to be. Confirmed live: "my partner lives in a different
+// city, is that doomed" — BM25's wrong pick (healthy-communication) cosine 0.548 vs. vector's own
+// top choice (long-distance, the right answer) cosine 0.603 — a real, if modest, disagreement.
+// Only ever produces a PENALTY (never a boost) for exactly that reason: an absolute cosine value
+// isn't trustworthy enough on this corpus to reward agreement, only a large relative gap is
+// trustworthy enough to penalize likely disagreement.
+async function annotateSemanticDoubt(
+  prompt: string,
+  results: RankedResult[],
+  vecList: VectorScoredItem[] | null
+): Promise<RankedResult[]> {
+  if (results.length === 0 || !vecList || vecList.length === 0) return results;
+  const top = results[0];
+  const bestAlt = vecList[0];
+  if (bestAlt.item.id === top.item.id) return results;
+
+  const queryVec = await embedQueryCached(prompt);
+  const realEmbeddings = await loadRealEmbeddings();
+  const topVec = realEmbeddings[top.item.id];
+  if (!queryVec || !topVec) return results;
+  const topCosine = cosineSimilarity(queryVec, topVec);
+
+  if (bestAlt.score <= topCosine) return results;
+  // Normalized so a ~0.15 cosine gap (a large, clear disagreement on this embedding model's
+  // typical range) reaches full-strength doubt; smaller gaps stay a mild, mostly-inert nudge.
+  const semanticDoubt = Math.min(1, (bestAlt.score - topCosine) / 0.15);
+  return [{ ...top, semanticScore: topCosine, semanticDoubt }, ...results.slice(1)];
+}
+
 /**
  * Drop-in async replacement for semanticEngine.ts's searchKnowledgeGraph(), adding a real-vector
  * signal on top when ENABLE_HYBRID_SEARCH=true. With the flag off (default) or when Ollama's
@@ -121,7 +213,7 @@ export async function hybridSearchKnowledgeGraph(
   knowledgeList: KnowledgeItem[],
   topK: number = 3,
   recentlyCitedDocIds?: Set<string>
-): Promise<{ item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }[]> {
+): Promise<RankedResult[]> {
   const bm25List = searchKnowledgeGraph(prompt, knowledgeList, topK, recentlyCitedDocIds);
 
   if (process.env.ENABLE_HYBRID_SEARCH !== 'true') {
@@ -133,5 +225,6 @@ export async function hybridSearchKnowledgeGraph(
     return bm25List;
   }
 
-  return reciprocalRankFusion(bm25List, vecList).slice(0, topK);
+  const fused = reciprocalRankFusion(bm25List, vecList).slice(0, topK);
+  return annotateSemanticDoubt(prompt, fused, vecList);
 }

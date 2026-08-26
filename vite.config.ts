@@ -28,7 +28,13 @@ export default defineConfig(() => {
         // actually runs. Marking both external stops Vite from bundling/transforming them for the
         // client target at all; polishSpellCheck.ts's dynamic import of them only ever resolves
         // server-side (esbuild's Node bundle for server.ts, which isn't subject to this).
-        external: ['nspell', 'dictionary-pl'],
+        //
+        // embeddings.generated.json backs vectorSearch.ts's real hybrid-search vectors the same
+        // way — a multi-MB JSON blob only ever loaded by loadRealEmbeddings()'s lazy, Node-only
+        // dynamic import (see that file's comment). Matched by suffix rather than the exact
+        // relative path, since Rollup's external check runs against however each importer
+        // resolves the specifier.
+        external: (id) => id === 'nspell' || id === 'dictionary-pl' || id.endsWith('embeddings.generated.json'),
       },
     },
   };
