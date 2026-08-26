@@ -1084,22 +1084,51 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
 // is free to invent its own, this only tops up when it invented NOTHING in this vein), so a
 // response that's already doing the bit is left alone rather than getting a second, redundant one
 // stapled on.
+// Widened from 10 lines (6 of them "naked" variants) to ~28 spanning several registers —
+// observed live, the small pool (combined with the LLM's own tendency to lean on the literal
+// examples handed to it in buildFinalDirective's prompt instruction rather than truly inventing
+// new ones) meant "naked in my bed" dominated almost every casual reply, reported as repetitive.
+// Widening the pool the mechanical top-up draws from is the actual fix, independent of prompt
+// wording — even when the LLM DOES fall back to reusing a literal example, there are now ~7x as
+// many to land on, and no single theme is more than about a fifth of the pool.
 const CHAOTIC_OVERSHARE_LINES = [
+  // Naked/mundane-at-home — kept, but now a minority slice instead of the majority
   `I'm all kept naked in my bed watching bad TV`,
   `I'm naked in the kitchen making a sandwich, don't ask`,
   `I'm naked on the sofa scrolling my phone`,
-  `I goon all day, don't judge me`,
   `I'm naked and gooning rn, don't mind me`,
-  `I fuck with y'all fr`,
-  `I'm three energy drinks deep and my hands won't stop shaking`,
+  // Gaming
   `I just lost a 1v1 to a literal bot`,
+  `I'm three ranked losses deep and my controller almost went through a wall`,
+  `my team went 0-and-5 and somehow it's still my fault apparently`,
+  `I'm stuck on the same boss for the fourth hour straight`,
+  // Food
+  `I burned toast so bad the smoke alarm filed a complaint`,
+  `I've eaten nothing but cereal for two meals today and I regret nothing`,
+  `I just microwaved leftovers that were definitely not leftovers anymore`,
+  `I'm three energy drinks deep and my hands won't stop shaking`,
+  // Weather/environment gripes
+  `it's so hot in here my laptop's basically cooking itself`,
+  `it's been raining for six days straight and I've forgotten what the sun looks like`,
+  `my wifi's been dying every ten minutes and I'm two seconds from throwing the router`,
+  // Work/school gripes
+  `I've got a deadline tomorrow I definitely haven't started yet`,
+  `I'm supposed to be doing homework right now, don't tell anyone`,
+  `my alarm didn't go off and I'm still in yesterday's clothes`,
+  `I've got seventeen browser tabs open and zero of them are what I'm actually supposed to be working on`,
+  // Physical state / absurd non-sequiturs
+  `I fuck with y'all fr`,
   `me and my girl are going at it rn, don't mind me`,
   `I'm balls deep in something I really shouldn't be talking about right now`,
+  `I just stubbed my toe on absolutely nothing and I'm questioning reality`,
+  `my neighbor's dog has been barking for an hour and I've started narrating it out loud`,
+  `I just tried to open a door that was clearly a push and now I'm rethinking everything`,
+  `I've had the same song stuck in my head for six hours and it's ruining my life`,
 ];
 // Loose signal words for detecting the bit is ALREADY present, independent of the exact pool
 // text above (the LLM is meant to invent its own lines too, not just reuse these verbatim).
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX =
-  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|\bmy\s+girl\b|\bmy\s+bed\b|fuck\s+with\s+y'?all\b|\bkitchen\b|\bsofa\b|\bcouch\b/i;
+  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|\bmy\s+girl\b|\bmy\s+bed\b|fuck\s+with\s+y'?all\b|\bkitchen\b|\bsofa\b|\bcouch\b|ranked\s+losses?|controller|boss\s+fight|burned\s+toast|smoke\s+alarm|leftovers|deadline|homework|wifi|router|stubbed\s+my\s+toe|barking|stuck\s+in\s+my\s+head/i;
 
 // Polish pool, added for feature parity — this used to be English-only because
 // buildPolishSystemPrompt deliberately never got the INSTRUCTION for this bit (documented there:
@@ -1109,19 +1138,37 @@ const CHAOTIC_OVERSHARE_SIGNAL_REGEX =
 // this is a purely mechanical post-processing step with no prompt involved at all, so it carries
 // none of that risk. Translated for the same energy, not word-for-word.
 const CHAOTIC_OVERSHARE_LINES_PL = [
+  // Nagość/dom — teraz mniejszość puli, nie większość
   `leżę cały nagi w łóżku i oglądam głupie seriale`,
   `stoję nagi w kuchni i robię sobie kanapkę, nie pytaj`,
   `siedzę nagi na kanapie i scrolluję telefon`,
-  `obijam się i walę konia cały dzień, nie oceniaj`,
   `jestem nagi i walę konia teraz, nie zwracaj uwagi`,
-  `zajebiście się z wami bawię, serio`,
-  `jestem po trzech energetykach i ręce mi się trzęsą`,
+  // Granie
   `właśnie przegrałem 1v1 z botem`,
+  `trzeci ranked z rzędu przegrany i pad prawie poleciał w ścianę`,
+  `cała drużyna zagrała jak noga i oczywiście to ja jestem winny`,
+  `utknąłem na tym samym bossie już czwartą godzinę`,
+  // Jedzenie
+  `spaliłem tosta tak, że czujka dymu złożyła skargę`,
+  `jem same płatki na śniadanie i obiad i nic a nic tego nie żałuję`,
+  `jestem po trzech energetykach i ręce mi się trzęsą`,
+  // Pogoda/otoczenie
+  `jest tu tak gorąco, że laptop sam się gotuje`,
+  `pada od sześciu dni bez przerwy, zapomniałem jak wygląda słońce`,
+  `wifi pada co dziesięć minut i zaraz wyrzucę router przez okno`,
+  // Praca/szkoła
+  `mam jutro deadline i jeszcze nawet nie zacząłem`,
+  `powinienem teraz robić zadanie domowe, nikomu nie mów`,
+  `budzik nie zadzwonił i dalej jestem we wczorajszych ciuchach`,
+  // Absurdalne
+  `zajebiście się z wami bawię, serio`,
   `pieprzę się teraz z moją dziewczyną, nie zwracaj uwagi`,
   `jestem po jaja zanurzony w czymś, o czym teraz nie powinienem mówić`,
+  `uderzyłem się palcem o dosłownie nic i teraz kwestionuję rzeczywistość`,
+  `sąsiad ma psa co szczeka od godziny i zacząłem to na głos komentować`,
 ];
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX_PL =
-  /\bnag[aiy]\b|wal[ei]\s+konia|energetyk(?:ach|ów|u)?\s+głęb|\b1v1\b|po\s+jaja\b|moj[aą]\s+dziewczyn[aę]|w\s+łóżku\b|\bkuchni\b|\bkanapie\b/i;
+  /\bnag[aiy]\b|wal[ei]\s+konia|energetyk(?:ach|ów|u)?\s+głęb|\b1v1\b|po\s+jaja\b|moj[aą]\s+dziewczyn[aę]|w\s+łóżku\b|\bkuchni\b|\bkanapie\b|ranked|\bpad(?:a|zie)?\b|boss(?:ie|a)?|spaliłem|czujka\s+dymu|płatki|deadline|zadanie\s+domowe|budzik|wifi|router|palcem|szczeka/i;
 
 // Probability of actually injecting when the LLM didn't already include the bit on its own —
 // this used to be unconditional (inject whenever absent), which meant it fired on essentially
