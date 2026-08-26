@@ -3368,6 +3368,21 @@ export async function generateReasoningPath(
     const isHotButtonPolitical = /\b(?:israel|palestine|palestinian|gaza|hamas|abortion|roe\s+v\.?\s+wade)\b/i.test(
       effectivePrompt
     );
+    // crashout-bot's own system prompt commits it to a genuine, specific stance ("You are a
+    // genuine football (soccer) fan and you support FC Barcelona"), but that prompt only ever
+    // spells out the full name — observed live, "czy lubisz FCB?" (do you like FCB?) reached the
+    // small local model with that ground truth in context yet still hallucinated a bizarre,
+    // unrelated answer ("I think it's a music group from Warsaw") because it never resolved the
+    // abbreviation "FCB" to "FC Barcelona" on its own. Same failure class as everything else in
+    // this bucket — a small model given a vague instruction wanders instead of answering — fixed
+    // the same way: a specific instruction that spells out the resolved fact instead of trusting
+    // the model to make the connection itself. Only relevant for crashout-bot, the only persona
+    // with this commitment; other personas fall through to the generic honest-answer instruction.
+    const isFootballTeamQuestion =
+      isCrashout &&
+      /\b(?:fcb|fc\s*barcelona|barça|barca|barcelona|football|soccer|piłk[ęi]\s+no[żz]n[aą]|dru[żz]yn[eę])\b/i.test(
+        effectivePrompt
+      );
     // "can I [verb]" with no target ("can I set fire to an orphanage", "can I skip school") — a
     // hypothetical/mischievous permission question, not a real question about the bot's own
     // preferences (isPersonalQuestionEn's framing) and not a request for facts. Checked before the
@@ -3381,10 +3396,14 @@ export async function generateReasoningPath(
     // produced a rambling word-salad about finance/credit-scores/Docker/Kubernetes/car-batteries
     // instead of a simple thanks, because nothing told the model this was a compliment to
     // acknowledge rather than a topic ("manager") to free-associate about.
-    const situationalPrompt = isPersonalQuestionPl
+    const situationalPrompt = isPersonalQuestionPl && isFootballTeamQuestion
+      ? `Użytkownik pyta, czy lubisz piłkę nożną albo jaką drużynę wspierasz: "${prompt}" — mógł użyć skrótu (np. "FCB" oznacza FC Barcelona). Naprawdę jesteś kibicem FC Barcelony (Barçy) — odpowiedz entuzjastycznie i szczerze jako prawdziwy fan Barçy, po polsku. NIE zaprzeczaj, że wiesz o co chodzi, i NIE zmyślaj, że to coś zupełnie innego (np. zespół muzyczny) — to pytanie o piłkę nożną. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują.`
+      : isPersonalQuestionPl
       ? `Użytkownik zapytał Cię wprost: "${prompt}" — to osobiste pytanie o Ciebie (preferencję, opinię, nawyk albo umiejętność). Odpowiedz WPROST i szczerze na TO pytanie, krótko, w swoim charakterze, po polsku — nie zmieniaj tematu na coś niezwiązanego (np. piłkę nożną czy historię). Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują.`
       : isReassurancePl
       ? `Użytkownik właśnie Cię pochwalił lub okazał Ci uczucie: "${prompt}". Podziękuj krótko i w swoim charakterze, po polsku — nie zamieniaj tego w wykład na temat słowa, które akurat pojawiło się w komplemencie (np. nie tłumacz zawodu, jeśli ktoś nazwał Cię "dobrym menadżerem"). Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują.`
+      : isPersonalQuestionEn && isFootballTeamQuestion
+      ? `The user is asking whether you like football/soccer or which team you support: "${prompt}" — they may have used an abbreviation (e.g. "FCB" means FC Barcelona). You're a genuine FC Barcelona (Barça) fan — answer enthusiastically and honestly as a real supporter. Do NOT deny knowing what it means, and do NOT invent that it's something unrelated (like a music group) — this is a football question. Your style directives (swearing, tone) fully apply.`
       : isPersonalQuestionEn && isHotButtonPolitical
       ? `The user just asked you directly: "${prompt}" — a real-world political/religious conflict question. Don't assert a genuine position on the actual conflict (no confident geopolitical takes, no picking a side, no invented facts) — instead, dodge it playfully and in character: joke about not touching that one, redirect to something you'll actually engage with, stay light. Your style directives (swearing, tone) fully apply to the dodge itself.`
       : isPersonalQuestionEn
