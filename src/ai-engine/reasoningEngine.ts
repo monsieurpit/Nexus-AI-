@@ -4426,6 +4426,35 @@ function contentOverlap(a: KnowledgeItem, b: KnowledgeItem): number {
   return union === 0 ? 1 : shared / union;
 }
 
+// synthesiseStandard/synthesiseCrashout/synthesiseDeep all had the identical bug: whichever doc
+// landed in results[1..4] got stitched into the answer as "additional context"/"and honestly?"
+// purely because it scored in the top few by BM25, with no check that it's actually ABOUT the
+// same thing as the primary doc. Observed live: "I think @X wants to be your friend" correctly
+// matched Friendship Basics as the primary doc, then also stitched in Discord's privacy/friend-
+// request SETTINGS doc as "additional context" purely because "friend" is a shared keyword —
+// entirely unrelated content (relationship advice vs. a Discord UI feature) glued into one answer.
+// Reuses the same contentOverlap() signal already built for detectAmbiguousMatch, just inverted:
+// there, low overlap + different category means "these are two unrelated senses of the same
+// word, ask which one." Here, the same signal means "don't silently combine them into one answer
+// pretending they're part of the same topic." A secondary doc only counts as genuinely related
+// if it shares the primary's category OR has real (not just incidental) content overlap with it.
+const SECONDARY_CONTEXT_MIN_OVERLAP = 0.06;
+function isTopicallyRelated(primary: KnowledgeItem, secondary: KnowledgeItem): boolean {
+  if (primary.category.toLowerCase() === secondary.category.toLowerCase()) return true;
+  return contentOverlap(primary, secondary) >= SECONDARY_CONTEXT_MIN_OVERLAP;
+}
+
+// Every synthesis function's "should I tack on a second doc as extra context" check used to be
+// just `results.length > 1 && results[1].relevantSentences?.length` — repeated verbatim at 6 call
+// sites across synthesiseStandard/synthesiseCrashout. One shared helper so the isTopicallyRelated
+// gate can't be forgotten at a future 7th call site the way each new intent-specific branch above
+// kept re-copy-pasting the original unchecked condition.
+function hasRelevantSecondary(results: { item: KnowledgeItem; relevantSentences?: string[] }[]): boolean {
+  return Boolean(
+    results.length > 1 && results[1].relevantSentences?.length && isTopicallyRelated(results[0].item, results[1].item)
+  );
+}
+
 // A single incidental mention buried in a doc's body ("...elderly, pregnant, or disabled
 // people...") is not a second *sense* of the word — it's noise. Genuine word-sense collisions
 // (mole the animal vs. mole the unit, root the DNS term vs. root the music term) have the term
@@ -4913,7 +4942,7 @@ function synthesiseStandard(
   switch (intent) {
     case 'definition': {
       const sents = variedSentences(results, 0, 3);
-      const hasSecondary = results.length > 1 && results[1].relevantSentences?.length;
+      const hasSecondary = hasRelevantSecondary(results);
       if (Math.random() < 0.5) {
         let text = `${opener}**${primary.item.title}**\n\n${sents.join(' ')}`;
         if (hasSecondary && results[1].relevantSentences) {
@@ -4933,7 +4962,7 @@ function synthesiseStandard(
       const sents = variedSentences(results, 0, 5);
       if (Math.random() < 0.5) {
         let text = `${opener}**${primary.item.title}**\n\n${sents.join(' ')}`;
-        if (results.length > 1 && results[1].relevantSentences?.length) {
+        if (hasRelevantSecondary(results)) {
           text += `\n\nAnd another angle: ${results[1].relevantSentences.slice(0, 2).join(' ')}`;
         }
         return text;
@@ -4943,7 +4972,7 @@ function synthesiseStandard(
         if (sents.length > mid) {
           text += `\n\n**Going deeper:** ${sents.slice(mid).join(' ')}`;
         }
-        if (results.length > 1 && results[1].relevantSentences?.length) {
+        if (hasRelevantSecondary(results)) {
           text += `\n\n${secondaryBridge()}${results[1].relevantSentences[0]}`;
         }
         return text;
@@ -4956,13 +4985,13 @@ function synthesiseStandard(
         text += `**Why it happens:** ${sents[0]}\n\n`;
         text += `**How it works:** ${sents[1]}\n\n`;
         text += `**The result:** ${sents[2]}`;
-        if (results.length > 1 && results[1].relevantSentences?.length) {
+        if (hasRelevantSecondary(results)) {
           text += `\n\nRelated: ${results[1].relevantSentences[0]}`;
         }
         return text;
       } else {
         let text = `${opener}${sents.join(' ')}`;
-        if (results.length > 1 && results[1].relevantSentences?.length) {
+        if (hasRelevantSecondary(results)) {
           text += `\n\n${secondaryBridge()}${results[1].relevantSentences[0]}`;
         }
         text += `\n\n*(From: **${primary.item.title}**)*`;
@@ -5022,7 +5051,7 @@ function synthesiseStandard(
 
   const sents = variedSentences(results, 0, 4);
   let text = `${opener}**${primary.item.title}**\n\n${sents.join(' ')}`;
-  if (results.length > 1 && results[1].relevantSentences?.length) {
+  if (hasRelevantSecondary(results)) {
     text += `\n\n${secondaryBridge()}${results[1].relevantSentences[0]}`;
   }
   if (sents.length >= 3) {
@@ -5049,7 +5078,7 @@ function synthesiseCrashout(
   const opener = crashOpeners[Math.floor(Math.random() * crashOpeners.length)];
   let text = `${opener}\n\n**${primary.item.title}**\n\n${sents.join(' ')}`;
 
-  if (results.length > 1 && results[1].relevantSentences?.length) {
+  if (hasRelevantSecondary(results)) {
     text += `\n\nAnd honestly? ${results[1].relevantSentences.slice(0, 2).join(' ')}`;
   }
 
@@ -5090,7 +5119,7 @@ function synthesiseDeep(
     parts.push(`**The causal chain:**\n\n**Cause:** ${sents[0]}\n\n**Mechanism:** ${sents[1]}\n\n**Effect:** ${sents[2]}`);
   }
 
-  const secondaries = results.slice(1, 5);
+  const secondaries = results.slice(1, 5).filter((doc) => isTopicallyRelated(primary.item, doc.item));
   if (secondaries.length > 0) {
     const lines: string[] = [];
     for (const doc of secondaries) {
