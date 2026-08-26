@@ -734,14 +734,27 @@ export function shouldTriggerLiveWebSearch(
   return false;
 }
 
+// A full, well-formed question ("will Alvarez come to Barca", "does the treaty still apply") reads
+// as absurd with "Meaning of" glued onto the front — nobody searches "meaning of will X happen".
+// That prefix only makes sense for a bare term/phrase lookup (the actual reason it was added: a
+// definition-style query like "rizz" needs rephrasing into something a search engine returns an
+// explainer for). Same leading-word list shouldTriggerLiveWebSearch's own looksLikeQuestion check
+// already uses to decide this is question-shaped in the first place — reused here to decide HOW to
+// phrase it, not just whether to search at all.
+const ALREADY_A_QUESTION_REGEX =
+  /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should)\b/i;
+
 /**
  * Builds the actual text sent to the search engines for a query that has already
  * been approved by shouldTriggerLiveWebSearch(). The low-confidence fallback case
  * gets rephrased as "Meaning of X" so the search engine returns a definition/explainer
- * instead of unrelated results for the raw (often conversational) user prompt.
+ * instead of unrelated results for the raw (often conversational) user prompt — but only
+ * for a bare term/phrase, not a query that's already a full, well-formed question (observed
+ * live: "will Alvarez come to Barca" was rephrased into "Meaning of will Alvarez come to
+ * Barca", nonsensical wording for what should just be searched as the question it already is).
  */
 export function buildWebSearchQuery(query: string, reason: WebSearchTriggerReason): string {
-  if (reason === 'low-confidence-fallback') {
+  if (reason === 'low-confidence-fallback' && !ALREADY_A_QUESTION_REGEX.test(query.trim())) {
     return `Meaning of ${query}`;
   }
   return query;

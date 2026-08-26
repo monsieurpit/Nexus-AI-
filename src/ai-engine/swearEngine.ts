@@ -1039,7 +1039,10 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
 // stapled on.
 const CHAOTIC_OVERSHARE_LINES = [
   `I'm all kept naked in my bed watching bad TV`,
+  `I'm naked in the kitchen making a sandwich, don't ask`,
+  `I'm naked on the sofa scrolling my phone`,
   `I goon all day, don't judge me`,
+  `I'm naked and gooning rn, don't mind me`,
   `I fuck with y'all fr`,
   `I'm three energy drinks deep and my hands won't stop shaking`,
   `I just lost a 1v1 to a literal bot`,
@@ -1049,7 +1052,7 @@ const CHAOTIC_OVERSHARE_LINES = [
 // Loose signal words for detecting the bit is ALREADY present, independent of the exact pool
 // text above (the LLM is meant to invent its own lines too, not just reuse these verbatim).
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX =
-  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|\bmy\s+girl\b|\bmy\s+bed\b|fuck\s+with\s+y'?all\b/i;
+  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|\bmy\s+girl\b|\bmy\s+bed\b|fuck\s+with\s+y'?all\b|\bkitchen\b|\bsofa\b|\bcouch\b/i;
 
 // Polish pool, added for feature parity — this used to be English-only because
 // buildPolishSystemPrompt deliberately never got the INSTRUCTION for this bit (documented there:
@@ -1060,7 +1063,10 @@ const CHAOTIC_OVERSHARE_SIGNAL_REGEX =
 // none of that risk. Translated for the same energy, not word-for-word.
 const CHAOTIC_OVERSHARE_LINES_PL = [
   `leżę cały nagi w łóżku i oglądam głupie seriale`,
+  `stoję nagi w kuchni i robię sobie kanapkę, nie pytaj`,
+  `siedzę nagi na kanapie i scrolluję telefon`,
   `obijam się i walę konia cały dzień, nie oceniaj`,
+  `jestem nagi i walę konia teraz, nie zwracaj uwagi`,
   `zajebiście się z wami bawię, serio`,
   `jestem po trzech energetykach i ręce mi się trzęsą`,
   `właśnie przegrałem 1v1 z botem`,
@@ -1068,7 +1074,7 @@ const CHAOTIC_OVERSHARE_LINES_PL = [
   `jestem po jaja zanurzony w czymś, o czym teraz nie powinienem mówić`,
 ];
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX_PL =
-  /\bnag[aiy]\b|wal[ei]\s+konia|energetyk(?:ach|ów|u)?\s+głęb|\b1v1\b|po\s+jaja\b|moj[aą]\s+dziewczyn[aę]|w\s+łóżku\b/i;
+  /\bnag[aiy]\b|wal[ei]\s+konia|energetyk(?:ach|ów|u)?\s+głęb|\b1v1\b|po\s+jaja\b|moj[aą]\s+dziewczyn[aę]|w\s+łóżku\b|\bkuchni\b|\bkanapie\b/i;
 
 export function forceChaoticOvershare(text: string): string {
   const isPolish = looksPolish(text);
