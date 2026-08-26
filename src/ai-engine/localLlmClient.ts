@@ -65,7 +65,7 @@ const ENGLISH_SIGNAL_WORDS = new Set([
 ]);
 const POLISH_DIACRITIC_REGEX = /[ąćęłńóśźż]/i;
 
-function scoreLanguageSignal(text: string): { polish: number; english: number; wordCount: number } {
+export function scoreLanguageSignal(text: string): { polish: number; english: number; wordCount: number } {
   const words = text.toLowerCase().match(/[a-ząćęłńóśźż]+/gi) || [];
   let polish = 0;
   let english = 0;

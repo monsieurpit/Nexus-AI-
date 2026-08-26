@@ -2425,6 +2425,29 @@ function buildGroundingContext(top: { item: { title: string; content: string }; 
 // to actually outnumber English ones.
 export const looksPolish = localLlmClient.looksPolish;
 
+// looksPolish() genuinely has no signal to work with on a short reply built from words absent
+// from both signal-word lists — observed live: "Ok ciekawe" ("Ok interesting"), a completely
+// ordinary Polish reply mid-conversation, scored a 0-0 tie (neither "ok" nor "ciekawe" appear in
+// POLISH_SIGNAL_WORDS or ENGLISH_SIGNAL_WORDS, and "ciekawe" has no diacritic either), and
+// `polish > english` on a 0-0 tie is false — so it silently defaulted to English mid-Polish-
+// conversation. Same root shape as the "spokojnie"/"kocham cie" fixes already landed for
+// POLISH_SIGNAL_WORDS itself, but no finite word list will ever cover every ordinary Polish word,
+// so this is the structural fix: when the CURRENT message has zero signal either way, a real
+// conversation already has a much stronger signal available — what language was actually just
+// being spoken. Falls back to the last assistant message's own language only when the current
+// message is genuinely a tie; any real signal in the current message (even a single matched word)
+// still decides it on its own, unaffected by history.
+function looksPolishWithContext(prompt: string, history: ChatMessage[]): boolean {
+  const { polish, english } = localLlmClient.scoreLanguageSignal(prompt);
+  if (polish !== english) return polish > english;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === 'assistant') {
+      return looksPolish(history[i].content);
+    }
+  }
+  return false;
+}
+
 // reasoningMode used to be entirely cosmetic for prompting purposes: 'fast' and 'thorough' built
 // the exact same system prompt and only 'deep-cot' differed at all, and even then only by adding
 // extra RETRIEVAL passes upstream (broader search, multi-hop entity tracing) — the model itself
@@ -3397,7 +3420,7 @@ export async function generateReasoningPath(
     // of what the generic detector thinks, so that match forces the Polish path.
     const isPersonalQuestionPl = PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase());
     const isReassurancePl = REASSURANCE_REGEX_PL.test(effectivePrompt.toLowerCase());
-    const isPolishConversation = looksPolish(prompt) || isPersonalQuestionPl || isReassurancePl;
+    const isPolishConversation = looksPolishWithContext(prompt, history) || isPersonalQuestionPl || isReassurancePl;
     const templateReply = isPersonalQuestionPl
       ? personalQuestionReplyPolish()
       : isPolishConversation
