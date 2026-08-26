@@ -1494,7 +1494,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                         <option value="chill-mod">🧘 Chill Moderator (Zen)</option>
                         <option value="code-architect">💻 Code Architect (Senior Dev)</option>
                         <option value="deep-researcher">🔬 Deep Researcher</option>
-                        <option value="gemini-core">🧠 Gemini Core Intelligence</option>
+                        <option value="gemini-core">🧠 Nexus Core Intelligence</option>
                         <option value="raidshield-ai">🛡️ RaidShield AI Security</option>
                       </select>
                     </div>

@@ -271,7 +271,7 @@ Tone guidelines:
           {activeTab === 'persona' && (
             <div className="space-y-4">
               <div className="text-xs text-stone-500 font-medium">
-                Choose a cognitive archetype designed with DeepMind Gemini behavioral patterns:
+                Choose a cognitive archetype from Nexus's own autonomous reasoning engine:
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {Object.values(DEFAULT_PERSONAS).map((persona) => {

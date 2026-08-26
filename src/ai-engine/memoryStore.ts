@@ -277,8 +277,15 @@ Context rule: Recent channel messages are provided. Only upgrade a classificatio
   },
 };
 
+// Matches server.ts's resolveRequestedPersona, which forces every Discord-bot-facing request to
+// 'crashout-bot' regardless of what's requested (the operator's explicit "one unfiltered voice
+// everywhere instead of a persona picker" decision) — the website ran its own local reasoning
+// path (generator.ts -> generateReasoningPath) independent of that server logic, defaulting a new
+// user to 'nexus-homie' instead, so the site's out-of-the-box voice didn't match what the Discord
+// bot actually always sounds like. Existing users' saved persona choice in local settings is
+// unaffected either way.
 export const DEFAULT_SETTINGS: AISettings = {
-  activePersonaId: 'nexus-homie',
+  activePersonaId: 'crashout-bot',
   customPersona: DEFAULT_PERSONAS['custom'],
   temperature: 0.7,
   topP: 0.9,

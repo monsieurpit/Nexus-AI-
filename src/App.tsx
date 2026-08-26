@@ -50,7 +50,7 @@ export default function App() {
   const activePersona: ModelPersona =
     settings.activePersonaId === 'custom'
       ? settings.customPersona
-      : DEFAULT_PERSONAS[settings.activePersonaId] || DEFAULT_PERSONAS['gemini-core'];
+      : DEFAULT_PERSONAS[settings.activePersonaId] || DEFAULT_PERSONAS['crashout-bot'];
 
   // Save settings when changed
   const handleSaveSettings = (newSettings: AISettings) => {
