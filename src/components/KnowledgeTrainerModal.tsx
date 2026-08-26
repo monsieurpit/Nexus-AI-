@@ -211,7 +211,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
                     <span className="font-bold text-[var(--nx-text)] text-base">{items.length}</span> Total Documents
                   </div>
                   <div>
-                    <span className="font-bold text-emerald-600 text-base">
+                    <span className="font-bold text-emerald-400 text-base">
                       {items.filter((i) => i.category === 'custom-user').length}
                     </span>{' '}
                     User-Taught
@@ -240,7 +240,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-emerald-600" />
+                  <BookOpen className="w-4 h-4 text-emerald-400" />
                   <span>Teach AI Knowledge Unit</span>
                 </span>
                 <span className="text-[11px] text-emerald-400">Auto-Embedded on Submit</span>
@@ -363,7 +363,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
                       {item.category === 'custom-user' && (
                         <button
                           onClick={() => handleDeleteItem(item.id)}
-                          className="p-1 text-[var(--nx-text-faint)] hover:text-rose-600 rounded transition"
+                          className="p-1 text-[var(--nx-text-faint)] hover:text-rose-400 rounded transition"
                           title="Delete knowledge item"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

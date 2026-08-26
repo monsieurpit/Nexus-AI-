@@ -659,7 +659,7 @@ Tone guidelines:
                     <Flame className="w-3.5 h-3.5 text-amber-500" />
                     <span>Roast & Savage Banter Intensity</span>
                   </span>
-                  <span className="text-amber-600 font-bold">{localSettings.roastIntensity ?? 75}%</span>
+                  <span className="text-amber-400 font-bold">{localSettings.roastIntensity ?? 75}%</span>
                 </div>
                 <input
                   type="range"
@@ -786,7 +786,7 @@ Tone guidelines:
                     className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-emerald-500 hover:bg-emerald-500/10 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Smile className="w-3 h-3 text-emerald-600" />
+                      <Smile className="w-3 h-3 text-emerald-400" />
                       <span>Nexus (Super Chill Homie)</span>
                     </div>
                     <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">User ID 1394001641899954368</span>
@@ -798,7 +798,7 @@ Tone guidelines:
                     className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-emerald-500 hover:bg-emerald-500/10 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
                       <span>RaidShield AI</span>
                     </div>
                     <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">21 Hard Rules JSON</span>
@@ -810,7 +810,7 @@ Tone guidelines:
                     className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-indigo-400 hover:bg-[var(--nx-accent-soft)]/40 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <ShieldAlert className="w-3 h-3 text-emerald-600" />
+                      <ShieldAlert className="w-3 h-3 text-emerald-400" />
                       <span>Safety & Helper Bot</span>
                     </div>
                     <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">0-1 Score + Help Handler</span>

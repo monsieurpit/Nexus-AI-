@@ -41,7 +41,7 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
   const getHeatmapColor = (score: number) => {
     if (score > 0.8) return 'bg-[var(--nx-accent)] text-white font-bold';
     if (score > 0.6) return 'bg-indigo-400 text-white font-medium';
-    if (score > 0.4) return 'bg-indigo-200 text-indigo-300';
+    if (score > 0.4) return 'bg-indigo-400/30 text-indigo-200';
     if (score > 0.2) return 'bg-[var(--nx-accent)]/20 text-[var(--nx-text)]';
     return 'bg-[var(--nx-elevated)] text-[var(--nx-text-muted)]';
   };
@@ -103,7 +103,7 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
               <div className="flex items-center gap-1.5 text-[10px] text-[var(--nx-text-faint)] font-medium">
                 <span>Low</span>
                 <span className="w-3 h-3 rounded bg-[var(--nx-elevated-hover)] inline-block" />
-                <span className="w-3 h-3 rounded bg-indigo-200 inline-block" />
+                <span className="w-3 h-3 rounded bg-indigo-400/30 inline-block" />
                 <span className="w-3 h-3 rounded bg-indigo-400 inline-block" />
                 <span className="w-3 h-3 rounded bg-[var(--nx-accent)] inline-block" />
                 <span>High Attention</span>
@@ -144,7 +144,7 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
           <div className="p-4 rounded-xl bg-[var(--nx-surface)] border border-[var(--nx-border)] space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-bold text-[var(--nx-text)]">
-                <BarChart3 className="w-4 h-4 text-emerald-600" />
+                <BarChart3 className="w-4 h-4 text-emerald-400" />
                 <span>{SEMANTIC_DIMENSIONS.length}-Dimensional Latent Semantic Projection</span>
               </div>
               <span className="text-[11px] text-[var(--nx-text-faint)] font-mono">Normalized Vector Space</span>
@@ -173,7 +173,7 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
 
           {/* Theoretical Foundations Note */}
           <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 flex items-start gap-2.5">
-            <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <p className="leading-relaxed text-[11px]">
               This visualizer showcases the mathematical token projections and attention routing mechanics that allow the
               AI to prioritize key terms, maintain context cohesion, and compute multi-perspective synthesis.
