@@ -850,6 +850,14 @@ app.post('/api/v1/nexus', async (req, res) => {
     deepThink: requestedDeepThink,
     crashout: requestedCrashout,
     memories: requestedMemories,
+    // The website's own settings (persona choice, reasoning mode, temperature, everything the
+    // customizer modal lets a user configure) — sent as one opaque blob rather than threading
+    // every individual field through this handler's destructuring one at a time. Only ever sent
+    // by the website's own generator.ts; the Discord bot never sends this field, so its behavior
+    // (including resolveRequestedPersona always forcing crashout-bot — a deliberate, documented
+    // operator choice for that surface) is completely untouched by anything below that checks for
+    // clientSettings's presence.
+    clientSettings,
   } = req.body;
   const userText = prompt || content || text || message || '';
 
@@ -880,9 +888,18 @@ app.post('/api/v1/nexus', async (req, res) => {
     effectiveAuthorId === '1394001641899954368' ||
     userText.includes('1394001641899954368');
 
-  // Resolve requested persona (defaults to current server persona or nexus-homie)
+  // Resolve requested persona (defaults to current server persona or nexus-homie). When the
+  // website sends clientSettings, its actual selected persona is honored instead of being forced
+  // to crashout-bot — that forcing is specifically an operator choice for the Discord bot's single
+  // fixed voice, not something the website's own persona picker (sidebar + customizer modal)
+  // should be silently overridden by, or that UI becomes fully non-functional.
   const personaSelector = requestedPersona || requestedModel || requestedPersonaId || requestedMode;
-  const persona = resolveRequestedPersona(personaSelector);
+  const persona =
+    clientSettings && typeof clientSettings === 'object' && clientSettings.activePersonaId
+      ? clientSettings.activePersonaId === 'custom' && clientSettings.customPersona
+        ? clientSettings.customPersona
+        : DEFAULT_PERSONAS[clientSettings.activePersonaId as ModelPersonaId] || DEFAULT_PERSONAS['crashout-bot']
+      : resolveRequestedPersona(personaSelector);
 
   // Aggregate user custom SDK rules
   const userRules = rules || customRules || directives || instructions || systemInstruction || '';
@@ -910,20 +927,40 @@ app.post('/api/v1/nexus', async (req, res) => {
 
   const isDeep = requestedDeepThink || requestedMode === 'deep' || requestedMode === 'deep-cot';
   const isCrash = requestedCrashout || requestedMode === 'crashout' || persona.id === 'crashout-bot';
+  const hasClientSettings = Boolean(clientSettings && typeof clientSettings === 'object');
 
   try {
     const queuedExecution = await globalRequestQueue.enqueue('nexus', async () => {
       const allKnowledge = getAllKnowledge();
 
-      const settings = {
-        ...DEFAULT_SETTINGS,
-        activePersonaId: (isCrash ? 'crashout-bot' : persona.id) as ModelPersonaId,
-        reasoningMode: isDeep ? ('deep-cot' as ReasoningMode) : ('thorough' as ReasoningMode),
-        userName: username || '',
-        discordUserId: effectiveAuthorId,
-        isSuperChillUser: isSuperChill,
-        userCustomDirectives: typeof userRules === 'string' ? userRules : Array.isArray(userRules) ? userRules.join('\n') : '',
-      };
+      // Two distinct paths: the Discord bot (no clientSettings) keeps its exact prior behavior —
+      // forced crashout-bot persona, reasoningMode hardcoded from the deepThink/mode flags. The
+      // website sends its full resolved AISettings object, which is honored directly (persona
+      // already resolved above) instead of being reconstructed field-by-field and silently losing
+      // whatever the user actually configured (reasoning mode, temperature, swear intensity, web
+      // search preferences, etc.).
+      const settings = hasClientSettings
+        ? {
+            ...DEFAULT_SETTINGS,
+            ...clientSettings,
+            activePersonaId: persona.id as ModelPersonaId,
+            userName: username || clientSettings.userName || '',
+            discordUserId: effectiveAuthorId,
+            isSuperChillUser: isSuperChill || Boolean(clientSettings.isSuperChillUser),
+            userCustomDirectives:
+              (typeof userRules === 'string' ? userRules : Array.isArray(userRules) ? userRules.join('\n') : '') ||
+              clientSettings.userCustomDirectives ||
+              '',
+          }
+        : {
+            ...DEFAULT_SETTINGS,
+            activePersonaId: (isCrash ? 'crashout-bot' : persona.id) as ModelPersonaId,
+            reasoningMode: isDeep ? ('deep-cot' as ReasoningMode) : ('thorough' as ReasoningMode),
+            userName: username || '',
+            discordUserId: effectiveAuthorId,
+            isSuperChillUser: isSuperChill,
+            userCustomDirectives: typeof userRules === 'string' ? userRules : Array.isArray(userRules) ? userRules.join('\n') : '',
+          };
 
       // Pure Internal Autonomous Reasoning Engine with Multi-Document Graph Search
       const promptToEvaluate = userText || (imagePart ? 'Analyze this uploaded image attachment' : '');

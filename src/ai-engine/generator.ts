@@ -4,17 +4,13 @@ import {
   KnowledgeItem,
   MessageTelemetry,
   ModelPersona,
+  ThoughtStep,
   UserMemory,
   WebSearchResult,
 } from '../types';
-import { generateReasoningPath, assessCorpusConfidence } from './reasoningEngine';
+import { generateReasoningPath } from './reasoningEngine';
 import { calculateAttentionMatrix } from './semanticEngine';
 import { countTokens, tokenize } from './tokenizer';
-import {
-  executeUnifiedWebSearch,
-  shouldTriggerLiveWebSearch,
-  buildWebSearchQuery,
-} from './webSearchEngine';
 
 export interface GenerationCallbacks {
   onReasoningStart?: () => void;
@@ -24,19 +20,31 @@ export interface GenerationCallbacks {
   onError?: (error: Error) => void;
   // Fired at real, externally-observable stage transitions during the wait between
   // onReasoningStart and the first onTokenChunk — that whole window used to be dead silence from
-  // the UI's perspective, since onTokenChunk only ever fires AFTER generateReasoningPath has
-  // already fully completed (the "streaming" below is a client-side typewriter replay of the
-  // already-finished, already-safety-checked text, not real token-by-token generation — Ollama is
-  // called with stream:false, and switching that to true would bypass this file's own quality/
-  // safety gates in localLlmClient.ts's generate(), which all run on the complete response text
-  // and can't meaningfully run on partial fragments). This is the safe alternative: honest
-  // progress signaling for stages generator.ts already observes in its own control flow, not fake
-  // content. Deliberately coarse-grained (3-4 stages, not a step-by-step trace) since threading a
-  // callback through every thought-step push inside reasoningEngine.ts's ~4000-line function would
-  // be a much larger, riskier change for the same practical benefit.
+  // the UI's perspective, since onTokenChunk only ever fires AFTER the real response is fully in
+  // hand (the "streaming" below is a client-side typewriter replay of the already-finished,
+  // already-safety-checked text, not real token-by-token generation). Coarse-grained (1-2 stages)
+  // since generation now happens in a single server round-trip (see the module comment below) —
+  // there's no longer a sequence of separately-observable client-side stages to report between.
   onProgress?: (stage: string) => void;
 }
 
+// Generation ALWAYS goes through server.ts's /api/v1/nexus, never localLlmClient.generate()
+// directly in the browser. This used to be split — text generation ran client-side, image
+// generation proxied through the server — which looked reasonable but was silently broken for
+// the common case: localLlmClient.ts's OLLAMA_BASE_URL reads process.env, which Vite's browser
+// build always replaces with `{}`, so it's permanently empty in a real browser regardless of
+// .env.local. generate() checks for that and returns `{status: 'unavailable', reason:
+// 'not_configured'}` immediately, with ZERO network I/O, before ever touching Ollama — meaning
+// every website text reply was template/fallback text dressed up as a response, not a real
+// generation. That's also why the website "felt faster" than the Discord bot: it wasn't doing the
+// same work, it was skipping the LLM call entirely. Routing through the same endpoint the Discord
+// bot already uses (server.ts runs the real generateReasoningPath pipeline, real Ollama access)
+// fixes this and, as a side effect, removes an entire class of "client and server behave
+// differently" bugs — retrieval, persona resolution, and reasoning-mode handling now only exist
+// in one place. server.ts's resolveRequestedPersona forces every Discord-bot request to
+// crashout-bot (a deliberate operator choice for that surface) — the `clientSettings` field below
+// tells the endpoint to honor the website's own persona/settings selection instead, so the
+// sidebar/customizer picker keeps working.
 export async function generateAIResponse(
   userPrompt: string,
   history: ChatMessage[],
@@ -59,221 +67,178 @@ export async function generateAIResponse(
   }
 
   async function runGeneration(): Promise<ChatMessage> {
-  // If image is present, attempt server-side multimodal vision call
-  let serverVisionContent = '';
-  const isRaidShieldPersona = persona.id === 'raidshield-ai';
+    const isRaidShieldPersona = persona.id === 'raidshield-ai';
+    const promptToSend = userPrompt || (imageUrl ? 'Inspect this image and tell me what is going on here' : '');
 
-  if (imageUrl) {
-    callbacks.onProgress?.('Scanning image...');
-    try {
-      if (isRaidShieldPersona) {
-        const resp = await fetch('/api/v1/raidshield', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messageText: userPrompt || 'Scan attached image',
-            imageUrl: imageUrl,
-          }),
-          signal: abortSignal,
-        });
-        if (resp.ok) {
-          const scan = await resp.json();
-          const badge = scan.classification === 'safe' ? '🟢 SAFE' : '🚨 ' + scan.classification.toUpperCase();
-          serverVisionContent = `### 🛡️ RaidShield Visual Security Assessment\n\n- **Classification Status**: **${badge}**\n- **Confidence**: **${(scan.confidence * 100).toFixed(1)}%**\n- **Automod Action**: \`${scan.actionRecommended || 'ALLOW'}\`\n\n**Visual Findings & Explanation:**\n${scan.reason}\n\n> *RaidShield 21-Hard-Rules Engine scanned image bitmaps, text OCR, QR code targets, and Discord invite/token payload signatures.*`;
-        }
-      } else {
-        const resp = await fetch('/api/v1/nexus', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: userPrompt || 'Inspect this image and tell me what is going on here',
-            imageUrl: imageUrl,
-            isSuperChillUser: settings.isSuperChillUser,
-            username: settings.userName,
-          }),
-          signal: abortSignal,
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data.response || data.text) {
-            serverVisionContent = data.response || data.text;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Multimodal vision API call returned fallback:', e);
-    }
-  }
+    callbacks.onProgress?.(imageUrl ? 'Scanning image...' : 'Thinking...');
 
-  // Check if Live Google / Web search is needed
-  let webSearchResults: WebSearchResult[] = [];
-  let webSearchExecuted = false;
-  let webSearchQuery = '';
+    let responseText = '';
+    let knowledgeHits: string[] = [];
+    let webSearchResults: WebSearchResult[] = [];
+    let webSearchExecuted = false;
+    let serverThoughtSteps: ThoughtStep[] = [];
 
-  if (!imageUrl) callbacks.onProgress?.('Checking knowledge base...');
-  const knowledgeConfidence = userPrompt ? await assessCorpusConfidence(userPrompt, knowledgeBase) : undefined;
-  const searchTriggerReason =
-    !imageUrl && userPrompt ? shouldTriggerLiveWebSearch(userPrompt, settings, knowledgeConfidence) : false;
-
-  if (searchTriggerReason) {
-    callbacks.onProgress?.('Searching the web...');
-    const searchQuery = buildWebSearchQuery(userPrompt, searchTriggerReason);
-    try {
-      // First try server endpoint (which has direct unrestricted node fetch)
-      const resp = await fetch('/api/v1/web/search', {
+    if (imageUrl && isRaidShieldPersona) {
+      // RaidShield's image scan is a distinct security-classification flow with its own response
+      // shape (classification/confidence/reason), not a conversational persona reply — kept on
+      // its own endpoint exactly as before, unaffected by the clientSettings/persona-respecting
+      // change above (RaidShield only ever runs as itself, there's no "which persona" question).
+      const resp = await fetch('/api/v1/raidshield', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: searchQuery,
-          provider: settings.webSearchEngine || 'all',
-          limit: 5,
+          messageText: promptToSend,
+          imageUrl,
         }),
         signal: abortSignal,
       });
-
-      if (resp.ok) {
-        const data = await resp.json();
-        if (Array.isArray(data.results) && data.results.length > 0) {
-          webSearchResults = data.results;
-          webSearchExecuted = true;
-          webSearchQuery = data.query || searchQuery;
-        }
+      if (!resp.ok) {
+        throw new Error(`RaidShield API returned ${resp.status}`);
       }
-    } catch {
-      // Fallback: client-side unified web search
-      try {
-        const fallbackRes = await executeUnifiedWebSearch(searchQuery, {
-          provider: settings.webSearchEngine || 'all',
-          limit: 5,
-        });
-        if (fallbackRes.results.length > 0) {
-          webSearchResults = fallbackRes.results;
-          webSearchExecuted = true;
-          webSearchQuery = fallbackRes.query;
-        }
-      } catch (err) {
-        console.warn('Web search fallback error:', err);
+      const scan = await resp.json();
+      const badge = scan.classification === 'safe' ? '🟢 SAFE' : '🚨 ' + scan.classification.toUpperCase();
+      responseText = `### 🛡️ RaidShield Visual Security Assessment\n\n- **Classification Status**: **${badge}**\n- **Confidence**: **${(scan.confidence * 100).toFixed(1)}%**\n- **Automod Action**: \`${scan.actionRecommended || 'ALLOW'}\`\n\n**Visual Findings & Explanation:**\n${scan.reason}\n\n> *RaidShield 21-Hard-Rules Engine scanned image bitmaps, text OCR, QR code targets, and Discord invite/token payload signatures.*`;
+    } else {
+      const resp = await fetch('/api/v1/nexus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: promptToSend,
+          imageUrl: imageUrl || undefined,
+          username: settings.userName,
+          authorId: settings.discordUserId,
+          isSuperChillUser: settings.isSuperChillUser,
+          history,
+          memories: userMemories.map((m) => ({
+            key: m.key,
+            fact: m.fact,
+            confidence: m.confidence,
+            timestamp: m.timestamp,
+          })),
+          // See the module comment above — tells the endpoint to honor this exact persona/settings
+          // selection instead of resolveRequestedPersona's Discord-bot-only crashout-bot forcing.
+          clientSettings: settings,
+        }),
+        signal: abortSignal,
+      });
+      if (!resp.ok) {
+        throw new Error(`Nexus API returned ${resp.status}`);
       }
+      const data = await resp.json();
+      responseText = data.response || data.text || '';
+      knowledgeHits = Array.isArray(data.knowledgeHits) ? data.knowledgeHits : [];
+      webSearchResults = Array.isArray(data.webSources) ? data.webSources : [];
+      webSearchExecuted = Boolean(data.webSearched);
+      serverThoughtSteps = Array.isArray(data.thoughtSteps)
+        ? data.thoughtSteps.map((t: any, i: number) => ({
+            id: `step-${i}`,
+            type: t.type,
+            title: t.title,
+            description: t.description,
+            data: t.data,
+            durationMs: t.durationMs,
+          }))
+        : [];
     }
-  }
 
-  // Run reasoning synthesis. This single await is where the real generation time lives (often
-  // several seconds, including any reflect-and-retry regeneration) — one last honest progress
-  // signal before the actual wait, rather than silence all the way through.
-  callbacks.onProgress?.('Thinking...');
-  const reasoningResult = await generateReasoningPath(
-    userPrompt || (imageUrl ? 'Inspect uploaded image visual features' : ''),
-    history,
-    persona,
-    settings,
-    knowledgeBase,
-    userMemories,
-    webSearchResults
-  );
+    if (imageUrl) {
+      serverThoughtSteps.unshift({
+        id: 'step-vision-ocr',
+        type: 'verification',
+        title: 'Multimodal Vision & Bitmap OCR Processing',
+        description: 'Extracted visual coordinates, image resolution, QR code matrices, embedded text, and suspicious token/crypto patterns.',
+      });
+    }
 
-  // If we have an image, inject visual thought steps
-  if (imageUrl) {
-    reasoningResult.thoughtSteps.unshift({
-      id: 'step-vision-ocr',
-      type: 'verification',
-      title: 'Multimodal Vision & Bitmap OCR Processing',
-      description: 'Extracted visual coordinates, image resolution, QR code matrices, embedded text, and suspicious token/crypto patterns.',
-    });
-  }
+    callbacks.onReasoningComplete?.(serverThoughtSteps);
 
-  // Use server vision content if received, else local reasoning content
-  const finalTargetText = serverVisionContent || reasoningResult.content;
+    // Compute multi-head attention distribution client-side — this is a local visualization aid
+    // (see AttentionVisualizerModal.tsx), not part of the real generation, so it stays here rather
+    // than adding another field to the API response. The "[KB: ...]" tokens need to come from the
+    // real citations (knowledgeHits) so the visualizer shows what the response actually drew from,
+    // not just the first 2 entries of the raw knowledge base array.
+    const citedKnowledge =
+      knowledgeHits.length > 0
+        ? knowledgeBase.filter((k) => knowledgeHits.includes(k.title) || knowledgeHits.includes(k.id))
+        : [];
+    const attentionMatrix = calculateAttentionMatrix(
+      userPrompt || 'Visual Input Matrix',
+      persona.systemPrompt,
+      citedKnowledge,
+      settings.attentionHeads
+    );
 
-  callbacks.onReasoningComplete?.(reasoningResult.thoughtSteps);
+    // Tokenize the generated target text
+    const outputTokens = tokenize(responseText);
+    const promptTokensCount = countTokens(userPrompt || 'image_attachment');
 
-  // Compute multi-head attention distribution — the "[KB: ...]" tokens are meant to show which
-  // documents the response actually drew from, so they need to come from the real citations
-  // (reasoningResult.knowledgeHits), not just the first 2 entries of the raw knowledge base array
-  // in whatever order it happens to be stored — that showed the same arbitrary 2 documents in the
-  // Attention Visualizer for every single query regardless of topic.
-  const citedKnowledge =
-    reasoningResult.knowledgeHits.length > 0
-      ? knowledgeBase.filter((k) => reasoningResult.knowledgeHits.includes(k.title) || reasoningResult.knowledgeHits.includes(k.id))
-      : [];
-  const attentionMatrix = calculateAttentionMatrix(
-    userPrompt || 'Visual Input Matrix',
-    persona.systemPrompt,
-    citedKnowledge,
-    settings.attentionHeads
-  );
+    let streamedText = '';
+    const streamDelayMap = {
+      instant: 0,
+      fast: 6,
+      natural: 14,
+      reflective: 26,
+    };
 
-  // Tokenize the generated target text
-  const outputTokens = tokenize(finalTargetText);
-  const promptTokensCount = countTokens(userPrompt || 'image_attachment');
+    const delayMs = streamDelayMap[settings.streamingSpeed] ?? 14;
 
-  let streamedText = '';
-  const streamDelayMap = {
-    instant: 0,
-    fast: 6,
-    natural: 14,
-    reflective: 26,
-  };
-
-  const delayMs = streamDelayMap[settings.streamingSpeed] ?? 14;
-
-  if (delayMs === 0) {
-    // Instant mode
-    streamedText = finalTargetText;
-    callbacks.onTokenChunk?.(streamedText);
-  } else {
-    // Stream token by token
-    for (let i = 0; i < outputTokens.length; i++) {
-      if (abortSignal?.aborted) {
-        break;
-      }
-      streamedText += outputTokens[i].text;
+    if (delayMs === 0) {
+      // Instant mode
+      streamedText = responseText;
       callbacks.onTokenChunk?.(streamedText);
+    } else {
+      // Stream token by token
+      for (let i = 0; i < outputTokens.length; i++) {
+        if (abortSignal?.aborted) {
+          break;
+        }
+        streamedText += outputTokens[i].text;
+        callbacks.onTokenChunk?.(streamedText);
 
-      // Add dynamic micro-pause on punctuation
-      const isPunct = /^[.,!?:;]$/.test(outputTokens[i].text.trim());
-      const currentDelay = isPunct ? delayMs * 2.2 : delayMs;
+        // Add dynamic micro-pause on punctuation
+        const isPunct = /^[.,!?:;]$/.test(outputTokens[i].text.trim());
+        const currentDelay = isPunct ? delayMs * 2.2 : delayMs;
 
-      if (currentDelay > 0) {
-        await new Promise((resolve) => setTimeout(resolve, currentDelay));
+        if (currentDelay > 0) {
+          await new Promise((resolve) => setTimeout(resolve, currentDelay));
+        }
       }
     }
-  }
 
-  const endTime = performance.now();
-  const durationMs = Math.max(50, Math.round(endTime - startTime));
-  const generatedTokensCount = countTokens(streamedText);
-  const tokensPerSec = parseFloat(((generatedTokensCount / (durationMs / 1000)) || 0).toFixed(1));
+    const endTime = performance.now();
+    const durationMs = Math.max(50, Math.round(endTime - startTime));
+    const generatedTokensCount = countTokens(streamedText);
+    const tokensPerSec = parseFloat(((generatedTokensCount / (durationMs / 1000)) || 0).toFixed(1));
 
-  const telemetry: MessageTelemetry = {
-    tokensPrompt: promptTokensCount,
-    tokensGenerated: generatedTokensCount,
-    generationTimeMs: durationMs,
-    tokensPerSec,
-    avgAttentionScore: parseFloat(
-      (
-        attentionMatrix.reduce((acc, a) => acc + a.score, 0) / Math.max(1, attentionMatrix.length)
-      ).toFixed(2)
-    ),
-    topKnowledgeHits: reasoningResult.knowledgeHits,
-    reasoningStepsCount: reasoningResult.thoughtSteps.length,
-    webSearched: webSearchExecuted,
-    webSearchQuery: webSearchQuery,
-    webSourcesCount: webSearchResults.length,
-  };
+    const telemetry: MessageTelemetry = {
+      tokensPrompt: promptTokensCount,
+      tokensGenerated: generatedTokensCount,
+      generationTimeMs: durationMs,
+      tokensPerSec,
+      avgAttentionScore: parseFloat(
+        (
+          attentionMatrix.reduce((acc, a) => acc + a.score, 0) / Math.max(1, attentionMatrix.length)
+        ).toFixed(2)
+      ),
+      topKnowledgeHits: knowledgeHits,
+      reasoningStepsCount: serverThoughtSteps.length,
+      webSearched: webSearchExecuted,
+      webSourcesCount: webSearchResults.length,
+    };
 
-  const finalMessage: ChatMessage = {
-    id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
-    role: 'assistant',
-    content: streamedText,
-    timestamp: Date.now(),
-    thoughtProcess: reasoningResult.thoughtSteps,
-    telemetry,
-    attentionMatrix,
-    webSources: webSearchResults.length > 0 ? webSearchResults : undefined,
-    isStreaming: false,
-  };
+    const finalMessage: ChatMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      role: 'assistant',
+      content: streamedText,
+      timestamp: Date.now(),
+      thoughtProcess: serverThoughtSteps,
+      telemetry,
+      attentionMatrix,
+      webSources: webSearchResults.length > 0 ? webSearchResults : undefined,
+      isStreaming: false,
+    };
 
-  callbacks.onComplete?.(finalMessage);
-  return finalMessage;
+    callbacks.onComplete?.(finalMessage);
+    return finalMessage;
   }
 }
