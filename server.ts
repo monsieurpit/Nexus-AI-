@@ -1,4 +1,5 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
@@ -141,6 +142,76 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// A malformed JSON body previously fell through to Express's default error page (leaking a stack
+// trace to the client) since no error-handling middleware was registered anywhere. This is the
+// earliest point an express.json() parse failure surfaces, so it's the right place to catch it.
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err?.type === 'entity.parse.failed' || err instanceof SyntaxError) {
+    return res.status(400).json({ error: 'Malformed JSON in request body.' });
+  }
+  next(err);
+});
+
+// Public launch (12.2k-member Discord server + open website) needs real abuse protection that
+// simply didn't exist before: every request was accepted unconditionally, with only a shared,
+// process-wide concurrency queue standing between traffic and the single local Ollama instance.
+// Keyed by Discord author/user id when present (all Discord traffic arrives from the bot's one
+// Railway IP, so per-IP keying alone would rate-limit the entire 12.2k-member server as a single
+// caller) and falls back to IP for the website, where each browser really is a separate caller.
+function rateLimitKey(req: express.Request): string {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const idFromBody = body.authorId || body.userId || body.discordUserId;
+  if (typeof idFromBody === 'string' && idFromBody.trim()) return `uid:${idFromBody.trim()}`;
+  return `ip:${req.ip}`;
+}
+
+// Generous floor against pure floods on every route (cheap utility endpoints included).
+const globalFloodLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 90,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: rateLimitKey,
+  message: { error: 'Too many requests — slow down a bit and try again shortly.' },
+});
+app.use(globalFloodLimiter);
+
+// Tighter limit specifically on the endpoints that actually pay the cost of a real Ollama
+// generation — the single most exhaustible resource in this whole system (one local 3B model,
+// OLLAMA_MAX_CONCURRENT capped by real hardware). Without this, one user spamming messages could
+// starve the shared queue for every other user in the server.
+const aiComputeLimiter = rateLimit({
+  windowMs: 15_000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: rateLimitKey,
+  message: { error: 'Slow down — you are sending messages faster than Nexus can think. Try again in a few seconds.' },
+});
+
+// Strict key check for endpoints that mutate global, server-wide state (persona/settings that
+// apply to every future request, the knowledge base, API key management) or that exist purely as
+// internal debug tooling (test-burst). Deliberately does NOT auto-register unknown keys the way
+// authenticateApiKey() does below — that permissive behavior is fine for the public chat endpoint
+// (nothing secret to protect there beyond rate limiting) but was the actual hole letting anyone
+// with zero credentials flip global settings or wipe the knowledge base for every other user.
+function hasValidApiKey(req: express.Request): boolean {
+  const authHeader = req.headers['authorization'];
+  const customHeader = req.headers['x-api-key'] as string;
+  const bearerKey = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+  const key = (bearerKey || customHeader || '').trim();
+  const configuredSecret = process.env.NEXUS_API_KEY?.trim();
+  return Boolean(key) && (registeredApiKeys.has(key) || (Boolean(configuredSecret) && key === configuredSecret));
+}
+
+function requireApiKey(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  if (!hasValidApiKey(req)) {
+    res.status(401).json({ error: 'A valid x-api-key or Authorization: Bearer <key> header is required for this endpoint.' });
+    return;
+  }
+  next();
+}
 
 // In-memory registered API keys (Railway, Discord, Custom & Legacy keys)
 const registeredApiKeys = new Set<string>([
@@ -481,7 +552,7 @@ app.get('/api/v1/persona', (req, res) => {
   });
 });
 
-app.post('/api/v1/persona/set', (req, res) => {
+app.post('/api/v1/persona/set', requireApiKey, (req, res) => {
   authenticateApiKey(req);
   const requested = req.body.persona || req.body.model || req.body.personaId || req.body.mode;
   if (!requested) {
@@ -518,7 +589,9 @@ app.get('/api/v1/settings', (req, res) => {
 
 app.all(['/api/v1/settings', '/api/v1/settings/update'], (req, res) => {
   if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
-    authenticateApiKey(req);
+    if (!hasValidApiKey(req)) {
+      return res.status(401).json({ error: 'A valid x-api-key or Authorization: Bearer <key> header is required to change server-wide settings.' });
+    }
     const updates = req.body || {};
 
     if (typeof updates.temperature === 'number') activeServerSettings.temperature = Math.max(0, Math.min(2.0, updates.temperature));
@@ -731,7 +804,7 @@ const LATEST_FEATURE_SET = [
   'typo_tolerant_semantic_engine',
 ];
 
-app.get('/api/v1/keys', (req, res) => {
+app.get('/api/v1/keys', requireApiKey, (req, res) => {
   authenticateApiKey(req);
   const keysList = Array.from(keyMetadataMap.values()).map(k => ({
     ...k,
@@ -748,7 +821,7 @@ app.get('/api/v1/keys', (req, res) => {
   });
 });
 
-app.post('/api/v1/keys/generate', (req, res) => {
+app.post('/api/v1/keys/generate', requireApiKey, (req, res) => {
   const customLabel = (req.body?.label || 'discord_bot').replace(/[^a-zA-Z0-9_]/g, '');
   const randomSuffix = Math.random().toString(36).substring(2, 10);
   const newKey = `nexus_sk_${customLabel}_${randomSuffix}`;
@@ -787,7 +860,7 @@ app.post('/api/v1/keys/generate', (req, res) => {
 // also be refreshed to the server's full current feature set at any time by passing
 // { capabilities: "latest" } instead of an explicit list, so a key stays current as features ship
 // instead of staying frozen at whatever was hardcoded on the day it was generated.
-app.patch('/api/v1/keys/:key', (req, res) => {
+app.patch('/api/v1/keys/:key', requireApiKey, (req, res) => {
   authenticateApiKey(req);
   const { key } = req.params;
   const existing = keyMetadataMap.get(key);
@@ -821,7 +894,7 @@ app.patch('/api/v1/keys/:key', (req, res) => {
 });
 
 // 4. Dedicated Nexus Discord Endpoint (Swearing, Discord homie style, Casseurt roast, Super Chill VIP mode, Strict Rules, Vision Support, Dynamic Persona Switching, Multi-Document Grounding)
-app.post('/api/v1/nexus', async (req, res) => {
+app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
   authenticateApiKey(req);
   const {
     prompt,
@@ -909,6 +982,16 @@ app.post('/api/v1/nexus', async (req, res) => {
 
   if (!userText && !imagePart) {
     return res.status(400).json({ error: 'Missing prompt or image in request body.' });
+  }
+
+  // A single local 3B model has to actually read every character of this before it can respond —
+  // an unbounded prompt (nothing capped this before) lets one message tie up a queue slot for far
+  // longer than any real chat message needs, at everyone else's expense on a shared 12k-user host.
+  const MAX_PROMPT_CHARS = 6000;
+  if (userText.length > MAX_PROMPT_CHARS) {
+    return res.status(400).json({
+      error: `Message too long (${userText.length} characters, max ${MAX_PROMPT_CHARS}). Please shorten it and try again.`,
+    });
   }
 
   // Format message history if supplied
@@ -1138,7 +1221,7 @@ app.post('/api/v1/nexus', async (req, res) => {
 });
 
 // 5. Dedicated RaidShield 21-Hard-Rules Security Endpoint (Text + Image Vision Scanning)
-app.post('/api/v1/raidshield', async (req, res) => {
+app.post('/api/v1/raidshield', aiComputeLimiter, async (req, res) => {
   authenticateApiKey(req);
   const {
     messageText,
@@ -1188,7 +1271,7 @@ app.post('/api/v1/raidshield', async (req, res) => {
 });
 
 // Dedicated Vision Analysis Endpoint (Queued through Waitlist)
-app.post('/api/v1/vision/analyze', async (req, res) => {
+app.post('/api/v1/vision/analyze', aiComputeLimiter, async (req, res) => {
   authenticateApiKey(req);
   const { prompt, imageUrl, imageData, image, mode } = req.body;
   const imagePart = await resolveImagePart(imageUrl, imageData, image);
@@ -1250,7 +1333,7 @@ app.all(['/api/v1/auth/verify', '/api/v1/auth/check'], (req, res) => {
 });
 
 // Queue Stress Test Simulator (Allows testing FIFO waitlist with burst requests)
-app.post('/api/v1/queue/test-burst', async (req, res) => {
+app.post('/api/v1/queue/test-burst', requireApiKey, async (req, res) => {
   const count = Math.min(Math.max(Number(req.body?.count || 5), 1), 20);
   const results: any[] = [];
   const startAll = Date.now();
@@ -1289,7 +1372,7 @@ app.post('/api/v1/queue/test-burst', async (req, res) => {
 });
 
 // 6. Gemini-Style API Endpoint (contents/generationConfig format with multi-document grounding)
-app.post('/api/v1/generate', async (req, res) => {
+app.post('/api/v1/generate', aiComputeLimiter, async (req, res) => {
   authenticateApiKey(req);
   const body = req.body;
 
@@ -1417,7 +1500,7 @@ app.post('/api/v1/generate', async (req, res) => {
 });
 
 // 7. OpenAI-Compatible Chat Completions Endpoint
-app.post('/api/v1/chat/completions', async (req, res) => {
+app.post('/api/v1/chat/completions', aiComputeLimiter, async (req, res) => {
   authenticateApiKey(req);
   const { model, messages, temperature, rules, customRules, directives, webSearch, search, searchEngine, provider } = req.body;
 
@@ -1553,7 +1636,9 @@ app.all(['/api/v1/documents', '/api/v1/knowledge'], (req, res) => {
   }
 
   if (req.method === 'POST') {
-    authenticateApiKey(req);
+    if (!hasValidApiKey(req)) {
+      return res.status(401).json({ error: 'A valid x-api-key or Authorization: Bearer <key> header is required to add documents.' });
+    }
     const { title, content, category, keywords } = req.body;
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required to add a document.' });
@@ -1577,8 +1662,7 @@ app.all(['/api/v1/documents', '/api/v1/knowledge'], (req, res) => {
   res.status(405).json({ error: 'Method not allowed' });
 });
 
-app.delete(['/api/v1/documents/:id', '/api/v1/knowledge/:id'], (req, res) => {
-  authenticateApiKey(req);
+app.delete(['/api/v1/documents/:id', '/api/v1/knowledge/:id'], requireApiKey, (req, res) => {
   const docId = req.params.id;
   const removed = removeRuntimeKnowledgeItem(docId);
   if (!removed) {

@@ -112,7 +112,15 @@ export function looksPolish(text: string): boolean {
 // in server.ts already bounds total worst-case wait via its own 45s per-task timeout, so no
 // separate wait-timeout is needed here. Applies to both generate() and embed() since they compete
 // for the same underlying model-serving capacity on the same machine.
-const OLLAMA_MAX_CONCURRENT = Math.max(1, Number(process.env.OLLAMA_MAX_CONCURRENT) || 1);
+// Default raised from 1 to 2, not guessed — verified live against the actual host (a Mac Mini
+// M4, 16GB unified memory) by setting OLLAMA_NUM_PARALLEL=2 on the Ollama service itself (it
+// otherwise runs its llama.cpp backend with `-np 1`, meaning even multiple concurrent requests
+// from this client were being serialized a second time at the model layer) and firing 4 real
+// concurrent qwen2.5:3b chat completions: they finished in ~3.1-4.6s each in true overlapping
+// pairs, RAM headroom stayed comfortable (~4GB free+inactive throughout, no swap pressure), and
+// nothing degraded. Going higher than 2 was not attempted — 16GB total, shared with the rest of
+// the machine's normal use, doesn't leave confident headroom for more parallel KV-cache slots.
+const OLLAMA_MAX_CONCURRENT = Math.max(1, Number(process.env.OLLAMA_MAX_CONCURRENT) || 2);
 let activeOllamaCalls = 0;
 const ollamaWaitQueue: (() => void)[] = [];
 
@@ -328,6 +336,13 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
         model: OLLAMA_MODEL,
         messages,
         stream: false,
+        // Ollama's default keep_alive unloads the model from memory 5 minutes after the last
+        // request, which meant any gap in traffic re-paid a real, measured cold-load cost on the
+        // next message (~550ms observed live on this host, vs. ~1ms once warm) — pure wasted
+        // latency on top of actual generation time, for a model that comfortably fits in RAM
+        // continuously. 30 minutes keeps it resident through realistic chat gaps without pinning
+        // it forever if the server sits genuinely idle overnight.
+        keep_alive: '30m',
         options: {
           temperature: options.temperature ?? 0.5,
           num_predict: options.maxTokens ?? 400,

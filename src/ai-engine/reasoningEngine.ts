@@ -2644,11 +2644,12 @@ async function llmSituationalReplyOrFallback(
     // surfaced to callers (server.ts's API response, and from there the bot's #bot-logs /
     // #jailbreak-stress-test channels) via this ThoughtStep's data field.
     const swearFloorTriggered = getSwearCount(llmResult.text) < SWEAR_FLOOR_MIN_COUNT;
+    const responseWordCount = llmResult.text.trim().split(/\s+/).filter(Boolean).length;
     thoughtSteps.push({
       id: 'step-llm-freeresponse',
       type: 'synthesis',
       title: successTitle,
-      description: `Ollama responded in ${llmResult.latencyMs}ms.`,
+      description: `Ollama (${usePolish ? 'Polish' : 'English'} path, temp ${usePolish ? 0.3 : 0.75}) generated a ${responseWordCount}-word reply in ${llmResult.latencyMs}ms.${swearFloorTriggered ? ' Topped up to meet the persona\'s minimum swear count.' : ''}`,
       durationMs: llmResult.latencyMs,
       data: {
         language: usePolish ? 'pl' : 'en',
@@ -3398,11 +3399,16 @@ export async function generateReasoningPath(
   const queryTerms = processForSearch(searchPrompt);
   const entities = extractQueryEntities(prompt);
 
+  const promptWordCount = effectivePrompt.trim().split(/\s+/).filter(Boolean).length;
   thoughtSteps.push({
     id: 'step-1-intent',
     type: 'intent',
     title: 'Reading your question',
-    description: `Intent: ${intentLabel(intent)}\nKey terms: ${queryTerms.join(', ')}`,
+    description:
+      `Intent: ${intentLabel(intent)} (${promptWordCount} word${promptWordCount === 1 ? '' : 's'})` +
+      `\nKey terms: ${queryTerms.length > 0 ? queryTerms.join(', ') : '(none extracted — routing on the raw message)'}` +
+      (entities.length > 0 ? `\nDetected entities: ${entities.join(', ')}` : ''),
+    data: { intent, wordCount: promptWordCount, queryTerms, entities },
   });
 
   // 4. Conversational Intent (Immediate exit — NO corpus search!)
@@ -3411,7 +3417,10 @@ export async function generateReasoningPath(
       id: 'step-conv-reply',
       type: 'synthesis',
       title: isCrashout ? 'Crashout reply' : 'Conversational reply',
-      description: 'Chat intent recognized. Routing through local LLM for a fresh reply.',
+      // Previously a single fixed sentence regardless of the actual message — now reflects the
+      // real routing decision (why corpus retrieval was skipped, whether prior turns are in play)
+      // instead of static boilerplate that read identically on every single conversational reply.
+      description: `No corpus lookup needed — this reads as small talk, not a question with a factual answer to retrieve. Skipping straight to a free-form reply from the local model, in character${history.length > 0 ? `, aware of the last ${Math.min(history.length, 6)} message(s) of context` : ''}.`,
     });
     // looksPolish() has weak signal on a short message with no diacritics ("lubisz mnie?" is only
     // two words) — it missed the live "nexus lubisz mnie?" case entirely, sending it down the
@@ -4242,8 +4251,12 @@ export async function generateReasoningPath(
     title: `Searched ${allKnowledge.length} docs`,
     description:
       results.length === 0
-        ? 'Nothing found.'
-        : results.slice(0, 4).map((r) => `[${r.score.toFixed(2)}] ${r.item.title}`).join('\n'),
+        ? 'Nothing in the corpus matched well enough to cite — falling back to the model\'s own general knowledge.'
+        : results.slice(0, 4).map((r) => `[${r.score.toFixed(2)}] ${r.item.title} (${r.item.category})`).join('\n'),
+    data: {
+      totalCorpusSize: allKnowledge.length,
+      topResults: results.slice(0, 4).map((r) => ({ title: r.item.title, category: r.item.category, score: r.score })),
+    },
   });
 
   if (reformulatedQuery) {
