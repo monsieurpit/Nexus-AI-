@@ -35,6 +35,7 @@ export default function App() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingChunk, setStreamingChunk] = useState('');
+  const [progressStage, setProgressStage] = useState('');
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Modal visibility states
@@ -161,6 +162,7 @@ export default function App() {
 
     setIsGenerating(true);
     setStreamingChunk('');
+    setProgressStage('');
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -176,8 +178,13 @@ export default function App() {
         {
           onReasoningStart: () => {
             setStreamingChunk('');
+            setProgressStage('');
+          },
+          onProgress: (stage) => {
+            setProgressStage(stage);
           },
           onTokenChunk: (chunk) => {
+            setProgressStage('');
             setStreamingChunk(chunk);
           },
           onComplete: (assistantMsg) => {
@@ -186,12 +193,14 @@ export default function App() {
             saveMessages(finalMessages);
             setIsGenerating(false);
             setStreamingChunk('');
+            setProgressStage('');
             abortControllerRef.current = null;
           },
           onError: (err) => {
             console.error('Generation failed', err);
             setIsGenerating(false);
             setStreamingChunk('');
+            setProgressStage('');
             abortControllerRef.current = null;
           },
         },
@@ -253,6 +262,7 @@ export default function App() {
           messages={messages}
           isGenerating={isGenerating}
           streamingChunk={streamingChunk}
+          progressStage={progressStage}
           activePersona={activePersona}
           settings={settings}
           onSendMessage={handleSendMessage}

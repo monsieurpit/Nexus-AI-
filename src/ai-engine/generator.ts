@@ -22,6 +22,19 @@ export interface GenerationCallbacks {
   onTokenChunk?: (partialContent: string) => void;
   onComplete?: (finalMessage: ChatMessage) => void;
   onError?: (error: Error) => void;
+  // Fired at real, externally-observable stage transitions during the wait between
+  // onReasoningStart and the first onTokenChunk — that whole window used to be dead silence from
+  // the UI's perspective, since onTokenChunk only ever fires AFTER generateReasoningPath has
+  // already fully completed (the "streaming" below is a client-side typewriter replay of the
+  // already-finished, already-safety-checked text, not real token-by-token generation — Ollama is
+  // called with stream:false, and switching that to true would bypass this file's own quality/
+  // safety gates in localLlmClient.ts's generate(), which all run on the complete response text
+  // and can't meaningfully run on partial fragments). This is the safe alternative: honest
+  // progress signaling for stages generator.ts already observes in its own control flow, not fake
+  // content. Deliberately coarse-grained (3-4 stages, not a step-by-step trace) since threading a
+  // callback through every thought-step push inside reasoningEngine.ts's ~4000-line function would
+  // be a much larger, riskier change for the same practical benefit.
+  onProgress?: (stage: string) => void;
 }
 
 export async function generateAIResponse(
@@ -51,6 +64,7 @@ export async function generateAIResponse(
   const isRaidShieldPersona = persona.id === 'raidshield-ai';
 
   if (imageUrl) {
+    callbacks.onProgress?.('Scanning image...');
     try {
       if (isRaidShieldPersona) {
         const resp = await fetch('/api/v1/raidshield', {
@@ -96,11 +110,13 @@ export async function generateAIResponse(
   let webSearchExecuted = false;
   let webSearchQuery = '';
 
+  if (!imageUrl) callbacks.onProgress?.('Checking knowledge base...');
   const knowledgeConfidence = userPrompt ? await assessCorpusConfidence(userPrompt, knowledgeBase) : undefined;
   const searchTriggerReason =
     !imageUrl && userPrompt ? shouldTriggerLiveWebSearch(userPrompt, settings, knowledgeConfidence) : false;
 
   if (searchTriggerReason) {
+    callbacks.onProgress?.('Searching the web...');
     const searchQuery = buildWebSearchQuery(userPrompt, searchTriggerReason);
     try {
       // First try server endpoint (which has direct unrestricted node fetch)
@@ -141,7 +157,10 @@ export async function generateAIResponse(
     }
   }
 
-  // Run reasoning synthesis
+  // Run reasoning synthesis. This single await is where the real generation time lives (often
+  // several seconds, including any reflect-and-retry regeneration) — one last honest progress
+  // signal before the actual wait, rather than silence all the way through.
+  callbacks.onProgress?.('Thinking...');
   const reasoningResult = await generateReasoningPath(
     userPrompt || (imageUrl ? 'Inspect uploaded image visual features' : ''),
     history,

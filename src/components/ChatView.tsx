@@ -27,6 +27,7 @@ interface ChatViewProps {
   messages: ChatMessage[];
   isGenerating: boolean;
   streamingChunk: string;
+  progressStage?: string;
   activePersona: ModelPersona;
   settings: AISettings;
   onSendMessage: (text: string, image?: { dataUrl: string; name: string }) => void;
@@ -42,6 +43,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   messages,
   isGenerating,
   streamingChunk,
+  progressStage,
   activePersona,
   settings,
   onSendMessage,
@@ -635,12 +637,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
                   <span className="text-sm font-semibold text-[var(--nx-accent-hover)]">{activePersona.name}</span>
-                  <span className="text-[11px] text-emerald-400 font-medium">Reasoning & Streaming...</span>
+                  <span className="text-[11px] text-emerald-400 font-medium">
+                    {streamingChunk ? 'Reasoning & Streaming...' : progressStage || 'Thinking...'}
+                  </span>
                 </div>
-                <div className="markdown-content text-sm text-[var(--nx-text)]/90 mt-0.5">
-                  <ReactMarkdown>{streamingChunk || 'Synthesizing neural reasoning paths...'}</ReactMarkdown>
-                </div>
-                <span className="inline-block w-2 h-4 bg-[var(--nx-accent)] ml-0.5 animate-pulse" />
+                {streamingChunk ? (
+                  <div className="markdown-content text-sm text-[var(--nx-text)]/90 mt-0.5">
+                    <ReactMarkdown>{streamingChunk}</ReactMarkdown>
+                  </div>
+                ) : (
+                  // Real content isn't ready yet — the label above already shows honest,
+                  // real-time progress (progressStage). This is just a visual "something is
+                  // happening" cue underneath it, not a placeholder pretending to be content.
+                  <div className="flex items-center gap-1 mt-2" aria-hidden="true">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce" />
+                  </div>
+                )}
+                {streamingChunk && (
+                  <span className="inline-block w-2 h-4 bg-[var(--nx-accent)] ml-0.5 animate-pulse" />
+                )}
               </div>
             </div>
           )}
