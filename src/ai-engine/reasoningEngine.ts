@@ -5075,15 +5075,23 @@ function suggestFollowUps(
     .map((r) => shortTitle(r.item.title))
     .filter((t) => !q.includes(t.toLowerCase()));
 
+  // Keyword tags get dropped straight into a sentence template as a grammatical subject
+  // ("How does X work in practice?") with no check for whether X is singular or plural —
+  // observed live, a "continents" tag produced "How does continents work in practice?"
+  // (subject-verb disagreement). A real plural/singular classifier is overkill for a cosmetic
+  // follow-up-suggestion feature; this heuristic (ends in "s", not a common -ss/-us/-is false
+  // plural) gets the common case right without needing one.
+  const looksPlural = (tag: string) => /[a-z]s$/i.test(tag) && !/(?:ss|us|is)$/i.test(tag);
   const pool: string[] = [];
   if (unusedTags[0]) {
+    const plural = looksPlural(unusedTags[0]);
     switch (intent) {
       case 'definition':
       case 'explanation':
-        pool.push(`How does ${unusedTags[0]} work in practice?`);
+        pool.push(`How ${plural ? 'do' : 'does'} ${unusedTags[0]} work in practice?`);
         break;
       case 'causal':
-        pool.push(`What role does ${unusedTags[0]} play here?`);
+        pool.push(`What role ${plural ? 'do' : 'does'} ${unusedTags[0]} play here?`);
         break;
       default:
         pool.push(`Tell me more about ${unusedTags[0]}`);

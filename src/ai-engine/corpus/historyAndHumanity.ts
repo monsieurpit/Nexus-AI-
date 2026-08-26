@@ -57,13 +57,13 @@ export const HISTORY_AND_HUMANITY_CORPUS: KnowledgeItem[] = [
     ],
     content: `Global terrestrial landmarks and planetary physical geography:
 1. **The 7 Continents (by land area)**:
-   - **Asia** (~44.6M $\\text{km}^2$, ~60% of human population, highest peak Mt. Everest).
-   - **Africa** (~30.4M $\\text{km}^2$, 54 countries, Sahara Desert, Nile River).
-   - **North America** (~24.7M $\\text{km}^2$, stretching from Canadian Arctic to Panama).
-   - **South America** (~17.8M $\\text{km}^2$, Amazon Rainforest, Andes Mountains).
-   - **Antarctica** (~14.2M $\\text{km}^2$, 98% covered by ice sheet averaging 1.9 km thickness; Earth's largest cold desert).
-   - **Europe** (~10.2M $\\text{km}^2$, 44 nations, Ural mountains boundary).
-   - **Australia / Oceania** (~8.6M $\\text{km}^2$, island continent, Great Barrier Reef).
+   - **Asia** (~44.6M km², ~60% of human population, highest peak Mt. Everest).
+   - **Africa** (~30.4M km², 54 countries, Sahara Desert, Nile River).
+   - **North America** (~24.7M km², stretching from Canadian Arctic to Panama).
+   - **South America** (~17.8M km², Amazon Rainforest, Andes Mountains).
+   - **Antarctica** (~14.2M km², 98% covered by ice sheet averaging 1.9 km thickness; Earth's largest cold desert).
+   - **Europe** (~10.2M km², 44 nations, Ural mountains boundary).
+   - **Australia / Oceania** (~8.6M km², island continent, Great Barrier Reef).
 2. **The 5 Oceans**:
    - **Pacific Ocean** (Largest & deepest, covers >30% of Earth's surface, houses the Ring of Fire).
    - **Atlantic Ocean** (Separates Old and New Worlds, Mid-Atlantic Ridge rift).
@@ -74,7 +74,7 @@ export const HISTORY_AND_HUMANITY_CORPUS: KnowledgeItem[] = [
    - **Highest Elevation**: Mount Everest (8,848.86 m / 29,031.7 ft above sea level in the Himalayas).
    - **Deepest Point**: Challenger Deep in the Mariana Trench (~10,994 m / 36,070 ft deep).
    - **Longest Rivers**: The Nile River (~6,650 km) and Amazon River (~6,400 km; largest by water volume discharge, carrying more water than the next 7 largest rivers combined).
-   - **Largest Hot Desert**: The Sahara Desert (~9.2 million $\\text{km}^2$).`,
+   - **Largest Hot Desert**: The Sahara Desert (~9.2 million km²).`,
     createdAt: Date.now(),
   },
 
