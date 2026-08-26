@@ -765,6 +765,19 @@ export class BM25Engine {
     const sentB = 0.4;
     const avgSentLen = 20.0;
 
+    // Query-phrase bigrams (e.g. "largest~country" from "largest country") — without these, a
+    // document mentioning several unrelated "largest X" superlatives about different entities
+    // (largest economy, largest by population, second-largest by area...) scored every one of
+    // those sentences roughly the same as the one actually answering "largest country", since
+    // single-term matching can't tell "largest country" apart from "largest" + "country" landing
+    // in unrelated sentences. Observed live: a "what is the largest country" query pulled Brazil's
+    // "largest country in South America" and India's population blurb into the grounding context
+    // ahead of Russia's actual "world's largest country by area" sentence, and the small model
+    // conflated them into a wrong answer. Bigram IDF is naturally much higher than either word's
+    // own IDF (the exact phrase is rarer than its parts), so a real phrase match now dominates
+    // ranking instead of being just one more same-weight single-term hit.
+    const queryBigramSet = new Set(this.makeBigrams(Array.from(new Set(queryTerms))));
+
     const scored: { text: string; score: number }[] = sents.map((sentence) => {
       const terms = processForSearch(sentence);
       const dl = Math.max(terms.length, 1);
@@ -772,9 +785,13 @@ export class BM25Engine {
       for (const t of terms) {
         tf.set(t, (tf.get(t) || 0) + 1);
       }
+      const sentenceBigrams = this.makeBigrams(terms);
+      for (const bg of sentenceBigrams) {
+        tf.set(bg, (tf.get(bg) || 0) + 1);
+      }
 
       let score = 0;
-      const uniqueQuery = Array.from(new Set(queryTerms));
+      const uniqueQuery = Array.from(new Set([...queryTerms, ...queryBigramSet]));
       for (const term of uniqueQuery) {
         const freq = tf.get(term) || 0;
         if (freq > 0) {
