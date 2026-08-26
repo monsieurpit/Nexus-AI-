@@ -1,6 +1,7 @@
 import {
   AISettings,
   ChatMessage,
+  Conversation,
   KnowledgeItem,
   ModelPersona,
   ModelPersonaId,
@@ -311,6 +312,8 @@ const STORAGE_KEYS = {
   KNOWLEDGE: 'custom_ai_knowledge_v1',
   MEMORIES: 'custom_ai_memories_v1',
   MESSAGES: 'custom_ai_messages_v1',
+  CONVERSATIONS: 'custom_ai_conversations_v1',
+  ACTIVE_CONVERSATION: 'custom_ai_active_conversation_v1',
 };
 
 export function loadSettings(): AISettings {
@@ -472,4 +475,92 @@ export function saveMessages(messages: ChatMessage[]): void {
   } catch (e) {
     console.error('Failed to save messages', e);
   }
+}
+
+function makeConversation(messages: ChatMessage[] = []): Conversation {
+  const now = Date.now();
+  return {
+    id: `conv-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    title: 'New chat',
+    titleIsCustom: false,
+    messages,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+// Before conversations existed, the app kept exactly one ongoing chat under STORAGE_KEYS.MESSAGES.
+// On first load under the new multi-conversation model, that history is wrapped into a single
+// conversation instead of being silently discarded — existing users shouldn't lose their chat.
+export function loadConversations(): Conversation[] {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const saved = localStorage.getItem(STORAGE_KEYS.CONVERSATIONS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      const legacyMessages = loadMessages();
+      if (legacyMessages.length > 0) {
+        const migrated = makeConversation(legacyMessages);
+        migrated.title = deriveConversationTitle(legacyMessages) || migrated.title;
+        return [migrated];
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load conversations', e);
+  }
+  return [];
+}
+
+export function saveConversations(conversations: Conversation[]): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(STORAGE_KEYS.CONVERSATIONS, JSON.stringify(conversations));
+    }
+  } catch (e) {
+    console.error('Failed to save conversations', e);
+  }
+}
+
+export function loadActiveConversationId(): string | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return localStorage.getItem(STORAGE_KEYS.ACTIVE_CONVERSATION);
+    }
+  } catch (e) {
+    console.error('Failed to load active conversation id', e);
+  }
+  return null;
+}
+
+export function saveActiveConversationId(id: string): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_CONVERSATION, id);
+    }
+  } catch (e) {
+    console.error('Failed to save active conversation id', e);
+  }
+}
+
+export function createConversation(): Conversation {
+  return makeConversation();
+}
+
+// Purely local, instant, $0 heuristic title — not an extra LLM call per new chat, which would add
+// latency and Ollama-queue load for a cosmetic label the user can always rename anyway. Takes the
+// first real user message, strips filler openers, and trims to a short title-cased snippet, the
+// same way a browser tab title gets derived from a page heading rather than fully summarized.
+export function deriveConversationTitle(messages: ChatMessage[]): string | null {
+  const firstUserMsg = messages.find((m) => m.role === 'user' && m.content.trim().length > 0);
+  if (!firstUserMsg) return null;
+  let text = firstUserMsg.content.trim().replace(/\s+/g, ' ');
+  text = text.replace(/^(hey|hi|hello|yo|nexus|ok|okay|so|uh|um)[,!.\s]+/i, '');
+  if (!text) text = firstUserMsg.content.trim();
+  const maxLen = 42;
+  if (text.length > maxLen) {
+    text = text.slice(0, maxLen).replace(/\s+\S*$/, '') + '…';
+  }
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }

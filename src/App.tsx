@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
+import { ConversationSidebar } from './components/ConversationSidebar';
 import { ChatView } from './components/ChatView';
 import { ModelCustomizerModal } from './components/ModelCustomizerModal';
 import { KnowledgeTrainerModal } from './components/KnowledgeTrainerModal';
@@ -8,6 +9,7 @@ import { ApiIntegrationModal } from './components/ApiIntegrationModal';
 import {
   AISettings,
   ChatMessage,
+  Conversation,
   KnowledgeItem,
   ModelPersona,
   ModelPersonaId,
@@ -15,23 +17,53 @@ import {
 } from './types';
 import {
   DEFAULT_PERSONAS,
+  createConversation,
+  deriveConversationTitle,
+  loadActiveConversationId,
+  loadConversations,
   loadKnowledge,
   loadMemories,
-  loadMessages,
   loadSettings,
+  saveActiveConversationId,
+  saveConversations,
   saveKnowledge,
   saveMemories,
-  saveMessages,
   saveSettings,
 } from './ai-engine/memoryStore';
 import { generateAIResponse } from './ai-engine/generator';
 import { analyzePromptIntent } from './ai-engine/semanticEngine';
 
+function initConversations(): Conversation[] {
+  const loaded = loadConversations();
+  return loaded.length > 0 ? loaded : [createConversation()];
+}
+
 export default function App() {
   const [settings, setSettings] = useState<AISettings>(loadSettings);
   const [knowledgeList, setKnowledgeList] = useState<KnowledgeItem[]>(loadKnowledge);
   const [memories, setMemories] = useState<UserMemory[]>(loadMemories);
-  const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
+
+  const [conversations, setConversations] = useState<Conversation[]>(initConversations);
+  const [activeConversationId, setActiveConversationId] = useState<string>(() => {
+    const saved = loadActiveConversationId();
+    const initial = initConversations();
+    return saved && initial.some((c) => c.id === saved) ? saved : initial[0].id;
+  });
+
+  const activeConversation =
+    conversations.find((c) => c.id === activeConversationId) || conversations[0];
+  const messages = activeConversation?.messages || [];
+
+  // Persists a full replacement of the conversation list plus whichever fields changed on the
+  // active one (messages/title/updatedAt) — every mutation in this file goes through this so
+  // conversations.length never drifts from what's in storage.
+  const commitConversation = (id: string, patch: Partial<Conversation>) => {
+    setConversations((prev) => {
+      const next = prev.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c));
+      saveConversations(next);
+      return next;
+    });
+  };
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingChunk, setStreamingChunk] = useState('');
@@ -79,17 +111,8 @@ export default function App() {
     saveSettings(newSettings);
   };
 
-  // Clear chat
-  const handleClearChat = () => {
-    if (window.confirm('Are you sure you want to clear the conversation history?')) {
-      setMessages([]);
-      saveMessages([]);
-    }
-  };
-
-  // Export conversation as JSON and Markdown
-  const handleExportChat = () => {
-    const markdownContent = messages
+  const conversationToMarkdown = (conv: Conversation): string =>
+    conv.messages
       .map(
         (m) =>
           `### ${m.role === 'user' ? 'User' : activePersona.name} (${new Date(
@@ -98,13 +121,70 @@ export default function App() {
       )
       .join('\n---\n\n');
 
-    const blob = new Blob([markdownContent], { type: 'text/markdown' });
+  const downloadMarkdown = (filename: string, content: string) => {
+    const blob = new Blob([content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `chat-export-${Date.now()}.md`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Start a brand-new, empty conversation and switch to it
+  const handleNewChat = () => {
+    const fresh = createConversation();
+    setConversations((prev) => {
+      const next = [...prev, fresh];
+      saveConversations(next);
+      return next;
+    });
+    setActiveConversationId(fresh.id);
+    saveActiveConversationId(fresh.id);
+  };
+
+  const handleSelectConversation = (id: string) => {
+    setActiveConversationId(id);
+    saveActiveConversationId(id);
+  };
+
+  const handleRenameConversation = (id: string, title: string) => {
+    commitConversation(id, { title, titleIsCustom: true });
+  };
+
+  const handleDeleteConversation = (id: string) => {
+    if (!window.confirm('Delete this conversation? This cannot be undone.')) return;
+    setConversations((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      const finalList = next.length > 0 ? next : [createConversation()];
+      saveConversations(finalList);
+      if (id === activeConversationId) {
+        setActiveConversationId(finalList[0].id);
+        saveActiveConversationId(finalList[0].id);
+      }
+      return finalList;
+    });
+  };
+
+  const handleExportConversation = (id: string) => {
+    const conv = conversations.find((c) => c.id === id);
+    if (!conv) return;
+    downloadMarkdown(`chat-export-${Date.now()}.md`, conversationToMarkdown(conv));
+  };
+
+  // No hosted backend to mint a real shareable link, so "share" copies a Markdown transcript to
+  // the clipboard — the user can paste it wherever they'd share a link (Discord, email, etc).
+  const handleShareConversation = async (id: string) => {
+    const conv = conversations.find((c) => c.id === id);
+    if (!conv) return;
+    const content = conversationToMarkdown(conv);
+    try {
+      await navigator.clipboard.writeText(content);
+      window.alert('Conversation copied to clipboard as Markdown — paste it anywhere to share.');
+    } catch (e) {
+      console.error('Clipboard write failed', e);
+      downloadMarkdown(`chat-share-${Date.now()}.md`, content);
+    }
   };
 
   // Stop generation
@@ -131,9 +211,9 @@ export default function App() {
       imageName: image?.name,
     };
 
+    const targetConversationId = activeConversationId;
     const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
-    saveMessages(updatedMessages);
+    commitConversation(targetConversationId, { messages: updatedMessages });
 
     // Auto-extract user memory and personal facts
     const intent = analyzePromptIntent(trimmedText);
@@ -189,8 +269,14 @@ export default function App() {
           },
           onComplete: (assistantMsg) => {
             const finalMessages = [...updatedMessages, assistantMsg];
-            setMessages(finalMessages);
-            saveMessages(finalMessages);
+            const conv = conversations.find((c) => c.id === targetConversationId);
+            const shouldAutoTitle = conv && !conv.titleIsCustom;
+            commitConversation(targetConversationId, {
+              messages: finalMessages,
+              ...(shouldAutoTitle
+                ? { title: deriveConversationTitle(finalMessages) || conv!.title }
+                : {}),
+            });
             setIsGenerating(false);
             setStreamingChunk('');
             setProgressStage('');
@@ -223,8 +309,7 @@ export default function App() {
     const actualIndex = messages.length - 1 - lastUserMsgIndex;
     const lastUserMsg = messages[actualIndex];
     const sliced = messages.slice(0, actualIndex);
-    setMessages(sliced);
-    saveMessages(sliced);
+    commitConversation(activeConversationId, { messages: sliced });
 
     handleSendMessage(
       lastUserMsg.content,
@@ -251,9 +336,18 @@ export default function App() {
           setIsAttentionOpen(true);
         }}
         onOpenApiIntegration={() => setIsApiModalOpen(true)}
-        onClearChat={handleClearChat}
-        onExportChat={handleExportChat}
-        messageCount={messages.length}
+      />
+
+      {/* Conversation list panel */}
+      <ConversationSidebar
+        conversations={conversations}
+        activeConversationId={activeConversationId}
+        onNewChat={handleNewChat}
+        onSelectConversation={handleSelectConversation}
+        onRenameConversation={handleRenameConversation}
+        onDeleteConversation={handleDeleteConversation}
+        onExportConversation={handleExportConversation}
+        onShareConversation={handleShareConversation}
       />
 
       {/* Main Chat Interface */}

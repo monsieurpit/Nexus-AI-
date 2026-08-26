@@ -173,6 +173,15 @@ export interface KnowledgeItem {
   createdAt: number;
 }
 
+export interface Conversation {
+  id: string;
+  title: string;
+  titleIsCustom: boolean; // true once the user manually renames it, so auto-titling never overwrites it again
+  messages: ChatMessage[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface UserMemory {
   id: string;
   key: string;

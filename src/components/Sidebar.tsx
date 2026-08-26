@@ -4,8 +4,6 @@ import {
   Sliders,
   BrainCircuit,
   Database,
-  Trash2,
-  Download,
   Flame,
   Search,
   Code2,
@@ -28,9 +26,6 @@ interface SidebarProps {
   onOpenKnowledge: () => void;
   onOpenAttention: () => void;
   onOpenApiIntegration: () => void;
-  onClearChat: () => void;
-  onExportChat: () => void;
-  messageCount: number;
 }
 
 function getPersonaIcon(id: ModelPersonaId): React.ReactNode {
@@ -106,9 +101,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenKnowledge,
   onOpenAttention,
   onOpenApiIntegration,
-  onClearChat,
-  onExportChat,
-  messageCount,
 }) => {
   return (
     <nav
@@ -158,22 +150,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       <div className="flex-1" />
-
-      {/* Chat management */}
-      {messageCount > 0 && (
-        <div className="flex flex-col items-center gap-2 pb-1 shrink-0">
-          <RailButton onClick={onExportChat} title="Export Conversation">
-            <Download className="w-5 h-5" />
-          </RailButton>
-          <RailButton
-            onClick={onClearChat}
-            title="Clear Conversation"
-            accentClassName="bg-rose-600 text-white"
-          >
-            <Trash2 className="w-5 h-5" />
-          </RailButton>
-        </div>
-      )}
     </nav>
   );
 };
