@@ -1110,6 +1110,21 @@ app.post('/api/v1/nexus', async (req, res) => {
     res.setHeader('X-Nexus-Queue-Wait-Ms', queuedExecution.waitTimeMs.toString());
     res.setHeader('X-Nexus-Process-Time-Ms', queuedExecution.processTimeMs.toString());
 
+    // Every successful request through this endpoint used to be completely silent — the only
+    // console output anywhere in this file is the one-time startup line and error/warning paths,
+    // so a healthy server processing real traffic all day produces an empty-looking Railway log,
+    // indistinguishable from "nothing is happening." One line per request: persona, whether the
+    // real LLM was actually reached or it fell back to template text (the single most useful fact
+    // for exactly the "is this actually working" question this line exists to answer), and timing.
+    const llmOutcome = queuedExecution.data.telemetry?.llmFailureReason
+      ? `fallback (${queuedExecution.data.telemetry.llmFailureReason})`
+      : queuedExecution.data.telemetry
+      ? `real LLM (${queuedExecution.data.telemetry.latencyMs}ms)`
+      : 'no LLM call (template/rule-based reply)';
+    console.log(
+      `[Nexus] "${userText.slice(0, 60)}" -> persona=${persona.id} ${llmOutcome} total=${queuedExecution.processTimeMs}ms`
+    );
+
     return res.json({
       ...queuedExecution.data,
       queueStats: {
