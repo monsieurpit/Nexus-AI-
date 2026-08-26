@@ -62,6 +62,19 @@ const ENGLISH_SIGNAL_WORDS = new Set([
   'explain', 'tell', 'see', 'show', 'please', 'thanks', 'thank', 'and', 'or', 'but', 'not',
   'yes', 'have', 'has', 'had', 'with', 'for', 'of', 'in', 'at', 'it', 'define',
   'definition', 'called', 'name', 'about',
+  // The wrong_language density check below runs on every response regardless of persona, but
+  // crashout-bot's own system prompt MANDATES at least 4 real swear words every single response
+  // ("no exceptions") — a short, genuinely-English, in-character reply can easily be dense enough
+  // with "fuck"/"shit"/"damn"/casual filler to crowd out the polite function words above entirely,
+  // even though every one of those words is unambiguously English (none double as a real Polish or
+  // Spanish word the way "on"/"my"/"to" do elsewhere in this file, so there's no risk of these
+  // making the INPUT-language router below — looksPolish() shares this same word set — wrongly
+  // read a genuinely Polish message as English). Observed live: a real, coherent, in-character
+  // "Hello, how are you?" reply got discarded by this exact check and replaced with canned fallback
+  // text, purely because its authentic slang-heavy voice didn't happen to contain enough of the
+  // original word list.
+  'fuck', 'fucking', 'fucked', 'shit', 'damn', 'goddamn', 'hell', 'ass', 'bitch', 'bro', 'man',
+  'yo', 'yeah', 'nah', 'gonna', 'wanna', 'gotta', 'lol', 'lmao', 'homie', 'dude',
 ]);
 const POLISH_DIACRITIC_REGEX = /[ąćęłńóśźż]/i;
 
