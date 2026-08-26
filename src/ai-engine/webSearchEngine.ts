@@ -599,6 +599,19 @@ export function shouldTriggerLiveWebSearch(
     // (429). Wider gap between verb and target than the "can you" case since these often have a
     // few words in between ("nut IN YO butt" vs. a direct object right after the verb).
     /\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b/i.test(q) ||
+    // "what does X have to do with Y" — a fixed English idiom that always means "why is X
+    // relevant/being brought up", a meta-callout about the conversation itself, never a real
+    // factual lookup. Observed live: "what does my question have to you being naked watching some
+    // shitty series" (the user calling out an off-topic tangent in the bot's own prior reply) got
+    // searched verbatim and rate-limited (429) — it starts with "what", so it passed the
+    // looks-like-a-question gate below despite being pure rhetorical callback, not a question
+    // about the world.
+    // "you"/"u" variant also covers a dropped-word typo of the idiom ("what does X have to YOU"
+    // instead of "have to do with you") — observed live exactly this way; the general "have to do
+    // with ANYTHING" form below wouldn't have caught the typo'd version since "do with" was
+    // missing entirely from the actual message.
+    /\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b/i.test(q) ||
+    /\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+do\s+with\b/i.test(q) ||
     // Polish opinion questions directed at the bot ("jak myślisz kto wygra..." = "what do you
     // think who'll win...", "co myślisz o..." = "what do you think about...") — same category as
     // the English "do you think" case above, just never had a Polish equivalent. Observed live:

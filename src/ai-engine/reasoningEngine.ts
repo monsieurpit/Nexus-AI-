@@ -127,8 +127,16 @@ const PHONE_NUMBER_REGEX =
 // (matched the bare "goon all day, don't judge me" chat-trigger template instead of actually
 // answering the "to what/who" the question asked) — this needed to reach the LLM-first personal-
 // question path instead of the generic slang-reaction shortcut.
+// "what does X have to (do with) you" added after "what does my question have to you being naked
+// watching some shitty series" — the user calling out an off-topic tangent in the bot's OWN prior
+// reply. This idiom always means "why is this relevant to you", never a real factual lookup, but
+// it starts with "what" so it read as question-shaped enough to reach corpus search/synthesis
+// anyway (which then answered with yet another unrelated tangent, FC 26 Ultimate Team, compounding
+// the original complaint). "do with" made optional — the reported message dropped it entirely
+// ("have to you", not "have to do with you"), which the stricter idiom-only form would have
+// missed. Mirrors webSearchEngine.ts's identical carve-out.
 const PERSONAL_QUESTION_REGEX =
-  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b/i;
+  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b|\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b/i;
 
 // Polish equivalent of PERSONAL_QUESTION_REGEX — never existed, so any personal yes/no question
 // aimed at the bot fell through to 'general' intent same as the English gap this whole block
