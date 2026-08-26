@@ -722,59 +722,59 @@ client.login(process.env.DISCORD_BOT_TOKEN);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-stone-200"
+        className="bg-[var(--nx-elevated)] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-[var(--nx-border)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-stone-200 flex items-center justify-between bg-stone-50/70">
+        <div className="px-6 py-4 border-b border-[var(--nx-border)] flex items-center justify-between bg-[var(--nx-surface)]/70">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center text-white shadow-sm">
               <Code2 className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-stone-900">
+                <h2 className="text-base font-bold text-[var(--nx-text)]">
                   Nexus AI & Discord Bot Integration Hub
                 </h2>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/40">
                   REST API v1 Live
                 </span>
               </div>
-              <p className="text-xs text-stone-500">
+              <p className="text-xs text-[var(--nx-text-faint)]">
                 Plug Nexus AI directly into your Discord bot with JavaScript & environment variables
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-100 transition"
+            className="p-2 text-[var(--nx-text-faint)] hover:text-[var(--nx-text-muted)] rounded-lg hover:bg-[var(--nx-elevated)] transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* API Key Bar */}
-        <div className="px-6 py-3 bg-violet-50/50 border-b border-violet-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="px-6 py-3 bg-violet-500/10 border-b border-violet-500/20 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 flex-1 min-w-[280px]">
-            <Key className="w-4 h-4 text-violet-600 shrink-0" />
-            <span className="font-semibold text-stone-700">Your Bot API Key:</span>
-            <code className="px-2.5 py-1 rounded-md bg-white border border-violet-200 font-mono text-violet-900 font-semibold truncate max-w-xs sm:max-w-md">
+            <Key className="w-4 h-4 text-violet-400 shrink-0" />
+            <span className="font-semibold text-[var(--nx-text-muted)]">Your Bot API Key:</span>
+            <code className="px-2.5 py-1 rounded-md bg-[var(--nx-elevated)] border border-violet-500/30 font-mono text-violet-300 font-semibold truncate max-w-xs sm:max-w-md">
               {apiKey}
             </code>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => handleCopy(apiKey, 'key')}
-              className="px-3 py-1.5 rounded-lg bg-white border border-violet-300 hover:bg-violet-100 text-violet-800 font-medium text-xs flex items-center gap-1.5 transition shadow-2xs"
+              className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated)] border border-violet-500/40 hover:bg-violet-500/20 text-violet-300 font-medium text-xs flex items-center gap-1.5 transition shadow-2xs"
             >
               {copiedSection === 'key' ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-emerald-700">Copied!</span>
+                  <span className="text-emerald-400">Copied!</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-3.5 h-3.5 text-violet-600" />
+                  <Copy className="w-3.5 h-3.5 text-violet-400" />
                   <span>Copy Key</span>
                 </>
               )}
@@ -790,13 +790,13 @@ client.login(process.env.DISCORD_BOT_TOKEN);
         </div>
 
         {/* Navigation Tabs */}
-        <div className="px-6 border-b border-stone-200 bg-white flex overflow-x-auto gap-1 text-xs">
+        <div className="px-6 border-b border-[var(--nx-border)] bg-[var(--nx-elevated)] flex overflow-x-auto gap-1 text-xs">
           <button
             onClick={() => setActiveTab('discord_bot')}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'discord_bot'
-                ? 'border-violet-600 text-violet-700'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-violet-600 text-violet-300'
+                : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
             <Bot className="w-4 h-4" />
@@ -806,8 +806,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             onClick={() => setActiveTab('nexus_sdk')}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'nexus_sdk'
-                ? 'border-violet-600 text-violet-700'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-violet-600 text-violet-300'
+                : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
             <FileCode className="w-4 h-4" />
@@ -820,11 +820,11 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             }}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'keys_manager'
-                ? 'border-violet-600 text-violet-700'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-violet-600 text-violet-300'
+                : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
-            <Key className="w-4 h-4 text-violet-600" />
+            <Key className="w-4 h-4 text-violet-400" />
             <span>API Keys & Capabilities</span>
           </button>
           <button
@@ -834,8 +834,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             }}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'railway_queue'
-                ? 'border-violet-600 text-violet-700'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-violet-600 text-violet-300'
+                : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
             <Zap className="w-4 h-4 text-amber-600" />
@@ -845,8 +845,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             onClick={() => setActiveTab('env_setup')}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'env_setup'
-                ? 'border-violet-600 text-violet-700'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-violet-600 text-violet-300'
+                : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
             <Terminal className="w-4 h-4" />
@@ -856,8 +856,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             onClick={() => setActiveTab('endpoints')}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'endpoints'
-                ? 'border-violet-600 text-violet-700'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-violet-600 text-violet-300'
+                : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
             <Server className="w-4 h-4" />
@@ -867,8 +867,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             onClick={() => setActiveTab('tester')}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'tester'
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-stone-500 hover:text-stone-800'
+                ? 'border-emerald-600 text-emerald-400'
+                : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
             <Play className="w-4 h-4 text-emerald-600" />
@@ -877,23 +877,23 @@ client.login(process.env.DISCORD_BOT_TOKEN);
         </div>
 
         {/* Content Area */}
-        <div className="p-6 overflow-y-auto flex-1 text-xs space-y-4 bg-stone-50/40">
+        <div className="p-6 overflow-y-auto flex-1 text-xs space-y-4 bg-[var(--nx-surface)]/40">
           {/* TAB 1: DISCORD BOT JAVASCRIPT */}
           {activeTab === 'discord_bot' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-                    <Bot className="w-4 h-4 text-violet-600" />
-                    Complete Discord.js v14 Bot Script (<code className="text-violet-700 font-mono">bot.js</code>)
+                  <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
+                    <Bot className="w-4 h-4 text-violet-400" />
+                    Complete Discord.js v14 Bot Script (<code className="text-violet-300 font-mono">bot.js</code>)
                   </h3>
-                  <p className="text-stone-500 text-[11px] mt-0.5">
+                  <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
                     Supports Nexus conversational AI, expressive natural swearing, Casseurt roast, Super Chill VIP mode, and RaidShield 21-rule automod protection.
                   </p>
                 </div>
                 <button
                   onClick={() => handleCopy(botJsCode, 'botjs')}
-                  className="px-3 py-1.5 rounded-lg bg-stone-900 text-white font-medium text-xs flex items-center gap-1.5 hover:bg-stone-800 transition"
+                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated-hover)] text-white font-medium text-xs flex items-center gap-1.5 hover:bg-stone-800 transition"
                 >
                   {copiedSection === 'botjs' ? (
                     <>
@@ -909,15 +909,15 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </button>
               </div>
 
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-[11px] flex items-start gap-2">
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300 text-[11px] flex items-start gap-2">
                 <Zap className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <strong>Quick Install:</strong> Run <code className="px-1.5 py-0.5 bg-amber-100 rounded font-mono font-bold">npm install discord.js dotenv</code> in your bot folder, create <code className="px-1.5 py-0.5 bg-amber-100 rounded font-mono font-bold">.env</code> and <code className="px-1.5 py-0.5 bg-amber-100 rounded font-mono font-bold">nexus-ai.js</code>, then run <code className="px-1.5 py-0.5 bg-amber-100 rounded font-mono font-bold">node bot.js</code>!
+                  <strong>Quick Install:</strong> Run <code className="px-1.5 py-0.5 bg-amber-500/15 rounded font-mono font-bold">npm install discord.js dotenv</code> in your bot folder, create <code className="px-1.5 py-0.5 bg-amber-500/15 rounded font-mono font-bold">.env</code> and <code className="px-1.5 py-0.5 bg-amber-500/15 rounded font-mono font-bold">nexus-ai.js</code>, then run <code className="px-1.5 py-0.5 bg-amber-500/15 rounded font-mono font-bold">node bot.js</code>!
                 </div>
               </div>
 
-              <div className="relative rounded-xl overflow-hidden border border-stone-800 bg-stone-950 text-stone-200">
-                <div className="px-4 py-2 bg-stone-900 border-b border-stone-800 flex items-center justify-between text-[11px] font-mono text-stone-400">
+              <div className="relative rounded-xl overflow-hidden border border-stone-800 bg-black/40 text-stone-200">
+                <div className="px-4 py-2 bg-[var(--nx-elevated-hover)] border-b border-stone-800 flex items-center justify-between text-[11px] font-mono text-[var(--nx-text-faint)]">
                   <span>bot.js (JavaScript / ES Module)</span>
                   <span>discord.js v14+</span>
                 </div>
@@ -933,17 +933,17 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-                    <FileCode className="w-4 h-4 text-violet-600" />
-                    Nexus AI Client Helper (<code className="text-violet-700 font-mono">nexus-ai.js</code>)
+                  <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
+                    <FileCode className="w-4 h-4 text-violet-400" />
+                    Nexus AI Client Helper (<code className="text-violet-300 font-mono">nexus-ai.js</code>)
                   </h3>
-                  <p className="text-stone-500 text-[11px] mt-0.5">
+                  <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
                     A clean, reusable JavaScript class that handles all HTTP requests to your Nexus engine and RaidShield automod.
                   </p>
                 </div>
                 <button
                   onClick={() => handleCopy(sdkHelperCode, 'sdk')}
-                  className="px-3 py-1.5 rounded-lg bg-stone-900 text-white font-medium text-xs flex items-center gap-1.5 hover:bg-stone-800 transition"
+                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated-hover)] text-white font-medium text-xs flex items-center gap-1.5 hover:bg-stone-800 transition"
                 >
                   {copiedSection === 'sdk' ? (
                     <>
@@ -959,8 +959,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </button>
               </div>
 
-              <div className="relative rounded-xl overflow-hidden border border-stone-800 bg-stone-950 text-stone-200">
-                <div className="px-4 py-2 bg-stone-900 border-b border-stone-800 flex items-center justify-between text-[11px] font-mono text-stone-400">
+              <div className="relative rounded-xl overflow-hidden border border-stone-800 bg-black/40 text-stone-200">
+                <div className="px-4 py-2 bg-[var(--nx-elevated-hover)] border-b border-stone-800 flex items-center justify-between text-[11px] font-mono text-[var(--nx-text-faint)]">
                   <span>nexus-ai.js</span>
                   <span>Pure JS / Node 18+ Fetch</span>
                 </div>
@@ -976,11 +976,11 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-                    <Key className="w-4 h-4 text-violet-600" />
+                  <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
+                    <Key className="w-4 h-4 text-violet-400" />
                     Registered API Keys & Feature Capabilities
                   </h3>
-                  <p className="text-stone-500 text-[11px] mt-0.5">
+                  <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
                     All API keys are automatically updated with full privileges for all the newest features: Multimodal Vision, Swear Engine, Strict SDK Rules, RaidShield 21 Rules, and FIFO waitlists.
                   </p>
                 </div>
@@ -1023,15 +1023,15 @@ client.login(process.env.DISCORD_BOT_TOKEN);
               </div>
 
               {/* Generate New Custom Key Form */}
-              <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-3">
-                <h4 className="font-bold text-stone-900 text-xs">Issue New Scoped API Key</h4>
+              <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-3">
+                <h4 className="font-bold text-[var(--nx-text)] text-xs">Issue New Scoped API Key</h4>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={newKeyLabel}
                     onChange={(e) => setNewKeyLabel(e.target.value)}
                     placeholder="Bot identifier (e.g. discord_bot, staging_server)"
-                    className="flex-1 text-xs px-3 py-2 rounded-lg border border-stone-300 bg-white font-mono"
+                    className="flex-1 text-xs px-3 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)] font-mono"
                   />
                   <button
                     onClick={() => handleGenerateNewKey()}
@@ -1044,25 +1044,25 @@ client.login(process.env.DISCORD_BOT_TOKEN);
               </div>
 
               {/* Active Keys Table */}
-              <div className="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-2xs">
-                <div className="px-4 py-2.5 bg-stone-100/80 border-b border-stone-200 font-bold text-stone-700 text-[11px] flex justify-between items-center">
+              <div className="bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl overflow-hidden shadow-2xs">
+                <div className="px-4 py-2.5 bg-[var(--nx-elevated)]/80 border-b border-[var(--nx-border)] font-bold text-[var(--nx-text-muted)] text-[11px] flex justify-between items-center">
                   <span>Registered Active Keys ({keyList.length})</span>
                   <span>Status & Actions</span>
                 </div>
-                <div className="divide-y divide-stone-100">
+                <div className="divide-y divide-[var(--nx-border-subtle)]">
                   {keyList.map((k, idx) => (
-                    <div key={k.key || idx} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-stone-50/60 transition">
+                    <div key={k.key || idx} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-[var(--nx-surface)]/60 transition">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <code className="px-2 py-0.5 rounded bg-stone-100 border border-stone-200 font-mono font-bold text-violet-900 text-xs">
+                          <code className="px-2 py-0.5 rounded bg-[var(--nx-elevated)] border border-[var(--nx-border)] font-mono font-bold text-violet-300 text-xs">
                             {k.key}
                           </code>
-                          <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold uppercase">
+                          <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 text-[9px] font-bold uppercase">
                             {k.status || 'Active'}
                           </span>
                         </div>
-                        <div className="text-[10px] text-stone-500 flex flex-wrap gap-2">
-                          <span>Label: <strong className="text-stone-700">{k.label}</strong></span>
+                        <div className="text-[10px] text-[var(--nx-text-faint)] flex flex-wrap gap-2">
+                          <span>Label: <strong className="text-[var(--nx-text-muted)]">{k.label}</strong></span>
                           <span>•</span>
                           <span>Created: {new Date(k.created).toLocaleTimeString()}</span>
                         </div>
@@ -1073,9 +1073,9 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                             setApiKey(k.key);
                             handleCopy(k.key, `table_${idx}`);
                           }}
-                          className="px-2.5 py-1 rounded bg-stone-100 hover:bg-stone-200 text-stone-700 text-[11px] font-medium flex items-center gap-1 transition"
+                          className="px-2.5 py-1 rounded bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated-hover)] text-[var(--nx-text-muted)] text-[11px] font-medium flex items-center gap-1 transition"
                         >
-                          {copiedSection === `table_${idx}` ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-stone-500" />}
+                          {copiedSection === `table_${idx}` ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-[var(--nx-text-faint)]" />}
                           <span>{apiKey === k.key ? 'Selected & Copied' : 'Select Key'}</span>
                         </button>
                       </div>
@@ -1090,79 +1090,79 @@ client.login(process.env.DISCORD_BOT_TOKEN);
           {activeTab === 'railway_queue' && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
                   <Zap className="w-4 h-4 text-amber-600" />
                   Railway Deployment & Concurrency Waitlist Engine
                 </h3>
-                <p className="text-stone-500 text-[11px] mt-0.5">
+                <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
                   Nexus AI is equipped with automatic FIFO queue waitlists. When multiple users or servers bombard your Discord bot with messages or image scans simultaneously, requests queue safely and execute sequentially without memory crashes or hanging timeouts.
                 </p>
               </div>
 
               {/* Railway Variables Checklist */}
-              <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-3">
+              <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-stone-900 text-xs flex items-center gap-2">
-                    <Server className="w-3.5 h-3.5 text-violet-600" />
+                  <h4 className="font-bold text-[var(--nx-text)] text-xs flex items-center gap-2">
+                    <Server className="w-3.5 h-3.5 text-violet-400" />
                     Railway Dashboard Environment Variables
                   </h4>
-                  <span className="text-[10px] bg-violet-50 text-violet-700 px-2 py-0.5 rounded-full font-mono font-medium">
+                  <span className="text-[10px] bg-violet-500/10 text-violet-300 px-2 py-0.5 rounded-full font-mono font-medium">
                     Railway &gt; Your Project &gt; Variables
                   </span>
                 </div>
-                <p className="text-stone-600 text-[11px]">
+                <p className="text-[var(--nx-text-muted)] text-[11px]">
                   Add these 4 variables to your Discord Bot service in Railway:
                 </p>
 
                 <div className="space-y-2 font-mono text-[11px]">
-                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-lg flex items-center justify-between">
+                  <div className="p-2.5 bg-[var(--nx-surface)] border border-[var(--nx-border)] rounded-lg flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-stone-900">DISCORD_BOT_TOKEN</span>
-                      <span className="text-stone-500 block text-[10px] font-sans">Your bot token from Discord Developer Portal</span>
+                      <span className="font-bold text-[var(--nx-text)]">DISCORD_BOT_TOKEN</span>
+                      <span className="text-[var(--nx-text-faint)] block text-[10px] font-sans">Your bot token from Discord Developer Portal</span>
                     </div>
-                    <span className="text-stone-600 bg-white px-2 py-1 border border-stone-200 rounded text-[10px]">Required</span>
+                    <span className="text-[var(--nx-text-muted)] bg-[var(--nx-elevated)] px-2 py-1 border border-[var(--nx-border)] rounded text-[10px]">Required</span>
                   </div>
 
-                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-lg flex items-center justify-between">
+                  <div className="p-2.5 bg-[var(--nx-surface)] border border-[var(--nx-border)] rounded-lg flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-stone-900">NEXUS_API_KEY</span>
-                      <span className="text-stone-500 block text-[10px] font-sans">{apiKey}</span>
+                      <span className="font-bold text-[var(--nx-text)]">NEXUS_API_KEY</span>
+                      <span className="text-[var(--nx-text-faint)] block text-[10px] font-sans">{apiKey}</span>
                     </div>
                     <button
                       onClick={() => handleCopy(apiKey, 'rw_key')}
-                      className="px-2 py-1 text-[10px] bg-white hover:bg-stone-100 border border-stone-200 rounded text-stone-700 flex items-center gap-1"
+                      className="px-2 py-1 text-[10px] bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded text-[var(--nx-text-muted)] flex items-center gap-1"
                     >
                       {copiedSection === 'rw_key' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                       <span>Copy</span>
                     </button>
                   </div>
 
-                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-lg flex items-center justify-between">
+                  <div className="p-2.5 bg-[var(--nx-surface)] border border-[var(--nx-border)] rounded-lg flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-stone-900">NEXUS_API_URL</span>
-                      <span className="text-stone-500 block text-[10px] font-sans">{apiBaseUrl} (or your Railway API URL)</span>
+                      <span className="font-bold text-[var(--nx-text)]">NEXUS_API_URL</span>
+                      <span className="text-[var(--nx-text-faint)] block text-[10px] font-sans">{apiBaseUrl} (or your Railway API URL)</span>
                     </div>
                     <button
                       onClick={() => handleCopy(apiBaseUrl, 'rw_url')}
-                      className="px-2 py-1 text-[10px] bg-white hover:bg-stone-100 border border-stone-200 rounded text-stone-700 flex items-center gap-1"
+                      className="px-2 py-1 text-[10px] bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded text-[var(--nx-text-muted)] flex items-center gap-1"
                     >
                       {copiedSection === 'rw_url' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                       <span>Copy</span>
                     </button>
                   </div>
 
-                  <div className="p-2.5 bg-stone-50 border border-stone-200 rounded-lg flex items-center justify-between">
+                  <div className="p-2.5 bg-[var(--nx-surface)] border border-[var(--nx-border)] rounded-lg flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-stone-900">SUPER_CHILL_USER_ID</span>
-                      <span className="text-stone-500 block text-[10px] font-sans">1394001641899954368</span>
+                      <span className="font-bold text-[var(--nx-text)]">SUPER_CHILL_USER_ID</span>
+                      <span className="text-[var(--nx-text-faint)] block text-[10px] font-sans">1394001641899954368</span>
                     </div>
-                    <span className="text-stone-600 bg-white px-2 py-1 border border-stone-200 rounded text-[10px]">VIP Homie</span>
+                    <span className="text-[var(--nx-text-muted)] bg-[var(--nx-elevated)] px-2 py-1 border border-[var(--nx-border)] rounded text-[10px]">VIP Homie</span>
                   </div>
                 </div>
               </div>
 
               {/* Live Waitlist Queue Monitor & Stress Test */}
-              <div className="p-4 bg-stone-900 border border-stone-800 rounded-xl text-white space-y-4">
+              <div className="p-4 bg-[var(--nx-elevated-hover)] border border-stone-800 rounded-xl text-white space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Layers className="w-4 h-4 text-amber-400" />
@@ -1172,7 +1172,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                     <button
                       onClick={fetchQueueStatus}
                       disabled={queueLoading}
-                      className="px-2.5 py-1 text-[10px] rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 flex items-center gap-1 font-mono transition"
+                      className="px-2.5 py-1 text-[10px] rounded-lg bg-stone-800 hover:bg-stone-700 text-[var(--nx-text-faint)] flex items-center gap-1 font-mono transition"
                     >
                       <RotateCw className={`w-3 h-3 ${queueLoading ? 'animate-spin' : ''}`} />
                       <span>Refresh</span>
@@ -1191,26 +1191,26 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 {/* Metrics Badges */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
                   <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
-                    <div className="text-[10px] text-stone-400">Waiting in Line</div>
+                    <div className="text-[10px] text-[var(--nx-text-faint)]">Waiting in Line</div>
                     <div className="text-base font-bold text-amber-400">{queueStats?.pendingInWaitlist ?? 0}</div>
                   </div>
                   <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
-                    <div className="text-[10px] text-stone-400">Total Processed</div>
+                    <div className="text-[10px] text-[var(--nx-text-faint)]">Total Processed</div>
                     <div className="text-base font-bold text-emerald-400">{queueStats?.totalProcessed ?? 0}</div>
                   </div>
                   <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
-                    <div className="text-[10px] text-stone-400">Peak Queue Length</div>
+                    <div className="text-[10px] text-[var(--nx-text-faint)]">Peak Queue Length</div>
                     <div className="text-base font-bold text-sky-400">{queueStats?.peakQueueLength ?? 0}</div>
                   </div>
                   <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
-                    <div className="text-[10px] text-stone-400">Avg Wait Time</div>
+                    <div className="text-[10px] text-[var(--nx-text-faint)]">Avg Wait Time</div>
                     <div className="text-base font-bold text-violet-400">{Math.round(queueStats?.avgWaitTimeMs ?? 0)} ms</div>
                   </div>
                 </div>
 
                 {burstResults && (
-                  <div className="p-3 bg-stone-950 border border-stone-800 rounded-lg font-mono text-[10px] text-emerald-400 max-h-48 overflow-y-auto">
-                    <div className="text-stone-300 font-bold mb-1">Burst Test Completed:</div>
+                  <div className="p-3 bg-black/40 border border-stone-800 rounded-lg font-mono text-[10px] text-emerald-400 max-h-48 overflow-y-auto">
+                    <div className="text-[var(--nx-text-faint)] font-bold mb-1">Burst Test Completed:</div>
                     <pre>{JSON.stringify(burstResults, null, 2)}</pre>
                   </div>
                 )}
@@ -1223,17 +1223,17 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-                    <Terminal className="w-4 h-4 text-violet-600" />
-                    Bot Environment Variables (<code className="text-violet-700 font-mono">.env</code>)
+                  <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-violet-400" />
+                    Bot Environment Variables (<code className="text-violet-300 font-mono">.env</code>)
                   </h3>
-                  <p className="text-stone-500 text-[11px] mt-0.5">
-                    Save this as a <code className="font-mono text-stone-800">.env</code> file in your Discord bot project directory.
+                  <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
+                    Save this as a <code className="font-mono text-[var(--nx-text)]">.env</code> file in your Discord bot project directory.
                   </p>
                 </div>
                 <button
                   onClick={() => handleCopy(envFileCode, 'env')}
-                  className="px-3 py-1.5 rounded-lg bg-stone-900 text-white font-medium text-xs flex items-center gap-1.5 hover:bg-stone-800 transition"
+                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated-hover)] text-white font-medium text-xs flex items-center gap-1.5 hover:bg-stone-800 transition"
                 >
                   {copiedSection === 'env' ? (
                     <>
@@ -1249,8 +1249,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </button>
               </div>
 
-              <div className="relative rounded-xl overflow-hidden border border-stone-800 bg-stone-950 text-stone-200">
-                <div className="px-4 py-2 bg-stone-900 border-b border-stone-800 flex items-center justify-between text-[11px] font-mono text-stone-400">
+              <div className="relative rounded-xl overflow-hidden border border-stone-800 bg-black/40 text-stone-200">
+                <div className="px-4 py-2 bg-[var(--nx-elevated-hover)] border-b border-stone-800 flex items-center justify-between text-[11px] font-mono text-[var(--nx-text-faint)]">
                   <span>.env</span>
                   <span>Configuration</span>
                 </div>
@@ -1259,20 +1259,20 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </pre>
               </div>
 
-              <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-2">
-                <h4 className="font-bold text-stone-900">Variable Explanations:</h4>
-                <ul className="list-disc list-inside space-y-1 text-stone-600 text-[11px]">
+              <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-2">
+                <h4 className="font-bold text-[var(--nx-text)]">Variable Explanations:</h4>
+                <ul className="list-disc list-inside space-y-1 text-[var(--nx-text-muted)] text-[11px]">
                   <li>
-                    <strong className="text-stone-800">DISCORD_BOT_TOKEN</strong>: Found in Discord Developer Portal &gt; Applications &gt; Bot &gt; Reset Token.
+                    <strong className="text-[var(--nx-text)]">DISCORD_BOT_TOKEN</strong>: Found in Discord Developer Portal &gt; Applications &gt; Bot &gt; Reset Token.
                   </li>
                   <li>
-                    <strong className="text-stone-800">NEXUS_API_URL</strong>: The base URL of your running AI engine ({apiBaseUrl}).
+                    <strong className="text-[var(--nx-text)]">NEXUS_API_URL</strong>: The base URL of your running AI engine ({apiBaseUrl}).
                   </li>
                   <li>
-                    <strong className="text-stone-800">NEXUS_API_KEY</strong>: The authentication secret key that connects your bot to the AI server.
+                    <strong className="text-[var(--nx-text)]">NEXUS_API_KEY</strong>: The authentication secret key that connects your bot to the AI server.
                   </li>
                   <li>
-                    <strong className="text-stone-800">SUPER_CHILL_USER_ID</strong>: <code className="font-mono text-violet-700">1394001641899954368</code> (activates ultra-chill VIP homie mode).
+                    <strong className="text-[var(--nx-text)]">SUPER_CHILL_USER_ID</strong>: <code className="font-mono text-violet-300">1394001641899954368</code> (activates ultra-chill VIP homie mode).
                   </li>
                 </ul>
               </div>
@@ -1283,28 +1283,28 @@ client.login(process.env.DISCORD_BOT_TOKEN);
           {activeTab === 'endpoints' && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-sm font-bold text-stone-900">Available REST API Endpoints</h3>
-                <p className="text-stone-500 text-[11px] mt-0.5">
+                <h3 className="text-sm font-bold text-[var(--nx-text)]">Available REST API Endpoints</h3>
+                <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
                   Connect using standard HTTP POST requests with JSON payloads and Bearer token headers.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 gap-3">
                 {/* 1. Nexus endpoint */}
-                <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-2">
+                <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-violet-100 text-violet-800 text-[11px]">
+                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-violet-500/20 text-violet-300 text-[11px]">
                         POST
                       </span>
-                      <code className="font-mono font-bold text-stone-900 text-xs">/api/v1/nexus</code>
+                      <code className="font-mono font-bold text-[var(--nx-text)] text-xs">/api/v1/nexus</code>
                     </div>
-                    <span className="text-[11px] text-violet-700 font-medium">Discord Homie AI</span>
+                    <span className="text-[11px] text-violet-300 font-medium">Discord Homie AI</span>
                   </div>
-                  <p className="text-[11px] text-stone-600">
+                  <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Generates casual, expressive swearing, accurate answers, Casseurt roasts, and Super Chill VIP responses.
                   </p>
-                  <pre className="p-3 bg-stone-900 text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
+                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
 {`// Request Body
 {
   "prompt": "How do I center a div in CSS?",
@@ -1323,20 +1323,20 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </div>
 
                 {/* 2. RaidShield endpoint */}
-                <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-2">
+                <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-emerald-100 text-emerald-800 text-[11px]">
+                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-emerald-500/15 text-emerald-400 text-[11px]">
                         POST
                       </span>
-                      <code className="font-mono font-bold text-stone-900 text-xs">/api/v1/raidshield</code>
+                      <code className="font-mono font-bold text-[var(--nx-text)] text-xs">/api/v1/raidshield</code>
                     </div>
-                    <span className="text-[11px] text-emerald-700 font-medium">21-Hard-Rules Security</span>
+                    <span className="text-[11px] text-emerald-400 font-medium">21-Hard-Rules Security</span>
                   </div>
-                  <p className="text-[11px] text-stone-600">
+                  <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Evaluates Discord messages against all 21 hard security rules, outputs structured JSON with classification and confidence.
                   </p>
-                  <pre className="p-3 bg-stone-900 text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
+                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
 {`// Request Body
 {
   "messageText": "FREE NITRO: http://dlscord.gift/drop @everyone",
@@ -1354,20 +1354,20 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </div>
 
                 {/* 3. Vision Analyze endpoint */}
-                <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-2">
+                <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-purple-100 text-purple-800 text-[11px]">
+                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-purple-500/15 text-purple-400 text-[11px]">
                         POST
                       </span>
-                      <code className="font-mono font-bold text-stone-900 text-xs">/api/v1/vision/analyze</code>
+                      <code className="font-mono font-bold text-[var(--nx-text)] text-xs">/api/v1/vision/analyze</code>
                     </div>
-                    <span className="text-[11px] text-purple-700 font-medium">Multimodal Vision & OCR</span>
+                    <span className="text-[11px] text-purple-400 font-medium">Multimodal Vision & OCR</span>
                   </div>
-                  <p className="text-[11px] text-stone-600">
+                  <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Directly analyzes screenshots, images, QR codes, or attachments via Nexus autonomous vision and threat inspection.
                   </p>
-                  <pre className="p-3 bg-stone-900 text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
+                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
 {`// Request Body
 {
   "imageUrl": "https://example.com/nitro-scam-screenshot.png", // or base64 data URL
@@ -1383,36 +1383,36 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </div>
 
                 {/* 4. Gemini-Style endpoint */}
-                <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-2">
+                <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-blue-100 text-blue-800 text-[11px]">
+                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-blue-500/15 text-blue-400 text-[11px]">
                         POST
                       </span>
-                      <code className="font-mono font-bold text-stone-900 text-xs">/api/v1/generate</code>
+                      <code className="font-mono font-bold text-[var(--nx-text)] text-xs">/api/v1/generate</code>
                     </div>
-                    <span className="text-[11px] text-blue-700 font-medium">Gemini-Compatible Format</span>
+                    <span className="text-[11px] text-blue-400 font-medium">Gemini-Compatible Format</span>
                   </div>
-                  <p className="text-[11px] text-stone-600">
+                  <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Supports Google GenAI / Gemini SDK payload formats with <code className="font-mono">contents</code>, <code className="font-mono">generationConfig</code>, and candidates response schema.
                   </p>
                 </div>
 
                 {/* 5. Zero-API-Key Web Search endpoint */}
-                <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-2">
+                <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-cyan-100 text-cyan-800 text-[11px]">
+                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-cyan-500/15 text-cyan-400 text-[11px]">
                         POST
                       </span>
-                      <code className="font-mono font-bold text-stone-900 text-xs">/api/v1/web/search</code>
+                      <code className="font-mono font-bold text-[var(--nx-text)] text-xs">/api/v1/web/search</code>
                     </div>
-                    <span className="text-[11px] text-cyan-700 font-medium font-semibold">Zero-API Live Google Search</span>
+                    <span className="text-[11px] text-cyan-400 font-medium font-semibold">Zero-API Live Google Search</span>
                   </div>
-                  <p className="text-[11px] text-stone-600">
+                  <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Search Google, DuckDuckGo & Wikipedia live with infinite requests per day and zero external API dependencies.
                   </p>
-                  <pre className="p-3 bg-stone-900 text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
+                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
 {`// Request Body
 {
   "query": "Who won the 2024 UEFA Champions League?",
@@ -1447,29 +1447,29 @@ client.login(process.env.DISCORD_BOT_TOKEN);
           {activeTab === 'tester' && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
                   <Play className="w-4 h-4 text-emerald-600" />
                   Interactive API Endpoint Tester
                 </h3>
-                <p className="text-stone-500 text-[11px] mt-0.5">
+                <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
                   Test your live server endpoints in real-time right here before deploying your Discord bot!
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Request Inputs */}
-                <div className="p-4 bg-white border border-stone-200 rounded-xl space-y-3">
-                  <h4 className="font-bold text-stone-900 text-xs">Request Configuration</h4>
+                <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-3">
+                  <h4 className="font-bold text-[var(--nx-text)] text-xs">Request Configuration</h4>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[11px] font-semibold text-stone-700 block mb-1">
+                      <label className="text-[11px] font-semibold text-[var(--nx-text-muted)] block mb-1">
                         Endpoint
                       </label>
                       <select
                         value={testerEndpoint}
                         onChange={(e) => setTesterEndpoint(e.target.value as any)}
-                        className="w-full text-xs px-2.5 py-2 rounded-lg border border-stone-300 bg-white font-mono"
+                        className="w-full text-xs px-2.5 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)] font-mono"
                       >
                         <option value="/api/v1/nexus">POST /api/v1/nexus (Discord AI)</option>
                         <option value="/api/v1/web/search">POST /api/v1/web/search (Live Google Search)</option>
@@ -1480,13 +1480,13 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                     </div>
 
                     <div>
-                      <label className="text-[11px] font-semibold text-stone-700 block mb-1">
+                      <label className="text-[11px] font-semibold text-[var(--nx-text-muted)] block mb-1">
                         AI Persona / Mode
                       </label>
                       <select
                         value={testerPersona}
                         onChange={(e) => setTesterPersona(e.target.value)}
-                        className="w-full text-xs px-2.5 py-2 rounded-lg border border-stone-300 bg-white font-mono font-medium text-stone-800"
+                        className="w-full text-xs px-2.5 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)] font-mono font-medium text-[var(--nx-text)]"
                       >
                         <option value="nexus-homie">🔥 Nexus Homie (Default)</option>
                         <option value="crashout-bot">🤬 Crashout Bot (Rage)</option>
@@ -1501,7 +1501,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-semibold text-stone-700 block mb-1">
+                    <label className="text-[11px] font-semibold text-[var(--nx-text-muted)] block mb-1">
                       Quick Test Presets
                     </label>
                     <div className="flex flex-wrap gap-1.5">
@@ -1514,7 +1514,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded text-[10px] font-semibold text-cyan-800"
+                        className="px-2 py-1 bg-cyan-500/10 hover:bg-cyan-500/15 border border-cyan-500/30 rounded text-[10px] font-semibold text-cyan-400"
                       >
                         🌐 Live Web Search
                       </button>
@@ -1527,7 +1527,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded text-[10px] font-semibold text-emerald-800"
+                        className="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 rounded text-[10px] font-semibold text-emerald-400"
                       >
                         🧮 Math (1337*42)
                       </button>
@@ -1540,7 +1540,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded text-[10px] font-semibold text-blue-800"
+                        className="px-2 py-1 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/30 rounded text-[10px] font-semibold text-blue-400"
                       >
                         🍎 Apple from Bowl
                       </button>
@@ -1553,7 +1553,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-red-50 hover:bg-red-100 border border-red-200 rounded text-[10px] font-semibold text-red-800"
+                        className="px-2 py-1 bg-red-500/10 hover:bg-red-500/15 border border-red-500/30 rounded text-[10px] font-semibold text-red-400"
                       >
                         🤬 Crashout Mode
                       </button>
@@ -1566,7 +1566,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded text-[10px] font-semibold text-amber-800"
+                        className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 rounded text-[10px] font-semibold text-amber-400"
                       >
                         🔥 Roast Casseurt
                       </button>
@@ -1579,7 +1579,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded text-[10px] font-semibold text-violet-800"
+                        className="px-2 py-1 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded text-[10px] font-semibold text-violet-300"
                       >
                         👑 VIP Homie
                       </button>
@@ -1591,7 +1591,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('99887766');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded text-[10px] font-semibold text-rose-800"
+                        className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/30 rounded text-[10px] font-semibold text-rose-400"
                       >
                         🛡️ Nitro Scam Test
                       </button>
@@ -1599,33 +1599,33 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-semibold text-stone-700 block mb-1">
+                    <label className="text-[11px] font-semibold text-[var(--nx-text-muted)] block mb-1">
                       Prompt / Message Content
                     </label>
                     <textarea
                       rows={2}
                       value={testerPrompt}
                       onChange={(e) => setTesterPrompt(e.target.value)}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-stone-300 bg-white font-mono"
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)] font-mono"
                       placeholder="e.g. Do you like Casseurt?"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-semibold text-stone-700 block mb-1">
+                    <label className="text-[11px] font-semibold text-[var(--nx-text-muted)] block mb-1">
                       Optional Image URL / Data URL
                     </label>
                     <input
                       type="text"
                       value={testerImageUrl}
                       onChange={(e) => setTesterImageUrl(e.target.value)}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-stone-300 bg-white font-mono"
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)] font-mono"
                       placeholder="https://... or data:image/png;base64,..."
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-semibold text-stone-700 block mb-1">
+                    <label className="text-[11px] font-semibold text-[var(--nx-text-muted)] block mb-1">
                       Author Discord User ID
                     </label>
                     <div className="flex gap-2">
@@ -1633,7 +1633,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                         type="text"
                         value={testerAuthorId}
                         onChange={(e) => setTesterAuthorId(e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-stone-300 bg-white font-mono"
+                        className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)] font-mono"
                         placeholder="e.g. 1394001641899954368"
                       />
                       <button
@@ -1643,7 +1643,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                             testerAuthorId === '1394001641899954368' ? '999888777' : '1394001641899954368'
                           )
                         }
-                        className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-stone-300 bg-stone-100 hover:bg-stone-200 whitespace-nowrap cursor-pointer"
+                        className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated-hover)] whitespace-nowrap cursor-pointer"
                       >
                         {testerAuthorId === '1394001641899954368' ? 'VIP Homie' : 'Normal User'}
                       </button>
@@ -1672,8 +1672,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </div>
 
                 {/* Response Output */}
-                <div className="p-4 bg-stone-900 border border-stone-800 rounded-xl flex flex-col">
-                  <div className="flex items-center justify-between pb-2 border-b border-stone-800 text-[11px] font-mono text-stone-400">
+                <div className="p-4 bg-[var(--nx-elevated-hover)] border border-stone-800 rounded-xl flex flex-col">
+                  <div className="flex items-center justify-between pb-2 border-b border-stone-800 text-[11px] font-mono text-[var(--nx-text-faint)]">
                     <span>Live JSON Response</span>
                     {testerResult && (
                       <button
@@ -1687,13 +1687,13 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                   </div>
                   <div className="flex-1 overflow-y-auto pt-3">
                     {testerLoading && (
-                      <div className="h-full flex items-center justify-center text-stone-500 font-mono text-xs">
+                      <div className="h-full flex items-center justify-center text-[var(--nx-text-faint)] font-mono text-xs">
                         Connecting to server...
                       </div>
                     )}
                     {!testerLoading && !testerResult && (
-                      <div className="h-full flex flex-col items-center justify-center text-stone-500 font-mono text-xs p-4 text-center">
-                        <Server className="w-8 h-8 text-stone-700 mb-2" />
+                      <div className="h-full flex flex-col items-center justify-center text-[var(--nx-text-faint)] font-mono text-xs p-4 text-center">
+                        <Server className="w-8 h-8 text-[var(--nx-text-muted)] mb-2" />
                         <span>Click &quot;Send HTTP POST Request&quot; to test this endpoint live.</span>
                       </div>
                     )}
@@ -1710,14 +1710,14 @@ client.login(process.env.DISCORD_BOT_TOKEN);
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-stone-200 bg-stone-50 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2 text-stone-500">
-            <Server className="w-3.5 h-3.5 text-stone-400" />
+        <div className="px-6 py-3 border-t border-[var(--nx-border)] bg-[var(--nx-surface)] flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 text-[var(--nx-text-faint)]">
+            <Server className="w-3.5 h-3.5 text-[var(--nx-text-faint)]" />
             <span>Server Running on Port 3000 • Ready for Discord Bot Connections</span>
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-stone-900 text-white font-medium text-xs hover:bg-stone-800 transition"
+            className="px-4 py-2 rounded-xl bg-[var(--nx-elevated-hover)] text-white font-medium text-xs hover:bg-stone-800 transition"
           >
             Done
           </button>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { ModelCustomizerModal } from './components/ModelCustomizerModal';
 import { KnowledgeTrainerModal } from './components/KnowledgeTrainerModal';
@@ -229,9 +229,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white">
-      {/* Header */}
-      <Header
+    <div className="h-screen bg-[var(--nx-bg)] text-[var(--nx-text)] flex font-sans antialiased selection:bg-[var(--nx-accent)] selection:text-white">
+      {/* Sidebar navigation */}
+      <Sidebar
         settings={settings}
         activePersona={activePersona}
         onSelectPersona={handleSelectPersona}
@@ -248,7 +248,7 @@ export default function App() {
       />
 
       {/* Main Chat Interface */}
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col min-w-0">
         <ChatView
           messages={messages}
           isGenerating={isGenerating}
