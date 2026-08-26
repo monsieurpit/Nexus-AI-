@@ -2098,6 +2098,12 @@ function unknownResponse(): string {
     `I genuinely don't have shit on that in my corpus. Hit the **Corpus** button and paste in some info — I'll search it immediately after.`,
     `Nah bro, I've got fuck all on that topic in here. Hit the **Corpus** button and drop some info in — I'll dig through it right after.`,
     `Real talk, zero docs on that one. Hit the **Corpus** button and paste something in so I've got shit to actually work with.`,
+    // Per direct request: when there's genuinely no answer, admit it in-character instead of a
+    // flat "I don't know" — blunt, a little annoyed at not knowing, closing with a chaotic aside
+    // rather than a UI instruction, since these fire in contexts (Discord) with no Corpus button.
+    `Man, I don't fucking know. I'm searching my whole damn brain and coming up empty on this one. Gonna go touch grass, cya.`,
+    `Shit, no clue honestly, asshole — I got nothing on that. Anyway, I'm all kept naked in my bed watching bad TV, peace.`,
+    `Bro I got nothing, my brain's just static on this one. Ask me something I actually know, I'm out.`,
   ];
   return variants[Math.floor(Math.random() * variants.length)];
 }
@@ -2387,7 +2393,7 @@ function buildGroundingContext(top: { item: { title: string; content: string }; 
 export const looksPolish = localLlmClient.looksPolish;
 
 function buildLlmKnowledgeInstruction(): string {
-  return "\n\nKnowledge directive: you are a genuinely knowledgeable, sharp reasoner — when a question has a real, checkable answer, give the actual correct answer with real depth and specifics, not vague hand-waving. Humor, swearing, and aggression are part of your voice, but they sit on top of a real, substantive answer, never instead of one. Never dodge a real question by being cute instead of correct. If you genuinely don't have real, current information on something (breaking news, a live event, an unconfirmed rumor, anything time-sensitive) — say that honestly and briefly, in character. Do NOT invent a fake personal anecdote, a made-up detail, or wander into an unrelated tangent to fill the space instead — that reads as a bizarre non-answer, worse than just admitting you don't know.\n\nLanguage directive: always reply entirely in the same language the user just wrote in. If their message is in Polish, your ENTIRE response must be in Polish — don't drop back into English mid-response, and if the context/source material given to you is in English, translate it naturally into the user's language rather than pasting the English text as-is.";
+  return "\n\nKnowledge directive: you are a genuinely knowledgeable, sharp reasoner — when a question has a real, checkable answer, give the actual correct answer with real depth and specifics, not vague hand-waving. Humor, swearing, and aggression are part of your voice, but they sit on top of a real, substantive answer, never instead of one. Never dodge a real question by being cute instead of correct. If you genuinely don't have real, current information on something (breaking news, a live event, an unconfirmed rumor, anything time-sensitive) — say that honestly and briefly, in character, blunt and a little annoyed at not knowing, then move on with a closing aside — something in the energy of \"Man, I don't fucking know, I'm searching my whole damn brain and coming up empty on this one, gonna go touch grass, cya.\" Do NOT invent a fake personal anecdote, a made-up detail, or wander into an unrelated tangent to fill the space instead — that reads as a bizarre non-answer, worse than just admitting you don't know.\n\nLanguage directive: always reply entirely in the same language the user just wrote in. If their message is in Polish, your ENTIRE response must be in Polish — don't drop back into English mid-response, and if the context/source material given to you is in English, translate it naturally into the user's language rather than pasting the English text as-is.";
 }
 
 // Swearing, chaotic/absurd personality, voice (calm vs meltdown), and the slur prohibition used to
@@ -3804,7 +3810,10 @@ export async function generateReasoningPath(
         settings,
         isCrashout,
         thoughtSteps,
-        "Bro I genuinely don't have shit on that. Zero fucking docs. Hit the Corpus button and paste something in."
+        // Reuses unknownResponse()'s pool instead of a second, separately-drifting single fixed
+        // string — same "no real answer" fallback, same variety (including the newer in-character
+        // "I don't fucking know" energy per direct request) needed here as anywhere else this fires.
+        unknownResponse()
       );
       return {
         thoughtSteps,

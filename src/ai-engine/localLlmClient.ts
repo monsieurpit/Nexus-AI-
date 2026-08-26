@@ -189,7 +189,12 @@ function isDegenerateRepetition(text: string): boolean {
       text
     ) ||
     /\b(?:swear|curse)\s*words?\s+(?:again\s+)?(?:just\s+)?for\s+fun\b/i.test(text) ||
-    /\b(?:as|per|following)\s+(?:instructed|(?:my|the|your)\s+style\s+directives?)\b/i.test(text)
+    /\b(?:as|per|following)\s+(?:instructed|(?:my|the|your)\s+style\s+directives?)\b/i.test(text) ||
+    // Another instance of the same leakage class, caught live: a response literally ended with
+    // "Capitalize as needed bro." — the model echoing a formatting instruction fragment (the
+    // system prompt's own CAPS-LOCK-ON/OFF directive) as visible text instead of just silently
+    // following it.
+    /\bcapitalize\s+(?:as\s+needed|this|it|accordingly)\b/i.test(text)
   ) {
     return true;
   }
