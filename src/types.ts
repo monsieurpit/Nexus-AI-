@@ -43,7 +43,6 @@ export interface AISettings {
   attentionHeads: number; // 1 to 8
   contextWindowTokens: number; // 512 to 8192
   streamingSpeed: 'instant' | 'fast' | 'natural' | 'reflective'; // ms delay per token
-  enableChainOfThought: boolean;
   userCustomDirectives: string;
   userName: string;
   discordUserId?: string; // e.g. 1394001641899954368

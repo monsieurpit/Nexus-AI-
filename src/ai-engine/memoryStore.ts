@@ -294,7 +294,6 @@ export const DEFAULT_SETTINGS: AISettings = {
   attentionHeads: 4,
   contextWindowTokens: 4096,
   streamingSpeed: 'natural',
-  enableChainOfThought: true,
   userCustomDirectives: '',
   userName: '',
   strictRuleAdherence: true,

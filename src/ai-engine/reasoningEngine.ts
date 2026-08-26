@@ -2425,8 +2425,35 @@ function buildGroundingContext(top: { item: { title: string; content: string }; 
 // to actually outnumber English ones.
 export const looksPolish = localLlmClient.looksPolish;
 
-function buildLlmKnowledgeInstruction(): string {
-  return "\n\nKnowledge directive: you are a genuinely knowledgeable, sharp reasoner — when a question has a real, checkable answer, give the actual correct answer with real depth and specifics, not vague hand-waving. Humor, swearing, and aggression are part of your voice, but they sit on top of a real, substantive answer, never instead of one. Never dodge a real question by being cute instead of correct. If you genuinely don't have real, current information on something (breaking news, a live event, an unconfirmed rumor, anything time-sensitive) — say that honestly and briefly, in character, blunt and a little annoyed at not knowing, then move on with a closing aside — something in the energy of \"Man, I don't fucking know, I'm searching my whole damn brain and coming up empty on this one, gonna go touch grass, cya.\" Do NOT invent a fake personal anecdote, a made-up detail, or wander into an unrelated tangent to fill the space instead — that reads as a bizarre non-answer, worse than just admitting you don't know.\n\nLanguage directive: always reply entirely in the same language the user just wrote in. If their message is in Polish, your ENTIRE response must be in Polish — don't drop back into English mid-response, and if the context/source material given to you is in English, translate it naturally into the user's language rather than pasting the English text as-is.";
+// reasoningMode used to be entirely cosmetic for prompting purposes: 'fast' and 'thorough' built
+// the exact same system prompt and only 'deep-cot' differed at all, and even then only by adding
+// extra RETRIEVAL passes upstream (broader search, multi-hop entity tracing) — the model itself
+// never got a different instruction between any of the three modes. A user picking "Thorough" or
+// "Deep Chain-of-Thought" in the customizer got literally the same generation behavior as "Fast".
+// This directive is the actual behavioral difference: 'fast' gets nothing extra (unchanged from
+// before — several personas default to it specifically for snappy replies, and it should stay
+// that way). 'thorough' asks for a brief internal step-by-step pass before answering. 'deep-cot'
+// asks for the same thing more explicitly (multiple angles, then reconcile) — kept short and
+// scoped even for deep-cot rather than a long scratchpad-exposing instruction, since this
+// codebase has repeatedly found that a small 3B model given a long, complex prompt gets confused
+// and starts echoing instructions back instead of following them (see buildPolishSystemPrompt's
+// comment for the same lesson learned the hard way on the Polish path).
+function buildReasoningModeInstruction(reasoningMode: AISettings['reasoningMode']): string {
+  if (reasoningMode === 'deep-cot') {
+    return "\n\nReasoning directive: before answering, briefly work through this from a couple of different angles in your head — what's actually being asked, what could be easy to get wrong or overlook, whether there's a more complete way to answer than the first thing that comes to mind — then give ONE clear final answer that reflects that. Don't show this thinking process or number it out loud, just let the final answer be better for having done it.";
+  }
+  if (reasoningMode === 'thorough') {
+    return "\n\nReasoning directive: before answering, briefly think through the key steps or facts needed to get this right, then give your final answer. Don't show this thinking process out loud, just answer like someone who actually worked it out instead of guessing.";
+  }
+  return '';
+}
+
+function buildLlmKnowledgeInstruction(reasoningMode: AISettings['reasoningMode']): string {
+  return (
+    "\n\nKnowledge directive: you are a genuinely knowledgeable, sharp reasoner — when a question has a real, checkable answer, give the actual correct answer with real depth and specifics, not vague hand-waving. Humor, swearing, and aggression are part of your voice, but they sit on top of a real, substantive answer, never instead of one. Never dodge a real question by being cute instead of correct. If you genuinely don't have real, current information on something (breaking news, a live event, an unconfirmed rumor, anything time-sensitive) — say that honestly and briefly, in character, blunt and a little annoyed at not knowing, then move on with a closing aside — something in the energy of \"Man, I don't fucking know, I'm searching my whole damn brain and coming up empty on this one, gonna go touch grass, cya.\" Do NOT invent a fake personal anecdote, a made-up detail, or wander into an unrelated tangent to fill the space instead — that reads as a bizarre non-answer, worse than just admitting you don't know." +
+    buildReasoningModeInstruction(reasoningMode) +
+    "\n\nLanguage directive: always reply entirely in the same language the user just wrote in. If their message is in Polish, your ENTIRE response must be in Polish — don't drop back into English mid-response, and if the context/source material given to you is in English, translate it naturally into the user's language rather than pasting the English text as-is."
+  );
 }
 
 // Swearing, chaotic/absurd personality, voice (calm vs meltdown), and the slur prohibition used to
@@ -2564,7 +2591,7 @@ async function llmSituationalReplyOrFallback(
   const llmResult = await localLlmClient.generate(llmPrompt, {
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
-      : persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, triggered),
+      : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, triggered),
     // 0.75 is tuned for creative, varied English swearing/tangents, but the model is far less
     // stable in Polish (a much weaker secondary language for it) at that temperature — observed
     // live, two separate real users got genuinely garbled output ("Jak sieMaszc?", words fused
@@ -2684,7 +2711,7 @@ async function llmGroundedOrFallback(
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
-      : persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, false),
+      : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false),
     temperature: usedTemperature,
     maxTokens: estimateResponseBudget(prompt),
     preferPolish: usePolish,
@@ -2750,7 +2777,7 @@ async function llmGroundedOrFallback(
     const retryResult = await localLlmClient.generate(groundedPrompt + correctionNote, {
       system: usePolish
         ? buildPolishSystemPrompt(isCrashout)
-        : persona.systemPrompt + buildLlmKnowledgeInstruction() + buildFinalDirective(settings, isCrashout, false),
+        : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false),
       temperature: usedTemperature,
       maxTokens: estimateResponseBudget(prompt),
       preferPolish: usePolish,
