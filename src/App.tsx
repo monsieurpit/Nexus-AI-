@@ -30,7 +30,7 @@ import {
   saveMemories,
   saveSettings,
 } from './ai-engine/memoryStore';
-import { generateAIResponse } from './ai-engine/generator';
+import { generateAIResponse, generateConversationTitle } from './ai-engine/generator';
 import { analyzePromptIntent } from './ai-engine/semanticEngine';
 
 function initConversations(): Conversation[] {
@@ -271,8 +271,11 @@ export default function App() {
             const finalMessages = [...updatedMessages, assistantMsg];
             const conv = conversations.find((c) => c.id === targetConversationId);
             const shouldAutoTitle = conv && !conv.titleIsCustom;
+            const isFirstExchange = conv ? conv.messages.length === 0 : false;
             commitConversation(targetConversationId, {
               messages: finalMessages,
+              // Instant heuristic title as a placeholder so the sidebar never sits blank — swapped
+              // for the real AI-generated one below as soon as that call resolves.
               ...(shouldAutoTitle
                 ? { title: deriveConversationTitle(finalMessages) || conv!.title }
                 : {}),
@@ -281,6 +284,22 @@ export default function App() {
             setStreamingChunk('');
             setProgressStage('');
             abortControllerRef.current = null;
+
+            if (shouldAutoTitle && isFirstExchange) {
+              generateConversationTitle(userMessage.content, assistantMsg.content).then((aiTitle) => {
+                if (!aiTitle) return;
+                setConversations((prev) => {
+                  const latest = prev.find((c) => c.id === targetConversationId);
+                  // Don't clobber a title the user manually set while this call was in flight.
+                  if (!latest || latest.titleIsCustom) return prev;
+                  const next = prev.map((c) =>
+                    c.id === targetConversationId ? { ...c, title: aiTitle } : c
+                  );
+                  saveConversations(next);
+                  return next;
+                });
+              });
+            }
           },
           onError: (err) => {
             console.error('Generation failed', err);

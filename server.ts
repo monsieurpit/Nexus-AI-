@@ -11,7 +11,7 @@ import {
   enforceStrictSdkRules,
 } from './src/ai-engine/ruleEngine';
 import { generateReasoningPath, assessCorpusConfidence } from './src/ai-engine/reasoningEngine';
-import { checkAvailability as checkLocalLlmAvailability } from './src/ai-engine/localLlmClient';
+import { checkAvailability as checkLocalLlmAvailability, generate as generateLlmText } from './src/ai-engine/localLlmClient';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
 import {
   BUILTIN_KNOWLEDGE,
@@ -894,6 +894,45 @@ app.patch('/api/v1/keys/:key', requireApiKey, (req, res) => {
 });
 
 // 4. Dedicated Nexus Discord Endpoint (Swearing, Discord homie style, Casseurt roast, Super Chill VIP mode, Strict Rules, Vision Support, Dynamic Persona Switching, Multi-Document Grounding)
+// Short, clean conversation-title generation for the website's conversation sidebar — deliberately
+// NOT routed through /api/v1/nexus, since that endpoint always applies the active persona's full
+// voice (mandatory swearing, chaotic asides for crashout-bot, etc.) which is exactly wrong for a
+// UI label. This is a separate, minimal call with its own tiny system prompt and a short token
+// budget, so it stays cheap and fast even though it's a real extra Ollama call per new
+// conversation (not a hardcoded/heuristic title — the user explicitly asked for a genuinely
+// AI-generated one, the way ChatGPT/Gemini do it).
+app.post('/api/v1/title', aiComputeLimiter, async (req, res) => {
+  const { message, reply } = req.body || {};
+  const text = typeof message === 'string' ? message.trim() : '';
+  if (!text) {
+    return res.status(400).json({ error: 'Missing message in request body.' });
+  }
+  const replyText = typeof reply === 'string' ? reply.trim() : '';
+  const prompt = replyText
+    ? `User message: "${text.slice(0, 500)}"\nAssistant reply: "${replyText.slice(0, 500)}"`
+    : `User message: "${text.slice(0, 500)}"`;
+  try {
+    const result = await generateLlmText(prompt, {
+      system:
+        'Generate a short title (3-6 words) summarizing the topic of this conversation, for use as a chat list label. Output ONLY the title itself — no quotes, no punctuation at the end, no explanation, no prefix like "Title:". Plain, neutral, descriptive.',
+      temperature: 0.3,
+      maxTokens: 20,
+      timeoutMs: 12000,
+    });
+    if (result.status !== 'success') {
+      return res.status(200).json({ title: null });
+    }
+    const title = result.text
+      .replace(/^["'“”]+|["'“”]+$/g, '')
+      .replace(/^title:\s*/i, '')
+      .trim()
+      .slice(0, 60);
+    return res.json({ title: title || null });
+  } catch (err: any) {
+    return res.status(200).json({ title: null });
+  }
+});
+
 app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
   authenticateApiKey(req);
   const {

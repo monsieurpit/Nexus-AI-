@@ -242,3 +242,23 @@ export async function generateAIResponse(
     return finalMessage;
   }
 }
+
+// Real, AI-generated conversation titles (not a local heuristic) — a separate lightweight
+// server-side endpoint, not /api/v1/nexus, since that always applies the active persona's full
+// voice (mandatory swearing, chaotic asides) which is wrong for a UI label. Best-effort: returns
+// null on any failure so the caller can fall back to its own heuristic title instead of leaving
+// the conversation untitled.
+export async function generateConversationTitle(userMessage: string, assistantReply: string): Promise<string | null> {
+  try {
+    const resp = await fetch('/api/v1/title', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: userMessage, reply: assistantReply }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return typeof data?.title === 'string' && data.title.trim() ? data.title.trim() : null;
+  } catch {
+    return null;
+  }
+}
