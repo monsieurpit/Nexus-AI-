@@ -43,6 +43,11 @@ import {
 const app = express();
 const PORT = 3000;
 
+// Generous for a real photo/screenshot, nowhere near enough to threaten memory on a host running
+// alongside a local LLM — this is the hard ceiling on any single remote "image" this server will
+// ever pull fully into memory.
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15MB
+
 // Robust Image Resolver: Handles Discord CDN URLs, Base64 Data URIs, raw Base64, and image buffers
 async function resolveImagePart(
   imageUrl?: string,
@@ -99,18 +104,52 @@ async function resolveImagePart(
       clearTimeout(timeoutId);
 
       if (resp.ok) {
-        const arrayBuf = await resp.arrayBuffer();
-        const base64 = Buffer.from(arrayBuf).toString('base64');
-        let contentType = resp.headers.get('content-type') || 'image/png';
-        contentType = contentType.split(';')[0].trim().toLowerCase();
+        // This previously had NO size limit at all — any URL a caller sent (Discord attachments
+        // aren't restricted to actual images; anyone can attach a multi-GB file, or the field can
+        // point at an arbitrary external URL) got fully buffered into memory via arrayBuffer()
+        // before anything even looked at its size. Observed live: a user probed the bot with
+        // "unzip 2 petabyte files" shortly before an unexplained crash with a JavaScript heap
+        // out-of-memory error in the logs — this is almost certainly why. MAX_IMAGE_BYTES rejects
+        // oversized responses via Content-Length up front when the server reports one, and
+        // independently caps actual bytes read while streaming so a missing or dishonest
+        // Content-Length can't bypass the limit.
+        const declaredLength = Number(resp.headers.get('content-length') || 0);
+        if (declaredLength > MAX_IMAGE_BYTES) {
+          console.warn(`[Vision Engine] Rejected remote file: declared size ${declaredLength} bytes exceeds ${MAX_IMAGE_BYTES}-byte limit: ${cleanRaw}`);
+          return null;
+        }
 
-        // Fallback for generic octet-stream: detect from URL extension
-        if (contentType === 'application/octet-stream' || !contentType.startsWith('image/')) {
+        let contentType = (resp.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+        // Only real image types are accepted — the old fallback silently relabeled ANY unrecognized
+        // file (a .zip, an .exe, a video) as "image/png" and fed it to the vision model as if it
+        // were a photo, which is both wrong and a way to smuggle arbitrary file content in.
+        if (!contentType.startsWith('image/')) {
           if (/\.jpe?g($|\?)/i.test(cleanRaw)) contentType = 'image/jpeg';
           else if (/\.webp($|\?)/i.test(cleanRaw)) contentType = 'image/webp';
           else if (/\.gif($|\?)/i.test(cleanRaw)) contentType = 'image/gif';
-          else contentType = 'image/png';
+          else if (/\.png($|\?)/i.test(cleanRaw)) contentType = 'image/png';
+          else {
+            console.warn(`[Vision Engine] Rejected remote file: not a recognized image type (${contentType || 'unknown'}): ${cleanRaw}`);
+            return null;
+          }
         }
+
+        const reader = resp.body?.getReader();
+        if (!reader) return null;
+        const chunks: Uint8Array[] = [];
+        let total = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          total += value.byteLength;
+          if (total > MAX_IMAGE_BYTES) {
+            console.warn(`[Vision Engine] Rejected remote file: exceeded ${MAX_IMAGE_BYTES}-byte limit while streaming: ${cleanRaw}`);
+            await reader.cancel().catch(() => {});
+            return null;
+          }
+          chunks.push(value);
+        }
+        const base64 = Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('base64');
 
         return {
           inlineData: {

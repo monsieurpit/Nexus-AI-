@@ -699,7 +699,21 @@ export function shouldTriggerLiveWebSearch(
     // nothing to look up here, it's banter about the bot's own behavior, same category as the
     // English swearing-related chit-chat this file never had a Polish equivalent for. "pierdol"
     // covers every inflected form (pierdoli/pierdolił/pierdolisz/pierdolenie/...).
-    /\bpierdol[a-ząćęłńóśźż]*\b.*\bpolsku\b|\bpolsku\b.*\bpierdol[a-ząćęłńóśźż]*\b/i.test(q);
+    /\bpierdol[a-ząćęłńóśźż]*\b.*\bpolsku\b|\bpolsku\b.*\bpierdol[a-ząćęłńóśźż]*\b/i.test(q) ||
+    // Structural catch-all, not another one-off phrasing: this whole block's history is a long
+    // list of "observed live: X got searched verbatim and rate-limited" fixes, each patching one
+    // specific crude/rhetorical/directed remark at a time — a losing game against an unbounded
+    // space of ways someone can phrase something aimed at a specific person. A message referencing
+    // a Discord mention is never a real "look this up" request — a person isn't a topic Google can
+    // define — so this fires regardless of the verb or phrasing around it. Observed live in server
+    // logs: "how to touch @Bacon2" and a much more disturbing message naming another user both got
+    // searched verbatim and rate-limited (429) despite neither being close to any pattern above.
+    /<@!?\d+>|@[\w.]{2,32}\b/.test(query) ||
+    // Same idea for a message that's a rhetorical callout/exclamation rather than a real question
+    // — "who let you cuss", "who told you that" — no factual answer exists to look up, it's a
+    // remark about the bot's own behavior. General on the verb so new phrasings of the same
+    // rhetorical shape don't need their own regex each time they're reported.
+    /^who\s+(?:let|told|said|allowed)\s+(?:you|u)\b/i.test(q);
 
   if (isConversational) return false;
 
