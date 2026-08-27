@@ -46,6 +46,28 @@ import { SUBSTANCE_SAFETY_CORPUS } from './corpus/substanceSafety';
 import { PRACTICAL_LIFE_SKILLS_2_CORPUS } from './corpus/practicalLifeSkills2';
 import { EVERYDAY_SCIENCE_HEALTH_2_CORPUS } from './corpus/everydayScienceHealth2';
 import { GAMING_INTERNET_CULTURE_CORPUS } from './corpus/gamingInternetCulture';
+import { IDIOMS_AND_PHRASES_CORPUS } from './corpus/idiomsAndPhrases';
+import { GRAMMAR_AND_WRITING_CORPUS } from './corpus/grammarAndWriting';
+import { UNITS_AND_MEASUREMENT_CORPUS } from './corpus/unitsAndMeasurement';
+import { WORLD_RELIGIONS_CORPUS } from './corpus/worldReligions';
+import { MUSIC_THEORY_CORPUS } from './corpus/musicTheory';
+import { ART_MOVEMENTS_AND_PHOTOGRAPHY_CORPUS } from './corpus/artMovementsAndPhotography';
+import { BOARD_AND_CARD_GAMES_CORPUS } from './corpus/boardAndCardGames';
+import { LEGAL_BASICS_CORPUS } from './corpus/legalBasics';
+import { COMMON_SCAMS_CORPUS } from './corpus/commonScams';
+import { WEATHER_PHENOMENA_CORPUS } from './corpus/weatherPhenomena';
+import { HOME_REPAIR_AND_TOOLS_CORPUS } from './corpus/homeRepairAndTools';
+import { WORKPLACE_RIGHTS_CORPUS } from './corpus/workplaceRights';
+import { CRYPTO_BASICS_CORPUS } from './corpus/cryptoBasics';
+import { SPEAKING_AND_NEGOTIATION_CORPUS } from './corpus/speakingAndNegotiation';
+import { PERSONAL_SAFETY_CORPUS } from './corpus/personalSafety';
+import { STUDY_AND_PRODUCTIVITY_CORPUS } from './corpus/studyAndProductivity';
+import { FUN_FACTS_CURIOSITIES_CORPUS } from './corpus/funFactsCuriosities';
+import { SOCIAL_MEDIA_MECHANICS_CORPUS } from './corpus/socialMediaMechanics';
+import { SOFTWARE_TROUBLESHOOTING_CORPUS } from './corpus/softwareTroubleshooting';
+import { LANGUAGE_LEARNING_AND_TRAVEL_CORPUS } from './corpus/languageLearningAndTravel';
+import { HISTORICAL_FIGURES_AND_PLACES_CORPUS } from './corpus/historicalFiguresAndPlaces';
+import { HUMAN_ANATOMY_EXTRA_CORPUS } from './corpus/humanAnatomyExtra';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -600,6 +622,28 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...PRACTICAL_LIFE_SKILLS_2_CORPUS,
   ...EVERYDAY_SCIENCE_HEALTH_2_CORPUS,
   ...GAMING_INTERNET_CULTURE_CORPUS,
+  ...IDIOMS_AND_PHRASES_CORPUS,
+  ...GRAMMAR_AND_WRITING_CORPUS,
+  ...UNITS_AND_MEASUREMENT_CORPUS,
+  ...WORLD_RELIGIONS_CORPUS,
+  ...MUSIC_THEORY_CORPUS,
+  ...ART_MOVEMENTS_AND_PHOTOGRAPHY_CORPUS,
+  ...BOARD_AND_CARD_GAMES_CORPUS,
+  ...LEGAL_BASICS_CORPUS,
+  ...COMMON_SCAMS_CORPUS,
+  ...WEATHER_PHENOMENA_CORPUS,
+  ...HOME_REPAIR_AND_TOOLS_CORPUS,
+  ...WORKPLACE_RIGHTS_CORPUS,
+  ...CRYPTO_BASICS_CORPUS,
+  ...SPEAKING_AND_NEGOTIATION_CORPUS,
+  ...PERSONAL_SAFETY_CORPUS,
+  ...STUDY_AND_PRODUCTIVITY_CORPUS,
+  ...FUN_FACTS_CURIOSITIES_CORPUS,
+  ...SOCIAL_MEDIA_MECHANICS_CORPUS,
+  ...SOFTWARE_TROUBLESHOOTING_CORPUS,
+  ...LANGUAGE_LEARNING_AND_TRAVEL_CORPUS,
+  ...HISTORICAL_FIGURES_AND_PLACES_CORPUS,
+  ...HUMAN_ANATOMY_EXTRA_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API

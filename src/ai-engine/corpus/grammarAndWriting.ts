@@ -1,0 +1,68 @@
+import { KnowledgeItem } from '../../types';
+
+export const GRAMMAR_AND_WRITING_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-grammar-affect-effect',
+    title: '"Affect" vs "Effect" — The Rule That Actually Works',
+    category: 'practical-skills',
+    keywords: ['affect vs effect', 'grammar rule', 'when to use affect', 'when to use effect'],
+    content: `The reliable rule: "affect" is almost always a verb meaning to influence something ("the weather will affect the game"), while "effect" is almost always a noun meaning the result of something ("the weather had a big effect on the game"). A simple memory trick: A is for Action (affect = verb/action), E is for End result (effect = noun/end result). There are two genuine exceptions worth knowing so they don't cause confusion: "effect" can be a verb meaning to bring about or cause something to happen, almost always in the specific phrase "effect change" ("the new CEO effected real change") — this is rare and formal, so if in doubt, "affect" as a verb is the safer default. "Affect" can also be a noun in psychology, referring to a person's observable emotional expression ("the patient showed flat affect"), but this is specialized clinical/academic usage, not everyday writing. For everyday writing, the verb/noun rule covers roughly 95%+ of real cases: something affects (verb) something else, producing an effect (noun).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-grammar-who-whom',
+    title: '"Who" vs "Whom" — A Simple Substitution Trick',
+    category: 'practical-skills',
+    keywords: ['who vs whom', 'grammar rule', 'when to use whom', 'subject vs object pronoun'],
+    content: `"Who" is a subject pronoun (like "he" or "she") — it performs the action. "Whom" is an object pronoun (like "him" or "her") — it receives the action. The fastest practical trick: mentally answer the question using "he/him." If "he" fits, use "who." If "him" fits, use "whom" (both end in "m," which is easy to remember together). Example: "Who/whom is calling?" → "He is calling" fits, so it's "Who is calling?" Example: "Who/whom did you call?" → "I called him" fits, so it's "Whom did you call?" This works because "who/whom" follow the exact same subject/object logic as "he/him" or "she/her" — English just kept a slightly older, more formal distinction for this specific pronoun pair. In casual modern speech, "whom" has become fairly rare and many native speakers default to "who" in nearly all situations without sounding wrong to most listeners ("who did you call?" is extremely common informally) — but "whom" is still expected in formal writing, and it's always correct directly after a preposition ("to whom it may concern," "for whom the bell tolls").`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-grammar-oxford-comma',
+    title: 'The Oxford Comma — What It Is and Why People Argue About It',
+    category: 'practical-skills',
+    keywords: ['oxford comma', 'serial comma', 'grammar debate', 'what is the oxford comma'],
+    content: `The Oxford (or "serial") comma is the comma placed before the final "and" or "or" in a list of three or more items: "I bought apples, oranges, and bananas" (with the Oxford comma) versus "I bought apples, oranges and bananas" (without it). Both styles are grammatically accepted in English — it's a style choice, not a hard rule, and different style guides land differently: the Chicago Manual of Style and most academic/US book publishing favor using it; AP Style (used by most US newspapers) generally omits it except when needed for clarity. The strongest argument for the Oxford comma is that omitting it can occasionally create genuine ambiguity, illustrated by a famous (if slightly exaggerated) example: "I'd like to thank my parents, Ayn Rand and God" reads, without the comma, as if the writer's parents are Ayn Rand and God, whereas "I'd like to thank my parents, Ayn Rand, and God" clearly lists three separate items. The strongest argument against it is that it adds an extra character to nearly every list in a large document, and clear sentence construction can usually avoid ambiguity without it anyway. There's no single "correct" answer — the only real rule is to pick one style and apply it consistently within the same piece of writing.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-grammar-further-farther',
+    title: '"Further" vs "Farther" and Other Commonly Confused Word Pairs',
+    category: 'practical-skills',
+    keywords: ['further vs farther', 'commonly confused words', 'grammar rule', 'less vs fewer', 'lay vs lie'],
+    content: `"Farther" traditionally refers to physical distance ("the store is farther than I thought"), while "further" refers to figurative or non-physical extent ("let's discuss this further," "further notice"). In practice, many style guides now treat this distinction as loosening in everyday use — "further" is increasingly accepted for both — but "farther" is never correct for the figurative sense, so when in doubt, "further" is the safer general-purpose choice. Other commonly confused pairs worth knowing: "fewer" is for countable things ("fewer apples," "fewer people"), while "less" is for uncountable/mass quantities ("less water," "less time") — the "10 items or less" checkout signs are technically grammatically wrong by this rule, since items are countable ("10 items or fewer"), though this error is now so widespread it barely registers. "Lay" requires a direct object — you lay something down ("lay the book on the table"); "lie" does not — you lie down yourself ("I'm going to lie down") — this pair is genuinely one of the most frequently misused in English even among fluent native speakers, partly because "lay" is also the past tense of "lie" ("yesterday I lay down"), adding real confusion. "Its" (no apostrophe) is possessive ("the dog wagged its tail"); "it's" (with apostrophe) is a contraction of "it is" or "it has."`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-grammar-apostrophes',
+    title: 'Apostrophe Rules: Possession, Contractions, and Common Mistakes',
+    category: 'practical-skills',
+    keywords: ['apostrophe rules', 'possessive apostrophe', 'grammar rule', 'plurals vs possessive'],
+    content: `Apostrophes serve two main jobs in English: showing possession and marking contractions — and most common apostrophe errors come from mixing these up with plurals, which never take an apostrophe on their own. For singular possession, add 's ("the dog's leash," "Sarah's car"). For plural nouns already ending in s, add just an apostrophe after the s ("the dogs' leashes" meaning multiple dogs, "the Smiths' house"). For plural nouns NOT ending in s, add 's like a singular ("the children's toys," "the men's room"). For singular names already ending in s, style guides differ slightly, but adding 's is the most common modern convention ("Charles's book"), with "Charles' book" also widely accepted. A very common mistake is adding an apostrophe to a simple plural that isn't possessive at all ("banana's for sale" should just be "bananas for sale" — no apostrophe needed since it's just a plural, not showing ownership). For contractions, the apostrophe marks where letters were removed: "don't" (do not), "it's" (it is/has), "they're" (they are), "won't" (will not, an irregular contraction from an older form "woll not"). The classic "its" vs "it's" mix-up happens because most possessives DO use an apostrophe, but "its" is a rare exception (like "his" or "hers") that doesn't, precisely to distinguish it from the contraction "it's."`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-grammar-active-passive-voice',
+    title: 'Active vs Passive Voice — What It Is and When to Use Each',
+    category: 'practical-skills',
+    keywords: ['active voice', 'passive voice', 'grammar', 'writing style', 'when to use passive voice'],
+    content: `In active voice, the subject of the sentence performs the action ("the chef cooked the meal"). In passive voice, the subject receives the action instead, and the performer is optional or moved to the end ("the meal was cooked by the chef," or even "the meal was cooked" with the chef omitted entirely). Passive voice is formed with a form of "to be" plus a past participle (was/were/is/are + a verb like "cooked," "written," "made"). Active voice is generally recommended for clear, direct, engaging writing — it's usually shorter, easier to follow, and makes it obvious who's doing what, which is why most style guides (especially for business and journalistic writing) favor it as the default. Passive voice isn't wrong or bad grammar, though — it has genuine, legitimate uses: when the doer of an action is unknown or irrelevant ("the window was broken" — nobody knows or it doesn't matter who), when the action itself matters more than who did it (common in scientific writing: "the sample was heated to 100°C"), or to deliberately soften responsibility in diplomatic or sensitive writing ("mistakes were made" avoids directly naming who made them, which is sometimes used intentionally, sometimes criticized as evasive). A quick way to spot passive voice: if you can add "by zombies" after the verb and it still makes grammatical sense ("the meal was cooked [by zombies]"), it's passive.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-grammar-run-on-fragment',
+    title: 'Run-On Sentences and Sentence Fragments — What They Are and How to Fix Them',
+    category: 'practical-skills',
+    keywords: ['run on sentence', 'sentence fragment', 'grammar mistake', 'comma splice'],
+    content: `A run-on sentence happens when two or more independent clauses (complete thoughts that could each stand alone as a sentence) are joined without proper punctuation or a connecting word: "I went to the store I bought milk" is a run-on because both halves are complete sentences jammed together with nothing connecting them. A closely related error, the comma splice, joins two independent clauses with only a comma: "I went to the store, I bought milk" — a comma alone isn't strong enough to join two complete sentences. Fixes include: splitting into two separate sentences ("I went to the store. I bought milk."), adding a coordinating conjunction after the comma ("I went to the store, and I bought milk"), using a semicolon if the two ideas are closely related ("I went to the store; I bought milk"), or restructuring with a subordinating word ("After I went to the store, I bought milk"). A sentence fragment is the opposite problem — a group of words punctuated as a sentence but missing a subject, a verb, or a complete thought: "Because I was tired." is a fragment (it sets up a reason but never completes the thought) unless attached to an independent clause ("I went home because I was tired."). Fragments are sometimes used intentionally in casual or stylistic writing for emphasis ("Not today.") but are generally avoided in formal writing.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-grammar-there-their-theyre',
+    title: '"There," "Their," and "They\'re" — And Other Classic Homophone Mix-Ups',
+    category: 'practical-skills',
+    keywords: ['there their theyre', 'your youre', 'homophones', 'grammar mistake', 'common writing mistakes'],
+    content: `"There" refers to a place or is used to introduce something existing ("put it over there," "there is a problem"). "Their" is possessive, showing ownership by multiple people ("their car," "their decision"). "They're" is a contraction of "they are" ("they're going to be late"). A quick check: if you can substitute "they are" and the sentence still makes sense, use "they're"; if you can substitute "his/her" and it still works, use "their." Similarly, "your" is possessive ("your phone"), while "you're" is a contraction of "you are" ("you're going to love this") — the same substitution trick applies: if "you are" fits, use "you're." "To," "too," and "two" round out the most common homophone confusion group in English: "to" is a preposition or part of an infinitive ("go to the store," "want to leave"); "too" means also or excessively ("me too," "too much"); "two" is simply the number 2. These mix-ups are extremely common even among fluent adult writers, partly because the words sound identical when spoken and spellcheckers often can't catch them (since each individual word is spelled correctly, just used in the wrong context) — proofreading by reading text slowly, or reading it aloud, catches these far more reliably than a quick skim.`,
+    createdAt: Date.now(),
+  },
+];
