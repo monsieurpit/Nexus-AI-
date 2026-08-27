@@ -2443,6 +2443,15 @@ export const looksPolish = localLlmClient.looksPolish;
 function looksPolishWithContext(prompt: string, history: ChatMessage[]): boolean {
   const { polish, english } = localLlmClient.scoreLanguageSignal(prompt);
   if (polish !== english) return polish > english;
+  // A genuine 0-0 tie doesn't always mean "no signal, trust the conversation's language" — it
+  // also means "a word/slang term neither dictionary recognizes at all," which is exactly what a
+  // fresh insult/dismissal aimed at the bot looks like (observed live: "nexus sybau" arrived right
+  // after two real Polish messages in the same channel, tied 0-0 since "sybau" isn't in either
+  // signal list, and inherited Polish from history — producing "Kurwa szybuj się hehe", a reply
+  // that doesn't even mean anything, to an English insult). detectUserInsult() already recognizes
+  // "sybau" and its relatives as English hostility directed at the bot regardless of whatever
+  // language the conversation was in a moment ago, so it's checked first and skips the fallback.
+  if (detectUserInsult(prompt)) return false;
   for (let i = history.length - 1; i >= 0; i--) {
     if (history[i].role === 'assistant') {
       return looksPolish(history[i].content);
