@@ -1403,7 +1403,11 @@ async function searchWithReformulation(
     return { results, reformulatedQuery: null };
   }
 
-  const retryResults = applyContextBoost(await hybridSearchKnowledgeGraph(keywordQuery, allKnowledge, topK), citedDocIds);
+  // BM25-only, not hybridSearchKnowledgeGraph — this retry exists specifically to fix BM25 keyword
+  // dilution from natural-language filler (see the docstring above), not to get a better semantic
+  // match, so paying for a second ~660ms Ollama embed call here bought nothing the stopword-free
+  // keyword query wasn't already accomplishing through BM25 alone.
+  const retryResults = applyContextBoost(searchKnowledgeGraph(keywordQuery, allKnowledge, topK), citedDocIds);
   if (retryResults.length > 0 && (results.length === 0 || retryResults[0].score > results[0].score)) {
     return { results: retryResults, reformulatedQuery: keywordQuery };
   }
