@@ -713,7 +713,16 @@ export function shouldTriggerLiveWebSearch(
     // — "who let you cuss", "who told you that" — no factual answer exists to look up, it's a
     // remark about the bot's own behavior. General on the verb so new phrasings of the same
     // rhetorical shape don't need their own regex each time they're reported.
-    /^who\s+(?:let|told|said|allowed)\s+(?:you|u)\b/i.test(q);
+    /^who\s+(?:let|told|said|allowed)\s+(?:you|u)\b/i.test(q) ||
+    // "nexus is crazy" / "you're wild" / "u are insane" — a remark ABOUT the bot itself, addressed
+    // by name or "you", never a real request to look up the adjective. Observed live: "nexus is
+    // crazy" got treated as a request to define "crazy" and searched verbatim, rate-limited (429)
+    // — worse, the corpus match it pulled ("Crazy Horse", "Crazy Frog") then got mangled by the
+    // swear-substitution pass into "insane as fuck as hell Horse" since it read "crazy" as a plain
+    // adjective rather than half of a proper noun. General on the adjective/verb so it doesn't need
+    // a new pattern each time a different one gets reported the same way "are you X" already is.
+    /^(?:nexus|you|u)\s+(?:is|are|'s)\s+\w+/i.test(q) ||
+    /^you'?re\s+\w+/i.test(q);
 
   if (isConversational) return false;
 

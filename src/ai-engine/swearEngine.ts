@@ -1276,6 +1276,17 @@ export function enhanceNaturalSwearPhrasing(
         // it's a token, not prose.
         const CODE_ADJACENT = /[/()`_=[\]{}<>|]/;
         if (CODE_ADJACENT.test(before || '') || CODE_ADJACENT.test(after || '')) return match;
+        // A capitalized match immediately followed by another capitalized word is very likely the
+        // first half of a proper noun/title, not the standalone adjective this list exists to
+        // swap — reported live: corpus content mentioning "Crazy Horse" (the Lakota leader) and
+        // "Crazy Frog" (the meme character) both got mangled into "insane as fuck as hell Horse"
+        // and "batshit wild as hell Frog", since neither the hyphen/code guards above nor the
+        // options below have any notion of proper nouns. A real mid-sentence use of the word
+        // ("that's crazy good") is essentially never itself capitalized AND followed immediately
+        // by another capitalized word, so this is a safe, general signal rather than an
+        // enumerated list of names to protect.
+        const nextWordStart = (full.slice(offset + match.length).match(/^\s+(\S)/) || [])[1];
+        if (/^[A-Z]/.test(match) && nextWordStart && /[A-Z]/.test(nextWordStart)) return match;
         // Same part-of-speech mismatch the fake/false split above deals with, but positional
         // rather than per-word: "a pain in the ass" is a noun phrase, so it only reads right in
         // predicate position ("this is hard" → "this is a pain in the ass"). Attributive use
