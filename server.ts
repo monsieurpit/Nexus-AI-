@@ -1364,12 +1364,42 @@ app.post('/api/v1/raidshield', aiComputeLimiter, async (req, res) => {
 
   try {
     const queuedExecution = await globalRequestQueue.enqueue('raidshield', async () => {
-      // Deterministic 21-Hard-Rules Evaluator for text & image metadata
-      const evalResult = evaluateRaidShieldRules(targetText || (imagePart ? 'image_attachment_scanned' : ''));
+      // This used to pass the literal fixed string 'image_attachment_scanned' into the rules
+      // evaluator for EVERY image regardless of actual content, then claim in the response
+      // "(Image attachment verified and analyzed)" — a moderation tool that never once looked at
+      // an image it was asked to check. Now gets a real description from a vision model first and
+      // evaluates that against the same 21-hard-rules text classifier, so an actually-suspicious
+      // image (a scam QR code, a phishing screenshot, explicit content) has real content for the
+      // rules to classify instead of a constant placeholder.
+      let imageDescription: string | null = null;
+      let visionFailed = false;
+      if (imagePart) {
+        const visionResult = await generateVision(
+          imagePart.inlineData.data,
+          'Describe exactly what is shown in this image, in detail — including any visible text, links, QR codes, logos, or people. Be factual and literal.',
+          { timeoutMs: 30000 }
+        );
+        if (visionResult.status === 'success') {
+          imageDescription = visionResult.text;
+        } else {
+          visionFailed = true;
+        }
+      }
+
+      const evalInput = [targetText, imageDescription ? `[Image content: ${imageDescription}]` : ''].filter(Boolean).join(' ');
+      const evalResult = evaluateRaidShieldRules(evalInput || 'image_attachment_scanned');
+      const imageStatusNote = imagePart
+        ? imageDescription
+          ? ' (Image content analyzed by vision model.)'
+          : visionFailed
+          ? ' (Image received but vision analysis failed — NOT verified, review manually.)'
+          : ''
+        : '';
       return {
         classification: evalResult.classification,
         confidence: evalResult.confidence,
-        reason: evalResult.reason + (imagePart ? ' (Image attachment verified and analyzed)' : ''),
+        reason: evalResult.reason + imageStatusNote,
+        imageDescription: imageDescription || undefined,
         authorId: authorId || null,
         actionRecommended:
           evalResult.classification === 'safe'
