@@ -4610,8 +4610,16 @@ export function computeConfidence(
  * cutoff — the score reflects generic word overlap, not whether the match is actually relevant.
  * computeConfidence()'s title/coverage-aware signals correctly separate the two.
  */
+// BM25-only on purpose, not hybridSearchKnowledgeGraph — this only ever feeds a coarse yes/no gate
+// (server.ts uses it purely to decide whether live web search is even worth trying), but the real
+// answer synthesis right after this in generateReasoningPath() does its own full hybrid search
+// anyway, embedding the query a SECOND time. Measured live: a single Ollama embed call on this
+// host takes ~660ms — every factual question was paying that cost twice for zero benefit, since
+// computeConfidence() never actually reads the semantic fields hybrid search adds (see its
+// optional semanticScore/semanticDoubt params) when they're absent. BM25 alone is an in-memory
+// scan against an already-cached index, effectively free by comparison.
 export async function assessCorpusConfidence(query: string, allKnowledge: KnowledgeItem[]): Promise<number> {
-  const results = await hybridSearchKnowledgeGraph(query, allKnowledge, 5);
+  const results = searchKnowledgeGraph(query, allKnowledge, 5);
   return computeConfidence(results, processForSearch(query));
 }
 
