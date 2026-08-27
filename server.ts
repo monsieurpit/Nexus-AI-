@@ -11,7 +11,7 @@ import {
   enforceStrictSdkRules,
 } from './src/ai-engine/ruleEngine';
 import { generateReasoningPath, assessCorpusConfidence } from './src/ai-engine/reasoningEngine';
-import { checkAvailability as checkLocalLlmAvailability, generate as generateLlmText } from './src/ai-engine/localLlmClient';
+import { checkAvailability as checkLocalLlmAvailability, generate as generateLlmText, generateVision } from './src/ai-engine/localLlmClient';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
 import {
   BUILTIN_KNOWLEDGE,
@@ -1134,8 +1134,35 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
             userCustomDirectives: typeof userRules === 'string' ? userRules : Array.isArray(userRules) ? userRules.join('\n') : '',
           };
 
+      // Real image understanding, not a fake header on top of a blind text-only response — this
+      // whole branch previously never looked at the image at all: promptToEvaluate fell back to
+      // the literal string 'Analyze this uploaded image attachment' with zero actual image data
+      // reaching anything, and the "🖼️ Visual Input Received & Inspected:" text below was just
+      // prepended to whatever generic reply that placeholder text happened to produce. Runs the
+      // image through a real vision model first, then folds the actual description into the
+      // prompt the persona/reasoning pipeline sees, so retrieval and the in-character reply are
+      // grounded in what's genuinely in the picture (and still combine with any text the user
+      // typed alongside it, e.g. "roast this" + an image).
+      let visionDescription: string | null = null;
+      if (imagePart) {
+        const visionResult = await generateVision(
+          imagePart.inlineData.data,
+          'Describe what is shown in this image in detail — objects, text, people, setting, mood.',
+          { timeoutMs: 25000 }
+        );
+        if (visionResult.status === 'success') {
+          visionDescription = visionResult.text;
+        }
+      }
+
       // Pure Internal Autonomous Reasoning Engine with Multi-Document Graph Search
-      const promptToEvaluate = userText || (imagePart ? 'Analyze this uploaded image attachment' : '');
+      const promptToEvaluate = imagePart
+        ? visionDescription
+          ? userText
+            ? `${userText}\n\n[Attached image shows: ${visionDescription}]`
+            : `React to this image: ${visionDescription}`
+          : userText || 'Analyze this uploaded image attachment'
+        : userText;
       const strictEvaluation = evaluateStrictDirectives(
         promptToEvaluate,
         userRules || settings.userCustomDirectives || '',
@@ -1199,8 +1226,11 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
         }
       }
 
-      if (imagePart) {
-        outputText = `🖼️ **Visual Input Received & Inspected:**\n\n${outputText}`;
+      if (imagePart && !visionDescription) {
+        // The vision model itself failed/timed out — say so honestly instead of claiming a real
+        // inspection happened (the old unconditional header claimed this even when nothing about
+        // the image was ever actually looked at).
+        outputText = `🖼️ **Couldn't fully analyze the image this time — here's a reply based on what you wrote:**\n\n${outputText}`;
       }
 
       // Extract follow-up suggestions if present in the synthesized output
@@ -1379,18 +1409,39 @@ app.post('/api/v1/vision/analyze', aiComputeLimiter, async (req, res) => {
       const dataSize = Math.round((imagePart.inlineData.data.length * 3) / 4);
       const isSecurityMode = mode === 'security' || (prompt && /scam|phish|nitro|qr|token|threat|malicious/i.test(prompt));
 
-      let analysisReport = '';
-      if (isSecurityMode) {
-        analysisReport = `🛡️ **RaidShield Visual Threat Analysis:**\n- Format: ${mimeType} (${(dataSize / 1024).toFixed(1)} KB)\n- Optical Integrity: Verified\n- Threat Signatures: No remote auth QR phishing or destructive token stealers detected.\n- Verdict: Clean and approved for Discord guild display.`;
-      } else {
-        analysisReport = `🖼️ **Nexus Vision Inspection:**\n- Image parsed successfully (${mimeType}, ${(dataSize / 1024).toFixed(1)} KB payload).\n- Optical frame alignment verified.\n- Key Visual Elements: Attachment metadata active with high-resolution clarity.`;
+      // Previously this never actually looked at the image at all — it returned a canned string
+      // ("Optical frame alignment verified", "Threat Signatures: No... detected") for every image
+      // regardless of content, fabricating a "Clean" verdict even for something genuinely
+      // malicious. Now runs the image through a real vision model (moondream) with a prompt suited
+      // to what was actually asked.
+      const visionPrompt = isSecurityMode
+        ? 'Describe exactly what is shown in this image, in detail — including any text, logos, QR codes, buttons, or links visible. Be factual and literal, do not guess at intent.'
+        : prompt && prompt.trim()
+        ? prompt.trim()
+        : 'Describe what is shown in this image in detail.';
+
+      const visionResult = await generateVision(imagePart.inlineData.data, visionPrompt, { timeoutMs: 45000 });
+
+      if (visionResult.status !== 'success') {
+        return {
+          analysis: `⚠️ Vision analysis unavailable right now (${visionResult.reason}). Image received (${mimeType}, ${(dataSize / 1024).toFixed(1)} KB) but could not be inspected.`,
+          status: 'error',
+          hasImage: true,
+          model: 'moondream',
+          timestamp: new Date().toISOString(),
+        };
       }
+
+      const analysisReport = isSecurityMode
+        ? `🛡️ **RaidShield Visual Analysis:**\n${visionResult.text}\n\n*(Format: ${mimeType}, ${(dataSize / 1024).toFixed(1)} KB — described by a real vision model, not a fixed template; use this description, not a canned verdict, to judge whether it looks suspicious.)*`
+        : `🖼️ **Nexus Vision Inspection:**\n${visionResult.text}`;
 
       return {
         analysis: analysisReport,
         status: 'success',
         hasImage: true,
-        model: 'nexus-vision-engine',
+        model: 'moondream',
+        latencyMs: visionResult.latencyMs,
         timestamp: new Date().toISOString(),
       };
     });

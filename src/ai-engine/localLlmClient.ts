@@ -457,6 +457,70 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
   }
 }
 
+const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'moondream';
+
+export type VisionResult =
+  | { status: 'success'; text: string; latencyMs: number }
+  | { status: 'unavailable'; reason: 'not_configured' | 'connection_error' | 'timeout' | 'http_error' | 'empty_response'; detail?: string };
+
+/**
+ * Real image understanding via a dedicated small vision model (moondream by default — ~1.7GB,
+ * fast enough on this host to answer in a few seconds). This did NOT exist before: server.ts's
+ * image-handling paths fetched the image bytes and then just returned canned strings like
+ * "Optical frame alignment verified" and "Visual Input Received & Inspected" regardless of what
+ * was actually in the picture — image content was fetched, base64-encoded, and then thrown away
+ * unread. qwen2.5:3b (the main text model) has no vision capability at all, which is why this is
+ * a separate model/call rather than an option on generate().
+ */
+export async function generateVision(
+  imageBase64: string,
+  prompt: string,
+  options: { timeoutMs?: number } = {}
+): Promise<VisionResult> {
+  if (!OLLAMA_BASE_URL) {
+    return { status: 'unavailable', reason: 'not_configured' };
+  }
+
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? 30000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
+
+  try {
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OLLAMA_VISION_MODEL,
+        messages: [{ role: 'user', content: prompt, images: [imageBase64] }],
+        stream: false,
+        keep_alive: '30m',
+        options: { temperature: 0.3, num_predict: 300 },
+      }),
+    });
+
+    if (!res.ok) {
+      return { status: 'unavailable', reason: 'http_error', detail: `HTTP ${res.status}` };
+    }
+
+    const data: any = await res.json();
+    const text = data?.message?.content?.trim();
+    if (!text) {
+      return { status: 'unavailable', reason: 'empty_response' };
+    }
+
+    return { status: 'success', text, latencyMs: Date.now() - startedAt };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      return { status: 'unavailable', reason: 'timeout' };
+    }
+    return { status: 'unavailable', reason: 'connection_error', detail: String(err?.message || err) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type EmbedResult =
   | { status: 'success'; vector: number[]; latencyMs: number }
   | {
