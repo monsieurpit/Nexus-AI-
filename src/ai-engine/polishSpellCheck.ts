@@ -143,9 +143,22 @@ export function fixKnownPolishPhraseMistakes(text: string): string {
  * than an honest fallback, so this only acts when it's actually confident, and leaves everything
  * else for computeInvalidPolishWordRatio's gate (localLlmClient.ts) to catch and fall back on.
  */
+// spell.suggest() is a genuinely expensive fuzzy search (nowhere near as cheap as the O(1)-ish
+// spell.correct() lookup) — this model's well-documented Polish weaknesses mean a single garbled
+// response can have a dozen+ invalid words, and this function used to call suggest() on every
+// single one, unconditionally, before the quality gate even runs (a response bad enough to
+// eventually get discarded and replaced by a template fallback still paid the full correction
+// cost first). Observed live: Polish requests intermittently 502'd on Railway even after fixing
+// the one-time dictionary-load cost — this per-response, per-word cost is the other half of it.
+// Capped so a response already too garbled to realistically salvage doesn't keep paying for more
+// suggest() calls that were never going to save it anyway.
+const MAX_SUGGEST_CALLS_PER_RESPONSE = 6;
+
 export async function autoCorrectPolishText(text: string): Promise<string> {
   const spell = await getSpell();
   if (!spell) return text;
+
+  let suggestCallsUsed = 0;
 
   // Async replacement isn't supported by String.replace's callback, so matches are collected
   // first (with their positions) and the string is reassembled afterward instead.
@@ -164,6 +177,8 @@ export async function autoCorrectPolishText(text: string): Promise<string> {
   function correctWord(word: string): string {
     if (word.length < 3) return word;
     if (spell!.correct(word) || KNOWN_PROPER_NOUNS.has(word.toLowerCase())) return word;
+    if (suggestCallsUsed >= MAX_SUGGEST_CALLS_PER_RESPONSE) return word;
+    suggestCallsUsed++;
 
     const suggestions = spell!.suggest(word);
     if (suggestions.length === 0) return word;
