@@ -26,15 +26,32 @@ import * as localLlmClient from './localLlmClient';
 // browser bundle instead of just "unlikely to run".
 let embeddingsPromise: Promise<Record<string, number[]>> | null = null;
 
-function loadRealEmbeddings(): Promise<Record<string, number[]>> {
-  if (typeof window !== 'undefined') return Promise.resolve({});
+async function loadRealEmbeddings(): Promise<Record<string, number[]>> {
+  if (typeof window !== 'undefined') return {};
   if (!embeddingsPromise) {
-    embeddingsPromise = import('./corpus/embeddings.generated.json').then((mod) => {
-      const corpusEmbeddings = (mod as any).default ?? mod;
-      const vectors = (corpusEmbeddings as { vectors: Record<string, { vector: number[]; textHash: string }> })
-        .vectors || {};
-      return Object.fromEntries(Object.entries(vectors).map(([id, entry]) => [id, entry.vector]));
-    });
+    embeddingsPromise = (async () => {
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const possiblePaths = [
+          path.resolve(process.cwd(), 'src/ai-engine/corpus/embeddings.generated.json'),
+          path.resolve(__dirname, './corpus/embeddings.generated.json'),
+          path.resolve(__dirname, '../src/ai-engine/corpus/embeddings.generated.json'),
+        ];
+        for (const p of possiblePaths) {
+          if (fs.existsSync(p)) {
+            const content = fs.readFileSync(p, 'utf-8');
+            const corpusEmbeddings = JSON.parse(content);
+            const vectors =
+              (corpusEmbeddings as { vectors: Record<string, { vector: number[]; textHash: string }> }).vectors || {};
+            return Object.fromEntries(Object.entries(vectors).map(([id, entry]) => [id, entry.vector]));
+          }
+        }
+        return {};
+      } catch {
+        return {};
+      }
+    })();
   }
   return embeddingsPromise;
 }
