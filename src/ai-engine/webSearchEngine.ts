@@ -768,8 +768,31 @@ export function shouldTriggerLiveWebSearch(
   if (isExplicitSearch) return 'explicit';
 
   // 6. TRIGGER: Specific real-time / current events, recent releases, sports finals, or live lookups
+  //
+  // This was a narrow list of specific hardcoded examples (literally "2024 ucl final",
+  // "price of bitcoin") rather than general shapes — verified live: "who is the current president
+  // of the united states" matched nothing here (no corpus confidence check even runs for
+  // "current"-shaped questions the corpus can't win at by design) and got a genuine non-answer
+  // ("the question isn't directly answered..."), and "is the queen of england still alive" was
+  // answered confidently from static corpus content with zero web verification — the exact class
+  // of question (a fact that can change after the corpus was written) this trigger exists for.
+  // Added general "current X" / "is X still Y" / "latest version" shapes rather than more
+  // hardcoded examples.
   const isCurrentEventOrLiveLookup =
-    /(?:latest\s+news|breaking\s+news|what\s+happened\s+in|who\s+won\s+the\s+202|release\s+date\s+of|stock\s+price\s+of|price\s+of\s+bitcoin|weather\s+in|who\s+played\s+in|2024\s+ucl\s+final|2024\s+champions\s+league)/i.test(q);
+    /(?:latest\s+news|breaking\s+news|what\s+happened\s+in|who\s+won\s+the\s+202|release\s+date\s+of|stock\s+price\s+of|price\s+of\s+bitcoin|weather\s+in|who\s+played\s+in|2024\s+ucl\s+final|2024\s+champions\s+league)/i.test(q) ||
+    /\b(?:current|latest|newest)\s+(?:president|prime\s+minister|pm|ceo|king|queen|pope|leader|version|update|champion|record\s+holder)\b/i.test(q) ||
+    // "dead" deliberately excluded from this list — verified live, "is my phone battery dead"
+    // false-positived on it (an object, not a person's mortality). "did X die" below covers the
+    // mortality-check case more safely; a real "is a person still alive" question almost always
+    // uses "still", which everyday object questions ("is my wifi still down") don't share often
+    // enough to be worth excluding on their own.
+    /\bis\s+.{2,40}\s+still\s+(?:alive|the\s+president|the\s+ceo|in\s+office|married)\b/i.test(q) ||
+    /\bis\s+.{2,40}\s+(?:dating|retired)\b/i.test(q) ||
+    /\bdid\s+.{2,40}\s+(?:die|pass\s+away|retire|resign|get\s+married|get\s+divorced|win)\b/i.test(q) ||
+    // Only the explicit "now/today/currently" qualifier — bare "how old is X" also covers static,
+    // never-changing facts ("how old is the earth", "how old is the universe") that the corpus
+    // already answers fine and shouldn't be forced to the web.
+    /\bhow\s+old\s+is\s+.{2,40}\s+(?:now|today|currently)\b/i.test(q);
   if (isCurrentEventOrLiveLookup) return 'current-events';
 
   // 7. FALLBACK: Local corpus has no confident match — reach for the web instead of giving up.
