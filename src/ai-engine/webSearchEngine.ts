@@ -738,9 +738,19 @@ export function shouldTriggerLiveWebSearch(
   }
 
   // 4. TRIGGER: Finding the MEANING or DEFINITION of something
+  //
+  // Unconditional until this fix — ANY "what does X mean/stand for" phrasing forced a live Google
+  // search regardless of whether the local corpus already had a confident, correct answer.
+  // Observed live: "what does CEO stand for" went straight to Google and answered with an
+  // unrelated Wikipedia bio (a YouTuber who happened to also hold a "CEO" title once) even after
+  // the corpus gained a correct, well-matched "CEO" acronym entry (BM25 score 52+ on a direct
+  // test) — this trigger never gave the corpus a chance to be checked at all. Now only forces the
+  // web search when the corpus doesn't already clear the same confidence floor
+  // (CONFIDENCE_FLOOR in reasoningEngine.ts) used everywhere else confidence gates a decision —
+  // undefined confidence (caller didn't pass one) still triggers the search, same as before.
   const isMeaningSearch =
     /(?:what\s+is\s+the\s+meaning\s+of|what\s+does\s+.+\s+mean|meaning\s+of|definition\s+of|define\s+|what\s+is\s+the\s+definition\s+of|what\s+does\s+.+\s+stand\s+for|what\s+means\s+|meaning\s+behind)/i.test(q);
-  if (isMeaningSearch) return 'meaning';
+  if (isMeaningSearch && (matchedConfidence === undefined || matchedConfidence < 0.5)) return 'meaning';
 
   // 5. TRIGGER: Explicit user requests to search Google or the web
   const isExplicitSearch =

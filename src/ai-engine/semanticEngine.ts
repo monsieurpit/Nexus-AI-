@@ -853,6 +853,20 @@ export function extractQueryEntities(text: string): string[] {
   const entities: string[] = [];
   const words = text.split(/\s+/).map((w) => w.replace(/[^\w]/g, '').trim()).filter(Boolean);
 
+  // ALL-CAPS acronyms (CEO, NASA, HTTP, USB, GPS, DNA) — checked before, and independently of,
+  // the Title-Case scan below, since /^[A-Z][a-z0-9]/ requires a lowercase/digit second character
+  // and never matches a word that's entirely uppercase. Observed live: "what does CEO stand for"
+  // extracted "stand" as the query's entity instead of "CEO" (the only capitalized-phrase check
+  // missed it entirely, and the length-gated topic-noun fallback below also excludes it — CEO is
+  // exactly 3 characters, same length as most common acronyms), routing the question to a live web
+  // search that returned an unrelated Wikipedia bio instead of the corpus's own correct answer.
+  // Requires 2+ letters so a single stray capital doesn't false-position as an "acronym".
+  for (const w of words) {
+    if (/^[A-Z]{2,}$/.test(w)) {
+      entities.push(w);
+    }
+  }
+
   // Capitalized entity phrases (e.g. "Albert Einstein", "Cristiano Ronaldo")
   let currentCap: string[] = [];
   for (const w of words) {
