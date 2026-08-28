@@ -12,6 +12,7 @@ import {
 } from './src/ai-engine/ruleEngine';
 import { generateReasoningPath, assessCorpusConfidence } from './src/ai-engine/reasoningEngine';
 import { checkAvailability as checkLocalLlmAvailability, generate as generateLlmText, generateVision } from './src/ai-engine/localLlmClient';
+import { warmPolishDictionary } from './src/ai-engine/polishSpellCheck';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
 import {
   BUILTIN_KNOWLEDGE,
@@ -2049,6 +2050,11 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Nexus & RaidShield API Server active at http://0.0.0.0:${PORT}`);
+    // Fire-and-forget: pays the expensive one-time Polish-dictionary parse cost during startup
+    // instead of on a live user's first Polish message. See polishSpellCheck.ts's comment on
+    // warmPolishDictionary for why this exists — a synchronous parse can't be timeout-guarded
+    // once it starts, so the only real fix is not letting it start mid-request.
+    warmPolishDictionary();
   });
 }
 

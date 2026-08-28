@@ -18,20 +18,48 @@ import { levenshteinDistance } from './bm25Engine';
 let spellPromise: Promise<{ correct: (w: string) => boolean; suggest: (w: string) => string[] } | null> | null =
   null;
 
+// Building the dictionary (nspell's constructor parses a ~4.7MB affix/word-list file — hundreds of
+// thousands of entries — entirely synchronously) is genuinely expensive, and it's a one-time cost
+// per process, not per-request. If it ever throws (a bad deploy, an OOM mid-parse, anything), the
+// old code cached the REJECTED promise forever — `if (!spellPromise)` only checks for null, not
+// for a promise that already failed — so one bad load permanently broke every future Polish
+// message for the rest of that process's uptime with no way to recover short of a restart. Now
+// clears spellPromise back to null on failure so the next call gets a fresh attempt.
 function getSpell() {
   if (typeof window !== 'undefined') return Promise.resolve(null);
   if (!spellPromise) {
     spellPromise = (async () => {
-      const [{ default: nspell }, { default: dictionary }] = await Promise.all([
-        import('nspell'),
-        import('dictionary-pl'),
-      ]);
-      // dictionary-pl exports its affix/dic data as Uint8Array; @types/nspell's signature wants a
-      // Node Buffer specifically (Buffer is a Uint8Array subclass, not the reverse) — wrap explicitly.
-      return nspell(Buffer.from(dictionary.aff), Buffer.from(dictionary.dic));
+      try {
+        const [{ default: nspell }, { default: dictionary }] = await Promise.all([
+          import('nspell'),
+          import('dictionary-pl'),
+        ]);
+        // dictionary-pl exports its affix/dic data as Uint8Array; @types/nspell's signature wants a
+        // Node Buffer specifically (Buffer is a Uint8Array subclass, not the reverse) — wrap explicitly.
+        return nspell(Buffer.from(dictionary.aff), Buffer.from(dictionary.dic));
+      } catch (err) {
+        spellPromise = null;
+        throw err;
+      }
     })();
   }
   return spellPromise;
+}
+
+// Fired once, fire-and-forget, as early as possible in the process's life (see server.ts) so the
+// expensive synchronous parse above happens during deploy warmup instead of blocking the first
+// real Polish message a user sends. nspell's constructor blocks the entire single-threaded event
+// loop for its whole duration — no `await`/timeout wrapper can interrupt synchronous work once it
+// starts, so the only real fix is making sure that block happens when nobody's waiting on it,
+// not mid-request. Observed live: a Polish message got Railway's own "Application failed to
+// respond" (502) after ~17s with no application-level error at all, consistent with the event
+// loop being fully blocked long enough for Railway's gateway to give up waiting — this warms the
+// dictionary before any user ever triggers that cold-start cost.
+export function warmPolishDictionary(): void {
+  getSpell().catch(() => {
+    // Swallowed deliberately: a failed warmup just means the next real Polish message pays the
+    // cold-start cost itself (and can retry, thanks to the fix above) instead of crashing startup.
+  });
 }
 
 // Words the bot's persona/topics legitimately use that a general-purpose dictionary won't know
