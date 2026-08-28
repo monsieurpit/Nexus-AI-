@@ -82,6 +82,31 @@ import { BASIC_REFERENCE_FACTS_4_CORPUS } from './corpus/basicReferenceFacts4';
 import { MEASUREMENT_CONVERSIONS_2_CORPUS } from './corpus/measurementConversions2';
 import { BASIC_PRACTICAL_KNOWHOW_CORPUS } from './corpus/basicPracticalKnowhow';
 import { EVERYDAY_TRIVIA_REFERENCE_CORPUS } from './corpus/everydayTriviaReference';
+import { ANCIENT_WONDERS_AND_LANDMARKS_CORPUS } from './corpus/ancientWondersAndLandmarks';
+import { BODY_SYSTEMS_AND_PHYSIOLOGY_CORPUS } from './corpus/bodySystemsAndPhysiology';
+import { BUSINESS_AND_ENTREPRENEURSHIP_CORPUS } from './corpus/businessAndEntrepreneurship';
+import { CLASSIC_LITERATURE_DEEP_CORPUS } from './corpus/classicLiteratureDeep';
+import { CLASSIC_MOVIES_AND_CULTURAL_TOUCHSTONES_CORPUS } from './corpus/classicMoviesAndCulturalTouchstones';
+import { COMMON_MEDICAL_CONDITIONS_EXPLAINED_CORPUS } from './corpus/commonMedicalConditionsExplained';
+import { COOKING_SCIENCE_DEEP_CORPUS } from './corpus/cookingScienceDeep';
+import { ECONOMICS_DEEP_DIVE_CORPUS } from './corpus/economicsDeepDive';
+import { EVERYDAY_PHYSICS_AND_TECH_DEEP_CORPUS } from './corpus/everydayPhysicsAndTechDeep';
+import { FAMOUS_ARTISTS_CORPUS } from './corpus/famousArtists';
+import { FAMOUS_HISTORICAL_LEADERS_CORPUS } from './corpus/famousHistoricalLeaders';
+import { FAMOUS_PHILOSOPHERS_CORPUS } from './corpus/famousPhilosophers';
+import { FAMOUS_SCIENTISTS_DEEP_CORPUS } from './corpus/famousScientistsDeep';
+import { MORE_CLASSIC_LITERATURE_CORPUS } from './corpus/moreClassicLiterature';
+import { PHYSICS_FUNDAMENTALS_CORPUS } from './corpus/physicsFundamentals';
+import { PLANETS_IN_DEPTH_CORPUS } from './corpus/planetsInDepth';
+import { PSYCHOLOGY_BIASES_DEEP_CORPUS } from './corpus/psychologyBiasesDeep';
+import { SPORTS_EXPANDED_2_CORPUS } from './corpus/sportsExpanded2';
+import { WORLD_CAPITALS_AND_COUNTRIES_CORPUS } from './corpus/worldCapitalsAndCountries';
+import { WORLD_CAPITALS_AND_COUNTRIES_2_CORPUS } from './corpus/worldCapitalsAndCountries2';
+import { WORLD_GOVERNMENTS_AND_SYSTEMS_CORPUS } from './corpus/worldGovernmentsAndSystems';
+import { WORLD_HISTORY_DEEP_CORPUS } from './corpus/worldHistoryDeep';
+import { WORLD_LANGUAGES_AND_LINGUISTICS_CORPUS } from './corpus/worldLanguagesAndLinguistics';
+import { WORLD_MYTHOLOGY_CORPUS } from './corpus/worldMythology';
+import { WORLD_MYTHOLOGY_2_CORPUS } from './corpus/worldMythology2';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -672,6 +697,31 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...MEASUREMENT_CONVERSIONS_2_CORPUS,
   ...BASIC_PRACTICAL_KNOWHOW_CORPUS,
   ...EVERYDAY_TRIVIA_REFERENCE_CORPUS,
+  ...ANCIENT_WONDERS_AND_LANDMARKS_CORPUS,
+  ...BODY_SYSTEMS_AND_PHYSIOLOGY_CORPUS,
+  ...BUSINESS_AND_ENTREPRENEURSHIP_CORPUS,
+  ...CLASSIC_LITERATURE_DEEP_CORPUS,
+  ...CLASSIC_MOVIES_AND_CULTURAL_TOUCHSTONES_CORPUS,
+  ...COMMON_MEDICAL_CONDITIONS_EXPLAINED_CORPUS,
+  ...COOKING_SCIENCE_DEEP_CORPUS,
+  ...ECONOMICS_DEEP_DIVE_CORPUS,
+  ...EVERYDAY_PHYSICS_AND_TECH_DEEP_CORPUS,
+  ...FAMOUS_ARTISTS_CORPUS,
+  ...FAMOUS_HISTORICAL_LEADERS_CORPUS,
+  ...FAMOUS_PHILOSOPHERS_CORPUS,
+  ...FAMOUS_SCIENTISTS_DEEP_CORPUS,
+  ...MORE_CLASSIC_LITERATURE_CORPUS,
+  ...PHYSICS_FUNDAMENTALS_CORPUS,
+  ...PLANETS_IN_DEPTH_CORPUS,
+  ...PSYCHOLOGY_BIASES_DEEP_CORPUS,
+  ...SPORTS_EXPANDED_2_CORPUS,
+  ...WORLD_CAPITALS_AND_COUNTRIES_CORPUS,
+  ...WORLD_CAPITALS_AND_COUNTRIES_2_CORPUS,
+  ...WORLD_GOVERNMENTS_AND_SYSTEMS_CORPUS,
+  ...WORLD_HISTORY_DEEP_CORPUS,
+  ...WORLD_LANGUAGES_AND_LINGUISTICS_CORPUS,
+  ...WORLD_MYTHOLOGY_CORPUS,
+  ...WORLD_MYTHOLOGY_2_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
