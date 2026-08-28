@@ -1,0 +1,20 @@
+import { KnowledgeItem } from '../../types';
+
+export const VACCINE_HISTORY_DEEP_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-vaccines-smallpox-jenner',
+    title: 'Smallpox and the World\'s First Vaccine',
+    category: 'Health & Medicine',
+    keywords: ['edward jenner smallpox vaccine', 'first vaccine history', 'smallpox eradication', 'how was smallpox eradicated'],
+    content: `**Smallpox** was one of history's deadliest diseases, killing an estimated 300 million people in the 20th century alone before it was eradicated, with a fatality rate around 30% among those infected and survivors often left with severe scarring or blindness. The world's first vaccine was developed against it: in 1796, English physician **Edward Jenner** observed that milkmaids who had previously caught the much milder cowpox virus (from contact with infected cattle) seemed to be protected from smallpox. Jenner tested this by deliberately exposing a boy to cowpox and later to smallpox itself, finding the boy remained protected — a landmark, if ethically troubling by modern research standards, experiment that gave the entire field its name (the word "vaccine" derives from "vacca," Latin for cow). Jenner's discovery launched over a century and a half of gradually improving vaccination efforts, and the World Health Organization eventually coordinated an intensive, unprecedented global vaccination and outbreak-tracking campaign through the 1960s-70s. Smallpox was officially declared **eradicated** in 1980 — the only human infectious disease ever fully eliminated worldwide through deliberate intervention — a milestone considered one of public health's greatest achievements. The last known natural case occurred in Somalia in 1977, and remaining virus samples today exist only in two tightly secured research laboratories (in the U.S. and Russia), with ongoing scientific and biosecurity debate over whether those final samples should eventually be destroyed entirely.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-vaccines-polio',
+    title: 'The Polio Vaccine and the Near-Eradication of Polio',
+    category: 'Health & Medicine',
+    keywords: ['jonas salk polio vaccine', 'polio vaccine history', 'iron lung polio', 'is polio eradicated'],
+    content: `**Polio** (poliomyelitis) is a highly contagious viral disease that, in a small but significant fraction of cases, invades the nervous system and causes permanent paralysis, historically striking children with particular ferocity and terrifying mid-20th-century parents during periodic severe outbreaks — some paralyzed patients required a mechanical ventilator called an "iron lung" (a large, enclosing chamber that helped patients breathe when polio had paralyzed their chest muscles) for extended periods or even the rest of their lives. American researcher **Jonas Salk** developed the first successful, widely deployed polio vaccine (using an inactivated, killed version of the virus, delivered by injection), announced in 1955 to enormous public relief and celebration — Salk notably chose not to patent the vaccine, reportedly saying "could you patent the sun?", prioritizing rapid, widespread, affordable distribution over personal financial gain. A few years later, **Albert Sabin** developed a live oral vaccine (given as drops, using a weakened rather than fully inactivated virus), which became easier to administer at scale in many countries. These vaccines, combined with sustained global vaccination campaigns led substantially by organizations including the WHO, UNICEF, and Rotary International, have reduced global polio cases by over 99% since the 1980s, when the disease still paralyzed hundreds of thousands of children annually worldwide. As of the mid-2020s, wild poliovirus remains endemic (still naturally circulating) in only a small handful of countries, primarily Afghanistan and Pakistan, where ongoing vaccination efforts continue working toward full global eradication, following smallpox as only the second human disease ever eliminated.`,
+    createdAt: Date.now(),
+  },
+];

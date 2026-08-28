@@ -107,6 +107,61 @@ import { WORLD_HISTORY_DEEP_CORPUS } from './corpus/worldHistoryDeep';
 import { WORLD_LANGUAGES_AND_LINGUISTICS_CORPUS } from './corpus/worldLanguagesAndLinguistics';
 import { WORLD_MYTHOLOGY_CORPUS } from './corpus/worldMythology';
 import { WORLD_MYTHOLOGY_2_CORPUS } from './corpus/worldMythology2';
+// Round 6 knowledge expansion (2026-08-28)
+import { WORLD_CAPITALS_AND_COUNTRIES_3_CORPUS } from './corpus/worldCapitalsAndCountries3';
+import { WORLD_CAPITALS_AND_COUNTRIES_4_CORPUS } from './corpus/worldCapitalsAndCountries4';
+import { MAJOR_WARS_AND_CONFLICTS_CORPUS } from './corpus/majorWarsAndConflicts';
+import { CLASSICAL_COMPOSERS_DEEP_CORPUS } from './corpus/classicalComposersDeep';
+import { DANCE_STYLES_AROUND_THE_WORLD_CORPUS } from './corpus/danceStylesAroundTheWorld';
+import { WORLD_GEOGRAPHY_LANDMARKS_DEEP_CORPUS } from './corpus/worldGeographyLandmarksDeep';
+import { ARCHITECTURE_STYLES_CORPUS } from './corpus/architectureStyles';
+import { FASHION_HISTORY_BASICS_CORPUS } from './corpus/fashionHistoryBasics';
+import { LITERARY_GENRES_EXPLAINED_CORPUS } from './corpus/literaryGenresExplained';
+import { LOGICAL_FALLACIES_DEEP_CORPUS } from './corpus/logicalFallaciesDeep';
+import { CURRENCY_AND_EXCHANGE_RATES_CORPUS } from './corpus/currencyAndExchangeRates';
+import { WORLD_HOLIDAYS_AND_CELEBRATIONS_CORPUS } from './corpus/worldHolidaysAndCelebrations';
+import { ADDICTION_AND_BRAIN_SCIENCE_CORPUS } from './corpus/addictionAndBrainScience';
+import { MARINE_BIOLOGY_AND_OCEAN_LIFE_CORPUS } from './corpus/marineBiologyAndOceanLife';
+import { CONSTELLATIONS_AND_NIGHT_SKY_CORPUS } from './corpus/constellationsAndNightSky';
+import { ALGEBRA_BASICS_CORPUS } from './corpus/algebraBasics';
+import { SPACE_MISSIONS_AND_AGENCIES_CORPUS } from './corpus/spaceMissionsAndAgencies';
+import { INTERNET_HISTORY_DEEP_CORPUS } from './corpus/internetHistoryDeep';
+import { PROGRAMMING_LANGUAGES_OVERVIEW_CORPUS } from './corpus/programmingLanguagesOverview';
+import { CYBERSECURITY_CONCEPTS_DEEP_CORPUS } from './corpus/cybersecurityConceptsDeep';
+import { WORLD_CHANGING_INVENTIONS_CORPUS } from './corpus/worldChangingInventions';
+import { HISTORIC_PANDEMICS_AND_DEFICIENCY_DISEASES_CORPUS } from './corpus/historicPandemicsAndDeficiencyDiseases';
+import { WORLD_RELIGIONS_EXTRA_CORPUS } from './corpus/worldReligionsExtra';
+import { HISTORICAL_MOVEMENTS_AND_EXPLORATION_CORPUS } from './corpus/historicalMovementsAndExploration';
+import { FAMOUS_MATHEMATICIANS_DEEP_CORPUS } from './corpus/famousMathematiciansDeep';
+import { FAMOUS_BATTLES_IN_HISTORY_CORPUS } from './corpus/famousBattlesInHistory';
+import { US_FOUNDING_DOCUMENTS_CORPUS } from './corpus/usFoundingDocuments';
+import { GEOLOGIC_TIME_AND_DINOSAURS_CORPUS } from './corpus/geologicTimeAndDinosaurs';
+import { ANCIENT_AMERICAN_CIVILIZATIONS_CORPUS } from './corpus/ancientAmericanCivilizations';
+import { RENEWABLE_ENERGY_TYPES_DEEP_CORPUS } from './corpus/renewableEnergyTypesDeep';
+import { ORGAN_FUNCTIONS_DEEP_CORPUS } from './corpus/organFunctionsDeep';
+import { COMMUNICATION_INVENTIONS_DEEP_CORPUS } from './corpus/communicationInventionsDeep';
+import { ANXIETY_AND_DEPRESSION_EXPLAINED_CORPUS } from './corpus/anxietyAndDepressionExplained';
+import { FOUNDING_FATHERS_AND_PRESIDENTS_CORPUS } from './corpus/foundingFathersAndPresidents';
+import { TECH_COMPANY_ORIGINS_CORPUS } from './corpus/techCompanyOrigins';
+import { VIDEO_GAME_CONSOLE_HISTORY_CORPUS } from './corpus/videoGameConsoleHistory';
+import { MORE_MUSIC_GENRES_ORIGINS_CORPUS } from './corpus/moreMusicGenresOrigins';
+import { FAMOUS_PAINTINGS_DEEP_CORPUS } from './corpus/famousPaintingsDeep';
+import { BIG_CATS_AND_PRIMATES_FACTS_CORPUS } from './corpus/bigCatsAndPrimatesFacts';
+import { WORLD_CUISINES_BY_REGION_CORPUS } from './corpus/worldCuisinesByRegion';
+import { EDUCATION_SYSTEMS_WORLDWIDE_CORPUS } from './corpus/educationSystemsWorldwide';
+import { SLEEP_DISORDERS_EXPLAINED_CORPUS } from './corpus/sleepDisordersExplained';
+import { PERSONALITY_TYPES_AND_NOBEL_PRIZE_CORPUS } from './corpus/personalityTypesAndNobelPrize';
+import { CHEMICAL_REACTION_TYPES_DEEP_CORPUS } from './corpus/chemicalReactionTypesDeep';
+import { ETHICS_THOUGHT_EXPERIMENTS_CORPUS } from './corpus/ethicsThoughtExperiments';
+import { API_AND_STOCK_MARKET_BASICS_CORPUS } from './corpus/apiAndStockMarketBasics';
+import { FIBONACCI_AND_GOLDEN_RATIO_CORPUS } from './corpus/fibonacciAndGoldenRatio';
+import { NATURAL_DISASTERS_AND_CHESS_HISTORY_CORPUS } from './corpus/naturalDisastersAndChessHistory';
+import { TITANIC_AND_FAMOUS_DISASTERS_CORPUS } from './corpus/titanicAndFamousDisasters';
+import { VACCINE_HISTORY_DEEP_CORPUS } from './corpus/vaccineHistoryDeep';
+import { STOICISM_AND_MODERN_REVIVAL_CORPUS } from './corpus/stoicismAndModernRevival';
+import { AUTOIMMUNE_DISEASES_EXPLAINED_CORPUS } from './corpus/autoimmuneDiseasesExplained';
+import { GENETICS_BASICS_EXPLAINED_CORPUS } from './corpus/geneticsBasicsExplained';
+import { HISTORY_OF_MONEY_AND_BANKING_CORPUS } from './corpus/historyOfMoneyAndBanking';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -722,6 +777,61 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...WORLD_LANGUAGES_AND_LINGUISTICS_CORPUS,
   ...WORLD_MYTHOLOGY_CORPUS,
   ...WORLD_MYTHOLOGY_2_CORPUS,
+  // Round 6 knowledge expansion (2026-08-28)
+  ...WORLD_CAPITALS_AND_COUNTRIES_3_CORPUS,
+  ...WORLD_CAPITALS_AND_COUNTRIES_4_CORPUS,
+  ...MAJOR_WARS_AND_CONFLICTS_CORPUS,
+  ...CLASSICAL_COMPOSERS_DEEP_CORPUS,
+  ...DANCE_STYLES_AROUND_THE_WORLD_CORPUS,
+  ...WORLD_GEOGRAPHY_LANDMARKS_DEEP_CORPUS,
+  ...ARCHITECTURE_STYLES_CORPUS,
+  ...FASHION_HISTORY_BASICS_CORPUS,
+  ...LITERARY_GENRES_EXPLAINED_CORPUS,
+  ...LOGICAL_FALLACIES_DEEP_CORPUS,
+  ...CURRENCY_AND_EXCHANGE_RATES_CORPUS,
+  ...WORLD_HOLIDAYS_AND_CELEBRATIONS_CORPUS,
+  ...ADDICTION_AND_BRAIN_SCIENCE_CORPUS,
+  ...MARINE_BIOLOGY_AND_OCEAN_LIFE_CORPUS,
+  ...CONSTELLATIONS_AND_NIGHT_SKY_CORPUS,
+  ...ALGEBRA_BASICS_CORPUS,
+  ...SPACE_MISSIONS_AND_AGENCIES_CORPUS,
+  ...INTERNET_HISTORY_DEEP_CORPUS,
+  ...PROGRAMMING_LANGUAGES_OVERVIEW_CORPUS,
+  ...CYBERSECURITY_CONCEPTS_DEEP_CORPUS,
+  ...WORLD_CHANGING_INVENTIONS_CORPUS,
+  ...HISTORIC_PANDEMICS_AND_DEFICIENCY_DISEASES_CORPUS,
+  ...WORLD_RELIGIONS_EXTRA_CORPUS,
+  ...HISTORICAL_MOVEMENTS_AND_EXPLORATION_CORPUS,
+  ...FAMOUS_MATHEMATICIANS_DEEP_CORPUS,
+  ...FAMOUS_BATTLES_IN_HISTORY_CORPUS,
+  ...US_FOUNDING_DOCUMENTS_CORPUS,
+  ...GEOLOGIC_TIME_AND_DINOSAURS_CORPUS,
+  ...ANCIENT_AMERICAN_CIVILIZATIONS_CORPUS,
+  ...RENEWABLE_ENERGY_TYPES_DEEP_CORPUS,
+  ...ORGAN_FUNCTIONS_DEEP_CORPUS,
+  ...COMMUNICATION_INVENTIONS_DEEP_CORPUS,
+  ...ANXIETY_AND_DEPRESSION_EXPLAINED_CORPUS,
+  ...FOUNDING_FATHERS_AND_PRESIDENTS_CORPUS,
+  ...TECH_COMPANY_ORIGINS_CORPUS,
+  ...VIDEO_GAME_CONSOLE_HISTORY_CORPUS,
+  ...MORE_MUSIC_GENRES_ORIGINS_CORPUS,
+  ...FAMOUS_PAINTINGS_DEEP_CORPUS,
+  ...BIG_CATS_AND_PRIMATES_FACTS_CORPUS,
+  ...WORLD_CUISINES_BY_REGION_CORPUS,
+  ...EDUCATION_SYSTEMS_WORLDWIDE_CORPUS,
+  ...SLEEP_DISORDERS_EXPLAINED_CORPUS,
+  ...PERSONALITY_TYPES_AND_NOBEL_PRIZE_CORPUS,
+  ...CHEMICAL_REACTION_TYPES_DEEP_CORPUS,
+  ...ETHICS_THOUGHT_EXPERIMENTS_CORPUS,
+  ...API_AND_STOCK_MARKET_BASICS_CORPUS,
+  ...FIBONACCI_AND_GOLDEN_RATIO_CORPUS,
+  ...NATURAL_DISASTERS_AND_CHESS_HISTORY_CORPUS,
+  ...TITANIC_AND_FAMOUS_DISASTERS_CORPUS,
+  ...VACCINE_HISTORY_DEEP_CORPUS,
+  ...STOICISM_AND_MODERN_REVIVAL_CORPUS,
+  ...AUTOIMMUNE_DISEASES_EXPLAINED_CORPUS,
+  ...GENETICS_BASICS_EXPLAINED_CORPUS,
+  ...HISTORY_OF_MONEY_AND_BANKING_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API

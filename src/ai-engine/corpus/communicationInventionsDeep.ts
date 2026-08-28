@@ -1,0 +1,20 @@
+import { KnowledgeItem } from '../../types';
+
+export const COMMUNICATION_INVENTIONS_DEEP_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-inventions-telegraph-radio',
+    title: 'The Telegraph and Radio: Communicating Across Distance',
+    category: 'History',
+    keywords: ['who invented the telegraph', 'samuel morse morse code', 'who invented radio', 'marconi radio invention'],
+    content: `The **electric telegraph**, developed and commercialized primarily by **Samuel Morse** in the U.S. during the 1830s-40s (alongside his associate Alfred Vail, who helped refine the system), allowed near-instantaneous long-distance communication for the first time in human history by sending electrical pulses along wires, decoded at the receiving end using **Morse code** — a system of short and long signals ("dots and dashes") representing letters and numbers, which Morse and Vail developed together. Before the telegraph, sending a message any real distance required physically transporting it (by horse, ship, or on foot), meaning news could take days or weeks to travel; the telegraph collapsed that delay to mere minutes, revolutionizing business, journalism, military coordination, and government administration, and transatlantic telegraph cables (first successfully laid in 1866) eventually connected continents. **Radio** built on later 19th-century discoveries about electromagnetic waves (notably by physicist Heinrich Hertz) to transmit information wirelessly through the air rather than along physical wires. Italian inventor **Guglielmo Marconi** is generally credited as the key figure who turned this science into practical, long-distance wireless communication technology, achieving the first transatlantic wireless radio transmission in 1901 and winning the Nobel Prize in Physics in 1909 for his contributions (though, as with many major inventions, several other scientists, including Nikola Tesla, made important contributions and disputed contributions to radio's development around the same period).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-inventions-gps',
+    title: 'How GPS Works',
+    category: 'Technology',
+    keywords: ['how does gps work', 'gps satellites explained', 'who invented gps', 'global positioning system'],
+    content: `**GPS** (Global Positioning System) determines a device's precise location by measuring signals from a network of at least 24 satellites orbiting roughly 20,200 kilometers (12,550 miles) above Earth, originally developed and operated by the U.S. Department of Defense, with the system reaching full global operational capability in the mid-1990s. Each satellite continuously broadcasts a signal containing its exact position and the precise time it was sent, generated using extremely accurate atomic clocks; a GPS receiver (in a phone, car, or dedicated device) calculates its own location by measuring how long signals took to arrive from at least four different satellites simultaneously — since radio signals travel at the known speed of light, the receiver can calculate its distance from each satellite based on that tiny time delay, and triangulating distances from multiple satellites pinpoints its position in three dimensions (latitude, longitude, and altitude), a technique called **trilateration**. Interestingly, GPS accuracy actually depends on accounting for effects predicted by Einstein's theory of relativity — satellite clocks run measurably faster than clocks on Earth's surface due to weaker gravity at orbital altitude (general relativity) partially offset by their high orbital speed (special relativity), and without correcting for this tiny but real time discrepancy, GPS location errors would accumulate rapidly, reaching several kilometers of drift within just a single day. The U.S. system was made freely available for civilian use worldwide starting in the 1980s-2000s, and other countries have since built their own equivalent satellite navigation systems, including Europe's Galileo, Russia's GLONASS, and China's BeiDou.`,
+    createdAt: Date.now(),
+  },
+];

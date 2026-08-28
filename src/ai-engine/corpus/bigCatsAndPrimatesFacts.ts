@@ -1,0 +1,20 @@
+import { KnowledgeItem } from '../../types';
+
+export const BIG_CATS_AND_PRIMATES_FACTS_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-wildlife-big-cats',
+    title: 'Big Cats Compared: Lions, Tigers, Leopards, and Cheetahs',
+    category: 'Biology',
+    keywords: ['lion vs tiger differences', 'difference between leopard and cheetah', 'big cats comparison', 'fastest land animal cheetah'],
+    content: `The world's "big cats" include lions, tigers, leopards, jaguars, and (depending on classification) cheetahs and cougars, each with distinct traits. **Lions** are the only cats that live in social groups (called prides), typically led by related females who do most of the hunting cooperatively, with males primarily defending territory; they're native mainly to sub-Saharan Africa today, with a small critically endangered population also surviving in India's Gir Forest. **Tigers**, the largest of all big cat species, are solitary hunters native to parts of Asia, identifiable by their orange coat with black stripes (a pattern as individually unique as a human fingerprint), and are critically endangered in the wild due to habitat loss and poaching, though populations have modestly recovered in some regions through dedicated conservation efforts. **Leopards** are smaller, highly adaptable, and excellent climbers, often dragging prey up into trees to keep it safe from other predators like lions and hyenas; they're sometimes confused with **jaguars** (found in the Americas rather than Africa/Asia), which have a similar spotted coat but are stockier and have a more powerful bite capable of piercing turtle shells and crocodile skulls. The **cheetah**, while often grouped with big cats, is genetically distinct and is the fastest land animal on Earth, capable of reaching speeds around 100-120 km/h (60-75 mph) in short bursts, using a flexible spine and non-retractable claws (unlike other cats) for extra traction while sprinting, though it sacrifices raw strength for that speed and can be driven off its kills by stronger predators.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-wildlife-great-apes',
+    title: 'The Great Apes: Chimpanzees, Gorillas, and Orangutans',
+    category: 'Biology',
+    keywords: ['great apes species', 'chimpanzee vs gorilla', 'closest living relative to humans', 'orangutan facts'],
+    content: `The **great apes** — chimpanzees, bonobos, gorillas, orangutans, and humans — form a taxonomic family sharing a relatively recent common evolutionary ancestor, and are distinguished from monkeys partly by their larger brains, more complex social and cognitive abilities, and (with the exception of humans) lack of a tail. **Chimpanzees** are humans' closest living genetic relatives, sharing roughly 98-99% of our DNA, native to equatorial Africa, living in complex social groups, using tools (like stripped sticks to fish termites out of mounds), and displaying sophisticated cooperative and sometimes violent inter-group behavior that researchers have studied extensively for insight into the possible roots of human social behavior. **Bonobos**, a closely related but separate species found only in the Democratic Republic of Congo, are notably more matriarchal and use social bonding and conflict-resolution strategies rather than the more aggression-prone dynamics sometimes seen in chimpanzee groups. **Gorillas**, the largest living primates, are native to central African forests, generally gentle and predominantly plant-eating despite their intimidating size, living in family groups typically led by a dominant adult male ("silverback," named for the distinctive silver-gray hair that develops on mature males' backs). **Orangutans**, native to the rainforests of Borneo and Sumatra, are the only great apes found in Asia and are notably more solitary than other great apes, spending the vast majority of their lives moving through trees; all great ape species outside humans face serious population declines, primarily from habitat destruction (especially rainforest logging and conversion to palm oil plantations) and, in some regions, poaching.`,
+    createdAt: Date.now(),
+  },
+];

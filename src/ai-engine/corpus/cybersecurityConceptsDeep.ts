@@ -1,0 +1,20 @@
+import { KnowledgeItem } from '../../types';
+
+export const CYBERSECURITY_CONCEPTS_DEEP_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-cybersec-firewall-vpn',
+    title: 'What Is a Firewall and What Is a VPN?',
+    category: 'Technology',
+    keywords: ['what is a firewall in cybersecurity', 'what is a vpn', 'how does a vpn work', 'firewall vs vpn'],
+    content: `A **firewall** is a security system, either hardware or software, that monitors and controls incoming and outgoing network traffic based on a set of predefined security rules, acting as a barrier between a trusted internal network (like your home network or a company's systems) and untrusted external networks (like the broader internet). It works by inspecting data packets and deciding, based on rules covering things like source/destination address, port number, or the type of traffic, whether to allow or block them — think of it as a checkpoint deciding what's allowed in and out, rather than something that scans for or removes malicious software once it's already inside (that's the job of antivirus/anti-malware software instead). A **VPN** (Virtual Private Network) creates an encrypted tunnel between your device and a VPN server, routing your internet traffic through it so that your internet service provider, network administrators, or anyone else monitoring the network you're connected to (like public Wi-Fi at a coffee shop) can't easily see what websites or services you're accessing, and your traffic appears to originate from the VPN server's location rather than your own. VPNs are commonly used for privacy, for securing sensitive traffic on untrusted public networks, for remote employees securely accessing a company's internal systems, and sometimes to access content restricted by geographic region — though a VPN doesn't make you anonymous online in every sense (the VPN provider itself can typically see your traffic, so trusting a reputable provider matters), and it doesn't protect against malware or phishing on its own.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-cybersec-ransomware-2fa',
+    title: 'Ransomware and Two-Factor Authentication Explained',
+    category: 'Technology',
+    keywords: ['what is ransomware', 'how does ransomware work', 'what is two-factor authentication', 'why use 2fa'],
+    content: `**Ransomware** is a type of malicious software that encrypts a victim's files (or sometimes locks them out of an entire system) and then demands a ransom payment, usually in cryptocurrency to make tracing harder, in exchange for a decryption key to restore access. It commonly spreads through phishing emails with malicious attachments or links, exploiting unpatched software vulnerabilities, or compromised remote-access credentials, and has increasingly targeted not just individuals but hospitals, schools, city governments, and large corporations, sometimes causing severe real-world disruption to critical services. Many modern ransomware attacks also involve "double extortion," where attackers steal a copy of the data before encrypting it and threaten to publicly leak it even if the victim manages to restore files from backups without paying. Security experts generally advise against paying ransoms when possible (it funds further attacks and doesn't guarantee file recovery) and instead emphasize prevention: regular offline backups, keeping software patched, and employee training against phishing. **Two-factor authentication (2FA)** adds a second, independent verification step beyond just a password when logging in — typically a time-limited code from an authenticator app, a text message, or a physical security key — meaning that even if a password is stolen or guessed, an attacker still can't access the account without also possessing that second factor. Security experts strongly recommend app-based or hardware-key 2FA over SMS-based codes where possible, since text messages can sometimes be intercepted through a technique called SIM-swapping, where an attacker tricks or bribes a phone carrier into transferring a victim's phone number to a device the attacker controls.`,
+    createdAt: Date.now(),
+  },
+];

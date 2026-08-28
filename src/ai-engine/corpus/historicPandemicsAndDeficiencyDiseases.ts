@@ -1,0 +1,28 @@
+import { KnowledgeItem } from '../../types';
+
+export const HISTORIC_PANDEMICS_AND_DEFICIENCY_DISEASES_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-pandemics-black-death',
+    title: 'The Black Death: The Deadliest Pandemic in History',
+    category: 'History',
+    keywords: ['what was the black death', 'black death plague 1347', 'bubonic plague history', 'how did the black death spread'],
+    content: `The **Black Death** was a devastating outbreak of bubonic plague that swept through Europe, the Middle East, and parts of Asia and North Africa between roughly 1347 and 1351, killing an estimated 75-200 million people — likely somewhere between 30-60% of Europe's entire population at the time, making it arguably the deadliest pandemic in recorded human history relative to population. The disease is caused by the bacterium Yersinia pestis, typically transmitted to humans through the bite of infected fleas that had been carried by rats, which traveled widely along medieval trade routes and ships, helping the disease spread with unprecedented speed across huge distances. Symptoms of the most common form included painful swollen lymph nodes called "buboes" (the source of its name), fever, and in many cases death within days, with the era's medicine having no real understanding of germ theory or effective treatment. The Black Death's staggering death toll caused massive social and economic upheaval — with so much of the labor force dead, surviving peasants and workers gained unprecedented bargaining power for wages and conditions, contributing over time to the eventual decline of Europe's feudal system, and the trauma and mass death also fueled scapegoating and violent persecution of minority groups, particularly Jewish communities, who were falsely blamed for causing the plague.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-pandemics-1918-flu-covid',
+    title: 'The 1918 Flu Pandemic and COVID-19: Modern Pandemics Compared',
+    category: 'History',
+    keywords: ['1918 spanish flu pandemic', 'what was the spanish flu', 'covid-19 pandemic history', 'deadliest pandemics modern history'],
+    content: `The **1918 influenza pandemic**, often called the "Spanish flu" (misleadingly — it likely did not originate in Spain, which simply had a free press reporting on it openly, unlike other WWI-era combatant nations practicing wartime censorship of bad news), infected an estimated one-third of the world's population and killed roughly 50 million people worldwide, more than died in World War I, which was still ongoing as the pandemic began. It was unusual for disproportionately killing healthy young adults rather than mainly the very old or very young, a pattern researchers believe was linked to an overly aggressive immune response ("cytokine storm") the virus triggered in strong immune systems. It occurred before antibiotics existed (which could have treated the secondary bacterial pneumonia that killed many victims) and before modern virology could even identify influenza as a virus. **COVID-19**, caused by the SARS-CoV-2 coronavirus first identified in Wuhan, China, in late 2019, became the defining pandemic of the modern era, declared a global pandemic by the WHO in March 2020, and killed an estimated 7+ million people worldwide (with some excess-mortality estimates suggesting a considerably higher true toll), while triggering unprecedented global lockdowns, remote-work shifts, and economic disruption. Unlike 1918, COVID-19 unfolded alongside modern genomic sequencing and led to the fastest vaccine development in history, with multiple effective vaccines authorized within about a year of the virus's identification, using both traditional and newer mRNA-based vaccine technology.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-nutrition-vitamin-deficiency-diseases',
+    title: 'Scurvy, Rickets, and Other Vitamin Deficiency Diseases',
+    category: 'Nutrition',
+    keywords: ['what causes scurvy', 'what causes rickets', 'what is beriberi', 'vitamin deficiency diseases history'],
+    content: `**Scurvy** is caused by prolonged vitamin C deficiency and was historically devastating among sailors on long ocean voyages who lacked access to fresh fruit and vegetables, causing bleeding gums, tooth loss, joint pain, and, if untreated, death; it was one of history's most famous nutritional puzzles until Scottish naval surgeon James Lind conducted one of the first-ever controlled clinical trials in 1747, definitively showing citrus fruit prevented and cured it — leading British sailors to eventually be nicknamed "limeys" after the Royal Navy began issuing lime juice rations. **Rickets** results from vitamin D (or, less commonly, calcium/phosphate) deficiency in children, causing softened, weakened bones that can bow or deform under normal body weight, since vitamin D is essential for the body to properly absorb calcium; it became especially common in industrial-era cities where heavy air pollution and indoor factory work blocked the sunlight exposure the body needs to naturally synthesize vitamin D in skin. **Beriberi** results from vitamin B1 (thiamine) deficiency and was historically common in populations relying heavily on polished white rice (which strips away the thiamine-rich outer husk), causing nerve damage, muscle weakness, and potentially heart failure. These diseases are now rare in wealthy countries with diverse diets and fortified foods, but they remain a real risk in famine conditions, extremely restrictive diets, certain medical conditions affecting nutrient absorption, and severe alcohol use disorder (which can cause thiamine deficiency, a condition called Wernicke-Korsakoff syndrome).`,
+    createdAt: Date.now(),
+  },
+];

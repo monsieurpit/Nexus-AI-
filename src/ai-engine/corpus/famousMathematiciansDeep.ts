@@ -1,0 +1,28 @@
+import { KnowledgeItem } from '../../types';
+
+export const FAMOUS_MATHEMATICIANS_DEEP_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-mathematicians-pythagoras-euclid',
+    title: 'Pythagoras and Euclid: Foundations of Geometry',
+    category: 'Mathematics',
+    keywords: ['who was pythagoras', 'pythagorean theorem history', 'who was euclid', 'euclid elements geometry'],
+    content: `**Pythagoras** (c. 570–495 BCE) was an ancient Greek philosopher and mathematician best known today for the **Pythagorean theorem** (a² + b² = c², describing the relationship between the sides of a right triangle) — though the mathematical relationship itself was actually known and used earlier by Babylonian and Indian mathematicians; Pythagoras and his followers are credited with providing one of the first known general proofs of it. Pythagoras led a semi-mystical philosophical and religious community (the Pythagoreans) that believed numbers held deep, almost spiritual significance underlying the structure of the universe — a genuinely novel and influential idea in Western intellectual history, even though the group also held various now-discredited numerological beliefs. **Euclid** (c. 300 BCE), working in Alexandria, Egypt, wrote "Elements," a monumental 13-volume mathematical text that systematically organized geometry from a small set of basic definitions and self-evident axioms, then rigorously proved increasingly complex theorems built logically from those foundations — a structural approach to mathematical proof so influential it remained the standard geometry textbook in schools worldwide for over 2,000 years, arguably making "Elements" one of the most successful and enduring textbooks ever written. "Euclidean geometry," the geometry of flat, everyday space taught in most basic school curricula, is named directly after him, distinguishing it from later "non-Euclidean" geometries developed for curved space in the 19th century, which became essential to Einstein's general relativity.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-mathematicians-newton-leibniz-calculus',
+    title: 'Isaac Newton and the Invention of Calculus',
+    category: 'Mathematics',
+    keywords: ['isaac newton calculus', 'who invented calculus', 'newton leibniz calculus dispute', 'newton laws of motion'],
+    content: `**Isaac Newton** (1642–1727), an English physicist and mathematician, independently developed **calculus** — the mathematics of continuous change, covering derivatives (rates of change) and integrals (accumulation) — in the 1660s-70s, largely to help solve physics problems he was working on, including describing motion and gravity. German mathematician **Gottfried Wilhelm Leibniz** developed calculus independently and around the same period, and a bitter, decades-long priority dispute erupted between the two men's supporters (and eventually the men themselves) over who deserved credit, a controversy historians now generally resolve by crediting both as independent co-inventors — though notably, the notation system we use in calculus today (like the integral sign ∫ and dy/dx) comes primarily from Leibniz's more elegant system rather than Newton's. Beyond calculus, Newton formulated the three laws of motion and the law of universal gravitation, published in his 1687 work "Principia Mathematica," unifying the physics governing both falling objects on Earth and the motion of planets under a single mathematical framework for the first time — a landmark achievement often considered the culmination of the Scientific Revolution. Newton also made major contributions to optics (demonstrating white light is composed of a spectrum of colors) and served for decades as Master of the Royal Mint, where he applied his analytical rigor to combating currency counterfeiting.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-mathematicians-euler-gauss',
+    title: 'Leonhard Euler and Carl Friedrich Gauss: Titans of Mathematics',
+    category: 'Mathematics',
+    keywords: ['who was leonhard euler', 'euler number e', 'who was carl gauss', 'gauss prince of mathematicians'],
+    content: `**Leonhard Euler** (1707–1783), a Swiss mathematician, was one of the most prolific mathematicians in history, publishing an estimated 800+ works across nearly every branch of mathematics and physics known at the time, remarkably continuing his output at a furious pace even after going almost completely blind later in life, dictating work from memory to assistants. Euler introduced much of the mathematical notation still used universally today, including f(x) for functions, e for the base of natural logarithms (approximately 2.71828, sometimes called "Euler's number"), and the use of π as a standard symbol, and he's credited with what's often called the most beautiful equation in mathematics, Euler's identity (e^(iπ) + 1 = 0), which elegantly connects five of mathematics' most fundamental constants in a single expression. **Carl Friedrich Gauss** (1777–1855), a German mathematician often called the "Prince of Mathematicians," showed prodigious talent from early childhood — famously, as a young student, he reportedly stunned a teacher by quickly finding a shortcut to sum all numbers from 1 to 100 rather than adding them one by one. Gauss made foundational contributions across number theory, statistics (the "Gaussian" or "normal" bell-curve distribution used throughout statistics is named after him), astronomy (he developed methods to calculate the orbit of the newly discovered dwarf planet Ceres), and magnetism, and his rigorous, exacting standards for mathematical proof heavily shaped how modern mathematics is conducted and written.`,
+    createdAt: Date.now(),
+  },
+];

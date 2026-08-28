@@ -1,0 +1,20 @@
+import { KnowledgeItem } from '../../types';
+
+export const WORLD_CUISINES_BY_REGION_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-cuisine-indian',
+    title: 'Indian Cuisine: Regional Diversity and Key Flavors',
+    category: 'Cooking',
+    keywords: ['indian food characteristics', 'north vs south indian food', 'what spices are used in indian cooking', 'curry origin'],
+    content: `**Indian cuisine** is extraordinarily diverse, varying dramatically by region, religion, and local ingredients across the country rather than forming one single unified style — a common misconception in the West, where "Indian food" is often flattened into a narrow set of restaurant dishes. Northern Indian cuisine tends to feature wheat-based breads (naan, roti, paratha), dairy-rich sauces (paneer cheese, ghee/clarified butter, yogurt-based dishes), and is heavily associated with tandoor clay-oven cooking, reflecting historical Mughal (Persian-influenced) culinary influence. Southern Indian cuisine relies more heavily on rice, features fermented foods like dosa (a fermented rice-and-lentil crepe) and idli (steamed rice cakes), and often uses coconut, curry leaves, tamarind for tartness, and more intense chili heat. The word "**curry**" is itself a broad, somewhat imprecise term popularized by British colonial usage, loosely describing spiced sauce-based dishes, rather than referring to any single specific dish or spice blend within India itself. Common spices across Indian cooking include cumin, coriander, turmeric (which gives many dishes their characteristic yellow color and has some documented anti-inflammatory properties), cardamom, and garam masala (a warming spice blend that varies significantly by region and household). Roughly 30-40% of India's population follows a vegetarian diet, particularly influenced by Hindu, Jain, and Buddhist religious and cultural traditions, making Indian cuisine one of the world's richest and most developed traditions of vegetarian cooking.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-cuisine-italian-japanese',
+    title: 'Italian and Japanese Cuisine: Regional Traditions',
+    category: 'Cooking',
+    keywords: ['italian regional cuisine', 'japanese cuisine characteristics', 'umami flavor japanese food', 'northern vs southern italian food'],
+    content: `**Italian cuisine** varies enormously by region, historically reflecting Italy's late unification (1861) from many previously separate independent states and city-regions, each with distinct culinary traditions. Northern Italian cooking tends toward richer, creamier dishes using butter, rice (risotto), and cream-based sauces, while Southern Italian cuisine, including the internationally famous Neapolitan and Sicilian traditions, leans more heavily on olive oil, tomatoes, and simpler, produce-forward preparations — the now globally iconic combination of pasta with tomato sauce actually only became widespread relatively recently in Italian history, since tomatoes are a New World crop that arrived in Europe after Columbus and took centuries to become a staple ingredient. **Japanese cuisine** emphasizes seasonality, precise technique, and minimal but high-quality ingredients allowed to shine on their own merit rather than heavy layering of flavors, with core staples including rice, fish (raw preparations like sushi and sashimi are globally famous, though much everyday Japanese cooking involves cooked fish and other proteins), soy sauce, miso (fermented soybean paste), and dashi (a foundational broth typically made from kombu seaweed and dried bonito fish flakes). Japanese cuisine is closely associated with the concept of **umami** — the "fifth taste" beyond sweet, sour, salty, and bitter, describing a savory, deeply satisfying flavor identified and named by Japanese chemist Kikunae Ikeda in 1908, found richly in ingredients like dashi, soy sauce, mushrooms, and aged cheeses, and now recognized globally as a distinct basic taste detected by specific taste receptors on the tongue.`,
+    createdAt: Date.now(),
+  },
+];
