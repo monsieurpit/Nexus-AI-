@@ -1,0 +1,68 @@
+import { KnowledgeItem } from '../../types';
+
+export const COMMON_MIXUPS_2_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-mixup2-insect-vs-arachnid',
+    title: 'Insect vs. Arachnid: What\'s the Difference?',
+    category: 'everyday-basics',
+    keywords: ['difference between insect and arachnid', 'insect vs arachnid', 'is a spider an insect', 'why spiders are not insects'],
+    content: `Spiders are NOT insects — they're arachnids, a related but distinct class of arthropods, and the difference comes down to a few consistent anatomical rules. **Legs**: insects have 6 legs; arachnids have 8 legs. **Body segments**: insects have 3 main body segments (head, thorax, abdomen); arachnids have 2 (a fused head-thorax called a cephalothorax, plus an abdomen). **Antennae**: insects have a pair of antennae; arachnids have none. **Wings**: many insects have wings (though not all); no arachnids have wings. The arachnid class includes spiders, scorpions, ticks, and mites — all sharing the 8-leg, 2-segment, no-antennae body plan, despite looking quite different from each other at a glance. Both insects and arachnids fall under the broader category "arthropods" (invertebrates with jointed legs and an exoskeleton), which also includes crustaceans (crabs, lobsters) and myriapods (centipedes, millipedes) — so while all spiders and all ants are arthropods, only ants (and other 6-legged creatures) are insects, and only spiders (and other 8-legged creatures) are arachnids.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-mixup2-amphibian-vs-reptile',
+    title: 'Amphibian vs. Reptile: What\'s the Difference?',
+    category: 'everyday-basics',
+    keywords: ['difference between amphibian and reptile', 'amphibian vs reptile', 'is a frog a reptile', 'is a turtle an amphibian'],
+    content: `**Amphibians** (frogs, toads, salamanders) typically begin life in water, breathing through gills as larvae (like tadpoles), then metamorphose into an adult form that can breathe air and often live on land — but they generally must stay near moisture and lay their soft, jelly-like eggs in or near water, since the eggs would dry out otherwise, and amphibian skin itself must generally stay moist to function properly (many amphibians absorb some oxygen directly through their skin). **Reptiles** (snakes, lizards, turtles, crocodiles) have dry, scaly skin instead of moist permeable skin, breathe with lungs their entire lives (no gill stage), and lay hard- or leathery-shelled eggs on land that don't need standing water to survive — a key evolutionary adaptation that let reptiles live in a much wider range of dry habitats than amphibians can. A simple memory anchor: amphibians live a genuine "double life" (the word derives from Greek for "both kinds of life") — starting aquatic, becoming semi-terrestrial — while reptiles are fully adapted to land-based reproduction and don't require that aquatic larval stage at all.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-mixup2-allergy-vs-intolerance',
+    title: 'Food Allergy vs. Food Intolerance: What\'s the Difference?',
+    category: 'everyday-basics',
+    keywords: ['difference between allergy and intolerance', 'food allergy vs food intolerance', 'lactose intolerance vs milk allergy'],
+    content: `A **food allergy** is an immune system response — the body mistakenly identifies a specific food protein as a threat and mounts an immune reaction, releasing chemicals (like histamine) that can cause symptoms ranging from hives, swelling, and digestive upset to, in severe cases, anaphylaxis (a rapid, life-threatening reaction affecting breathing and blood pressure that requires emergency treatment, often with an epinephrine injector). Even a tiny trace amount of an allergen can trigger a reaction in someone with a true allergy. A **food intolerance** does NOT involve the immune system — it's typically a digestive issue, often caused by a missing or insufficient enzyme needed to properly break down a specific food component. The most common example is lactose intolerance, where the body doesn't produce enough lactase (the enzyme that digests lactose, the sugar in milk), leading to symptoms like bloating, gas, and stomach discomfort — unpleasant but not immune-related or life-threatening, and often dose-dependent (a small amount of the food may be tolerated even if a large amount isn't, unlike a true allergy). This distinction matters practically: someone with a milk allergy must avoid even trace amounts of dairy entirely, while someone who's lactose intolerant might comfortably manage a small amount of cheese or use lactase supplement pills.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-mixup2-jam-vs-jelly',
+    title: 'Jam vs. Jelly vs. Preserves vs. Marmalade',
+    category: 'everyday-basics',
+    keywords: ['difference between jam and jelly', 'jam vs jelly', 'what is marmalade', 'what are preserves'],
+    content: `All four are fruit-based spreads made by cooking fruit with sugar, but differ mainly in texture and what part of the fruit is used. **Jelly** is made using only strained fruit juice (no pulp, seeds, or skin), giving it a smooth, firm, translucent texture with no visible fruit pieces. **Jam** is made using crushed or pureed whole fruit (including pulp), giving it a thicker, less firm texture with the fruit fully broken down and blended throughout the spread. **Preserves** use whole or large chunks of fruit suspended in a thick, jelly-like syrup, giving the most visibly chunky, least uniform texture of the three, since large fruit pieces remain mostly intact rather than being pureed or juiced. **Marmalade** specifically refers to a citrus-based preserve made using the whole fruit including the peel/rind (which is what gives marmalade its characteristic bitter edge and visible shredded peel), most commonly made from oranges, though other citrus fruits (like lemon or grapefruit) are also used.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-mixup2-sleet-vs-hail',
+    title: 'Sleet vs. Hail vs. Freezing Rain',
+    category: 'everyday-science',
+    keywords: ['difference between sleet and hail', 'sleet vs hail', 'what is freezing rain', 'winter precipitation types'],
+    content: `**Sleet** forms when snow partially melts as it falls through a layer of warm air, then refreezes into small ice pellets before hitting the ground, as it passes back through a layer of freezing air closer to the surface — sleet bounces slightly on impact and doesn't stick together the way snow does. **Freezing rain** forms similarly (falling through a warm layer, then a shallow cold layer near the ground) but the cold layer near the surface is too thin/shallow for the rain to actually refreeze into ice pellets before landing — instead, it lands as liquid rain and freezes on contact with cold surfaces (roads, power lines, tree branches), creating a dangerous coating of clear ice, which is generally considered more hazardous than sleet or snow because it's harder to see and drive/walk on. **Hail** forms very differently — inside strong thunderstorms, not typical winter storm systems — when strong updrafts repeatedly carry small ice particles up and down through the storm cloud, adding new layers of ice (like layers of an onion) each time they pass through super-cooled water droplets, until the hailstone becomes too heavy for the updraft to support and falls to the ground. This is why hail can occur even in warm weather during summer thunderstorms, unlike sleet and freezing rain, which specifically require a particular layered cold/warm temperature structure typical of winter storm systems.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-mixup2-recession-vs-depression',
+    title: 'Recession vs. Depression: What\'s the Difference?',
+    category: 'economics',
+    keywords: ['difference between recession and depression', 'recession vs depression economics', 'what defines a recession', 'what defines a depression'],
+    content: `A **recession** is a significant, widespread decline in economic activity lasting more than a few months — commonly (though informally) defined as two consecutive quarters of falling GDP, though official recession calls (in the US, made by the National Bureau of Economic Research) actually consider a broader mix of factors including employment, income, and industrial production, not just GDP alone. Recessions are a relatively normal, recurring part of economic cycles, and most last well under two years. A **depression** is far more severe and prolonged — a deep, extended economic downturn with much larger declines in GDP (often 10%+), very high unemployment (historically 25%+ during the Great Depression of the 1930s), and effects lasting years, sometimes the better part of a decade. There's no single official numeric threshold universally separating the two terms — "depression" is used somewhat informally by economists for the rare, most catastrophic downturns, distinguished from ordinary recessions mainly by severity, duration, and how deeply they disrupt the broader economy and financial system. The US has experienced many recessions since the Great Depression (roughly one every several years on average) but has not seen anything widely classified as a full depression since the 1930s.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-mixup2-stock-vs-bond',
+    title: 'Stock vs. Bond: What\'s the Difference?',
+    category: 'personal-finance',
+    keywords: ['difference between a stock and a bond', 'stock vs bond', 'what is a stock', 'what is a bond', 'equity vs debt investing'],
+    content: `A **stock** (also called a share or equity) represents partial ownership in a company — when you buy stock, you own a small piece of that company, and your investment's value rises or falls with the company's performance and market perception, with no guaranteed return or repayment; some stocks also pay dividends (a share of company profits distributed to shareholders periodically), though not all do. Stocks are generally considered higher-risk, higher-potential-reward investments, since there's no promise of getting your money back and a company's stock value can fall to zero if it fails. A **bond** is essentially a loan — when you buy a bond, you're lending money to a company or government (the "issuer"), which promises to pay you back the original amount (the "principal" or "face value") on a specific future date (maturity), plus regular fixed interest payments along the way (the "coupon"). Bonds are generally considered lower-risk, lower-return investments compared to stocks, since the payment terms are contractually fixed in advance (assuming the issuer doesn't default/fail to pay) — government bonds, especially from stable countries, are typically considered among the safest investments available, while corporate bonds carry more risk depending on the issuing company's financial health. In short: stocks make you a partial *owner* with variable, uncapped potential returns; bonds make you a *lender* with fixed, generally more predictable returns.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-mixup2-weather-front-types',
+    title: 'Cold Front vs. Warm Front: What\'s the Difference?',
+    category: 'everyday-science',
+    keywords: ['difference between a cold front and a warm front', 'cold front vs warm front', 'what is a weather front', 'occluded front'],
+    content: `A weather "front" is the boundary between two air masses of different temperature and humidity. A **cold front** occurs when a colder, denser air mass advances and pushes underneath a warmer air mass, forcing the warm air to rise quickly — this rapid lifting often produces intense but relatively short-lived weather: sudden thunderstorms, heavy rain, and quick temperature drops, followed by clearer, cooler air behind the front. A **warm front** occurs when a warmer air mass advances and slides up and over a retreating cooler, denser air mass — because warm air rises more gradually over the cold air (rather than being forced up abruptly), warm fronts tend to bring longer-lasting but generally milder, steadier precipitation (like extended light-to-moderate rain) spread over a wider area, often for many hours or even a day or more, followed by warmer temperatures once the front fully passes. On weather maps, cold fronts are drawn as a blue line with triangular points; warm fronts are drawn as a red line with rounded semicircle bumps — both pointing in the direction the front is moving. An "occluded front" occurs when a faster-moving cold front catches up to and overtakes a slower warm front, essentially lifting the warm air mass entirely off the ground, and typically brings a complex mix of both fronts' weather characteristics.`,
+    createdAt: Date.now(),
+  },
+];

@@ -68,6 +68,20 @@ import { SOFTWARE_TROUBLESHOOTING_CORPUS } from './corpus/softwareTroubleshootin
 import { LANGUAGE_LEARNING_AND_TRAVEL_CORPUS } from './corpus/languageLearningAndTravel';
 import { HISTORICAL_FIGURES_AND_PLACES_CORPUS } from './corpus/historicalFiguresAndPlaces';
 import { HUMAN_ANATOMY_EXTRA_CORPUS } from './corpus/humanAnatomyExtra';
+import { COMMON_ACRONYMS_CORPUS } from './corpus/commonAcronyms';
+import { COMMON_ACRONYMS_2_CORPUS } from './corpus/commonAcronyms2';
+import { BASIC_SCIENCE_FACTS_CORPUS } from './corpus/basicScienceFacts';
+import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
+import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
+import { COMMON_MIXUPS_CORPUS } from './corpus/commonMixups';
+import { COMMON_MIXUPS_2_CORPUS } from './corpus/commonMixups2';
+import { BASIC_REFERENCE_NUMBERS_CORPUS } from './corpus/basicReferenceNumbers';
+import { BASIC_REFERENCE_FACTS_2_CORPUS } from './corpus/basicReferenceFacts2';
+import { BASIC_REFERENCE_FACTS_3_CORPUS } from './corpus/basicReferenceFacts3';
+import { BASIC_REFERENCE_FACTS_4_CORPUS } from './corpus/basicReferenceFacts4';
+import { MEASUREMENT_CONVERSIONS_2_CORPUS } from './corpus/measurementConversions2';
+import { BASIC_PRACTICAL_KNOWHOW_CORPUS } from './corpus/basicPracticalKnowhow';
+import { EVERYDAY_TRIVIA_REFERENCE_CORPUS } from './corpus/everydayTriviaReference';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -644,6 +658,20 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...LANGUAGE_LEARNING_AND_TRAVEL_CORPUS,
   ...HISTORICAL_FIGURES_AND_PLACES_CORPUS,
   ...HUMAN_ANATOMY_EXTRA_CORPUS,
+  ...COMMON_ACRONYMS_CORPUS,
+  ...COMMON_ACRONYMS_2_CORPUS,
+  ...BASIC_SCIENCE_FACTS_CORPUS,
+  ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
+  ...BASIC_CIVICS_CORPUS,
+  ...COMMON_MIXUPS_CORPUS,
+  ...COMMON_MIXUPS_2_CORPUS,
+  ...BASIC_REFERENCE_NUMBERS_CORPUS,
+  ...BASIC_REFERENCE_FACTS_2_CORPUS,
+  ...BASIC_REFERENCE_FACTS_3_CORPUS,
+  ...BASIC_REFERENCE_FACTS_4_CORPUS,
+  ...MEASUREMENT_CONVERSIONS_2_CORPUS,
+  ...BASIC_PRACTICAL_KNOWHOW_CORPUS,
+  ...EVERYDAY_TRIVIA_REFERENCE_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API

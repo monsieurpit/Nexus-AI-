@@ -1,0 +1,60 @@
+import { KnowledgeItem } from '../../types';
+
+export const BASIC_REFERENCE_FACTS_4_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-refnum4-weather-watch-vs-warning',
+    title: 'Weather Watch vs. Warning vs. Advisory: What\'s the Difference?',
+    category: 'everyday-science',
+    keywords: ['difference between a watch and a warning', 'weather watch vs warning', 'what is a weather advisory', 'tornado watch vs tornado warning'],
+    content: `These terms (used by the US National Weather Service for storms, tornadoes, hurricanes, and other hazards) indicate different levels of certainty and urgency, and the distinction genuinely matters for how to respond. A **Watch** means conditions are favorable for the hazard to develop in the area — it's a "be prepared and stay alert" signal, issued when the risk is real but the event hasn't been confirmed or isn't yet happening (e.g., "tornado watch" means conditions could produce tornadoes; keep monitoring and have a plan ready). A **Warning** means the hazard is either occurring, imminent, or has been directly detected/confirmed — it's a "take action now" signal, meaning there's an immediate threat to life or property in the specific warned area (e.g., "tornado warning" means a tornado has actually been spotted or detected on radar; seek shelter immediately). An **Advisory** is generally used for less severe but still potentially hazardous conditions that could cause significant inconvenience or some danger if precautions aren't taken (like a winter weather advisory for modest snow accumulation), ranking below both watches and warnings in overall severity. The general escalation order from least to most urgent is roughly: Advisory → Watch → Warning, though watches and advisories address somewhat different concepts (likelihood vs. severity) rather than sitting on a single strict linear scale.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-refnum4-gpa-calculation',
+    title: 'How to Calculate GPA (Grade Point Average)',
+    category: 'everyday-basics',
+    keywords: ['how to calculate gpa', 'gpa formula', 'grade point average explained', 'what is a 4.0 gpa'],
+    content: `GPA converts letter grades into a numeric scale (most commonly a 4.0 scale in the US) and averages them, typically weighted by the credit hours of each course. The standard unweighted 4.0 scale: A = 4.0, B = 3.0, C = 2.0, D = 1.0, F = 0.0 (with +/- grades often adjusted by 0.3, e.g., B+ = 3.3, B- = 2.7). To calculate: multiply each course's grade point value by its number of credit hours, add up all those totals, then divide by the total number of credit hours taken. Example: an A (4.0) in a 3-credit class and a B (3.0) in a 4-credit class: (4.0×3) + (3.0×4) = 12 + 12 = 24, divided by total credits (3+4=7) = **24 ÷ 7 ≈ 3.43 GPA**. Some high schools use a "weighted" GPA scale that can exceed 4.0, giving extra points (commonly an extra 0.5 or 1.0) for honors, AP, or IB-level courses to account for their greater difficulty relative to standard classes — this is why some students report GPAs above 4.0, which sounds impossible on a strict unweighted scale but reflects the weighting system in use at their specific school.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-refnum4-recipe-abbreviations',
+    title: 'Common Recipe Abbreviations: tsp, tbsp, oz, lb',
+    category: 'everyday-basics',
+    keywords: ['what does tsp mean', 'what does tbsp mean', 'teaspoon vs tablespoon abbreviation', 'recipe measurement abbreviations'],
+    content: `**tsp** = teaspoon. **tbsp** (sometimes "Tbsp" or "T") = tablespoon — note the capital-T convention some recipes use specifically to visually distinguish tablespoon from the lowercase "t" or "tsp" for teaspoon, since mixing these up can significantly throw off a recipe. **1 tablespoon = 3 teaspoons**, so tbsp is the larger unit — a common source of recipe errors is misreading "tsp" as "tbsp" or vice versa, resulting in 3x too much or too little of an ingredient. **oz** = ounce (context determines whether it's a weight ounce, for solids like flour or meat, or a fluid ounce, for liquids like milk or water — these measure genuinely different things, weight vs. volume, though they're numerically similar for water specifically, which conveniently weighs almost exactly 1 ounce per fluid ounce). **lb** = pound (from the Latin "libra," which is also why the £ symbol for British pounds sterling is a stylized L — both trace back to the same Latin root for weight/balance). Other common recipe abbreviations: **c** or **C** = cup, **pt** = pint, **qt** = quart, **gal** = gallon, and **g**/**kg** = grams/kilograms in metric recipes.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-refnum4-bc-ad-bce-ce',
+    title: 'BC/AD vs. BCE/CE: What\'s the Difference?',
+    category: 'everyday-basics',
+    keywords: ['difference between bc and bce', 'bc ad meaning', 'what does bce ce mean', 'why use bce instead of bc'],
+    content: `**BC** stands for "Before Christ," and **AD** stands for the Latin "Anno Domini" ("in the year of the Lord") — both are traditional Western calendar era markers counting years relative to the traditionally estimated birth year of Jesus Christ. Years count downward toward that reference point in the BC era (500 BC is earlier/further in the past than 100 BC) and upward after it in the AD era (100 AD is earlier than 500 AD) — notably, there is no "year 0" in this system; the calendar goes directly from 1 BC to 1 AD. **BCE** ("Before Common Era") and **CE** ("Common Era") mark the exact same points in time and use the exact same numbering as BC/AD — the years themselves don't change at all, only the labels do. BCE/CE has become increasingly common, especially in academic, scientific, and international contexts, specifically because it avoids explicitly religious language while keeping the same widely-used numbering system intact — allowing the same practical dating convention to be used in religiously neutral contexts. Both systems are considered correct and are still widely used; which one appears in a given piece of writing is generally a stylistic or institutional choice, not an indication of different actual dates.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-refnum4-timezone-abbreviations',
+    title: 'US Time Zone Abbreviations: EST, CST, MST, PST',
+    category: 'everyday-basics',
+    keywords: ['what does est mean', 'what does pst mean', 'time zone abbreviations', 'edt vs est', 'daylight saving time abbreviation'],
+    content: `The continental US uses 4 primary time zone abbreviations: **EST** (Eastern Standard Time), **CST** (Central Standard Time), **MST** (Mountain Standard Time), and **PST** (Pacific Standard Time) — each roughly one hour behind the previous one moving west (Eastern is the earliest/most ahead, Pacific is the latest/furthest behind). During daylight saving time (roughly mid-March to early November in the US), each zone shifts its clocks forward one hour and swaps its abbreviation's middle letter from "S" (Standard) to "D" (Daylight) — so EST becomes **EDT** (Eastern Daylight Time), CST becomes CDT, and so on. This means "Eastern Time" isn't always EST specifically — it alternates between EST and EDT depending on the time of year, which is why using the more general "ET" (Eastern Time), "CT," "MT," or "PT" is often preferred in writing that needs to stay accurate year-round without needing to track which specific half of the year it is. Alaska (AKST/AKDT) and Hawaii (HST, which does not observe daylight saving time at all) add two more time zones to the full 6-zone US system.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-refnum4-north-south-hemisphere',
+    title: 'Northern vs. Southern Hemisphere: Seasons and the Equator',
+    category: 'everyday-basics',
+    keywords: ['difference between northern and southern hemisphere', 'why are seasons opposite in australia', 'what is the equator', 'equator location'],
+    content: `The **equator** is an imaginary line circling the exact middle of the Earth, equidistant from the North and South Poles, dividing the planet into the **Northern Hemisphere** (everything north of it) and **Southern Hemisphere** (everything south of it). Because of Earth's axial tilt (the same tilt that causes seasons), the two hemispheres experience opposite seasons at the same calendar time — when it's summer in the Northern Hemisphere (roughly June-August, when the North is tilted toward the sun), it's winter in the Southern Hemisphere (where Australia, South Africa, and most of South America are tilted away from the sun at that same moment), and vice versa around December. This is why Christmas is a summer holiday in Australia, and why school calendars, sports seasons, and even southern hemisphere countries' "new year" agricultural cycles are often shifted roughly six months relative to northern hemisphere conventions. The equator itself experiences relatively little seasonal temperature variation year-round (consistently warm), since it's never tilted meaningfully toward or away from the sun the way higher latitudes are.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-refnum4-continents-vs-countries',
+    title: 'How Many Continents and Countries Are There?',
+    category: 'everyday-basics',
+    keywords: ['how many continents are there list', 'how many countries in the world exactly', 'seven continents named', 'un member states count'],
+    content: `The most common model taught in the US recognizes **7 continents**: Africa, Antarctica, Asia, Australia (Oceania), Europe, North America, and South America — though this isn't a universal scientific standard; some countries and educational systems teach a 5- or 6-continent model instead (commonly combining Europe and Asia into "Eurasia," or combining North and South America into "the Americas"), since there's no single internationally agreed-upon geological or political definition of what qualifies as a separate continent. For countries, the most commonly cited figure is **195 countries**, based on the 193 member states of the United Nations plus 2 observer states (the Holy See/Vatican City and the State of Palestine) — but this number is genuinely disputed depending on how you count partially-recognized states (like Taiwan or Kosovo, which function as independent countries in practice but aren't universally recognized diplomatically), so different reputable sources can cite slightly different totals (commonly seen figures range from 193 to 197) depending on their specific recognition criteria.`,
+    createdAt: Date.now(),
+  },
+];

@@ -1,0 +1,60 @@
+import { KnowledgeItem } from '../../types';
+
+export const MEASUREMENT_CONVERSIONS_2_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-conv-celsius-fahrenheit-formula',
+    title: 'How to Convert Between Celsius and Fahrenheit',
+    category: 'everyday-science',
+    keywords: ['how to convert celsius to fahrenheit', 'celsius to fahrenheit formula', 'how to convert fahrenheit to celsius', 'fahrenheit to celsius formula', 'temperature conversion'],
+    content: `To convert **Celsius to Fahrenheit**: multiply by 9/5 (or 1.8), then add 32. Formula: F = (C × 9/5) + 32. Example: 20°C × 1.8 = 36, + 32 = **68°F**. To convert **Fahrenheit to Celsius**: subtract 32, then multiply by 5/9. Formula: C = (F − 32) × 5/9. Example: 68°F − 32 = 36, × 5/9 = **20°C**. A quick rough mental shortcut (not exact, but close enough for casual conversation): double the Celsius number and add 30 to estimate Fahrenheit (20°C × 2 = 40, + 30 = 70°F — close to the exact 68°F). Two reference points worth memorizing: 0°C = 32°F (water freezes) and 100°C = 212°F (water boils at sea level) — and there's one temperature where both scales read the same number: −40°C = −40°F, which can be a useful sanity check when double-checking a conversion by hand.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-conv-body-temperature',
+    title: 'Normal Human Body Temperature in Celsius and Fahrenheit',
+    category: 'everyday-science',
+    keywords: ['normal body temperature fahrenheit', 'normal body temperature celsius', 'average human body temp', 'what is a fever temperature'],
+    content: `Average normal human body temperature is commonly cited as **98.6°F (37°C)**, though this figure — originally established in the 1800s — is now understood to be more of a historical population average than a precise universal number; modern studies show normal body temperature actually varies by individual, time of day (typically lowest in early morning, highest in late afternoon/evening), age, and measurement method, with a realistic normal range spanning roughly 97°F to 99°F (36.1°C to 37.2°C). A fever in adults is generally defined as a temperature at or above **100.4°F (38°C)**, though definitions can vary slightly by medical guideline and measurement method (oral, ear, forehead, and rectal thermometers can each read slightly differently). This is general reference information, not a medical diagnosis — anyone concerned about a fever or unusual body temperature, especially in infants, young children, or with other symptoms, should consult a doctor rather than rely solely on a specific number.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-conv-distance-mile-feet-km',
+    title: 'How Many Feet in a Mile, and Miles in a Kilometer?',
+    category: 'everyday-science',
+    keywords: ['how many feet are in a mile', 'feet in a mile', 'how do you convert kilometers to miles', 'km to miles conversion', 'how many miles is a kilometer'],
+    content: `**1 mile = 5,280 feet** (also equal to 1,760 yards). This specific number traces back to old Roman and English measurement units rather than any clean, round logic — the mile originally derives from the Latin "mille passus" (a thousand paces), but the modern statute mile length was standardized in England in the 1590s partly to align with the furlong (an old farming/racing distance unit) at exactly 8 furlongs per mile, resulting in the seemingly odd 5,280-foot figure. For kilometers to miles: **1 kilometer ≈ 0.621 miles**, and conversely, **1 mile ≈ 1.609 kilometers**. Quick mental shortcuts: to roughly convert km to miles, multiply by 0.6 (or divide by 1.6); to roughly convert miles to km, multiply by 1.6. A commonly cited memory trick uses the Fibonacci sequence (1, 1, 2, 3, 5, 8, 13, 21...) since consecutive Fibonacci numbers happen to approximate the mile-km ratio closely: 5 miles ≈ 8 km, 8 miles ≈ 13 km, 13 miles ≈ 21 km, and so on.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-conv-inches-cm-grams-oz',
+    title: 'Converting Inches to Centimeters and Grams to Ounces',
+    category: 'everyday-science',
+    keywords: ['how do you convert inches to centimeters', 'inches to cm conversion', 'how do you convert grams to ounces', 'grams to oz conversion'],
+    content: `**Inches to centimeters**: 1 inch = exactly 2.54 centimeters (this is the internationally defined, exact conversion factor, not a rounded approximation) — so to convert, multiply inches by 2.54 (e.g., 10 inches × 2.54 = 25.4 cm). To go the other way, divide centimeters by 2.54, or multiply by roughly 0.393. **Grams to ounces**: 1 ounce ≈ 28.35 grams, so to convert grams to ounces, divide by 28.35 (or multiply by roughly 0.035). To convert ounces to grams, multiply by 28.35. A useful rough shortcut for grams to ounces when precision doesn't matter much (like eyeballing a recipe): divide grams by 30 for a close-enough estimate (100g ≈ 3.3 oz using the rough method, vs. the precise 3.53 oz) — this makes mental math easier at the small cost of a slight underestimate.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-conv-gallon-liter-cups-acre',
+    title: 'Gallons, Liters, Cups, Tons, and Acres',
+    category: 'everyday-science',
+    keywords: ['how many liters in a gallon', 'gallon to liter conversion', 'how many cups in a gallon', 'how many pounds in a ton', 'how many square feet in an acre'],
+    content: `**1 US gallon ≈ 3.785 liters** (note: a UK/imperial gallon is different and larger, at about 4.546 liters — always specify which "gallon" is meant when precision matters, since US and imperial gallons differ by about 20%). **1 US gallon = 16 cups** (since 1 gallon = 4 quarts = 8 pints = 16 cups). **1 US ton (short ton, the standard US unit) = 2,000 pounds**. Note that a UK "long ton" is 2,240 pounds, and a metric tonne is 1,000 kilograms (about 2,204.6 pounds) — three genuinely different units that are easy to mix up despite the similar names. **1 acre = 43,560 square feet** — roughly the size of a standard American football field (which is about 48,000 sq ft including end zones, or roughly 57,600 with sidelines, so an acre is somewhat smaller than a full football field, a common but slightly inaccurate rule-of-thumb comparison). An acre is also roughly 4,047 square meters, or about 0.405 hectares.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-conv-tip-percentage-simple-compound-interest',
+    title: 'How to Calculate a Restaurant Tip, Percentage Increase, and Simple vs. Compound Interest',
+    category: 'everyday-basics',
+    keywords: ['how do you calculate a tip', 'restaurant tip calculation', 'how to calculate percentage increase', 'simple interest formula', 'compound interest formula', 'difference between simple and compound interest'],
+    content: `**Restaurant tip**: multiply the pre-tax bill total by the tip percentage (commonly 15-20% in the US). A fast mental shortcut for 20%: find 10% of the bill (move the decimal point one place left — e.g., $50 bill → $5), then double it ($10). For 15%: find 10% ($5), then add half of that again ($2.50) for $7.50 total. **Percentage increase**: (new value − original value) ÷ original value × 100. Example: a price rising from $50 to $65 is a (65−50)÷50 × 100 = **30% increase**. **Simple interest**: interest is calculated only on the original principal amount, every period, using the formula Interest = Principal × Rate × Time. Example: $1,000 at 5% simple annual interest for 3 years = $1,000 × 0.05 × 3 = $150 total interest, regardless of how much has already accrued. **Compound interest**: interest is calculated on the principal PLUS any interest already earned in previous periods, so growth accelerates over time — using the formula A = P(1 + r/n)^(nt), where P is principal, r is annual rate, n is compounding frequency per year, and t is time in years. Example: that same $1,000 at 5% annual compound interest (compounded once a year) for 3 years grows to $1,000 × (1.05)³ ≈ $1,157.63 — noticeably more than simple interest's $1,150 total ($1,000 + $150), and the gap widens further the longer the time period, which is why compound interest is described as growth that "snowballs" and is central to how savings accounts, investments, and also credit card debt actually accumulate over time.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-conv-area-speed-formulas',
+    title: 'Basic Formulas: Area of a Rectangle/Circle, Degrees in a Circle, Speed',
+    category: 'everyday-basics',
+    keywords: ['how do you calculate area of a rectangle', 'area of a circle formula', 'how many degrees are in a circle', 'how many sides does a hexagon have', 'how do you calculate speed distance and time'],
+    content: `**Area of a rectangle**: length × width. A rectangle 5 meters by 3 meters has an area of 15 square meters. **Area of a circle**: π × radius² (π, pi, is approximately 3.14159). A circle with a radius of 4 cm has an area of roughly 3.14159 × 4² = 3.14159 × 16 ≈ **50.3 square cm**. Remember to use the *radius* (distance from center to edge), not the diameter (the full width across) — if you're only given the diameter, divide it by 2 first to get the radius. **Degrees in a circle**: a full circle is always **360 degrees** — a number chosen by ancient Babylonian astronomers, likely because it divides evenly by many small numbers (2, 3, 4, 5, 6, 8, 9, 10, 12...) making fractions of a circle easy to calculate, and because it roughly approximates the number of days in a year. **Sides of a hexagon**: a hexagon has **6 sides** (the prefix "hexa-" means six in Greek) — for reference, a pentagon has 5 sides, a heptagon has 7, and an octagon has 8. **Speed, distance, and time**: Speed = Distance ÷ Time. If you travel 150 miles in 3 hours, your average speed is 150 ÷ 3 = **50 mph**. Rearranged: Distance = Speed × Time (useful for figuring out how far you'll travel at a given speed over a given time), and Time = Distance ÷ Speed (useful for estimating how long a trip will take).`,
+    createdAt: Date.now(),
+  },
+];

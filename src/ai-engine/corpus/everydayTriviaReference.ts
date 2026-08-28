@@ -1,0 +1,60 @@
+import { KnowledgeItem } from '../../types';
+
+export const EVERYDAY_TRIVIA_REFERENCE_CORPUS: KnowledgeItem[] = [
+  {
+    id: 'kb-trivia-dog-years',
+    title: 'How Do "Dog Years" Actually Work?',
+    category: 'everyday-basics',
+    keywords: ['dog years to human years', 'dog years formula', 'is 1 dog year 7 human years', 'how old is my dog in human years'],
+    content: `The popular "1 dog year = 7 human years" rule is a widely known but fairly inaccurate oversimplification. Real aging in dogs is much faster in the first couple of years and then slows down, and it also varies significantly by breed size — small dogs tend to live longer and age more slowly in later years than large dogs, which age faster and have shorter average lifespans. A more accurate modern rule of thumb, based on veterinary research: a dog's first year is roughly equivalent to 15 human years, its second year adds roughly 9 more human years (so a 2-year-old dog is roughly equivalent to a 24-year-old human), and after that, each additional dog year adds roughly 4-5 human years depending on the dog's size (smaller breeds tend toward the lower end of that range in later life, larger breeds toward the higher end). Veterinarians increasingly discourage the flat "×7" rule specifically because it misrepresents both the accelerated early-life aging and the breed-size-dependent later-life aging pattern that real biological/veterinary data shows.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-trivia-baseball-basics',
+    title: 'Basic Baseball Rules: Strikes, Outs, and Innings',
+    category: 'everyday-basics',
+    keywords: ['how many strikes before a batter is out', 'how many balls for a walk', 'how many outs in an inning', 'how many innings in a baseball game'],
+    content: `**Strikes**: 3 strikes and a batter is out (a "strikeout") — a strike is called for a swing-and-miss, a pitch in the strike zone the batter doesn't swing at, or a foul ball (though a foul ball generally can't be the third strike to end an at-bat, with the exception of a foul bunt). **Balls**: 4 balls (pitches outside the strike zone that the batter doesn't swing at) result in a "walk," sending the batter to first base automatically. **Outs**: 3 outs end a team's turn at bat (their "half-inning"). **Innings**: a standard professional baseball game is **9 innings**, with each inning consisting of both teams getting a turn to bat (a "top" half and a "bottom" half) — if the game is tied after 9 innings, extra innings are played until one team leads after a complete inning (or the visiting team's turn, if the home team is ahead).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-trivia-football-basics',
+    title: 'Basic American Football Rules: Downs and Quarters',
+    category: 'everyday-basics',
+    keywords: ['how many downs in football', 'how many quarters in a football game', 'what is a first down', 'how long is a football game'],
+    content: `**Downs**: an offensive team gets **4 downs** (attempts) to advance the ball at least 10 yards from where they started; if they succeed, they earn a new "first down" and another set of 4 attempts; if they fail to gain 10 yards within 4 downs, possession of the ball typically transfers to the other team (teams often choose to punt — kick the ball away — on 4th down rather than risk turning the ball over on their own side of the field if they're unlikely to make the needed yardage). **Quarters**: a standard American football game (NFL) is divided into **4 quarters** of 15 minutes each (college football also uses 15-minute quarters), with a longer break at halftime (after the 2nd quarter). If the score is tied at the end of regulation, the game goes into overtime, with specific overtime rules varying somewhat between the NFL, college, and other levels of football.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-trivia-deck-of-cards',
+    title: 'A Standard Deck of Cards: Suits, Ranks, and Total Count',
+    category: 'everyday-basics',
+    keywords: ['how many cards in a deck', 'standard deck of cards', 'how many suits in a deck of cards', 'how many face cards in a deck'],
+    content: `A standard deck has **52 cards**, divided into **4 suits** — hearts, diamonds, clubs, and spades — with **13 cards per suit** (Ace, 2 through 10, Jack, Queen, King). Hearts and diamonds are red; clubs and spades are black. There are **12 face cards** total in a standard deck (Jack, Queen, King in each of the 4 suits — 3 face cards × 4 suits = 12), and **4 Aces**. Many decks also include 1-2 additional Jokers, which aren't part of the standard 52 and are used only in specific games (or not at all, in most standard card games like poker or blackjack). The 52-card structure has a loose historical link to the calendar in some traditions — 4 suits for 4 seasons, 13 cards per suit for roughly 13 lunar cycles in a year, and 52 cards total matching the 52 weeks in a year — though this is generally considered a retroactively appealing coincidence/mnemonic rather than the actual documented historical reason the 52-card structure emerged (which traces to card games' evolution across medieval Europe and the Islamic world).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-trivia-zeros-million-billion',
+    title: 'How Many Zeros Are in a Million, Billion, and Trillion?',
+    category: 'everyday-basics',
+    keywords: ['how many zeros in a million', 'how many zeros in a billion', 'how many zeros in a trillion', 'million vs billion vs trillion'],
+    content: `**Million**: 1,000,000 — 6 zeros. **Billion**: 1,000,000,000 — 9 zeros (a thousand million). **Trillion**: 1,000,000,000,000 — 12 zeros (a thousand billion, or a million million). Each step up multiplies by 1,000, adding 3 more zeros: million (6 zeros) → billion (9 zeros) → trillion (12 zeros) → quadrillion (15 zeros). This is the modern "short scale" system used in the US and most English-speaking countries today. It's worth knowing that a "long scale" system, historically used in much of continental Europe (and still used in some countries today), defines these terms differently — in the long scale, a billion equals a million million (12 zeros, what the short scale calls a trillion), which can cause real confusion in translated documents or older non-US texts. The sheer scale difference between these numbers is often underappreciated: a million seconds is about 11.5 days, while a billion seconds is about 31.7 years — illustrating just how much larger a billion is than a million, despite the two words sounding only modestly different.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-trivia-us-flag',
+    title: 'The US Flag: Stars, Stripes, and What They Represent',
+    category: 'everyday-basics',
+    keywords: ['how many stars on the us flag', 'how many stripes on the us flag', 'what do the stars and stripes represent', 'us flag meaning'],
+    content: `The US flag has **50 stars**, one for each current US state, arranged in 9 offset rows on a blue field in the upper-left corner. It has **13 stripes** (7 red, 6 white, alternating), representing the original 13 British colonies that declared independence and became the first states. The flag's design has officially changed 27 times throughout US history, almost always to add a star as new states joined the union — the last change was in 1960, adding the 50th star for Hawaii's statehood in 1959 (there was a brief one-year gap with a 49-star flag after Alaska's 1959 statehood, before Hawaii joined the same year). The 13-stripe count, by contrast, has stayed fixed since 1818, when Congress passed a law permanently locking the stripe count at 13 (regardless of future state additions) specifically to honor the original colonies, after a brief earlier period (1795-1818) when stripes had also been added for new states, making the flag increasingly cluttered.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-trivia-triangle-types',
+    title: 'Types of Triangles: Equilateral, Isosceles, and Scalene',
+    category: 'everyday-basics',
+    keywords: ['types of triangles', 'equilateral triangle', 'isosceles triangle', 'scalene triangle', 'right triangle'],
+    content: `Triangles are classified by side length: an **equilateral** triangle has all 3 sides (and all 3 angles, each exactly 60°) equal. An **isosceles** triangle has exactly 2 sides (and 2 angles) equal. A **scalene** triangle has all 3 sides (and all 3 angles) different lengths/measures, with no equal sides at all. Triangles are also classified separately by angle: a **right** triangle has one 90° angle; an **acute** triangle has all 3 angles less than 90°; an **obtuse** triangle has one angle greater than 90°. These two classification systems (by side, by angle) can combine — a triangle can be both "right" and "scalene," for instance. One universal rule for every triangle regardless of type: the interior angles always add up to exactly **180 degrees** — a fact frequently used to solve for an unknown angle when the other two are known.`,
+    createdAt: Date.now(),
+  },
+];
