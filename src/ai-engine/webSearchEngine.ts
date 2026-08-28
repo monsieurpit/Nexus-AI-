@@ -753,8 +753,18 @@ export function shouldTriggerLiveWebSearch(
   if (isMeaningSearch && (matchedConfidence === undefined || matchedConfidence < 0.5)) return 'meaning';
 
   // 5. TRIGGER: Explicit user requests to search Google or the web
+  //
+  // The bare "look\s+up\s+" and "google\s+" alternatives matched ANYWHERE in a message, including
+  // idiomatic uses that have nothing to do with searching — verified live: "i look up to my older
+  // brother a lot" and "i use google chrome for everything" both triggered a real, wasted web
+  // search (webSearched: true) despite neither being a request to look anything up. Narrowed to
+  // require an actual imperative/request shape — "look up X [for me]", "can/could you
+  // google/search X", "go google X" — instead of the bare verb appearing anywhere in the sentence.
   const isExplicitSearch =
-    /(?:search\s+google|search\s+on\s+google|google\s+search|search\s+the\s+web|look\s+up\s+on\s+google|look\s+up\s+|search\s+for\s+|find\s+info\s+on|google\s+)/i.test(q);
+    /(?:search\s+(?:google|on\s+google|the\s+web)|google\s+search|look\s+up\s+on\s+google|find\s+info\s+on)\b/i.test(q) ||
+    /^(?:can|could|will|would)\s+(?:you|u)\s+(?:google|search)\b/i.test(q) ||
+    /^(?:please\s+)?(?:go\s+)?google\s+(?:it|this|that|up)\b/i.test(q) ||
+    /\blook\s+up\s+.{2,60}(?:\s+for\s+me)?[?.!]?$/i.test(q) && !/\blook\s+up\s+to\b/i.test(q);
   if (isExplicitSearch) return 'explicit';
 
   // 6. TRIGGER: Specific real-time / current events, recent releases, sports finals, or live lookups
