@@ -13,6 +13,36 @@ export interface MathSolution {
   explanation: string;
 }
 
+// Trial division up to √n — deterministic and exact, unlike relying on the LLM's arithmetic
+// "intuition" (which is unreliable for these facts even for a small number like 17, observed
+// live). Fast enough for anything a user would plausibly type by hand; not meant for
+// cryptography-scale inputs.
+function isPrimeNumber(n: number): boolean {
+  if (!Number.isInteger(n) || n < 2) return false;
+  if (n === 2) return true;
+  if (n % 2 === 0) return false;
+  for (let i = 3; i * i <= n; i += 2) {
+    if (n % i === 0) return false;
+  }
+  return true;
+}
+
+// Returns the first divisor pair found (smallest factor, its cofactor) — used only for a
+// human-readable "here's why it's not prime" example, not for full factorization.
+function smallestFactorPair(n: number): [number, number] {
+  for (let i = 2; i * i <= n; i++) {
+    if (n % i === 0) return [i, n / i];
+  }
+  return [1, n];
+}
+
+function gcd(a: number, b: number): number {
+  while (b !== 0) {
+    [a, b] = [b, a % b];
+  }
+  return a || 1;
+}
+
 export class RecursiveDescentParser {
   private pos = 0;
   private expr = '';
@@ -635,6 +665,72 @@ export function trySolveMath(prompt: string): MathSolution | null {
         `Multiply decimal factor by base quantity: ${(p / 100).toFixed(4)} × ${total} = ${ans}`,
       ],
       explanation: `**${p}% of ${total}** is equal to **${ans.toLocaleString()}**.`,
+    };
+  }
+
+  // 3b. Prime number check: e.g. "is 17 a prime number", "is 91 prime", "is 8 not prime"
+  //
+  // Added after a live-observed hallucination: the local LLM confidently told a user "17 is NOT
+  // a prime number" (flatly wrong — 17 is prime) when this query fell through every branch above
+  // (it's not an arithmetic EXPRESSION, so the recursive-descent parser never saw it) and reached
+  // the unreliable LLM path unguarded. Small local models are fundamentally unreliable at exact
+  // number-theory facts like this, so — same principle as the rest of this file — compute it
+  // deterministically instead of trusting generation for anything with one objectively correct
+  // answer.
+  const primeMatch = lower.match(/\bis\s+(-?\d+)\s+(?:a\s+)?(not\s+)?prime\b/i);
+  if (primeMatch) {
+    const n = parseInt(primeMatch[1], 10);
+    const negated = !!primeMatch[2];
+    const prime = isPrimeNumber(n);
+    const factors = prime || n < 2 ? [] : smallestFactorPair(n);
+    const reasonLine =
+      n < 2
+        ? `${n} is excluded by definition — primes are defined as integers greater than 1.`
+        : prime
+        ? `${n} has no divisors other than 1 and itself, checked up to √${n} ≈ ${Math.floor(Math.sqrt(n))}.`
+        : `${n} = ${factors[0]} × ${factors[1]}, so it has at least one divisor besides 1 and itself.`;
+    // The displayed result always states the actual mathematical fact (is N prime, plainly) —
+    // the question's own "not prime" phrasing is just how it was asked, not a second thing to
+    // compute; the reasonLine above already makes the "why" unambiguous either way.
+    return {
+      isMath: true,
+      expression: `is ${n} prime?`,
+      result: prime ? `Yes, ${n} is prime` : `No, ${n} is not prime`,
+      steps: [reasonLine],
+      explanation: `**${n} is ${prime ? '' : 'NOT '}a prime number.** ${reasonLine}${negated ? ` (Note: the question asked "not prime" — this answers whether ${n} is actually prime, which is ${prime ? 'yes' : 'no'}.)` : ''}`,
+    };
+  }
+
+  // 3c. GCD / LCM of two numbers: e.g. "gcd of 24 and 36", "lcm of 4 and 6"
+  const gcdLcmMatch = lower.match(/\b(gcd|greatest common (?:divisor|factor)|lcm|least common multiple)\s+(?:of\s+)?(-?\d+)\s*(?:and|,)\s*(-?\d+)\b/i);
+  if (gcdLcmMatch) {
+    const isGcd = /gcd|greatest/i.test(gcdLcmMatch[1]);
+    const a = Math.abs(parseInt(gcdLcmMatch[2], 10));
+    const b = Math.abs(parseInt(gcdLcmMatch[3], 10));
+    const g = gcd(a, b);
+    const result = isGcd ? g : (a / g) * b;
+    return {
+      isMath: true,
+      expression: `${isGcd ? 'GCD' : 'LCM'}(${a}, ${b})`,
+      result: `${result}`,
+      steps: isGcd
+        ? [`Euclidean algorithm: repeatedly replace the larger number with the remainder until one reaches 0.`, `GCD(${a}, ${b}) = ${g}`]
+        : [`LCM(a, b) = (a × b) / GCD(a, b)`, `GCD(${a}, ${b}) = ${g}`, `LCM = (${a} × ${b}) / ${g} = ${result}`],
+      explanation: `The ${isGcd ? 'greatest common divisor' : 'least common multiple'} of **${a}** and **${b}** is **${result}**.`,
+    };
+  }
+
+  // 3d. Even/odd check: e.g. "is 42 even", "is 7 odd"
+  const evenOddMatch = lower.match(/\bis\s+(-?\d+)\s+(even|odd)\b/i);
+  if (evenOddMatch) {
+    const n = parseInt(evenOddMatch[1], 10);
+    const isEven = n % 2 === 0;
+    return {
+      isMath: true,
+      expression: `is ${n} ${evenOddMatch[2]}?`,
+      result: `${n} is ${isEven ? 'even' : 'odd'}`,
+      steps: [`${n} ÷ 2 = ${n / 2}${isEven ? ', a whole number, so it divides evenly' : ', not a whole number, so it does not divide evenly'}.`],
+      explanation: `**${n} is ${isEven ? 'even' : 'odd'}.**`,
     };
   }
 

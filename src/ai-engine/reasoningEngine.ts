@@ -1005,6 +1005,20 @@ export function detectQueryIntent(query: string): QueryIntent {
     /\b(?:square|cube)\s*root\s+of\b|\babsolute\s+value\s+of\b|\bfactorial\b|\b(?:average|mean)\s+of\b|\d+\s*(?:factorial|squared|cubed)\b|\d+\s*mod\s*\d+/i.test(
       q
     ) ||
+    // "N percent/% of M" with no "what is" prefix at all ("5 percent of 200", not "what is 5% of
+    // 200") — mathSolver.ts's own percentage branch already handles this phrasing, but the
+    // classifier never had a trigger for it without the "what is" wrapper, so it fell through to
+    // 'general' intent and the solver never got a chance to run.
+    /\d+(?:\.\d+)?\s*(?:%|percent)\s+of\s+\d+/i.test(q) ||
+    // "is N prime/even/odd" and "gcd/lcm of A and B" — number-theory questions with one exact,
+    // objectively correct answer (added after a live hallucination: the LLM confidently told a
+    // user 17 is NOT prime). No operator symbol and no "calculate"/"solve" keyword, so these need
+    // their own explicit trigger the same way the constant/rate-time-distance cases above do —
+    // otherwise they fall through to 'general' intent and get answered by the same unreliable
+    // free-generation path that produced the wrong answer in the first place.
+    /\bis\s+-?\d+\s+(?:a\s+)?(?:not\s+)?prime\b|\bis\s+-?\d+\s+(?:even|odd)\b|\b(?:gcd|lcm|greatest\s+common\s+(?:divisor|factor)|least\s+common\s+multiple)\s+(?:of\s+)?-?\d+\s*(?:and|,)\s*-?\d+\b/i.test(
+      q
+    ) ||
     // "what is"/"what's" both need this check — "what's 128 divided by 8" was falling through
     // because only the "what is" spelling was ever checked, so the contraction (the far more
     // common way people actually type this) never routed to the math solver.
@@ -3415,7 +3429,17 @@ export async function generateReasoningPath(
   // instead — long or clearly-phrased-as-a-request messages are left completely alone so a real
   // troubleshooting statement ("my wifi keeps disconnecting, any idea why") still reaches actual
   // help.
-  if (intent !== 'conversational') {
+  // 'mathematical' is deliberately exempted from this downgrade — detectQueryIntent() just ran a
+  // much more specific, deliberate classification for it, and this generic "sounds like small
+  // talk" heuristic has no business second-guessing that. Observed live: "gcd of 24 and 36" (and,
+  // once traced, the PRE-EXISTING "6 factorial" and "17 squared" too) never even starts with a
+  // question word — math phrasings routinely don't ("N factorial", "N squared", "gcd of A and
+  // B") — so every one of them was silently getting stripped of its correct 'mathematical' intent
+  // right here and dumped into a normal conversational LLM reply, which then had to guess at the
+  // arithmetic itself instead of using the deterministic solver. This single override was quietly
+  // undoing mathSolver.ts's entire reliability guarantee for any math query short enough and not
+  // phrased as a question — exactly the class of query most likely to be exactly that.
+  if (intent !== 'conversational' && intent !== 'mathematical') {
     const wordCount = effectivePrompt.trim().split(/\s+/).filter(Boolean).length;
     const looksLikeRealRequest =
       effectivePrompt.includes('?') ||
