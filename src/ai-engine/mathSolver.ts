@@ -531,6 +531,76 @@ function tryUnitConversion(input: string): MathSolution | null {
     };
   }
 
+  // Volume: any US customary/metric volume unit to any other, via a single shared lookup table
+  // (each unit's size in liters) rather than one hand-written function per pair — a gallon has 6
+  // other common units it might convert to/from (quart, pint, cup, fl oz, liter, ml), and every
+  // other conversion in this file up to this point is one explicit pair at a time, which doesn't
+  // scale to a 7-unit category without becoming unreadable. Added after a live-observed
+  // hallucination: asked "how many ounces in a gallon," the LLM answered 287.9 (using a wrong
+  // 8.45 oz/cup factor) — the correct answer is 128 (16 cups × 8 US fl oz/cup exactly). Every one
+  // of these had zero deterministic coverage before this, so the LLM was guessing at conversion
+  // factors from memory with no verification at all.
+  const volumeUnitLiters: Record<string, number> = {
+    gallon: 3.785411784, gallons: 3.785411784, gal: 3.785411784,
+    quart: 0.946352946, quarts: 0.946352946, qt: 0.946352946,
+    pint: 0.473176473, pints: 0.473176473, pt: 0.473176473,
+    cup: 0.2365882365, cups: 0.2365882365,
+    'fl oz': 0.0295735296, 'fluid ounce': 0.0295735296, 'fluid ounces': 0.0295735296, 'fl. oz': 0.0295735296,
+    // Bare "ounce(s)"/"oz" is what people overwhelmingly actually type in casual conversation
+    // ("how many ounces in a gallon") — technically ambiguous with weight ounces, but in a volume
+    // context (this table) it's unambiguous, and requiring "fluid ounces" every time would miss
+    // the exact phrasing that surfaced this whole gap in the first place.
+    ounce: 0.0295735296, ounces: 0.0295735296, oz: 0.0295735296,
+    liter: 1, liters: 1, litre: 1, litres: 1, l: 1,
+    milliliter: 0.001, milliliters: 0.001, millilitre: 0.001, millilitres: 0.001, ml: 0.001,
+    tablespoon: 0.0147868, tablespoons: 0.0147868, tbsp: 0.0147868,
+    teaspoon: 0.00492892, teaspoons: 0.00492892, tsp: 0.00492892,
+  };
+  const volUnitPattern = Object.keys(volumeUnitLiters)
+    .sort((a, b) => b.length - a.length) // longest first so "fl oz" matches before a hypothetical shorter overlapping key
+    .map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  const volMatch = q.match(new RegExp(`(\\d+\\.?\\d*)\\s*(${volUnitPattern})\\b\\s*(?:to|in)\\s*(?:an?\\s+)?(${volUnitPattern})\\b`, 'i'));
+  if (volMatch) {
+    const amount = parseFloat(volMatch[1]);
+    const fromUnit = volMatch[2].toLowerCase();
+    const toUnit = volMatch[3].toLowerCase();
+    const liters = amount * volumeUnitLiters[fromUnit];
+    const result = liters / volumeUnitLiters[toUnit];
+    return {
+      isMath: true,
+      expression: `${amount} ${fromUnit} to ${toUnit}`,
+      result: `${formatMathResult(result)} ${toUnit}`,
+      steps: [
+        `${fromUnit} → liters: ${amount} × ${volumeUnitLiters[fromUnit]} = ${formatMathResult(liters)} L`,
+        `liters → ${toUnit}: ${formatMathResult(liters)} ÷ ${volumeUnitLiters[toUnit]} = ${formatMathResult(result)} ${toUnit}`,
+      ],
+      explanation: `**${amount} ${fromUnit}** is equal to **${formatMathResult(result)} ${toUnit}**.`,
+    };
+  }
+
+  // "how many X in/per a Y" phrasing ("how many ounces in a gallon") — same table, different
+  // sentence shape than the explicit "N unit to unit" conversion above (no starting number, and
+  // the units appear in the opposite order: target unit first, source unit second).
+  const howManyMatch = q.match(new RegExp(`how\\s+many\\s+(${volUnitPattern})s?\\s+(?:are\\s+)?(?:in|per)\\s+(?:an?\\s+|one\\s+)?(${volUnitPattern})\\b`, 'i'));
+  if (howManyMatch) {
+    const toUnit = howManyMatch[1].toLowerCase();
+    const fromUnit = howManyMatch[2].toLowerCase();
+    if (volumeUnitLiters[toUnit] !== undefined && volumeUnitLiters[fromUnit] !== undefined) {
+      const result = volumeUnitLiters[fromUnit] / volumeUnitLiters[toUnit];
+      return {
+        isMath: true,
+        expression: `1 ${fromUnit} in ${toUnit}`,
+        result: `${formatMathResult(result)} ${toUnit}`,
+        steps: [
+          `1 ${fromUnit} = ${volumeUnitLiters[fromUnit]} L`,
+          `${volumeUnitLiters[fromUnit]} L ÷ ${volumeUnitLiters[toUnit]} L/${toUnit} = ${formatMathResult(result)} ${toUnit}`,
+        ],
+        explanation: `There are **${formatMathResult(result)} ${toUnit}** in 1 ${fromUnit}.`,
+      };
+    }
+  }
+
   return null;
 }
 

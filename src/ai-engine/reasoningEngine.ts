@@ -1016,6 +1016,17 @@ export function detectQueryIntent(query: string): QueryIntent {
     // distance word problems above do. Observed live: this exact phrasing reached the LLM
     // unguarded and it never even stated a number in its answer, deflecting with a joke instead.
     (/\d+/.test(q) && /how\s+(?:many|much)\b.{0,25}\b(?:left|now|remain|do\s+you\s+have|does\s+\w+\s+have|are\s+there|is\s+there)\b/.test(q)) ||
+    // "how many <volume unit> in/per a <volume unit>" ("how many ounces in a gallon") — no digit
+    // at all, so the digit-presence math triggers above never catch this shape, and
+    // mathSolver.ts's own volume-conversion table (which does support this exact phrasing) never
+    // got a chance to run. Observed live: this fell through to unguarded LLM generation and got a
+    // confidently wrong answer (287.9 oz/gallon, using an invented conversion factor — the real
+    // answer is 128). Listed explicitly rather than matching any generic "how many X in a Y" shape
+    // to avoid misrouting genuinely unrelated questions ("how many people are in a classroom")
+    // that just happen to share the sentence structure.
+    /\bhow\s+many\s+(?:gallons?|quarts?|pints?|cups?|ounces?|(?:fl(?:uid)?\.?\s*)?oz|fluid\s+ounces?|liters?|litres?|milliliters?|millilitres?|ml|tablespoons?|tbsp|teaspoons?|tsp)s?\s+(?:are\s+)?(?:in|per)\s+(?:an?\s+|one\s+)?(?:gallons?|quarts?|pints?|cups?|ounces?|(?:fl(?:uid)?\.?\s*)?oz|fluid\s+ounces?|liters?|litres?|milliliters?|millilitres?|ml|tablespoons?|tbsp|teaspoons?|tsp)\b/i.test(
+      q
+    ) ||
     // "is N prime/even/odd" and "gcd/lcm of A and B" — number-theory questions with one exact,
     // objectively correct answer (added after a live hallucination: the LLM confidently told a
     // user 17 is NOT prime). No operator symbol and no "calculate"/"solve" keyword, so these need
