@@ -1011,6 +1011,11 @@ export function detectQueryIntent(query: string): QueryIntent {
     // classifier never had a trigger for it without the "what is" wrapper, so it fell through to
     // 'general' intent and the solver never got a chance to run.
     /\d+(?:\.\d+)?\s*(?:%|percent)\s+of\s+\d+/i.test(q) ||
+    // Simple two-quantity word problems ("have 3 apples and eat 2, how many left") — no operator
+    // symbol or math keyword at all, so these need their own trigger the same way the rate/time/
+    // distance word problems above do. Observed live: this exact phrasing reached the LLM
+    // unguarded and it never even stated a number in its answer, deflecting with a joke instead.
+    (/\d+/.test(q) && /how\s+(?:many|much)\b.{0,25}\b(?:left|now|remain|do\s+you\s+have|does\s+\w+\s+have|are\s+there|is\s+there)\b/.test(q)) ||
     // "is N prime/even/odd" and "gcd/lcm of A and B" — number-theory questions with one exact,
     // objectively correct answer (added after a live hallucination: the LLM confidently told a
     // user 17 is NOT prime). No operator symbol and no "calculate"/"solve" keyword, so these need

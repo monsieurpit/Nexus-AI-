@@ -599,6 +599,60 @@ function trySolveRateTimeDistance(prompt: string): MathSolution | null {
   return null;
 }
 
+// Simple two-quantity word problems ("if you have 3 apples and eat 2, how many do you have",
+// "I had 10 dollars and spent 4, how much is left", "she has 5 books and buys 3 more") —
+// extremely common phrasing with no arithmetic symbol, "calculate"/"solve" keyword, or named
+// operation for the classifier or the recursive-descent parser to latch onto, so these fell
+// straight through to unguarded LLM generation. Observed live: asked "if you have 3 apples and
+// eat 2, how many do you have", the model never actually stated a number at all, deflecting with
+// a joke instead of answering — even a trivial word problem like this needs a guaranteed-correct
+// answer, not a coin flip on whether the model feels like doing the subtraction.
+//
+// Deliberately narrow: only ever fires on a message containing exactly two numbers connected by
+// one recognized addition or subtraction verb, and only asking "how many/how much... left/now/
+// do you have" — anything more structurally ambiguous (three+ numbers, an unrecognized verb, a
+// question shape this doesn't recognize) returns null and falls through to normal handling rather
+// than risk mis-parsing a genuinely different kind of question as a word problem.
+const SUBTRACT_VERBS =
+  /\b(?:eat|eats|ate|eaten|lose|loses|lost|spend|spends|spent|give\s+away|gives\s+away|gave\s+away|sell|sells|sold|use|uses|used|drop|drops|dropped|break|breaks|broke|remove|removes|removed|take\s+away|takes\s+away|took\s+away)\b/i;
+const ADD_VERBS =
+  /\b(?:get|gets|got|buy|buys|bought|gain|gains|gained|find|finds|found|receive|receives|received|earn|earns|earned|add|adds|added|collect|collects|collected|win|wins|won)\b/i;
+
+function trySolveWordProblemArithmetic(prompt: string): MathSolution | null {
+  const lower = prompt.toLowerCase();
+  if (!/how\s+(?:many|much)\b.{0,25}\b(?:left|now|remain|do\s+you\s+have|does\s+\w+\s+have|are\s+there|is\s+there)\b/.test(lower)) {
+    return null;
+  }
+  const numbers = lower.match(/\d+(?:\.\d+)?/g);
+  if (!numbers || numbers.length !== 2) return null;
+
+  const start = parseFloat(numbers[0]);
+  const change = parseFloat(numbers[1]);
+  // Look at the text BETWEEN the two numbers for the connecting verb — the part of the sentence
+  // that actually says what happened to the starting quantity.
+  const firstIdx = lower.indexOf(numbers[0]);
+  const secondIdx = lower.indexOf(numbers[1], firstIdx + numbers[0].length);
+  if (secondIdx <= firstIdx) return null;
+  const between = lower.slice(firstIdx, secondIdx);
+
+  const isSubtract = SUBTRACT_VERBS.test(between);
+  const isAdd = ADD_VERBS.test(between);
+  if (isSubtract === isAdd) return null; // neither matched, or (shouldn't happen) both matched — too ambiguous to guess
+
+  const result = isSubtract ? start - change : start + change;
+  const opWord = isSubtract ? 'eat/lose/spend/use' : 'get/buy/gain/find';
+  return {
+    isMath: true,
+    expression: `${start} ${isSubtract ? '-' : '+'} ${change}`,
+    result: formatMathResult(result),
+    steps: [
+      `Starting amount: ${formatMathResult(start)}`,
+      `${isSubtract ? 'Subtract' : 'Add'} (${opWord}): ${formatMathResult(start)} ${isSubtract ? '-' : '+'} ${formatMathResult(change)} = ${formatMathResult(result)}`,
+    ],
+    explanation: `**${formatMathResult(result)}**. Starting with ${formatMathResult(start)}, ${isSubtract ? 'minus' : 'plus'} ${formatMathResult(change)} = ${formatMathResult(result)}.`,
+  };
+}
+
 export function trySolveMath(prompt: string): MathSolution | null {
   const cleanPrompt = prompt.trim();
   const lower = cleanPrompt.toLowerCase();
@@ -616,6 +670,12 @@ export function trySolveMath(prompt: string): MathSolution | null {
   // of "60mph for 2.5 hours" as an expression at all)
   const rateRes = trySolveRateTimeDistance(cleanPrompt);
   if (rateRes) return rateRes;
+
+  // 1d. Simple two-quantity word problems ("have 3 apples, eat 2, how many left") — same reason
+  // as 1c, no arithmetic symbol for the parser below to find. Tried before the general parser so
+  // a word problem never gets misread as some other kind of expression first.
+  const wordProblemRes = trySolveWordProblemArithmetic(cleanPrompt);
+  if (wordProblemRes) return wordProblemRes;
 
   // 2. Recursive-descent AST Parser
   const parser = new RecursiveDescentParser();

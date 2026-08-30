@@ -167,6 +167,7 @@ import { STOICISM_AND_MODERN_REVIVAL_CORPUS } from './corpus/stoicismAndModernRe
 import { AUTOIMMUNE_DISEASES_EXPLAINED_CORPUS } from './corpus/autoimmuneDiseasesExplained';
 import { GENETICS_BASICS_EXPLAINED_CORPUS } from './corpus/geneticsBasicsExplained';
 import { HISTORY_OF_MONEY_AND_BANKING_CORPUS } from './corpus/historyOfMoneyAndBanking';
+import { CLASSIC_TRICK_QUESTIONS_CORPUS } from './corpus/classicTrickQuestions';
 // Round 7 knowledge expansion: everyday basics (2026-08-30)
 import { PRACTICAL_HOW_TO_KNOWLEDGE_CORPUS } from './corpus/practicalHowToKnowledge';
 import { COMMON_MISCONCEPTIONS_DEBUNKED_CORPUS } from './corpus/commonMisconceptionsDebunked';
@@ -850,6 +851,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...AUTOIMMUNE_DISEASES_EXPLAINED_CORPUS,
   ...GENETICS_BASICS_EXPLAINED_CORPUS,
   ...HISTORY_OF_MONEY_AND_BANKING_CORPUS,
+  ...CLASSIC_TRICK_QUESTIONS_CORPUS,
   // Round 7 knowledge expansion: everyday basics (2026-08-30)
   ...PRACTICAL_HOW_TO_KNOWLEDGE_CORPUS,
   ...COMMON_MISCONCEPTIONS_DEBUNKED_CORPUS,
