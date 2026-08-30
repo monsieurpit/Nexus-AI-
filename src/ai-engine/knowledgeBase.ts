@@ -31,6 +31,11 @@ import { WORLD_GEOGRAPHY_CORPUS } from './corpus/worldGeography';
 import { ENTERTAINMENT_CORPUS } from './corpus/entertainment';
 import { CULTURE_CORPUS } from './corpus/culture';
 import { SLANG_CORPUS } from './corpus/slang';
+import { BRAINROT_SLANG_EXPANSION_CORPUS } from './corpus/brainrotSlangExpansion';
+import { TEXTING_ABBREVIATIONS_EXPANSION_CORPUS } from './corpus/textingAbbreviationsExpansion';
+import { CRUDE_SLANG_GLOSSARY_CORPUS } from './corpus/crudeSlangGlossary';
+import { REGIONAL_INTERNET_SLANG_CORPUS } from './corpus/regionalInternetSlang';
+import { DISCORD_GAMING_SLANG_EXPANSION_CORPUS } from './corpus/discordGamingSlangExpansion';
 import { LIFE_SKILLS_CORPUS } from './corpus/lifeSkills';
 import { GAMING_CORPUS } from './corpus/gaming';
 import { MUSIC_CORPUS } from './corpus/music';
@@ -701,6 +706,11 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...ENTERTAINMENT_CORPUS,
   ...CULTURE_CORPUS,
   ...SLANG_CORPUS,
+  ...BRAINROT_SLANG_EXPANSION_CORPUS,
+  ...TEXTING_ABBREVIATIONS_EXPANSION_CORPUS,
+  ...CRUDE_SLANG_GLOSSARY_CORPUS,
+  ...REGIONAL_INTERNET_SLANG_CORPUS,
+  ...DISCORD_GAMING_SLANG_EXPANSION_CORPUS,
   ...LIFE_SKILLS_CORPUS,
   ...GAMING_CORPUS,
   ...MUSIC_CORPUS,
