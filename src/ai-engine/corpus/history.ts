@@ -77,7 +77,17 @@ export const HISTORY_CORPUS: KnowledgeItem[] = [
     id: 'kb-history-world-war-2',
     title: 'World War II: 1939–1945',
     category: 'History',
-    keywords: ['World War II', 'WW2', 'Hitler', 'Holocaust', 'D-Day', 'atomic bomb', 'Hiroshima', 'Japan', 'Germany', '1939', '1945'],
+    keywords: [
+      'World War II', 'World War 2', 'WW2', 'WWII', 'Hitler', 'Holocaust', 'D-Day', 'atomic bomb', 'Hiroshima', 'Japan', 'Germany', '1939', '1945',
+      // Arabic-numeral "world war 2" wasn't previously in this list at all (only the roman-
+      // numeral "World War II" was) — observed live, "when did world war 2 start" scored the
+      // WORLD WAR I causes entry slightly higher purely on generic word overlap ("war", "started",
+      // "declared war" all appear in both docs), since nothing here specifically matched the
+      // query's exact "world war 2" phrasing or its "start/began" framing. The LLM then answered
+      // from its own uncertain memory instead of this doc's actually-correct content, and got the
+      // start date wrong (fixated on Pearl Harbor/US entry, not the actual September 1939 start).
+      'when did world war 2 start', 'when did world war 2 begin', 'start of world war 2', 'world war 2 outbreak', 'how did world war 2 start',
+    ],
     content: `World War II (1939–1945) was the deadliest conflict in history, killing ~70–85 million people. Hitler's rise in Germany (1933) brought fascism and aggressive expansion: rearmament, remilitarisation of the Rhineland, annexation of Austria and Czechoslovakia. Britain and France's policy of appeasement at Munich (1938) failed. Germany invaded Poland on 1 September 1939; Britain and France declared war. Germany conquered France in six weeks (1940). The Battle of Britain was the RAF's successful defence against Luftwaffe bombing. Germany invaded the Soviet Union (Operation Barbarossa, 1941) — the largest military operation in history. Japan attacked Pearl Harbor (7 December 1941), bringing the USA into the war. The Holocaust was Nazi Germany's systematic genocide of six million Jews and millions of others. Key turning points: Stalingrad (1942–43), El Alamein (1942), and Midway (1942). D-Day (6 June 1944) was the allied invasion of Normandy. Germany surrendered 8 May 1945 (VE Day). The US dropped atomic bombs on Hiroshima (6 August) and Nagasaki (9 August); Japan surrendered 2 September 1945 (VJ Day). The war led to the UN, NATO, the Cold War, and decolonisation.`,
     createdAt: Date.now(),
   },

@@ -11,6 +11,7 @@ import { extractQueryEntities, searchKnowledgeGraph, getBM25Engine } from './sem
 import { hybridSearchKnowledgeGraph } from './vectorSearch';
 import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
+import { trySolveDate } from './dateSolver';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
 import * as localLlmClient from './localLlmClient';
 import {
@@ -1040,7 +1041,14 @@ export function detectQueryIntent(query: string): QueryIntent {
     q.includes('what date') ||
     q.includes('history of ') ||
     q.includes('when was') ||
-    q.includes('when did')
+    q.includes('when did') ||
+    // Calendar-arithmetic phrasings dateSolver.ts now handles ("how many days until X", "what
+    // day of the week is X", "how many days since X") — these don't contain "what year"/"what
+    // date"/"when" at all, so they never reached 'temporal' intent before, meaning the actual
+    // current-date-relative math these questions need never got a chance to run.
+    /\bhow\s+many\s+days?\s+(?:until|till|since)\b/i.test(q) ||
+    /\bwhat\s+day\s+(?:of\s+the\s+week\s+)?(?:is|was|will)\b/i.test(q) ||
+    /\bwhat\s+day\s+is\s+(?:it|today)\b/i.test(q)
   ) {
     return 'temporal';
   }
@@ -2769,7 +2777,7 @@ async function llmGroundedOrFallback(
       ? `Odpowiedz na pytanie użytkownika WYŁĄCZNIE na podstawie faktów podanych poniżej. Nie wymyślaj faktów, których tam nie ma.\n\nFakty:\n${groundingContext}\n\nPytanie: ${prompt}`
       : `Poniższy kontekst jest tylko luźno powiązany z pytaniem — potraktuj go jako punkt wyjścia i odpowiedz najlepiej jak potrafisz, uczciwie zaznaczając, jeśli czegoś nie jesteś pewien.\n\nKontekst:\n${groundingContext}\n\nPytanie: ${prompt}`
     : confident
-    ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. The context may contain several different superlative claims about different things (e.g. multiple things each described as "largest" — largest by area, largest economy, largest in a specific region, second-largest, etc., about entirely different entities) — read carefully and match your answer to the EXACT thing being asked, not just any nearby sentence that shares a similar-sounding word. If you're not certain which fact in the context actually answers the specific question, prefer the sentence whose wording most precisely matches the question over one that only shares a keyword. The facts must stay accurate, but remember your style directives still apply to HOW you say it — swear per your instructions, stay blunt and in character, never go flat/robotic/corporate just because this is a factual answer.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
+    ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. The context may contain several different superlative claims about different things (e.g. multiple things each described as "largest" — largest by area, largest economy, largest in a specific region, second-largest, etc., about entirely different entities) — read carefully and match your answer to the EXACT thing being asked, not just any nearby sentence that shares a similar-sounding word. If you're not certain which fact in the context actually answers the specific question, prefer the sentence whose wording most precisely matches the question over one that only shares a keyword. A historical event's context often lists SEVERAL different dates for different sub-events (when it started, when a specific country joined/was drawn in, when a major turning-point battle happened, when it ended) — a famous, heavily-covered date for one of those sub-events (Pearl Harbor for World War II, for example) is easy to reach for out of habit even when the question specifically asked about a DIFFERENT one (when the war started, not when the US entered it); if the question asks specifically "when did X start/begin", answer with the sentence in the context that actually describes the start/beginning, not whichever date you're most confident about from general knowledge. The facts must stay accurate, but remember your style directives still apply to HOW you say it — swear per your instructions, stay blunt and in character, never go flat/robotic/corporate just because this is a factual answer.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your style directives (swearing, tone) still fully apply here — don't drop them just because you're being informative.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
   // See the temperature comment in llmSituationalReplyOrFallback above — Polish needs a lower
   // temperature across the board for reliability, same reasoning applied to the grounded path.
@@ -3784,6 +3792,40 @@ export async function generateReasoningPath(
       return {
         thoughtSteps,
         content: enforceStrictSdkRules(formattedMath, prompt, settings.userCustomDirectives, {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+        }),
+        knowledgeHits: [],
+      };
+    }
+  }
+
+  // 4a. Deterministic date/calendar arithmetic — the same "compute it, don't generate it"
+  // principle as the math solver above, for a class of question the LLM has zero real grounding
+  // for at all: nothing in this pipeline ever tells it the actual current date, so any question
+  // depending on "today" (how many days until X, what date is N days from now, what year was N
+  // years ago) was pure hallucination — observed live, asked "what year was 30 years ago", it
+  // invented a fictional "today" out of thin air and then got the arithmetic on top of that wrong
+  // too. Tried for both 'mathematical' and 'temporal' intents (a query like "what date is 30 days
+  // from now" can land in either depending on exact phrasing) — trySolveDate() returns null for
+  // anything it doesn't specifically recognize (a genuine historical question like "when did WWII
+  // start" falls straight through untouched), so trying it unconditionally here is safe.
+  if (intent === 'mathematical' || intent === 'temporal') {
+    const dateResult = trySolveDate(effectivePrompt) || trySolveDate(prompt);
+    if (dateResult && dateResult.isDate) {
+      thoughtSteps.push({
+        id: 'step-date-computing',
+        type: 'reasoning',
+        title: isCrashout ? 'Date math (crashout mode)' : 'Computing date',
+        description: dateResult.steps.join('\n'),
+      });
+      const datePrefix = isCrashout ? "Okay let me actually check the real calendar instead of guessing.\n\n" : '';
+      const formattedDate = `${datePrefix}${dateResult.explanation}`;
+      return {
+        thoughtSteps,
+        content: enforceStrictSdkRules(formattedDate, prompt, settings.userCustomDirectives, {
           isSuperChill,
           username: settings.userName,
           systemInstruction: persona.systemPrompt,
