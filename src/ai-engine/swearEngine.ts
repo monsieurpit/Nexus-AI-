@@ -291,12 +291,22 @@ export function detectUserInsult(text: string): boolean {
     /\b(?:vete\s+a\s+la\s+mierda|chinga\s+tu\s+madre|callate|eres\s+una\s+mierda|eres\s+tonto|eres\s+un\s+estupido|hijo\s+de\s+puta|callate\s+la\s+boca)\b/i,
   ];
 
-  // Make sure it's not just asking "why do people suck" or "how to fix a dumb bot"
+  // Make sure it's not just asking "why do people suck" or "how to fix a dumb bot" — but a
+  // question-SHAPED sentence ("can you...", "why don't you just...") can still be a genuine
+  // direct-address insult, not an innocent question about something else. Observed live: "can you
+  // respectfully please FUCK OFF" started with "can", didn't literally contain the three exempted
+  // phrases below, so this guard fired and returned false BEFORE insultPatterns ever got checked
+  // — skipping straight past the "fuck off" pattern it would otherwise have matched, and the
+  // message fell through to a plain corpus/web search that returned explicit adult-content
+  // results. Any direct-address imperative insult (fuck off, piss off, shut up, stfu, kys, etc.)
+  // is unambiguously hostile regardless of what question word it's dressed up with, so those are
+  // excluded from this guard the same way "you suck"/"fuck you"/"dumb bot" already were.
   const isQuestionAboutSomethingElse =
     /^(?:why|how|what|is|are|can)\b/i.test(t) &&
     !t.includes('you suck') &&
     !t.includes('fuck you') &&
-    !t.includes('dumb bot');
+    !t.includes('dumb bot') &&
+    !/\b(?:fuck\s+off|piss\s+off|shut\s+up|shut\s+the\s+fuck\s+up|stfu|sybau|gtfo|kys|go\s+die|eat\s+shit|screw\s+you|screw\s+u)\b/i.test(t);
 
   if (isQuestionAboutSomethingElse) return false;
 

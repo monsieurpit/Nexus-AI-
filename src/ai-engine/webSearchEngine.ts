@@ -578,7 +578,10 @@ export function shouldTriggerLiveWebSearch(
     // so a corpus miss here should fall through to a normal conversational reply, not a web search
     // for whatever topic word happens to be in the sentence (e.g. searching for the literal song
     // "Right Now" because someone asked "do you like the songs playing right now").
-    /^(?:why\s+are\s+(?:you|u)|why\s+do\s+(?:you|u)|are\s+(?:you|u))\b/i.test(q) ||
+    // "why don't/doesn't you" mirrors reasoningEngine.ts's identical PERSONAL_QUESTION_REGEX fix —
+    // observed live, "why don't you like Poland" was never covered here either (only the
+    // affirmative "why do you" was).
+    /^(?:why\s+are\s+(?:you|u)|why\s+do\s+(?:you|u)|why\s+don'?t\s+(?:you|u)|why\s+doesn'?t\s+(?:you|u)|are\s+(?:you|u))\b/i.test(q) ||
     // "do u" (not just "do you") — observed live: "do u like me" and "what do u think about X"
     // both slipped past this as literal search queries, rephrased as "Meaning of do u like me"
     // and rate-limited by Google (429) since neither is a real, searchable lookup — they're
@@ -586,7 +589,16 @@ export function shouldTriggerLiveWebSearch(
     // handled below, just in text-speak spelling.
     // "support" added after "do you support israel" got searched verbatim and rate-limited (429)
     // — an opinion/stance question about the bot, same as "do you think/believe", not a lookup.
-    /\bdo\s+(?:you|u)\s+(?:like|love|hate|think|believe|even|support|agree\s+with)\b/i.test(q) ||
+    // "have"/"got"/"has" added after "do you have dih" and "you got any bitches" both got searched
+    // verbatim and rate-limited (429) — a question about whether the BOT itself possesses
+    // something, never a real lookup regardless of what the something is.
+    // The subject slot allows one stutter/typo repeat ("do u u like X", observed live exactly this
+    // way, breaking the plain single-word match) — `(?:you|u)` said twice, second optional.
+    /\bdo\s+(?:you|u)(?:\s+(?:you|u))?\s+(?:like|love|hate|think|believe|even|support|agree\s+with|have|got|has)\b/i.test(q) ||
+    /\b(?:you|u)\s+got\s+any\b/i.test(q) ||
+    // "how [long/big/small/thick] is your X" — a question about the bot's own body/attributes,
+    // observed live as "how long is your dih", never a real factual lookup regardless of the noun.
+    /\bhow\s+(?:long|big|small|thick|tall)\s+is\s+your\b/i.test(q) ||
     /\b(?:you|u)\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b/i.test(q) ||
     // "can you [verb] [someone]" — a hypothetical/willingness question about the bot directed at
     // a specific person (a mention, a name, or "me"/"him"/"her"), not a real lookup. Observed live:
@@ -599,6 +611,30 @@ export function shouldTriggerLiveWebSearch(
     // (429). Wider gap between verb and target than the "can you" case since these often have a
     // few words in between ("nut IN YO butt" vs. a direct object right after the verb).
     /\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b/i.test(q) ||
+    // "can we [verb] together/with me" — the "we" mirror of "can you"/"can I" above, same
+    // dead-end-for-search category. Observed live: "can we both fuck togheter" and "Meaning of ...
+    // Can we fuck togehter? I have been waiting to ask you this" both got searched verbatim and
+    // rate-limited (429).
+    /\bcan\s+we\s+(?:both\s+)?\w+\s+(?:together|togheter|togehter|with\s+me)\b/i.test(q) ||
+    // "should [he/she/they] go [verb] [himself/herself/themselves]" — a rhetorical remark about a
+    // third party mentioned in conversation, not a factual lookup. Observed live: "should he go
+    // fuck himslef" got searched verbatim and rate-limited (429).
+    // "self" spelled loosely ("himslef") to tolerate the transposition typo observed live.
+    /\bshould\s+(?:he|she|they|it)\s+go\s+\w+\s+(?:him|her|them|it)s(?:el|le)f\b/i.test(q) ||
+    // "which hand ... goon(ing)" — a crude personal-preference question, never a real lookup
+    // regardless of phrasing. Observed live: both "which hand do you goon with" and "which hand is
+    // the best for gooning" got searched verbatim and DuckDuckGo-aborted.
+    /\bwhich\s+hand\b.{0,20}\bgoon/i.test(q) ||
+    // A bare "is/are X" fragment with nothing else — observed live as "is crazy" and
+    // "is crashingout", both single trailing words with no article or subject noun. These are what
+    // "nexus is crazy"/"you are crashingout" look like once the upstream Discord bot strips the
+    // bot's own name/mention off the front before forwarding the message here, so by the time this
+    // function sees it the subject is already gone and there's nothing left for the `^(?:nexus|
+    // you|u)\s+(?:is|are)` pattern further below to match against. Narrowly scoped to EXACTLY
+    // "is/are" plus one bare word (no article, no second content word) — a genuine factual
+    // question ("is the earth flat", "is water wet") virtually always has more than one content
+    // word after is/are, so this doesn't swallow real lookups.
+    /^(?:is|are)\s+[a-ząćęłńóśźż]+[?!.]*$/i.test(q) ||
     // "can I [verb]" with no target at all — a broader permission/hypothetical question directed
     // at the bot ("can I set fire to an orphanage", "can I skip school"), not just the
     // targeted-at-someone case above. Google has no sensible answer to a permission question
@@ -728,6 +764,13 @@ export function shouldTriggerLiveWebSearch(
 
   // 3. NEVER SEARCH: Math calculations, code requests, and Casseurt roasts
   if (/\d+\s*[+\-*/÷×^%]\s*\d+/.test(q) || q.startsWith('solve ') || q.startsWith('calculate ') || q.startsWith('compute ')) {
+    return false;
+  }
+  // A "square/cube root/log of X" where X isn't a number at all — observed live, "what the square
+  // root of a potato" got searched verbatim and rate-limited (429). Nothing on the web answers a
+  // joke math question about a non-numeric noun; a genuine numeric one ("square root of 144") is
+  // still perfectly answerable by the model itself without a search either way.
+  if (/\b(?:square|cube)\s+root\s+of\s+(?!\d)[a-ząćęłńóśźż]+\b/i.test(q)) {
     return false;
   }
   if (isCasseurtMention(q)) {

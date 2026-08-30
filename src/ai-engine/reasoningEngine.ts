@@ -137,8 +137,16 @@ const PHONE_NUMBER_REGEX =
 // the original complaint). "do with" made optional — the reported message dropped it entirely
 // ("have to you", not "have to do with you"), which the stricter idiom-only form would have
 // missed. Mirrors webSearchEngine.ts's identical carve-out.
+// "why don't/doesn't you [like/support/...]" — the negative-form mirror of "why do you", never
+// covered before. Observed live: "Why don't you like Poland nexus" fell through this regex
+// entirely (only the affirmative "why do you" was matched), reached full corpus retrieval, and got
+// a Poland-facts document dumped near-verbatim since the entity ("Poland") happened to score high
+// on BM25 even though the actual question was a personal opinion, not a factual lookup.
+// "you got any X" — the possession-question mirror of "do you have X", same personal-question
+// category. Observed live: "Nexus you got any bitches?" fell through this regex, reached full
+// corpus retrieval, and got an unrelated Meal Prep document dumped near-verbatim.
 const PERSONAL_QUESTION_REGEX =
-  /^(?:why\s+are\s+you|why\s+do\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with)\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b|\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b/i;
+  /^(?:why\s+are\s+you|why\s+do\s+you|why\s+don'?t\s+you|why\s+doesn'?t\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with|have|got|has)\b|\byou\s+got\s+any\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b|\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b/i;
 
 // "can I [verb]" with no target ("can I set fire to an orphanage", "can I skip school") — a
 // hypothetical/mischievous permission question directed at the bot, distinct from
@@ -3437,7 +3445,24 @@ export async function generateReasoningPath(
   });
 
   // 4. Conversational Intent (Immediate exit — NO corpus search!)
-  if (intent === 'conversational') {
+  //
+  // The intent classifier alone doesn't catch every personal-opinion-about-a-topic question — a
+  // question naming a real-world entity ("why don't you like Poland", "you got any bitches")
+  // reads as a real factual/causal lookup to the classifier because of the entity it mentions,
+  // even though it's actually a question about the BOT's own opinion/possessions, same category
+  // PERSONAL_QUESTION_REGEX already exists to catch. Observed live: both examples above fell
+  // through this gate with intent='causal', reached full corpus retrieval, and BM25 confidently
+  // (score 9.02+) matched a real, topically-adjacent-but-wrong document purely on the entity's
+  // name (a "Pakistan and Poland: Capitals and Key Facts" doc, a "Meal Prep Basics" doc via
+  // "bitches" collision with nothing directly related) — the grounded-answer prompt then forced
+  // the model to answer using ONLY those unrelated facts, and it just echoed them back near-
+  // verbatim since there was nothing else it could honestly say. PERSONAL_QUESTION_REGEX matching
+  // now overrides the classifier's verdict here, the same way it already overrides routing further
+  // down this function for other checks — a real personal question about the bot should never
+  // reach corpus-confident grounding no matter what entity happens to be in it.
+  const isPersonalQuestionOverride =
+    PERSONAL_QUESTION_REGEX.test(effectivePrompt.toLowerCase()) || PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase());
+  if (intent === 'conversational' || isPersonalQuestionOverride) {
     thoughtSteps.push({
       id: 'step-conv-reply',
       type: 'synthesis',
