@@ -29,7 +29,16 @@ export const MENTAL_HEALTH_CORPUS: KnowledgeItem[] = [
     id: 'kb-mental-sleep-science',
     title: 'Sleep Science and Sleep Hygiene',
     category: 'Mental Health',
-    keywords: ['sleep', 'sleep hygiene', 'insomnia', 'REM', 'melatonin', 'circadian rhythm', 'CBT-I', 'rest', 'health', 'deep sleep', 'dreams', 'sleep deprivation', 'wellbeing'],
+    keywords: [
+      'sleep', 'sleep hygiene', 'insomnia', 'REM', 'melatonin', 'circadian rhythm', 'CBT-I', 'rest', 'health', 'deep sleep', 'dreams', 'sleep deprivation', 'wellbeing',
+      // Bare "dreams"/"dreaming" was previously the only overlap with the actual query phrasing
+      // people use, and it's a common enough word that an unrelated art-history document
+      // ("Surrealism — Dreams, the Unconscious, and Dalí") outscored this entry entirely on that
+      // one shared word — observed live, "why do we dream" retrieved the Surrealism doc instead
+      // of this one, and the fast reasoning mode (single retrieval pass, no reformulation retry)
+      // confidently answered about Dalí instead of REM sleep science.
+      'why do we dream', 'why do people dream', 'what causes dreams', 'why do we have dreams', 'purpose of dreaming', 'dream science',
+    ],
     content: `Sleep is not passive — it is an active process essential for memory consolidation, emotional regulation, immune function, cellular repair, and metabolic health. Adults need 7–9 hours; teenagers 8–10; older adults often need slightly less but still benefit from 7–8. Sleep occurs in cycles of ~90 minutes, alternating between NREM (Non-Rapid Eye Movement, stages 1–3) and REM (Rapid Eye Movement) sleep. Deep NREM (stage 3, slow-wave sleep) is when physical repair and immune function peak. REM is when memory consolidation and emotional processing occur — dreams happen here. Sleep deprivation effects: after 17–19 hours awake, cognitive impairment equals a 0.05% blood alcohol level. Chronic mild sleep restriction (6 hours/night) produces cumulative deficits that people don't recognise because they adapt to feeling tired as their new normal. Sleep hygiene: maintain consistent sleep/wake times (even weekends) — this anchors the circadian rhythm. Avoid screens 60–90 minutes before bed — blue light suppresses melatonin. Keep the bedroom cool (16–19°C is optimal), dark, and quiet. Avoid caffeine after 2 pm (half-life is 5–7 hours). Alcohol disrupts REM sleep — even 2 drinks reduce REM by ~20%. Exercise improves sleep quality but avoid intense exercise within 2–3 hours of bed. Melatonin supplements (0.5–1 mg) help with jet lag and sleep phase shifts, not as a general sedative. Chronic insomnia is best treated with CBT-I (Cognitive Behavioural Therapy for Insomnia) — more effective than medication long-term.`,
     createdAt: Date.now(),
   },
