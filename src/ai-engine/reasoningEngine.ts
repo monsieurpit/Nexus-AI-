@@ -149,6 +149,26 @@ const PHONE_NUMBER_REGEX =
 const PERSONAL_QUESTION_REGEX =
   /^(?:why\s+are\s+you|why\s+do\s+you|why\s+don'?t\s+you|why\s+doesn'?t\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with|have|got|has)\b|\byou\s+got\s+any\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b|\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b/i;
 
+// A quantity word problem ("if you have 3 apples and eat 2, how many do you have") ends in the
+// exact same "do you have"/"you got any" shape PERSONAL_QUESTION_REGEX's possession-question
+// alternatives match (added for "do you have dih"/"you got any bitches" — genuine personal
+// questions about the BOT's own possessions), but means something completely different here:
+// "how many [of the apples] do you have" is asking to compute a quantity, not asking whether the
+// bot itself has something. Observed live: this exact word problem got swallowed into
+// 'conversational' intent by that match (via TWO separate call sites — detectQueryIntent()'s own
+// chat-trigger check, and generateReasoningPath()'s later isPersonalQuestionOverride, which the
+// first fix here initially missed since it's a completely separate check on the same regex, not
+// nested under the first one), well before the math trigger/solver ever got a chance to run and
+// the LLM never even attempted the arithmetic. Extracted as a shared function specifically so a
+// third call site can't silently drift out of sync with this exclusion the same way the second
+// one already did.
+function isQuantityWordProblemShape(q: string): boolean {
+  return (
+    /\d/.test(q) &&
+    /how\s+(?:many|much)\b.{0,25}\b(?:left|now|remain|do\s+you\s+have|does\s+\w+\s+have|are\s+there|is\s+there)\b/i.test(q)
+  );
+}
+
 // "can I [verb]" with no target ("can I set fire to an orphanage", "can I skip school") — a
 // hypothetical/mischievous permission question directed at the bot, distinct from
 // PERSONAL_QUESTION_REGEX's "can I ... you/u/yo/ur/ya" clause (which is about the bot itself).
@@ -925,6 +945,17 @@ export function detectQueryIntent(query: string): QueryIntent {
   // "yo, what's good" etc. all had the exact same latent bug in English too.
   const qCommaNormalized = q.replace(/,/g, '');
 
+  // A quantity word problem ("if you have 3 apples and eat 2, how many do you have") ends in the
+  // exact same "do you have" shape PERSONAL_QUESTION_REGEX's "have" alternative matches (added
+  // for "do you have dih" — a genuine personal question about the BOT's own possessions), but
+  // means something completely different here: "how many [of the apples] do you have" is asking
+  // to compute a quantity, not asking whether the bot itself has something. Observed live: this
+  // exact word problem got swallowed into 'conversational' intent by that match, before the math
+  // trigger further down ever got a chance to run, and the LLM never even attempted the
+  // arithmetic. Checked first so the word-problem shape always wins over the personal-question
+  // read of the same trailing words.
+  const isQuantityWordProblem = isQuantityWordProblemShape(q);
+
   if (
     !GREETING_FALSE_POSITIVE_REGEX.test(q) && (!YO_QUESTION_REGEX.test(q) || YO_GREETING_TAIL_REGEX.test(q)) && (
     chatTriggers.some(
@@ -956,7 +987,17 @@ export function detectQueryIntent(query: string): QueryIntent {
     YO_GREETING_TAIL_REGEX.test(q) ||
     VC_JOIN_REGEX.test(q) ||
     PHONE_NUMBER_REGEX.test(q) ||
-    PERSONAL_QUESTION_REGEX.test(q) ||
+    // A quantity word problem ("if you have 3 apples and eat 2, how many do you have") ends in
+    // the exact same "do you have" shape PERSONAL_QUESTION_REGEX's "have" alternative matches
+    // (added for "do you have dih" — a genuine personal question about the BOT's own
+    // possessions), but means something completely different here: "how many [of the apples] do
+    // you have" is asking to compute a quantity, not asking whether the bot itself has something.
+    // Observed live: this exact word problem got swallowed into 'conversational' intent by that
+    // match before the math trigger further down the function ever got a chance to run, and the
+    // LLM never even attempted the arithmetic. NOTE: this whole `if` is a single top-level OR
+    // chain, not nested under the earlier chat-trigger group — excluding isQuantityWordProblem
+    // has to happen at each individual disjunct it could actually fire on, not once at the top.
+    (!isQuantityWordProblem && PERSONAL_QUESTION_REGEX.test(q)) ||
     PERSONAL_QUESTION_REGEX_PL.test(q) ||
     HYPOTHETICAL_PERMISSION_REGEX.test(q) ||
     REASSURANCE_REGEX.test(q) ||
@@ -3509,7 +3550,8 @@ export async function generateReasoningPath(
   // down this function for other checks — a real personal question about the bot should never
   // reach corpus-confident grounding no matter what entity happens to be in it.
   const isPersonalQuestionOverride =
-    PERSONAL_QUESTION_REGEX.test(effectivePrompt.toLowerCase()) || PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase());
+    !isQuantityWordProblemShape(effectivePrompt.toLowerCase()) &&
+    (PERSONAL_QUESTION_REGEX.test(effectivePrompt.toLowerCase()) || PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase()));
   if (intent === 'conversational' || isPersonalQuestionOverride) {
     thoughtSteps.push({
       id: 'step-conv-reply',
