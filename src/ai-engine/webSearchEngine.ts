@@ -824,6 +824,14 @@ export function shouldTriggerLiveWebSearch(
   const isCurrentEventOrLiveLookup =
     /(?:latest\s+news|breaking\s+news|what\s+happened\s+in|who\s+won\s+the\s+202|release\s+date\s+of|stock\s+price\s+of|price\s+of\s+bitcoin|weather\s+in|who\s+played\s+in|2024\s+ucl\s+final|2024\s+champions\s+league)/i.test(q) ||
     /\b(?:current|latest|newest)\s+(?:president|prime\s+minister|pm|ceo|king|queen|pope|leader|version|update|champion|record\s+holder)\b/i.test(q) ||
+    // Bare "who is the CEO/president/leader of X" — no "current" qualifier at all. Observed live:
+    // "who is the CEO of twitter" answered confidently from static parametric memory (Elon Musk,
+    // correct as of the LLM's training data but not verified against anything live) and never
+    // triggered a search, while the near-identical "who is the CURRENT ceo of X" already did.
+    // These leadership-role questions are inherently time-sensitive regardless of whether the
+    // asker bothers to say "current" — a CEO/president/PM can change at any time, so the absence
+    // of that one qualifier word shouldn't be what decides whether this gets verified live.
+    /\bwho(?:'?s|\s+is)\s+the\s+(?:president|prime\s+minister|pm|ceo|king|queen|pope|leader|governor|mayor|chairman|chairwoman|chairperson)\s+of\b/i.test(q) ||
     // "dead" deliberately excluded from this list — verified live, "is my phone battery dead"
     // false-positived on it (an object, not a person's mortality). "did X die" below covers the
     // mortality-check case more safely; a real "is a person still alive" question almost always
