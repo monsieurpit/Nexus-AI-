@@ -167,6 +167,14 @@ import { STOICISM_AND_MODERN_REVIVAL_CORPUS } from './corpus/stoicismAndModernRe
 import { AUTOIMMUNE_DISEASES_EXPLAINED_CORPUS } from './corpus/autoimmuneDiseasesExplained';
 import { GENETICS_BASICS_EXPLAINED_CORPUS } from './corpus/geneticsBasicsExplained';
 import { HISTORY_OF_MONEY_AND_BANKING_CORPUS } from './corpus/historyOfMoneyAndBanking';
+// Round 7 knowledge expansion: everyday basics (2026-08-30)
+import { PRACTICAL_HOW_TO_KNOWLEDGE_CORPUS } from './corpus/practicalHowToKnowledge';
+import { COMMON_MISCONCEPTIONS_DEBUNKED_CORPUS } from './corpus/commonMisconceptionsDebunked';
+import { BASIC_HEALTH_AND_BODY_EXPANSION_CORPUS } from './corpus/basicHealthAndBodyExpansion';
+import { EVERYDAY_CIVICS_AND_MONEY_BASICS_CORPUS } from './corpus/everydayCivicsAndMoneyBasics';
+import { EVERYDAY_SCIENCE_AND_TECH_EXPLAINERS_CORPUS } from './corpus/everydayScienceAndTechExplainers';
+import { DAILY_LIFE_PRACTICAL_REFERENCE_2_CORPUS } from './corpus/dailyLifePracticalReference2';
+import { EVERYDAY_BASICS_EXPANSION_3_CORPUS } from './corpus/everydayBasicsExpansion3';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -842,6 +850,14 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...AUTOIMMUNE_DISEASES_EXPLAINED_CORPUS,
   ...GENETICS_BASICS_EXPLAINED_CORPUS,
   ...HISTORY_OF_MONEY_AND_BANKING_CORPUS,
+  // Round 7 knowledge expansion: everyday basics (2026-08-30)
+  ...PRACTICAL_HOW_TO_KNOWLEDGE_CORPUS,
+  ...COMMON_MISCONCEPTIONS_DEBUNKED_CORPUS,
+  ...BASIC_HEALTH_AND_BODY_EXPANSION_CORPUS,
+  ...EVERYDAY_CIVICS_AND_MONEY_BASICS_CORPUS,
+  ...EVERYDAY_SCIENCE_AND_TECH_EXPLAINERS_CORPUS,
+  ...DAILY_LIFE_PRACTICAL_REFERENCE_2_CORPUS,
+  ...EVERYDAY_BASICS_EXPANSION_3_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
