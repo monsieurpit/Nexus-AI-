@@ -112,10 +112,18 @@ export async function vectorSearch(
   knowledgeList: KnowledgeItem[],
   topK: number
 ): Promise<VectorScoredItem[] | null> {
+  // Check the (cheap, local, no-network) corpus embeddings BEFORE paying for a real ~660ms Ollama
+  // embed API call — if there's nothing to compare the query against, that call can never produce
+  // a usable result no matter what it returns. This matters concretely: loadRealEmbeddings() reads
+  // its data file from disk at runtime now (not bundled) and silently resolves to {} if that file
+  // is ever missing from the deploy, which used to mean every single query still paid the full
+  // embed cost for a search that was guaranteed to return nothing.
+  const realEmbeddings = await loadRealEmbeddings();
+  if (Object.keys(realEmbeddings).length === 0) return null;
+
   const queryVec = await embedQueryCached(prompt);
   if (!queryVec) return null;
 
-  const realEmbeddings = await loadRealEmbeddings();
   const scored: VectorScoredItem[] = [];
   for (const item of knowledgeList) {
     const itemVec = realEmbeddings[item.id];

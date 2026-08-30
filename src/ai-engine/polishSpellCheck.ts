@@ -1,94 +1,45 @@
 import { levenshteinDistance } from './bm25Engine';
 
-// Real, free, offline Polish dictionary word set used as a quality gate on Polish LLM output.
+// Real, free, offline Polish dictionary (MIT/GPL/LGPL/MPL — the same one Firefox/LibreOffice spell
+// -check with) used as a quality gate on Polish LLM output, not just a language-identity check.
 //
-// Previously used `nspell` to parse the 4.7MB hunspell affix ruleset, which created over 460MB
-// of JavaScript heap objects on startup and caused Node to hit the heap memory limit on Railway
-// containers (leading to `<--- Last few GCs --->` and FATAL ERROR: JavaScript heap out of memory).
-// Loading the 291,000+ inflected dictionary words directly into a compact Set<string> consumes
-// only ~50MB of heap, initializes in ~300ms (vs 15+ seconds), and supports instant O(1) word checks
-// and fast distance-1 typo suggestions with zero heap explosion.
-interface PolishSpellChecker {
-  correct: (w: string) => boolean;
-  suggest: (w: string) => string[];
-}
+// 'nspell'/'dictionary-pl' are loaded lazily via dynamic import, NOT as static top-level imports,
+// and only when actually running in Node. This file is reachable from the browser bundle too (App
+// .tsx -> generator.ts -> reasoningEngine.ts -> localLlmClient.ts -> here, for the client-side
+// generation path), and dictionary-pl's own module uses top-level await internally — Vite's
+// production build tries to transform every statically-reachable module for its configured browser
+// targets (chrome87 etc.), which don't support top-level await, and fails the whole build over a
+// dependency that never actually runs in the browser in the first place (this quality gate only
+// matters for real Ollama-backed Polish generation, which requires OLLAMA_BASE_URL — never set in
+// a browser context). A dynamic import deferred until first real use, combined with these packages
+// marked `external` in vite.config.ts (so Vite never attempts to bundle/transform them for the
+// client target at all), keeps this working server-side while making it truly inert in the browser
+// bundle instead of just "unlikely to run".
+let spellPromise: Promise<{ correct: (w: string) => boolean; suggest: (w: string) => string[] } | null> | null =
+  null;
 
-let spellPromise: Promise<PolishSpellChecker | null> | null = null;
-
-const POLISH_ALPHABET = 'aąbcćdeęfghijklłmnńoóprsśtuwyzźż'.split('');
-
-function buildLightweightPolishChecker(dicBuffer: Buffer | Uint8Array): PolishSpellChecker {
-  const text = Buffer.isBuffer(dicBuffer) ? dicBuffer.toString('utf-8') : Buffer.from(dicBuffer).toString('utf-8');
-  const wordsSet = new Set<string>();
-
-  const lines = text.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const slashIdx = line.indexOf('/');
-    const word = (slashIdx >= 0 ? line.slice(0, slashIdx) : line).trim().toLowerCase();
-    if (word) {
-      wordsSet.add(word);
-    }
-  }
-
-  return {
-    correct: (w: string) => {
-      const lower = w.toLowerCase();
-      return wordsSet.has(lower) || KNOWN_PROPER_NOUNS.has(lower);
-    },
-    suggest: (w: string) => {
-      const lower = w.toLowerCase();
-      const len = lower.length;
-      if (len < 2 || len > 35) return [];
-
-      const candidates = new Set<string>();
-
-      // 1. Deletions (1 edit)
-      for (let i = 0; i < len; i++) {
-        const cand = lower.slice(0, i) + lower.slice(i + 1);
-        if (wordsSet.has(cand)) candidates.add(cand);
-      }
-
-      // 2. Transpositions (1 edit)
-      for (let i = 0; i < len - 1; i++) {
-        const cand = lower.slice(0, i) + lower[i + 1] + lower[i] + lower.slice(i + 2);
-        if (wordsSet.has(cand)) candidates.add(cand);
-      }
-
-      // 3. Substitutions (1 edit)
-      for (let i = 0; i < len; i++) {
-        for (const ch of POLISH_ALPHABET) {
-          if (ch !== lower[i]) {
-            const cand = lower.slice(0, i) + ch + lower.slice(i + 1);
-            if (wordsSet.has(cand)) candidates.add(cand);
-          }
-        }
-      }
-
-      // 4. Insertions (1 edit)
-      for (let i = 0; i <= len; i++) {
-        for (const ch of POLISH_ALPHABET) {
-          const cand = lower.slice(0, i) + ch + lower.slice(i);
-          if (wordsSet.has(cand)) candidates.add(cand);
-        }
-      }
-
-      return Array.from(candidates);
-    },
-  };
-}
-
-function getSpell(): Promise<PolishSpellChecker | null> {
+// Building the dictionary (nspell's constructor parses a ~4.7MB affix/word-list file — hundreds of
+// thousands of entries — entirely synchronously) is genuinely expensive, and it's a one-time cost
+// per process, not per-request. If it ever throws (a bad deploy, an OOM mid-parse, anything), the
+// old code cached the REJECTED promise forever — `if (!spellPromise)` only checks for null, not
+// for a promise that already failed — so one bad load permanently broke every future Polish
+// message for the rest of that process's uptime with no way to recover short of a restart. Now
+// clears spellPromise back to null on failure so the next call gets a fresh attempt.
+function getSpell() {
   if (typeof window !== 'undefined') return Promise.resolve(null);
   if (!spellPromise) {
     spellPromise = (async () => {
       try {
-        const { default: dictionary } = await import('dictionary-pl');
-        return buildLightweightPolishChecker(dictionary.dic);
+        const [{ default: nspell }, { default: dictionary }] = await Promise.all([
+          import('nspell'),
+          import('dictionary-pl'),
+        ]);
+        // dictionary-pl exports its affix/dic data as Uint8Array; @types/nspell's signature wants a
+        // Node Buffer specifically (Buffer is a Uint8Array subclass, not the reverse) — wrap explicitly.
+        return nspell(Buffer.from(dictionary.aff), Buffer.from(dictionary.dic));
       } catch (err) {
         spellPromise = null;
-        console.warn('[PolishSpellCheck] Failed to load Polish dictionary:', err);
-        return null;
+        throw err;
       }
     })();
   }
