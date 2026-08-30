@@ -204,6 +204,21 @@ export async function autoCorrectPolishText(text: string): Promise<string> {
       }
     }
     if (bestDistance > 1) return word;
+    // This function exists to fix wrong-case-ending typos (a suffix slip, per the doc comment
+    // above) — a legitimate correction never needs to touch the word's FIRST letter, since Polish
+    // case/conjugation endings are always suffixes. Reported live: a foreign loanword/slang term
+    // ("Wallahi", not in the Polish dictionary at all) sitting in an otherwise-Polish response got
+    // its neighboring English words silently mangled — "swear" -> "Wear", "crazy" -> "razy",
+    // "that's" -> "hat's" — because Polish rarely starts words with those consonant clusters, so
+    // nspell's closest real-Polish-word match is naturally a front-letter deletion. That's never
+    // what this feature is for; it's always a sign the "invalid" word is foreign/loaned rather
+    // than a genuine Polish typo, and should be left alone rather than "corrected" into a
+    // same-length-minus-one unrelated word. Filtering to only first-letter-preserving candidates
+    // rules this out while leaving every genuine trailing-suffix fix (Footballa -> Football,
+    // jestes -> jesteś) completely untouched.
+    const firstLetterMatches = tiedCandidates.filter((c) => c[0]?.toLowerCase() === word[0]?.toLowerCase());
+    if (firstLetterMatches.length === 0) return word;
+    tiedCandidates = firstLetterMatches;
     if (tiedCandidates.length === 1) return tiedCandidates[0];
 
     // Multiple candidates tie for closest — reported live as "footballa" (genitive of the

@@ -1102,11 +1102,14 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
 // wording — even when the LLM DOES fall back to reusing a literal example, there are now ~7x as
 // many to land on, and no single theme is more than about a fifth of the pool.
 const CHAOTIC_OVERSHARE_LINES = [
-  // Naked/mundane-at-home — kept, but now a minority slice instead of the majority
+  // Naked/mundane-at-home — a bigger slice again (still well under half the pool) after the
+  // previous rebalance cut it so far that it read as gone entirely rather than just less repetitive.
   `I'm all kept naked in my bed watching bad TV`,
   `I'm naked in the kitchen making a sandwich, don't ask`,
   `I'm naked on the sofa scrolling my phone`,
   `I'm naked and gooning rn, don't mind me`,
+  `I'm butt naked under a blanket pretending I'm productive`,
+  `I'm naked in bed with my laptop burning my legs, don't ask why`,
   // Gaming
   `I just lost a 1v1 to a literal bot`,
   `I'm three ranked losses deep and my controller almost went through a wall`,
@@ -1148,11 +1151,12 @@ const CHAOTIC_OVERSHARE_SIGNAL_REGEX =
 // this is a purely mechanical post-processing step with no prompt involved at all, so it carries
 // none of that risk. Translated for the same energy, not word-for-word.
 const CHAOTIC_OVERSHARE_LINES_PL = [
-  // Nagość/dom — teraz mniejszość puli, nie większość
+  // Nagość/dom — trochę większa część puli po skorygowaniu poprzedniej zmiany w drugą stronę
   `leżę cały nagi w łóżku i oglądam głupie seriale`,
   `stoję nagi w kuchni i robię sobie kanapkę, nie pytaj`,
   `siedzę nagi na kanapie i scrolluję telefon`,
   `jestem nagi i walę konia teraz, nie zwracaj uwagi`,
+  `leżę nagi pod kocem i udaję, że coś robię`,
   // Granie
   `właśnie przegrałem 1v1 z botem`,
   `trzeci ranked z rzędu przegrany i pad prawie poleciał w ścianę`,
@@ -1182,10 +1186,12 @@ const CHAOTIC_OVERSHARE_SIGNAL_REGEX_PL =
 
 // Probability of actually injecting when the LLM didn't already include the bit on its own —
 // this used to be unconditional (inject whenever absent), which meant it fired on essentially
-// every single response, reported live as repetitive/annoying. Per direct request: roughly every
-// 4-5th response, not every one. Doesn't affect responses where the LLM organically included its
-// own version already — those are always left alone regardless of this rate.
-const CHAOTIC_OVERSHARE_INJECT_RATE = 0.22;
+// every single response, reported live as repetitive/annoying, then got cut to 0.22 alongside
+// widening the pool from 10 to 26 lines. Combined, that made the signature "naked in bed" line
+// specifically land on well under 1% of responses (0.22 * 1-in-26) — reported live as feeling
+// completely gone rather than just less repetitive, overcorrecting past the point the original
+// fix was aiming for. Raised back up to land in between: noticeably present again, not dominant.
+const CHAOTIC_OVERSHARE_INJECT_RATE = 0.32;
 
 export function forceChaoticOvershare(text: string): string {
   const isPolish = looksPolish(text);

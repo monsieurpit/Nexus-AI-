@@ -2052,7 +2052,7 @@ function crashoutConversational(query: string, corpusCount: number): string {
   }
   return pickReply([
     `here, crashout mode, ready, hit me`,
-    `I'm up, I'm loud, go`,
+    `I'm up, I'm loud, go ahead`,
     `crashout engine idling at redline, say something`,
     `present and unhinged, I just lost a 1v1 to a literal bot, what do you need`,
   ]);
