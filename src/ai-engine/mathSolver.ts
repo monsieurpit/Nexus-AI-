@@ -102,6 +102,14 @@ export class RecursiveDescentParser {
       '?',
       'please',
       'how much is',
+      // Polish equivalents — found live: "ile to jest 47 razy 83" (what is 47 times 83, in
+      // Polish) reached the LLM with zero deterministic handling at all, since every trigger and
+      // preprocessing step in this file was English-only, and got the multiplication wrong (3911
+      // instead of 3901). "ile to jest"/"ile jest" is the Polish "what is"/"how much is".
+      'ile to jest',
+      'ile jest',
+      'oblicz',
+      'policz',
     ];
     for (const w of strip) {
       t = t.replaceAll(w, ' ');
@@ -171,6 +179,14 @@ export class RecursiveDescentParser {
       .replace(/\s+to the power(?: of)?\s+/g, '^')
       .replace(/\s+squared\b/g, '^2')
       .replace(/\s+cubed\b/g, '^3')
+      // Polish operator words — see the "ile to jest" strip list above for why these were added.
+      // "razy" (times), "dodać"/"plus" already shared with English (add), "odjąć"/"minus" already
+      // shared (subtract), "podzielić przez"/bare "przez" (divided by).
+      .replace(/\s+razy\s+/g, '*')
+      .replace(/\s+dodać\s+/g, '+')
+      .replace(/\s+odjąć\s+/g, '-')
+      .replace(/\s+podzielić przez\s+/g, '/')
+      .replace(/\s+przez\s+/g, '/')
       .replace(/×/g, '*')
       .replace(/÷/g, '/')
       .replace(/²/g, '^2')

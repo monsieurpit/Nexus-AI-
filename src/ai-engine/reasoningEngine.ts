@@ -1027,6 +1027,15 @@ export function detectQueryIntent(query: string): QueryIntent {
     // trigger of its own — only the symbolic form (\d+\s*[+\-*/...]\s*\d+) was recognized, so any
     // spelled-out arithmetic fell through to 'general' and landed on random corpus search.
     /\d+\s*(?:plus|minus|times|divided\s+by|multiplied\s+by|over|to\s+the\s+power(?:\s+of)?)\s*\d+/i.test(q) ||
+    // Polish word-form arithmetic — found live: "ile to jest 47 razy 83" (what is 47 times 83)
+    // reached the LLM with zero deterministic handling and got the multiplication wrong (3911
+    // instead of 3901), since every math trigger and mathSolver.ts's own preprocessing was
+    // English-only. Mirrors the English trigger immediately above.
+    /\d+\s*(?:razy|dodać|odjąć|przez)\s*\d+/i.test(q) ||
+    // "ile to jest"/"ile jest" ("what is"/"how much is") gated on digit presence, same reasoning
+    // as the English "what is"+digit check below — the bare phrase alone is a general question
+    // opener in Polish, not specifically a math request.
+    (/\bile\s+(?:to\s+)?jest\b/i.test(q) && /\d/.test(q)) ||
     // Distance/rate/time word problems ("60mph for 2.5 hours, how far") have no operator symbol
     // or "calculate"/"solve" keyword at all, so they need their own explicit trigger.
     (/\d\s*(?:mph|km\/h|kmh|miles per hour|kilometers? per hour|kilometres? per hour)/.test(q) &&
@@ -3893,10 +3902,21 @@ export async function generateReasoningPath(
         title: 'Done',
         description: `Answer: ${mathResult.result}`,
       });
+      // Found live: a Polish query ("ile to jest 47 razy 83") correctly got the right NUMBER from
+      // the deterministic solver, but the surrounding wrapper text stayed hardcoded English
+      // ("Okay fine, let me do this math...", "**Result:**", "**How I got there:**") regardless
+      // of what language the question was actually asked in — jarring for a Polish user reading
+      // an otherwise-Polish conversation. Gated on the same looksPolish() check the rest of this
+      // file already uses for language-of-response decisions.
+      const isPolishMath = localLlmClient.looksPolish(prompt);
       const mathPrefix = isCrashout
-        ? "Okay fine, let me do this math real quick because numbers don't give a shit about my emotional state.\n\n"
+        ? isPolishMath
+          ? 'No dobra, zaraz to policzę, bo liczby nie obchodzą moje emocje.\n\n'
+          : "Okay fine, let me do this math real quick because numbers don't give a shit about my emotional state.\n\n"
         : '';
-      const formattedMath = `${mathPrefix}**Result:** ${mathResult.result}\n\n**How I got there:**\n${mathResult.steps.map((s) => `  ${s}`).join('\n')}`;
+      const resultLabel = isPolishMath ? 'Wynik' : 'Result';
+      const stepsLabel = isPolishMath ? 'Jak do tego doszedłem' : 'How I got there';
+      const formattedMath = `${mathPrefix}**${resultLabel}:** ${mathResult.result}\n\n**${stepsLabel}:**\n${mathResult.steps.map((s) => `  ${s}`).join('\n')}`;
       return {
         thoughtSteps,
         content: enforceStrictSdkRules(formattedMath, prompt, settings.userCustomDirectives, {
@@ -3929,7 +3949,12 @@ export async function generateReasoningPath(
         title: isCrashout ? 'Date math (crashout mode)' : 'Computing date',
         description: dateResult.steps.join('\n'),
       });
-      const datePrefix = isCrashout ? "Okay let me actually check the real calendar instead of guessing.\n\n" : '';
+      // Same Polish-wrapper fix as the math branch above.
+      const datePrefix = isCrashout
+        ? localLlmClient.looksPolish(prompt)
+          ? 'Dobra, sprawdzę to na prawdziwym kalendarzu zamiast zgadywać.\n\n'
+          : 'Okay let me actually check the real calendar instead of guessing.\n\n'
+        : '';
       const formattedDate = `${datePrefix}${dateResult.explanation}`;
       return {
         thoughtSteps,
