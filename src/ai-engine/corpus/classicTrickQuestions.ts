@@ -84,7 +84,7 @@ export const CLASSIC_TRICK_QUESTIONS_CORPUS: KnowledgeItem[] = [
     id: 'kb-trick-subtract-five-from-25',
     title: 'Classic Riddle: How Many Times Can You Subtract 5 From 25?',
     category: 'core',
-    keywords: ['subtract 5 from 25 riddle', 'how many times subtract riddle'],
+    keywords: ['subtract 5 from 25 riddle', 'how many times subtract riddle', 'subtraction riddle', 'math trick question', 'how many times can you subtract 5 from 25'],
     content: `Only once. After you subtract 5 from 25 one time, the number is no longer 25 — it's 20. The riddle asks specifically how many times you can subtract 5 FROM 25 (that exact number), not how many times you can subtract 5 repeatedly until reaching zero (which would be 5 times: 25→20→15→10→5→0). People commonly answer "5" because they read it as a repeated-subtraction-to-zero problem, which is a different (and reasonable, just not what was actually asked) question than the literal one posed.`,
     createdAt: Date.now(),
   },
