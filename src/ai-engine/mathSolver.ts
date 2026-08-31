@@ -100,6 +100,15 @@ export class RecursiveDescentParser {
       t = t.replaceAll(w, ' ');
     }
 
+    // "half a dozen"/"half dozen" and "a dozen" need their own phrase-level replacements BEFORE
+    // the single-word map below — "dozen" alone becomes "12" via that map, which would leave
+    // "half 12" (not valid expression syntax, and not the "6" it actually means) or a stray
+    // leading "a" glued onto "12" once all whitespace gets stripped further down in evaluate()
+    // (parseAtom has no idea what to do with a leading "a" and the whole parse fails). Found
+    // live: "how much is a dozen plus half a dozen" reached the LLM with no numeric handling for
+    // "dozen" at all and got a completely garbled, wrong answer (should be 12 + 6 = 18).
+    t = t.replace(/\bhalf\s+(?:a\s+)?dozen\b/g, '6').replace(/\ba\s+dozen\b/g, '12');
+
     // Word-number replacements
     const nums: Record<string, string> = {
       zero: '0',
@@ -122,6 +131,17 @@ export class RecursiveDescentParser {
     for (const [word, digit] of Object.entries(nums)) {
       t = t.replace(new RegExp(`\\b${word}\\b`, 'g'), digit);
     }
+
+    // "N dozen" (e.g. "two dozen", already digit-substituted to "2 dozen" by this point) means
+    // N x 12 — computed inline rather than left as a bare "dozen" -> "12" substitution, which a
+    // code review caught would otherwise silently CONCATENATE instead of multiply ("2" immediately
+    // followed by "12" becomes the single number "212" once whitespace is stripped further down in
+    // evaluate(), not 2 x 12 = 24). Must run after the word-number pass above (so "two" is already
+    // "2") and before the bare "dozen" fallback below.
+    t = t.replace(/\b(\d+)\s+dozen\b/g, (_, n) => String(parseInt(n, 10) * 12));
+    // Any remaining unquantified "dozen" (a bare "dozen" with no preceding number, e.g. just the
+    // word on its own) falls back to 12, same as the original single-word map entry.
+    t = t.replace(/\bdozen\b/g, '12');
 
     // Natural-language function forms — rewritten to real function-call/expression syntax before
     // the parser ever sees them. "square root of 144" isn't valid expression syntax on its own,

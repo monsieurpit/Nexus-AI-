@@ -1044,7 +1044,7 @@ export function detectQueryIntent(query: string): QueryIntent {
     // excludes "what is the ..." to avoid misreading plain definition questions ("what is the
     // capital of France") as arithmetic, but that same exclusion was also swallowing genuine math
     // questions that happen to start with "what is the".
-    /\b(?:square|cube)\s*root\s+of\b|\babsolute\s+value\s+of\b|\bfactorial\b|\b(?:average|mean)\s+of\b|\d+\s*(?:factorial|squared|cubed)\b|\d+\s*mod\s*\d+/i.test(
+    /\b(?:square|cube)\s*root\s+of\b|\babsolute\s+value\s+of\b|\bfactorial\b|\b(?:average|mean)\s+of\b|\d+\s*(?:factorial|squared|cubed)\b|\d+\s*mod\s*\d+|\bdozen\b.{0,20}\b(?:plus|minus|times|divided)\b|\b(?:plus|minus|times|divided)\b.{0,20}\bdozen\b/i.test(
       q
     ) ||
     // "N percent/% of M" with no "what is" prefix at all ("5 percent of 200", not "what is 5% of
