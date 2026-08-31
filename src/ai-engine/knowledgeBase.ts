@@ -176,6 +176,13 @@ import { EVERYDAY_CIVICS_AND_MONEY_BASICS_CORPUS } from './corpus/everydayCivics
 import { EVERYDAY_SCIENCE_AND_TECH_EXPLAINERS_CORPUS } from './corpus/everydayScienceAndTechExplainers';
 import { DAILY_LIFE_PRACTICAL_REFERENCE_2_CORPUS } from './corpus/dailyLifePracticalReference2';
 import { EVERYDAY_BASICS_EXPANSION_3_CORPUS } from './corpus/everydayBasicsExpansion3';
+import { POP_CULTURE_EXPANSION_CORPUS } from './corpus/popCultureExpansion';
+import { MUSIC_HISTORY_EXPANSION_CORPUS } from './corpus/musicHistoryExpansion';
+import { GAMING_FRANCHISES_EXPANSION_CORPUS } from './corpus/gamingFranchisesExpansion';
+import { SPORTS_HISTORY_EXPANSION_CORPUS } from './corpus/sportsHistoryExpansion';
+import { STREETWEAR_AND_FASHION_CULTURE_CORPUS } from './corpus/streetwearAndFashionCulture';
+import { COMIC_BOOK_UNIVERSE_BASICS_CORPUS } from './corpus/comicBookUniverseBasics';
+import { INTERNET_CULTURAL_MOMENTS_CORPUS } from './corpus/internetCulturalMoments';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -860,6 +867,14 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...EVERYDAY_SCIENCE_AND_TECH_EXPLAINERS_CORPUS,
   ...DAILY_LIFE_PRACTICAL_REFERENCE_2_CORPUS,
   ...EVERYDAY_BASICS_EXPANSION_3_CORPUS,
+  // Round 8 knowledge expansion: pop culture, entertainment depth, sports, fashion, comics (2026-08-31)
+  ...POP_CULTURE_EXPANSION_CORPUS,
+  ...MUSIC_HISTORY_EXPANSION_CORPUS,
+  ...GAMING_FRANCHISES_EXPANSION_CORPUS,
+  ...SPORTS_HISTORY_EXPANSION_CORPUS,
+  ...STREETWEAR_AND_FASHION_CULTURE_CORPUS,
+  ...COMIC_BOOK_UNIVERSE_BASICS_CORPUS,
+  ...INTERNET_CULTURAL_MOMENTS_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
