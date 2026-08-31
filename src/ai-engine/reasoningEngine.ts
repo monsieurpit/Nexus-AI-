@@ -4292,13 +4292,32 @@ export async function generateReasoningPath(
     }
 
     const top = results.slice(0, 5);
+    // "Which of these/the following is/is not X" — a classification/exclusion question over a
+    // short explicit list. No single corpus document can ever directly answer this shape (there's
+    // no document that says "out of a whale, a shark, and a bat, the shark is the odd one out" —
+    // that's a synthesis of several separate facts, not something retrieval finds as one match),
+    // so a high BM25 score here almost always means it coincidentally matched on ONE of the listed
+    // items rather than actually being relevant to the comparison being asked. Observed live:
+    // "which of these is not a mammal: whale, shark, bat" retrieved a "Bats: The Only Mammals..."
+    // document at a real, non-trivial score, and the confident-grounded prompt ("answer using ONLY
+    // the facts in the context") forced the response to talk exclusively about bats, never
+    // attempting the actual classification question (the correct answer is shark) at all. Forcing
+    // isConfident false here routes to the SAME loose/uncertain prompt variant used for any weak
+    // match — "use this as a starting point... draw on your own broader knowledge too" — which
+    // lets the model apply its own general classification knowledge instead of being bound to
+    // whichever single, likely-tangential document happened to score highest.
+    const isMultiChoiceClassification = /\bwhich\s+(?:of\s+(?:these|the\s+following)|one)\b.{0,60}\b(?:is|are)\s+(?:not|isn'?t|n't)\b/i.test(
+      prompt
+    );
     const isConfident =
-      results[0].score >= CONFIDENT_MATCH_SCORE && computeConfidence(results, queryTerms) >= CONFIDENCE_FLOOR;
+      !isMultiChoiceClassification &&
+      results[0].score >= CONFIDENT_MATCH_SCORE &&
+      computeConfidence(results, queryTerms) >= CONFIDENCE_FLOOR;
     thoughtSteps.push({
       id: 'step-crashout-synth',
       type: 'synthesis',
       title: 'Writing crashout response',
-      description: `Source: ${top[0].item.title}.${isConfident ? '' : ' (weak match — hedging)'}`,
+      description: `Source: ${top[0].item.title}.${isConfident ? '' : isMultiChoiceClassification ? ' (multi-choice classification — needs real reasoning, not a single grounded doc)' : ' (weak match — hedging)'}`,
     });
 
     const crashoutAmbiguous = isConfident
