@@ -1074,7 +1074,7 @@ export function detectQueryIntent(query: string): QueryIntent {
     // their own explicit trigger the same way the constant/rate-time-distance cases above do —
     // otherwise they fall through to 'general' intent and get answered by the same unreliable
     // free-generation path that produced the wrong answer in the first place.
-    /\bis\s+-?\d+\s+(?:a\s+)?(?:not\s+)?prime\b|\bis\s+-?\d+\s+(?:even|odd)\b|\b(?:gcd|lcm|greatest\s+common\s+(?:divisor|factor)|least\s+common\s+multiple)\s+(?:of\s+)?-?\d+\s*(?:and|,)\s*-?\d+\b/i.test(
+    /\bis\s+-?\d+\s+(?:a\s+)?(?:not\s+)?prime\b|\bis\s+-?\d+\s+(?:even|odd)\b|\b(?:gcd|lcm|greatest\s+common\s+(?:divisor|factor)|least\s+common\s+multiple)\s+(?:of\s+)?-?\d+\s*(?:and|,)\s*-?\d+\b|\b(?:next|previous)\s+prime(?:\s+number)?\s+(?:after|before)\s+-?\d+\b/i.test(
       q
     ) ||
     // "what is"/"what's" both need this check — "what's 128 divided by 8" was falling through

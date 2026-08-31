@@ -831,6 +831,33 @@ export function trySolveMath(prompt: string): MathSolution | null {
     };
   }
 
+  // 3b-ii. "next/previous prime after/before N" — same reliability motivation as the plain
+  // primality check above, just the "find one" variant instead of the "check one" variant.
+  // Observed live: "what's the next prime number after 97" happened to get answered correctly by
+  // the LLM (101), but that's a coin flip for a small model on this class of question the same
+  // way the original "is 17 prime" failure was — computed deterministically here instead.
+  const nextPrimeMatch = lower.match(/\b(next|previous)\s+prime(?:\s+number)?\s+(after|before)\s+(-?\d+)\b/i);
+  if (nextPrimeMatch) {
+    const direction = nextPrimeMatch[1].toLowerCase() === 'next' || nextPrimeMatch[2].toLowerCase() === 'after' ? 1 : -1;
+    const start = parseInt(nextPrimeMatch[3], 10);
+    let candidate = start + direction;
+    let steps = 0;
+    // A prime gap this large basically never occurs for any number a person would plausibly type
+    // by hand — this cap just guarantees the loop can't spin forever on a pathological input.
+    while (steps < 10000 && (candidate < 2 || !isPrimeNumber(candidate))) {
+      candidate += direction;
+      steps++;
+    }
+    if (steps >= 10000) return null; // give up gracefully rather than return a wrong/stalled answer
+    return {
+      isMath: true,
+      expression: `${nextPrimeMatch[1]} prime ${nextPrimeMatch[2]} ${start}`,
+      result: `${candidate}`,
+      steps: [`Checked ${direction === 1 ? 'upward' : 'downward'} from ${start} for the ${direction === 1 ? 'next' : 'previous'} prime.`],
+      explanation: `**${candidate}** is the ${direction === 1 ? 'next' : 'previous'} prime number ${direction === 1 ? 'after' : 'before'} ${start}.`,
+    };
+  }
+
   // 3c. GCD / LCM of two numbers: e.g. "gcd of 24 and 36", "lcm of 4 and 6"
   const gcdLcmMatch = lower.match(/\b(gcd|greatest common (?:divisor|factor)|lcm|least common multiple)\s+(?:of\s+)?(-?\d+)\s*(?:and|,)\s*(-?\d+)\b/i);
   if (gcdLcmMatch) {
