@@ -168,8 +168,14 @@ function checkComparativeCoverage(
   entities: string[],
   query: string
 ): VerificationIssue | null {
+  // >= 2, not > 2 — the stricter cutoff silently dropped legitimate short proper-noun subjects
+  // ("Go" the language is exactly 2 characters), which meant a one-sided comparison answer about
+  // "Go vs Rust" that never mentions Go at all passed this check clean: with "Go" filtered out,
+  // fewer than 2 candidates remained and the whole coverage check short-circuited before it could
+  // ever flag the missing side. A single stray 1-character entity ("C", "R" as a bare letter) is
+  // still excluded — those are ambiguous enough on their own to be worth dropping.
   const candidates = dedupeSubjects(
-    mergeAdjacentSubjects(entities.map(trimToSubject).filter((e) => e.length > 2), query)
+    mergeAdjacentSubjects(entities.map(trimToSubject).filter((e) => e.length >= 2), query)
   );
   const mentioned = candidates.filter((e) => lower.includes(e.toLowerCase()));
   if (candidates.length < 2 || mentioned.length >= 2) return null;

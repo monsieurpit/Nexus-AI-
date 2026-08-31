@@ -238,12 +238,14 @@ export function computeEmbedding(text: string): number[] {
     'memoization',
     'complexity',
     'big o',
-    'tree',
-    'graph',
     'bfs',
     'dfs',
     'def ',
-  ]);
+  // 'tree' and 'graph' pulled out of the plain-substring list above and checked with real word
+  // boundaries below — as bare substrings they matched inside "street"/"entree" and
+  // "geography"/"photograph"/"paragraph"/"autograph" respectively (verified live: "What is the
+  // best street food in Bangkok?" scored coding_py_algo 0.71 purely from "tree" inside "street").
+  ]) + (/\btree\b/i.test(lower) ? 1 : 0) + (/\bgraph\b/i.test(lower) ? 1 : 0);
   if (pyAlgoMatches > 0) vec[2] = Math.min(1.0, 0.2 + pyAlgoMatches * 0.25);
 
   // 3: SQL / Backend / System Design
@@ -253,7 +255,6 @@ export function computeEmbedding(text: string): number[] {
     'database',
     'join',
     'group by',
-    'table',
     'microservice',
     'distributed system',
     'acid',
@@ -261,7 +262,10 @@ export function computeEmbedding(text: string): number[] {
     'cache',
     'redis',
     'api endpoint',
-  ]) + (!isDeepLearning ? matchCount(['query']) : 0);
+  // 'table' pulled out for the same reason as tree/graph above — as a bare substring it matched
+  // inside "portable"/"vegetable"/"comfortable"/"unstable"/"notable" (verified live: "I need a
+  // portable charger for my phone." scored coding_sys_db 0.68 purely from "table" inside "portable").
+  ]) + (!isDeepLearning ? matchCount(['query']) : 0) + (/\btable\b/i.test(lower) ? 1 : 0);
   if (sysMatches > 0) vec[3] = Math.min(1.0, 0.2 + sysMatches * 0.22);
 
   // 4: Deep Learning / Gemini / Attention
@@ -458,7 +462,6 @@ export function computeEmbedding(text: string): number[] {
     'lmao',
     'nice one',
     'say less',
-    'sup',
     'peace out',
     'catch you later',
     'fuck yourself',
@@ -471,8 +474,11 @@ export function computeEmbedding(text: string): number[] {
   // here for consistency) — checked with real word boundaries instead so they don't need to be
   // excluded from the Conversational dimension entirely just to avoid false-positiving elsewhere.
   // "hi" moved here from the matchCount list above for the same reason as yo/bet/gm/later — as a
-  // bare substring it matched inside "this", "history", "white", etc.
-  const shortSlangMatches = /\b(?:yo|bet|gm|later|hi)\b/i.test(lower) ? 1 : 0;
+  // bare substring it matched inside "this", "history", "white", etc. "sup" moved here for the
+  // identical reason — as a bare substring it matched inside "support", "suppose", "supply", etc.
+  // (verified live: "Can you support async functions in TypeScript?" scored Conversational 0.58
+  // before this fix, purely from "sup" inside "support").
+  const shortSlangMatches = /\b(?:yo|bet|gm|later|hi|sup)\b/i.test(lower) ? 1 : 0;
   // Bare "what" used to sit in the plain matchCount list above as an unanchored substring, so
   // ANY question containing the word "what" ("what is the boiling point of water", "what's 47 *
   // 83?") got bumped toward Conversational even when it was a completely ordinary factual/math
@@ -647,8 +653,6 @@ export function computeEmbedding(text: string): number[] {
   // 22: Data Visualization (charts, matrices, tables, formatting)
   const dataVizMatches = matchCount([
     'chart',
-    'graph',
-    'table',
     'visualize',
     'plot',
     'bar chart',
@@ -656,7 +660,9 @@ export function computeEmbedding(text: string): number[] {
     'dashboard',
     'visualization',
     'matrix',
-  ]);
+  // 'graph' and 'table' pulled out for the same reason as the pyAlgoMatches/sysMatches fixes
+  // above — bare substrings, same false-positive words ("photograph", "portable", etc.).
+  ]) + (/\bgraph\b/i.test(lower) ? 1 : 0) + (/\btable\b/i.test(lower) ? 1 : 0);
   if (dataVizMatches > 0) vec[22] = Math.min(1.0, 0.2 + dataVizMatches * 0.25);
 
   // 23: Meta-Cognition (identity, prompt introspection, safety)
