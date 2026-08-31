@@ -3651,10 +3651,25 @@ export async function generateReasoningPath(
     /^(?:can|could|will)?\s*(?:you|u)?\s*(?:say|said|repeat(?:\s+after\s+me)?|pronounce)\s*[:,]?\s+(.+?)[?!.]*$/i;
   const ECHO_FILLER_PATTERN =
     /^(?:something|hi|hello|hey|a\s+joke|hello\s+there|something\s+(?:nice|funny|cool|weird|random)|my\s+name|it\s+again|that\s+again|it\s+one\s+more\s+time)$/i;
+  // Broader generative shapes — matched as a PREFIX/pattern, not the exact-phrase filler list
+  // above, since these keep varying content after the trigger words ("say something in Spanish",
+  // "say hi to my friend", "say happy birthday to Sam"). These read as requests to GENERATE
+  // something appropriate, not to literally recite the trigger phrase back — echoing them
+  // verbatim ('"something in Spanish"') is a technically-correct but useless non-answer to what
+  // was actually asked. Found by testing every phrasing this handler could plausibly see after
+  // moving it earlier in the pipeline (see comment above) — these two shapes both slipped through
+  // the original exact-match-only filler list.
+  const ECHO_GENERATIVE_PATTERN =
+    /^something\b|^(?:hi|hello|hey)\s+to\b|^happy\s+\w+\s+to\b/i;
   const echoMatch = prompt.trim().match(ECHO_REQUEST_PATTERN);
   if (echoMatch) {
     const phrase = echoMatch[1].trim().replace(/^["'“]+|["'”]+$/g, '').trim();
-    if (phrase && phrase.length <= 200 && !ECHO_FILLER_PATTERN.test(phrase)) {
+    if (
+      phrase &&
+      phrase.length <= 200 &&
+      !ECHO_FILLER_PATTERN.test(phrase) &&
+      !ECHO_GENERATIVE_PATTERN.test(phrase)
+    ) {
       thoughtSteps.push({
         id: 'step-echo-request',
         type: 'synthesis',
