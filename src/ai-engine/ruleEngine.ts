@@ -177,6 +177,28 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
     };
   }
 
+  // General catch-all: hasSuspiciousLink identifies a message containing one of a small, curated
+  // list of KNOWN malicious Discord/Steam typosquat domains — there is no legitimate reason for a
+  // real message to contain one of these. Previously this signal was only ever used NEGATIVELY, to
+  // withhold a "safe" verdict from Hard Rules #8/#17/#14&#15 — nothing ever used it to directly
+  // classify a message as a threat on its own. That left a real gap: a message containing one of
+  // these known-bad domains, but that didn't ALSO happen to contain a nitro/steam/qr-specific
+  // keyword, fell through every scam rule below it and reached Default Safe. Verified live: "i
+  // will give u mod role if you verify at http://dlscord.xyz" — a known typosquat domain from this
+  // exact list — was correctly excluded from the Role & Rank exemption below by its own negative
+  // check, but then fell all the way through every remaining rule to 'Default Safe' anyway, since
+  // nothing else in this function ever asserted "this specific domain is definitionally malicious."
+  // Placed after Hard Rules #18/#19/#4/#6/#8 above (reporting, mod context, slang, questions,
+  // mainstream links), so a genuine report ("is this a scam? someone sent me dlscord.xyz") still
+  // correctly gets the reporting exemption instead of being flagged as the threat itself.
+  if (hasSuspiciousLink) {
+    return {
+      classification: 'scam',
+      confidence: 0.97,
+      reason: 'Critical threat: message contains a known malicious typosquat domain.',
+    };
+  }
+
   // Hard Rule #17: Spanish conversation without scam markers is safe
   if (SPANISH_INDICATORS.some((p) => p.test(unquotedLower)) && !hasSuspiciousLink && !/nitro|free nitro/i.test(unquotedLower)) {
     return {
