@@ -138,15 +138,6 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
     };
   }
 
-  // Hard Rule #5: Discord Bot Commands are ALWAYS safe
-  if (/^[\!\?\.\/\$\-\;\%\&][a-zA-Z0-9_\-]+(?:\s|$)/.test(unquoted)) {
-    return {
-      classification: 'safe',
-      confidence: 1.0,
-      reason: 'Standard Discord bot command execution (Hard Rule #5).',
-    };
-  }
-
   // Hard Rule #4: Enthusiasm & slang are ALWAYS safe
   if (
     /^(?:fireee+|wowww+|lets gooo+|omg no way|bro fr fr|💀+|lmao+|pog+|sheesh+|w\b|l\b|gg\b|fr\b|fr fr\b|nah bro|hype|based)/i.test(
@@ -235,6 +226,29 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
       classification: 'raid',
       confidence: 0.97,
       reason: 'Hostile mass mention raid advertisement.',
+    };
+  }
+
+  // Hard Rule #5: Discord Bot Commands are ALWAYS safe — moved to run AFTER every actual
+  // scam/raid detection rule above, not before them. Originally sat near the top of this
+  // function, right after Hard Rules #18/#19, matching on nothing more than "starts with !/?/./
+  // $/-/;/%/& followed by a word" — with no check on the rest of the message at all. That meant
+  // ANY scam message could bypass the entire 21-Hard-Rule pipeline just by prefixing it with one
+  // of those characters: verified live, "!claim free nitro now http://dlscord-gift.xyz/abc"
+  // classified 'safe' at confidence 1.0, while the exact same text without the leading "!"
+  // correctly classified 'scam' at confidence 0.99. Every OTHER "always safe" rule in this same
+  // function (#8 mainstream links, #17 Spanish, #14/#15 role/rank) already explicitly excludes
+  // messages with a suspicious link or scam keywords before returning safe — this rule was the
+  // one exception to that pattern, and the fix is the same one those already use: let real threat
+  // detection run first. A genuine bot command ("!ban @user", ".play song", "$balance") never
+  // matches any scam/raid pattern above, so this still correctly classifies those as safe with
+  // the same 1.0 confidence and specific reason as before — it just no longer gets to skip the
+  // check for messages that use a command-like prefix specifically to evade it.
+  if (/^[\!\?\.\/\$\-\;\%\&][a-zA-Z0-9_\-]+(?:\s|$)/.test(unquoted)) {
+    return {
+      classification: 'safe',
+      confidence: 1.0,
+      reason: 'Standard Discord bot command execution (Hard Rule #5).',
     };
   }
 
