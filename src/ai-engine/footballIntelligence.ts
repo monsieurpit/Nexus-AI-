@@ -62,7 +62,13 @@ export function solveFootballKnowledge(prompt: string, isSuperChill: boolean = f
 
   // 1. ROBERT LEWANDOWSKI (LEWY)
   if (
-    /(robert lewandowski|lewandowski|lewy|lewandowski 5 goals in 9 minutes|lewandowski stats|lewandowski bayern|lewandowski barcelona|lewandowski dortmund)/i.test(
+    // \b-bounded, plus a negative lookahead excluding "lewy body" specifically — \b alone doesn't
+    // help here since "Lewy" is a genuine standalone word in "Lewy body dementia" too (a real
+    // medical condition), not just a substring collision like the other three fixes in this file.
+    // Verified live: "What is Lewy body dementia?" still matched Lewandowski even after the \b
+    // fix alone; excluding the specific "lewy body" phrase (the only common non-football use of
+    // the bare word) fixes it without weakening any genuine "Lewy"/Lewandowski question.
+    /\b(robert lewandowski|lewandowski|lewy(?!\s+body)|lewandowski 5 goals in 9 minutes|lewandowski stats|lewandowski bayern|lewandowski barcelona|lewandowski dortmund)\b/i.test(
       lower
     )
   ) {
@@ -189,7 +195,8 @@ export function solveFootballKnowledge(prompt: string, isSuperChill: boolean = f
 
   // 4.6. FC BARCELONA (BARÇA / BLAUGRANA)
   if (
-    /(fc barcelona|barcelona|barca|blaugrana|is barcelona a great|is fc barcelona a great|is barcelona good|what do you think of barcelona|barcelona football club|visca el barca|barca greatness)/i.test(
+    // \b-bounded — 'barca' unbounded matched inside "barcalounger". Verified live.
+    /\b(fc barcelona|barcelona|barca|blaugrana|is barcelona a great|is fc barcelona a great|is barcelona good|what do you think of barcelona|barcelona football club|visca el barca|barca greatness)\b/i.test(
       lower
     )
   ) {
@@ -958,7 +965,9 @@ Note: as an offline knowledge base, treat anything beyond this as the most recen
   }
 
   // 28. LIGUE 1 & PARIS SAINT-GERMAIN (PSG)
-  if (/(ligue 1|paris saint-germain|psg|marseille|monaco 2017|lyon|kylian mbappe psg|neymar psg|qatar sports investments)/i.test(lower)) {
+  // \b-bounded — 'lyon' unbounded matched inside "lyonnaise" (a potato dish), 'psg' matched
+  // inside "epsg" (a GIS coordinate-system code). Verified live.
+  if (/\b(ligue 1|paris saint-germain|psg|marseille|monaco 2017|lyon|kylian mbappe psg|neymar psg|qatar sports investments)\b/i.test(lower)) {
     return {
       matched: true,
       title: 'Ligue 1 & The Rise of Paris Saint-Germain',
