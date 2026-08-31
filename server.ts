@@ -21,7 +21,7 @@ import {
   addRuntimeKnowledgeItem,
   removeRuntimeKnowledgeItem,
 } from './src/ai-engine/knowledgeBase';
-import { searchKnowledgeGraph, extractQueryEntities } from './src/ai-engine/semanticEngine';
+import { searchKnowledgeGraph, extractQueryEntities, getBM25Engine } from './src/ai-engine/semanticEngine';
 import { BM25Engine } from './src/ai-engine/bm25Engine';
 import { trySolveMath } from './src/ai-engine/mathSolver';
 import {
@@ -2089,6 +2089,12 @@ async function startServer() {
     // warmPolishDictionary for why this exists — a synchronous parse can't be timeout-guarded
     // once it starts, so the only real fix is not letting it start mid-request.
     warmPolishDictionary();
+    // Fire-and-forget: same reasoning as warmPolishDictionary above, applied to the BM25 index.
+    // getBM25Engine() lazily builds and caches a BM25Engine the first time anything searches the
+    // knowledge graph — measured at ~458ms for the current corpus size. Left unwarmed, the very
+    // first real request after every deploy/restart silently eats that cost; calling it here once,
+    // synchronously, at startup means every actual user request hits the already-built cache.
+    getBM25Engine(getAllKnowledge());
   });
 }
 
