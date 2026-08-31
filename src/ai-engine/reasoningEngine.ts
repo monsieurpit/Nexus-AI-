@@ -1056,6 +1056,12 @@ export function detectQueryIntent(query: string): QueryIntent {
     // the percentage calculation above, without a "what is" wrapper needed. Observed live: "20%
     // off $45" and "add 8% tax to $50" both never reached the classifier's math trigger at all.
     /\d+(?:\.\d+)?\s*(?:%|percent)\s*(?:off|discount|tax)\b|\btax\s+(?:on|to)\s*\$?\d/i.test(q) ||
+    // Time-duration unit conversion without a "convert " prefix ("3 hours to seconds", "2 days 5
+    // hours to hours") — the existing "convert " keyword trigger only catches the version with
+    // that explicit verb.
+    /\d+\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?)\b.{0,30}\b(?:to|in)\s+(?:seconds?|minutes?|hours?|days?|weeks?)\b/i.test(
+      q
+    ) ||
     // Simple two-quantity word problems ("have 3 apples and eat 2, how many left") — no operator
     // symbol or math keyword at all, so these need their own trigger the same way the rate/time/
     // distance word problems above do. Observed live: this exact phrasing reached the LLM

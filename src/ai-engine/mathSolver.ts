@@ -69,7 +69,14 @@ export class RecursiveDescentParser {
 
     try {
       const val = this.parseAddSub();
-      if (val === null || this.pos !== this.expr.length) {
+      // Found live: "square root of -4" computed to a bare, literal "NaN" and shipped that
+      // string straight to the user as the answer — Math.sqrt() of a negative number is NaN in
+      // JS, and nothing here ever checked for it. This solver only handles real-number
+      // arithmetic (no complex-number support), so NaN/Infinity results are returned as null
+      // (a graceful "couldn't solve this deterministically") rather than displayed as-is,
+      // falling through to the LLM — which is the right tool for explaining something like "the
+      // square root of a negative number is imaginary" in natural language, unlike this parser.
+      if (val === null || this.pos !== this.expr.length || !Number.isFinite(val)) {
         return null;
       }
       const formatted = this.formatNumber(val);
@@ -668,6 +675,55 @@ function tryUnitConversion(input: string): MathSolution | null {
   return null;
 }
 
+// Compound time-duration conversion ("1 hour 30 minutes to minutes", "convert 2 days 5 hours to
+// hours") — distinct from the volume-unit table above because the SOURCE side can be a compound
+// quantity (multiple unit terms added together), not just one number and one unit. Found live:
+// "convert 1 hour 30 minutes to minutes" reached the LLM unguarded and got a wrong answer (75,
+// not 90) — it seems to have just added the raw numbers (1 + 30 = ... no, more likely misapplied
+// some other shortcut) rather than actually converting the hour component to minutes first.
+const TIME_UNIT_SECONDS: Record<string, number> = {
+  second: 1, seconds: 1, sec: 1, secs: 1,
+  minute: 60, minutes: 60, min: 60, mins: 60,
+  hour: 3600, hours: 3600, hr: 3600, hrs: 3600,
+  day: 86400, days: 86400,
+  week: 604800, weeks: 604800,
+};
+const TIME_UNIT_PATTERN = Object.keys(TIME_UNIT_SECONDS)
+  .sort((a, b) => b.length - a.length)
+  .join('|');
+
+function tryTimeDurationConversion(input: string): MathSolution | null {
+  const q = input.toLowerCase();
+  // Requires at least one target-unit keyword after a "to"/"in", and the source side to contain
+  // at least one number+unit pair — otherwise this isn't actually a duration-conversion question
+  // (avoids misfiring on an unrelated sentence that happens to contain the word "hours").
+  const targetMatch = q.match(new RegExp(`\\b(?:to|in)\\s+(${TIME_UNIT_PATTERN})s?\\b(?!\\s*\\d)`, 'i'));
+  if (!targetMatch) return null;
+  const sourceText = q.slice(0, targetMatch.index);
+  const termRegex = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(${TIME_UNIT_PATTERN})\\b`, 'gi');
+  const terms: Array<{ amount: number; unit: string }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = termRegex.exec(sourceText)) !== null) {
+    terms.push({ amount: parseFloat(m[1]), unit: m[2].toLowerCase() });
+  }
+  if (terms.length === 0) return null;
+
+  const toUnit = targetMatch[1].toLowerCase();
+  const totalSeconds = terms.reduce((sum, t) => sum + t.amount * TIME_UNIT_SECONDS[t.unit], 0);
+  const result = totalSeconds / TIME_UNIT_SECONDS[toUnit];
+  const sourceDesc = terms.map((t) => `${formatMathResult(t.amount)} ${t.unit}`).join(' + ');
+  return {
+    isMath: true,
+    expression: `${sourceDesc} in ${toUnit}`,
+    result: `${formatMathResult(result)} ${toUnit}`,
+    steps: [
+      `Convert each term to seconds: ${terms.map((t) => `${formatMathResult(t.amount)} ${t.unit} = ${formatMathResult(t.amount * TIME_UNIT_SECONDS[t.unit])}s`).join(', ')}`,
+      `Total: ${formatMathResult(totalSeconds)}s ÷ ${TIME_UNIT_SECONDS[toUnit]}s/${toUnit} = ${formatMathResult(result)} ${toUnit}`,
+    ],
+    explanation: `**${formatMathResult(result)} ${toUnit}**. ${sourceDesc} adds up to ${formatMathResult(totalSeconds)} seconds total, which is ${formatMathResult(result)} ${toUnit}.`,
+  };
+}
+
 // Distance/rate/time word problems ("a train travels 60mph for 2.5 hours, how far does it go")
 // — classic textbook phrasing with no arithmetic symbols or "calculate"/"solve" keyword for
 // detectQueryIntent to latch onto, so these fell all the way through to plain corpus search
@@ -817,6 +873,12 @@ export function trySolveMath(prompt: string): MathSolution | null {
   // a word problem never gets misread as some other kind of expression first.
   const wordProblemRes = trySolveWordProblemArithmetic(cleanPrompt);
   if (wordProblemRes) return wordProblemRes;
+
+  // 1e. Compound time-duration conversion ("1 hour 30 minutes to minutes") — same reason as 1c/
+  // 1d, plus it needs to run before tryUnitConversion's own simpler single-term conversions so a
+  // compound source isn't half-matched by one of those instead.
+  const timeDurationRes = tryTimeDurationConversion(cleanPrompt);
+  if (timeDurationRes) return timeDurationRes;
 
   // 2. Recursive-descent AST Parser
   const parser = new RecursiveDescentParser();
