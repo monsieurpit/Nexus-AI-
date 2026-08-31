@@ -11,14 +11,25 @@ import { KnowledgeItem } from '../../types';
 // under time pressure and falling for the trap the question was designed to set.
 export const CLASSIC_TRICK_QUESTIONS_CORPUS: KnowledgeItem[] = [
   {
+    // Renamed/rewritten after a live-observed failure: asked about "a kilogram of steel vs a
+    // kilogram of feathers," the model answered "a pound of bricks" — it correctly retrieved this
+    // entry (which does cover the general rule) but then parroted the ORIGINAL example's specific
+    // unit (pound) and material (bricks) instead of substituting the actual unit (kilogram) and
+    // material (steel) from the question that was actually asked. A small model reaching for the
+    // most salient/first-mentioned specifics in its grounding context, rather than genuinely
+    // generalizing an abstract rule, is a real and predictable failure mode — so this entry is
+    // restructured to state the rule FIRST in fully unit/material-agnostic terms, with the
+    // feathers/bricks pairing demoted to just one of several interchangeable examples rather than
+    // the entry's own title and opening sentence, which is what a model reads most saliently.
     id: 'kb-trick-pound-feathers-vs-bricks',
-    title: 'Classic Riddle: Which Weighs More, a Pound of Feathers or a Pound of Bricks?',
+    title: 'Classic "Which Weighs More" Riddle: Any Two Materials, Same Stated Unit, Always Equal',
     category: 'core',
     keywords: [
       'pound of feathers vs pound of bricks', 'which weighs more feathers or bricks', 'ton of feathers vs ton of steel',
-      'kilogram of feathers vs kilogram of lead', 'weight trick question', 'feathers bricks riddle',
+      'kilogram of feathers vs kilogram of lead', 'kilogram of steel vs kilogram of feathers', 'weight trick question',
+      'feathers bricks riddle', 'which is heavier same weight different material',
     ],
-    content: `They weigh exactly the same. This is a classic trick question designed to make people instinctively answer "bricks" because bricks intuitively feel/seem denser and heavier — but the question already specifies the SAME unit of weight (a pound) for both, and a pound is a pound regardless of what material it's made of. One pound of feathers and one pound of bricks both weigh precisely one pound; the feathers simply take up a much larger VOLUME to reach that same weight, since feathers are far less dense than bricks. The same logic applies to any version of this riddle regardless of the specific unit used — "a ton of feathers vs a ton of steel," "a kilogram of feathers vs a kilogram of lead" — the answer is always that they weigh the same, because the question defines the weight to be equal by stating the same unit for both; only the volume/density differs. The only way the answer would differ is if the question specified different amounts (e.g. "two pounds of feathers vs one pound of bricks"), which these classic phrasings deliberately never do.`,
+    content: `THE GENERAL RULE (applies no matter which two materials or which unit the specific question actually names): if a question states the SAME weight unit and amount for two different materials — "an X of material A vs an X of material B," for any unit X and any materials A/B — they weigh exactly the same, always, with no exceptions, because the question already defined the weight to be equal; only the volume differs, since the less dense material simply takes up more space to reach that same stated weight. This is a classic trick question specifically designed to make people instinctively answer with whichever material sounds/feels heavier or denser (steel, bricks, lead, gold) — but that instinct is always wrong here, because density is irrelevant once the unit and amount are already stated to be identical. When answering, use the EXACT materials and EXACT unit from the actual question asked, not necessarily "pounds" or "feathers vs bricks" specifically — those are just one illustrative example among many equally valid ones: "a kilogram of steel vs a kilogram of feathers" (equal — both exactly 1 kg), "a ton of feathers vs a ton of steel" (equal — both exactly 1 ton), "a pound of feathers vs a pound of bricks" (equal — both exactly 1 pound), "an ounce of gold vs an ounce of lead" (equal — both exactly 1 ounce). The only way the answer would ever differ is if the question specified different AMOUNTS for each material (e.g. "two pounds of feathers vs one pound of bricks"), which the classic phrasing of this riddle deliberately never does.`,
     createdAt: Date.now(),
   },
   {
