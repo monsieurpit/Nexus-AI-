@@ -869,6 +869,34 @@ export function trySolveMath(prompt: string): MathSolution | null {
     };
   }
 
+  // 3a-ii. Discount / markup phrasing: "15% off an $80 shirt", "what's 20 percent off 45 dollars",
+  // "add 8% tax to $50" — a real-world variant of the plain percentage calculation above that
+  // asks for the RESULTING price, not just the raw percentage amount. Tested live: the LLM
+  // happened to get "15% off an $80 shirt" right on its own, but that's the same reliability
+  // gamble every other addition in this file exists to remove — this is an extremely common
+  // real-world question shape (sale prices, tips, tax) worth making guaranteed-correct rather
+  // than leaving to chance.
+  const discountMatch = lower.match(
+    /([0-9.]+)\s*(?:%|percent)\s*(off|discount on|discount off|less than|more than|on top of|tax (?:on|to))?\s*(?:an?\s+|of\s+an?\s+)?\$?\s*([0-9.]+)(?:\s*dollars?)?/i
+  );
+  if (discountMatch && discountMatch[2]) {
+    const p = parseFloat(discountMatch[1]);
+    const base = parseFloat(discountMatch[3]);
+    const isAddition = /more than|on top of|tax (?:on|to)/i.test(discountMatch[2]);
+    const changeAmount = (p / 100) * base;
+    const result = isAddition ? base + changeAmount : base - changeAmount;
+    return {
+      isMath: true,
+      expression: `${p}% ${isAddition ? 'added to' : 'off'} $${base}`,
+      result: `$${formatMathResult(result)}`,
+      steps: [
+        `${p}% of $${base} = ${(p / 100).toFixed(4)} × ${base} = $${formatMathResult(changeAmount)}`,
+        `$${base} ${isAddition ? '+' : '-'} $${formatMathResult(changeAmount)} = $${formatMathResult(result)}`,
+      ],
+      explanation: `**$${formatMathResult(result)}**. ${p}% of $${base} is $${formatMathResult(changeAmount)}, so ${isAddition ? `adding that gives $${base} + $${formatMathResult(changeAmount)}` : `subtracting that from the original price gives $${base} - $${formatMathResult(changeAmount)}`} = **$${formatMathResult(result)}**.`,
+    };
+  }
+
   // 3b. Prime number check: e.g. "is 17 a prime number", "is 91 prime", "is 8 not prime"
   //
   // Added after a live-observed hallucination: the local LLM confidently told a user "17 is NOT

@@ -1052,6 +1052,10 @@ export function detectQueryIntent(query: string): QueryIntent {
     // classifier never had a trigger for it without the "what is" wrapper, so it fell through to
     // 'general' intent and the solver never got a chance to run.
     /\d+(?:\.\d+)?\s*(?:%|percent)\s+of\s+\d+/i.test(q) ||
+    // "N% off $X" / "N percent off X dollars" / "add N% tax to $X" — the discount/tax variant of
+    // the percentage calculation above, without a "what is" wrapper needed. Observed live: "20%
+    // off $45" and "add 8% tax to $50" both never reached the classifier's math trigger at all.
+    /\d+(?:\.\d+)?\s*(?:%|percent)\s*(?:off|discount|tax)\b|\btax\s+(?:on|to)\s*\$?\d/i.test(q) ||
     // Simple two-quantity word problems ("have 3 apples and eat 2, how many left") — no operator
     // symbol or math keyword at all, so these need their own trigger the same way the rate/time/
     // distance word problems above do. Observed live: this exact phrasing reached the LLM
