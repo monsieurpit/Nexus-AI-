@@ -65,10 +65,25 @@ export default function App() {
     });
   };
 
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [streamingChunk, setStreamingChunk] = useState('');
-  const [progressStage, setProgressStage] = useState('');
-  const abortControllerRef = useRef<AbortController | null>(null);
+  // Generation state is keyed by conversation id, not a single global flag — otherwise switching
+  // conversations mid-generation shows the WRONG conversation's streaming bubble/progress stage,
+  // and the Stop button silently aborts whichever conversation was generating when the user
+  // navigated away instead of the one currently on screen.
+  const [generatingIds, setGeneratingIds] = useState<Record<string, boolean>>({});
+  const [streamingChunks, setStreamingChunks] = useState<Record<string, string>>({});
+  const [progressStages, setProgressStages] = useState<Record<string, string>>({});
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
+
+  const isGenerating = !!generatingIds[activeConversationId];
+  const streamingChunk = streamingChunks[activeConversationId] || '';
+  const progressStage = progressStages[activeConversationId] || '';
+
+  const setGeneratingFor = (id: string, value: boolean) =>
+    setGeneratingIds((prev) => ({ ...prev, [id]: value }));
+  const setStreamingChunkFor = (id: string, value: string) =>
+    setStreamingChunks((prev) => ({ ...prev, [id]: value }));
+  const setProgressStageFor = (id: string, value: string) =>
+    setProgressStages((prev) => ({ ...prev, [id]: value }));
 
   // Modal visibility states
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
@@ -154,6 +169,25 @@ export default function App() {
 
   const handleDeleteConversation = (id: string) => {
     if (!window.confirm('Delete this conversation? This cannot be undone.')) return;
+    // Abort and drop any in-flight generation for the conversation being deleted, so its
+    // abort controller and per-id state entries don't leak forever.
+    const controller = abortControllersRef.current.get(id);
+    if (controller) {
+      controller.abort();
+      abortControllersRef.current.delete(id);
+    }
+    setGeneratingIds((prev) => {
+      const { [id]: _drop, ...rest } = prev;
+      return rest;
+    });
+    setStreamingChunks((prev) => {
+      const { [id]: _drop, ...rest } = prev;
+      return rest;
+    });
+    setProgressStages((prev) => {
+      const { [id]: _drop, ...rest } = prev;
+      return rest;
+    });
     setConversations((prev) => {
       const next = prev.filter((c) => c.id !== id);
       const finalList = next.length > 0 ? next : [createConversation()];
@@ -187,20 +221,31 @@ export default function App() {
     }
   };
 
-  // Stop generation
+  // Stop generation — aborts whichever conversation is currently on screen, not just whatever
+  // last started generating.
   const handleStopGeneration = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+    const controller = abortControllersRef.current.get(activeConversationId);
+    if (controller) {
+      controller.abort();
+      abortControllersRef.current.delete(activeConversationId);
     }
-    setIsGenerating(false);
-    setStreamingChunk('');
+    setGeneratingFor(activeConversationId, false);
+    setStreamingChunkFor(activeConversationId, '');
   };
 
-  // Send message with optional image attachment
-  const handleSendMessage = async (text: string, image?: { dataUrl: string; name: string }) => {
+  // Send message with optional image attachment. `baseMessagesOverride`, when given, is used
+  // instead of the live `messages` closure as the history to append to — needed by
+  // handleRegenerate, which commits a trimmed message list and then calls this function in the
+  // same tick; React state updates are async, so without the override this would still see the
+  // pre-trim `messages` value and duplicate the last exchange instead of replacing it.
+  const handleSendMessage = async (
+    text: string,
+    image?: { dataUrl: string; name: string },
+    baseMessagesOverride?: ChatMessage[]
+  ) => {
     const trimmedText = text.trim();
-    if ((!trimmedText && !image) || isGenerating) return;
+    const targetConversationId = activeConversationId;
+    if ((!trimmedText && !image) || generatingIds[targetConversationId]) return;
 
     const userMessage: ChatMessage = {
       id: `msg-${Date.now()}-user`,
@@ -211,8 +256,8 @@ export default function App() {
       imageName: image?.name,
     };
 
-    const targetConversationId = activeConversationId;
-    const updatedMessages = [...messages, userMessage];
+    const baseMessages = baseMessagesOverride ?? messages;
+    const updatedMessages = [...baseMessages, userMessage];
     commitConversation(targetConversationId, { messages: updatedMessages });
 
     // Auto-extract user memory and personal facts
@@ -240,12 +285,12 @@ export default function App() {
       saveMemories(updatedMemories);
     }
 
-    setIsGenerating(true);
-    setStreamingChunk('');
-    setProgressStage('');
+    setGeneratingFor(targetConversationId, true);
+    setStreamingChunkFor(targetConversationId, '');
+    setProgressStageFor(targetConversationId, '');
 
     const controller = new AbortController();
-    abortControllerRef.current = controller;
+    abortControllersRef.current.set(targetConversationId, controller);
 
     try {
       await generateAIResponse(
@@ -257,33 +302,49 @@ export default function App() {
         currentMemories,
         {
           onReasoningStart: () => {
-            setStreamingChunk('');
-            setProgressStage('');
+            setStreamingChunkFor(targetConversationId, '');
+            setProgressStageFor(targetConversationId, '');
           },
           onProgress: (stage) => {
-            setProgressStage(stage);
+            setProgressStageFor(targetConversationId, stage);
           },
           onTokenChunk: (chunk) => {
-            setProgressStage('');
-            setStreamingChunk(chunk);
+            setProgressStageFor(targetConversationId, '');
+            setStreamingChunkFor(targetConversationId, chunk);
           },
           onComplete: (assistantMsg) => {
             const finalMessages = [...updatedMessages, assistantMsg];
-            const conv = conversations.find((c) => c.id === targetConversationId);
-            const shouldAutoTitle = conv && !conv.titleIsCustom;
-            const isFirstExchange = conv ? conv.messages.length === 0 : false;
-            commitConversation(targetConversationId, {
-              messages: finalMessages,
-              // Instant heuristic title as a placeholder so the sidebar never sits blank — swapped
-              // for the real AI-generated one below as soon as that call resolves.
-              ...(shouldAutoTitle
-                ? { title: deriveConversationTitle(finalMessages) || conv!.title }
-                : {}),
+            // Read titleIsCustom/message-count from the LIVE state inside the updater (not the
+            // outer `conversations` closure, which is stale by the time this fires seconds after
+            // the request started) — otherwise a rename made while the reply was generating gets
+            // silently clobbered by the auto-title heuristic below.
+            let shouldAutoTitle = false;
+            let isFirstExchange = false;
+            setConversations((prev) => {
+              const conv = prev.find((c) => c.id === targetConversationId);
+              shouldAutoTitle = !!conv && !conv.titleIsCustom;
+              isFirstExchange = conv ? conv.messages.length === 0 : false;
+              const next = prev.map((c) =>
+                c.id === targetConversationId
+                  ? {
+                      ...c,
+                      messages: finalMessages,
+                      updatedAt: Date.now(),
+                      // Instant heuristic title as a placeholder so the sidebar never sits blank —
+                      // swapped for the real AI-generated one below as soon as that call resolves.
+                      ...(shouldAutoTitle
+                        ? { title: deriveConversationTitle(finalMessages) || c.title }
+                        : {}),
+                    }
+                  : c
+              );
+              saveConversations(next);
+              return next;
             });
-            setIsGenerating(false);
-            setStreamingChunk('');
-            setProgressStage('');
-            abortControllerRef.current = null;
+            setGeneratingFor(targetConversationId, false);
+            setStreamingChunkFor(targetConversationId, '');
+            setProgressStageFor(targetConversationId, '');
+            abortControllersRef.current.delete(targetConversationId);
 
             if (shouldAutoTitle && isFirstExchange) {
               generateConversationTitle(userMessage.content, assistantMsg.content).then((aiTitle) => {
@@ -303,10 +364,10 @@ export default function App() {
           },
           onError: (err) => {
             console.error('Generation failed', err);
-            setIsGenerating(false);
-            setStreamingChunk('');
-            setProgressStage('');
-            abortControllerRef.current = null;
+            setGeneratingFor(targetConversationId, false);
+            setStreamingChunkFor(targetConversationId, '');
+            setProgressStageFor(targetConversationId, '');
+            abortControllersRef.current.delete(targetConversationId);
           },
         },
         controller.signal,
@@ -314,8 +375,8 @@ export default function App() {
       );
     } catch (e) {
       console.error(e);
-      setIsGenerating(false);
-      setStreamingChunk('');
+      setGeneratingFor(targetConversationId, false);
+      setStreamingChunkFor(targetConversationId, '');
     }
   };
 
@@ -330,9 +391,14 @@ export default function App() {
     const sliced = messages.slice(0, actualIndex);
     commitConversation(activeConversationId, { messages: sliced });
 
+    // Pass `sliced` explicitly as the base history — handleSendMessage's own `messages` closure
+    // still reflects the pre-slice conversation at this point (the commit above hasn't flushed
+    // through a re-render yet), so without this override the old exchange would be duplicated
+    // instead of replaced.
     handleSendMessage(
       lastUserMsg.content,
-      lastUserMsg.imageUrl ? { dataUrl: lastUserMsg.imageUrl, name: lastUserMsg.imageName || 'image.png' } : undefined
+      lastUserMsg.imageUrl ? { dataUrl: lastUserMsg.imageUrl, name: lastUserMsg.imageName || 'image.png' } : undefined,
+      sliced
     );
   };
 
