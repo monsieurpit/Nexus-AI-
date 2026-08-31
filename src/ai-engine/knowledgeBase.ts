@@ -183,6 +183,12 @@ import { SPORTS_HISTORY_EXPANSION_CORPUS } from './corpus/sportsHistoryExpansion
 import { STREETWEAR_AND_FASHION_CULTURE_CORPUS } from './corpus/streetwearAndFashionCulture';
 import { COMIC_BOOK_UNIVERSE_BASICS_CORPUS } from './corpus/comicBookUniverseBasics';
 import { INTERNET_CULTURAL_MOMENTS_CORPUS } from './corpus/internetCulturalMoments';
+// Round 9 knowledge expansion: deeper science, nature, geography, world knowledge (2026-08-31)
+import { ANIMAL_KINGDOM_EXPANSION_CORPUS } from './corpus/animalKingdomExpansion';
+import { WORLD_COUNTRIES_AND_CULTURES_EXPANSION_CORPUS } from './corpus/worldCountriesAndCulturesExpansion';
+import { HISTORICAL_FIGURES_AND_DISCOVERIES_EXPANSION_CORPUS } from './corpus/historicalFiguresAndDiscoveriesExpansion';
+import { WEATHER_AND_EARTH_PHENOMENA_EXPANSION_CORPUS } from './corpus/weatherAndEarthPhenomenaExpansion';
+import { SCIENCE_AND_NATURE_FINAL_EXPANSION_CORPUS } from './corpus/scienceAndNatureFinalExpansion';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -875,6 +881,12 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...STREETWEAR_AND_FASHION_CULTURE_CORPUS,
   ...COMIC_BOOK_UNIVERSE_BASICS_CORPUS,
   ...INTERNET_CULTURAL_MOMENTS_CORPUS,
+  // Round 9 knowledge expansion: deeper science, nature, geography, world knowledge (2026-08-31)
+  ...ANIMAL_KINGDOM_EXPANSION_CORPUS,
+  ...WORLD_COUNTRIES_AND_CULTURES_EXPANSION_CORPUS,
+  ...HISTORICAL_FIGURES_AND_DISCOVERIES_EXPANSION_CORPUS,
+  ...WEATHER_AND_EARTH_PHENOMENA_EXPANSION_CORPUS,
+  ...SCIENCE_AND_NATURE_FINAL_EXPANSION_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
