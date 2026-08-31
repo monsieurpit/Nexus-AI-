@@ -143,6 +143,32 @@ export function trySolveDate(prompt: string, now: Date = new Date()): DateSoluti
   const q = prompt.trim();
   const lower = q.toLowerCase();
 
+  // 0. Hypothetical day-of-week arithmetic: "if today is monday, what day is it in 10 days" — a
+  // pure modular-arithmetic question about the WEEKDAY CYCLE, deliberately independent of the
+  // server's real current date (the question stipulates a hypothetical "today" itself, so the
+  // real date is irrelevant — this is really just "(stated day + N) mod 7"). Found live: this
+  // exact phrasing reached the LLM and got answered with a completely unrelated stock greeting-
+  // mode reply that never even acknowledged the question, let alone attempted the arithmetic —
+  // it seems to have been misread as conversational filler rather than a real question at all.
+  const hypotheticalDayMatch = lower.match(
+    /\bif\s+today\s+(?:is|was)\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b.{0,40}?\bwhat\s+day\s+(?:is\s+it|will\s+it\s+be)\b.{0,20}?(\d+)\s*days?\s*(before|earlier|ago)?/i
+  );
+  if (hypotheticalDayMatch) {
+    const startDay = DAY_NAMES.findIndex((d) => d.toLowerCase() === hypotheticalDayMatch[1].toLowerCase());
+    const amount = parseInt(hypotheticalDayMatch[2], 10);
+    const isBefore = !!hypotheticalDayMatch[3];
+    const offset = isBefore ? -amount : amount;
+    // JS's % can return negative for a negative dividend, so normalize into [0, 7) explicitly
+    // rather than trusting a bare modulo — a smaller, easy-to-miss bug in its own right.
+    const resultDay = DAY_NAMES[(((startDay + offset) % 7) + 7) % 7];
+    return {
+      isDate: true,
+      result: resultDay,
+      steps: [`Starting day: ${DAY_NAMES[startDay]} (index ${startDay})`, `${DAY_NAMES[startDay]} ${isBefore ? '-' : '+'} ${amount} days, wrapping every 7 = ${resultDay}`],
+      explanation: `**${resultDay}**. Counting ${amount} days ${isBefore ? 'before' : 'after'} ${DAY_NAMES[startDay]}, wrapping around every 7 days, lands on ${resultDay}.`,
+    };
+  }
+
   // 1. "what's today's date" / "what day is it" / "what day of the week is it" (no target date)
   if (
     /\b(?:what'?s|what\s+is)\s+(?:today'?s?\s+date|the\s+date\s+today)\b/i.test(lower) ||

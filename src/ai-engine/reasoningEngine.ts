@@ -3526,17 +3526,25 @@ export async function generateReasoningPath(
   // instead — long or clearly-phrased-as-a-request messages are left completely alone so a real
   // troubleshooting statement ("my wifi keeps disconnecting, any idea why") still reaches actual
   // help.
-  // 'mathematical' is deliberately exempted from this downgrade — detectQueryIntent() just ran a
-  // much more specific, deliberate classification for it, and this generic "sounds like small
-  // talk" heuristic has no business second-guessing that. Observed live: "gcd of 24 and 36" (and,
-  // once traced, the PRE-EXISTING "6 factorial" and "17 squared" too) never even starts with a
-  // question word — math phrasings routinely don't ("N factorial", "N squared", "gcd of A and
-  // B") — so every one of them was silently getting stripped of its correct 'mathematical' intent
-  // right here and dumped into a normal conversational LLM reply, which then had to guess at the
-  // arithmetic itself instead of using the deterministic solver. This single override was quietly
-  // undoing mathSolver.ts's entire reliability guarantee for any math query short enough and not
-  // phrased as a question — exactly the class of query most likely to be exactly that.
-  if (intent !== 'conversational' && intent !== 'mathematical') {
+  // 'mathematical' and 'temporal' are deliberately exempted from this downgrade —
+  // detectQueryIntent() just ran a much more specific, deliberate classification for either one,
+  // and this generic "sounds like small talk" heuristic has no business second-guessing that.
+  // Observed live: "gcd of 24 and 36" (and, once traced, the PRE-EXISTING "6 factorial" and "17
+  // squared" too) never even starts with a question word — math phrasings routinely don't ("N
+  // factorial", "N squared", "gcd of A and B") — so every one of them was silently getting
+  // stripped of its correct 'mathematical' intent right here and dumped into a normal
+  // conversational LLM reply, which then had to guess at the arithmetic itself instead of using
+  // the deterministic solver. 'temporal' has the exact same vulnerability and was originally
+  // missed when 'mathematical' was fixed: "if today is monday, what day is it in 10 days" starts
+  // with "if", not a recognized leading question word, so it was ALSO being silently downgraded
+  // here despite detectQueryIntent() correctly classifying it 'temporal' — dateSolver.ts's
+  // deterministic day-of-week arithmetic never got a chance to run, and the LLM answered a
+  // completely different, unrelated stock reply that never even attempted the question. Both
+  // exemptions exist for the identical reason: this override was quietly undoing the reliability
+  // guarantee of a real, deliberate deterministic solver for any query of that intent short
+  // enough and not phrased as a question — exactly the class of query most likely to be exactly
+  // that.
+  if (intent !== 'conversational' && intent !== 'mathematical' && intent !== 'temporal') {
     const wordCount = effectivePrompt.trim().split(/\s+/).filter(Boolean).length;
     const looksLikeRealRequest =
       effectivePrompt.includes('?') ||
