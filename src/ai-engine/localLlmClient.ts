@@ -421,6 +421,39 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
       return { status: 'unavailable', reason: 'wrong_language', detail: text.slice(0, 100) };
     }
 
+    // Same gap as the CJK/Cyrillic/Arabic check above, but for OTHER Latin-script European
+    // languages, which that check can't catch (Polish, Romanian, French, etc. all use the same
+    // Latin alphabet with added diacritics — not a separate Unicode block). Observed live,
+    // resampling the same English query 4 times: 2 clean English responses, 1 that drifted into
+    // fragmented Polish mid-response, 1 that drifted into fragmented Romanian mid-response — an
+    // English question, an English system prompt, yet the model randomly wandered into an
+    // unrelated third language for part of its answer. The density check above alone doesn't
+    // catch this: a response can have PLENTY of real English content (clearing the 0.06 density
+    // bar easily) while still containing several sentences of genuine foreign-language text mixed
+    // in. Only checked when English was actually requested (Polish responses legitimately use
+    // these diacritics constantly) and on long-enough responses, same reasoning as the density
+    // check's own 8-word floor. A real English reply might legitimately contain one or two
+    // accented loanwords/names ("café", "Beyoncé") — the threshold here (5+ diacritic characters)
+    // is well above what any single legitimate loanword would ever contribute, while a genuine
+    // foreign-language sentence mixed in reliably produces far more than that.
+    if (!options.preferPolish && signal.wordCount >= 8) {
+      // Split into two tiers rather than one flat count. "Smoking gun" characters (ą ć ę ł ń ś ź
+      // ż from Polish, ă â î ș ț from Romanian) never appear in any common English loanword —
+      // there's no legitimate reason even ONE of these shows up in a real English reply, so a
+      // low bar catches genuine drift fast. The broader set (é á ñ ü etc.) DOES show up
+      // legitimately in common loanwords/names used in English ("café", "Beyoncé", "jalapeño"),
+      // so that tier needs a higher bar — one or two such accents is normal, a whole sentence's
+      // worth is not. Calibrated against a live-observed near-miss: a genuinely garbled response
+      // ("niektórzy", "róże", "się" — 4 smoking-gun characters in a shortish excerpt) fell just
+      // under a flat 5-character threshold tested first; splitting the tiers catches it at 3
+      // without risking a false positive on ordinary loanword use.
+      const smokingGunCount = (text.match(/[ąćęłńóśźżăîșț]/gi) || []).length;
+      const commonAccentCount = (text.match(/[áéíúñàèìòùâêôûäöüßç]/gi) || []).length;
+      if (smokingGunCount >= 3 || commonAccentCount >= 8) {
+        return { status: 'unavailable', reason: 'wrong_language', detail: text.slice(0, 100) };
+      }
+    }
+
     // The check above only asks "is this Polish at all" (word-density against a small signal-word
     // list) — it doesn't catch a response that's clearly Polish but full of invented/garbled words
     // ("nacieszyło...zaznaczysz...Chocío" — reported live). computeInvalidPolishWordRatio checks
