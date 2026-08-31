@@ -195,6 +195,30 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
     };
   }
 
+  // A bare domain-shaped token ("bit.ly/xyz", "dlscord-gift.xyz") — a real scam link doesn't have
+  // to match hasSuspiciousLink's specific typosquat list to still be a link.
+  const hasAnyLinkLikeToken = /\b[a-z0-9-]+\.[a-z]{2,}(?:\/\S*)?\b/i.test(unquoted);
+
+  // A genuine mod/admin command that merely MENTIONS a scam topic in its own text — "!ban that
+  // scammer sending nitro links", ".warn @user for the fake steam gift dm" — has no link of any
+  // kind in it (the scammer's link isn't being reproduced, just referenced), yet still tripped
+  // the loose keyword-only branches of the scam rules below purely on words like "nitro"+"link"
+  // or "steam"+"gift". Verified live: "!ban that scammer sending nitro links" classified 'scam'
+  // at confidence 0.99, identical to an actual scam link. Command-shaped AND link-free is exempted
+  // here, before the keyword rules get a chance to misfire on it — this is deliberately narrower
+  // than just trusting every command-prefixed message (see Hard Rule #5 below and its own comment
+  // on why that bypass was removed): a command-shaped message that DOES contain any link, or that
+  // mass-mentions @everyone/@here, still falls through to full scam/raid detection exactly as
+  // before, since those are the actual vectors a scammer could still exploit.
+  const isCommandShaped = /^[\!\?\.\/\$\-\;\%\&][a-zA-Z0-9_\-]+(?:\s|$)/.test(unquoted);
+  if (isCommandShaped && !hasSuspiciousLink && !hasAnyLinkLikeToken && !/(?:@everyone|@here)/.test(text)) {
+    return {
+      classification: 'safe',
+      confidence: 1.0,
+      reason: 'Standard Discord bot command execution, no link present (Hard Rule #5).',
+    };
+  }
+
   // SCAM DETECTION RULES (Hard Rules #1, #2, #3, #7, #10, #11)
   if (/(?:nitro|free nitro|nitro gift|claim nitro|discord nitro)/i.test(unquotedLower) && (hasSuspiciousLink || /(?:claim|airdrop|gift|link|free|qr|scan)/i.test(unquotedLower))) {
     return {
