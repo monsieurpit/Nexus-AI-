@@ -16,6 +16,7 @@
 
 import { KnowledgeItem } from '../types';
 import { splitSentences } from './bm25Engine';
+import { getKnowledgeVersion } from './knowledgeBase';
 
 export interface RelationFact {
   subject: string;
@@ -153,14 +154,22 @@ function termMatches(a: string, b: string): boolean {
 }
 
 let cachedFacts: RelationFact[] | null = null;
-let cachedDocCount = -1;
+let cachedKnowledgeVersion = -1;
 
 /**
- * Extracts relation facts from every document's sentences. Cached by document count,
- * same pattern as the BM25 index cache, since the corpus rarely changes mid-session.
+ * Extracts relation facts from every document's sentences. Cached by knowledgeBase.ts's runtime
+ * version counter, not document count — a code review caught that document-count caching (the
+ * same pattern semanticEngine.ts's getBM25Engine used, and had the identical bug) goes stale
+ * whenever a delete and an add happen to net to the same total: the count check never notices,
+ * so this kept returning relation facts extracted from an already-deleted document and stayed
+ * blind to a newly-added one until the count happened to differ again for an unrelated reason.
+ * getKnowledgeVersion() increments on every successful runtime add/remove regardless of net
+ * count, so it's the actually-correct invalidation signal — see the identical fix in
+ * semanticEngine.ts's getBM25Engine for the full reasoning.
  */
 export function extractRelationFacts(knowledge: KnowledgeItem[]): RelationFact[] {
-  if (cachedFacts && cachedDocCount === knowledge.length) {
+  const version = getKnowledgeVersion();
+  if (cachedFacts && cachedKnowledgeVersion === version) {
     return cachedFacts;
   }
 
@@ -193,7 +202,7 @@ export function extractRelationFacts(knowledge: KnowledgeItem[]): RelationFact[]
   }
 
   cachedFacts = facts;
-  cachedDocCount = knowledge.length;
+  cachedKnowledgeVersion = version;
   return facts;
 }
 

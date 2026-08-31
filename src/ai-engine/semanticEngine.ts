@@ -833,15 +833,24 @@ export function analyzePromptIntent(prompt: string): IntentAnalysis {
 }
 
 import { BM25Engine, processForSearch } from './bm25Engine';
+import { getKnowledgeVersion } from './knowledgeBase';
 
 // Global cached BM25 instance
 let cachedBM25Engine: BM25Engine | null = null;
-let cachedDocsCount = 0;
+// Cached alongside the version counter, not knowledgeList.length alone — a delete immediately
+// followed by an add (or vice versa) via the runtime knowledge-item API nets to the SAME array
+// length while the actual document SET has changed entirely. Verified live: with the old
+// length-only check, deleting doc A and adding doc B (net count unchanged) left the cached index
+// still serving results for the just-deleted A and blind to the just-added B, until the count
+// happened to differ again for some unrelated reason. getKnowledgeVersion() increments on every
+// successful add/remove regardless of net count, so it's the actually-correct invalidation signal.
+let cachedKnowledgeVersion = -1;
 
 export function getBM25Engine(knowledgeList: KnowledgeItem[]): BM25Engine {
-  if (!cachedBM25Engine || cachedDocsCount !== knowledgeList.length) {
+  const version = getKnowledgeVersion();
+  if (!cachedBM25Engine || cachedKnowledgeVersion !== version) {
     cachedBM25Engine = new BM25Engine(knowledgeList);
-    cachedDocsCount = knowledgeList.length;
+    cachedKnowledgeVersion = version;
   }
   return cachedBM25Engine;
 }

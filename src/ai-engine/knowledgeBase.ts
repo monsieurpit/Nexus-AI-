@@ -865,6 +865,22 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
 // In-memory dynamic knowledge store for runtime additions via API
 const runtimeKnowledgeItems: KnowledgeItem[] = [];
 
+// Bumped on every successful add/remove below — the actual signal downstream caches (semanticEngine
+// .ts's getBM25Engine, inferenceEngine.ts's relation-fact cache) need to know whether to rebuild.
+// Both of those previously kept their own cache keyed only on `knowledgeList.length`, which is
+// wrong: a delete followed by an add (or vice versa) nets to the SAME count while the actual set of
+// documents has changed entirely, so a stale index kept serving a just-deleted document and stayed
+// blind to a just-added one until the count happened to differ again for an unrelated reason.
+// getAllKnowledge() always returns a brand-new array (`[...BUILTIN_KNOWLEDGE, ...runtimeKnowledgeItems]`)
+// on every call, so reference-equality caching on the returned array can't work either — this
+// counter is the actual cheap, correct signal: BUILTIN_KNOWLEDGE never changes at runtime, so only
+// mutations to runtimeKnowledgeItems (the two functions below) can ever invalidate anything.
+let knowledgeVersion = 0;
+
+export function getKnowledgeVersion(): number {
+  return knowledgeVersion;
+}
+
 export function getAllKnowledge(): KnowledgeItem[] {
   return [...BUILTIN_KNOWLEDGE, ...runtimeKnowledgeItems];
 }
@@ -874,13 +890,14 @@ export function addRuntimeKnowledgeItem(item: Omit<KnowledgeItem, 'id' | 'create
     id: item.id || `kb-custom-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     title: item.title,
     category: item.category || 'custom-user',
-    keywords: Array.isArray(item.keywords) && item.keywords.length > 0 
-      ? item.keywords 
+    keywords: Array.isArray(item.keywords) && item.keywords.length > 0
+      ? item.keywords
       : item.title.toLowerCase().split(/\s+/).filter(w => w.length > 2),
     content: item.content,
     createdAt: Date.now(),
   };
   runtimeKnowledgeItems.unshift(newItem);
+  knowledgeVersion++;
   return newItem;
 }
 
@@ -888,6 +905,7 @@ export function removeRuntimeKnowledgeItem(id: string): boolean {
   const index = runtimeKnowledgeItems.findIndex(k => k.id === id);
   if (index !== -1) {
     runtimeKnowledgeItems.splice(index, 1);
+    knowledgeVersion++;
     return true;
   }
   return false;
