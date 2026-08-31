@@ -1426,6 +1426,30 @@ function buildConversationMemory(query: string, history: ChatMessage[]): Convers
     augmented = query + ' ' + recentUserTerms.slice(-6).join(' ');
   }
 
+  // "what about X" / "how about X" / "and X" — a bare topic-shift follow-up naming a NEW entity
+  // to apply the PREVIOUS question's frame to, not just a new topic to search for standalone.
+  // Observed live: after "what is the capital of France" -> "Paris...", asking "what about
+  // Germany" got answered from a Treaty of Versailles document (which happens to mention
+  // "Germany" heavily) instead of Germany's capital, because the augmentation above only ever
+  // APPENDS keywords (`query + trackedEntity`) — "what about Germany France France" — which never
+  // reconstructs the actual question shape ("capital of Germany"), just adds more loose keywords
+  // for BM25 to score against. When this shape is detected and the tracked entity's name
+  // literally appears in the last real user question, substituting the new entity for the old one
+  // directly in that question's own text preserves the frame precisely instead of hoping keyword
+  // overlap alone finds the right document.
+  const topicShiftMatch = query.trim().match(/^(?:what|how)\s+about\s+(.+?)[?!.]*$|^and\s+(.+?)[?!.]*$/i);
+  if (topicShiftMatch && trackedEntity) {
+    const newTopic = (topicShiftMatch[1] || topicShiftMatch[2] || '').trim();
+    const lastUserMsg = [...recent].reverse().find((m) => m.role === 'user' && m !== recent[recent.length - 1]);
+    // recent[recent.length-1] excluded on the off chance history already includes the current
+    // turn's own message by the time this runs — safer to skip it than substitute into itself.
+    const priorQuestionText = lastUserMsg?.content;
+    if (newTopic && priorQuestionText && priorQuestionText.toLowerCase().includes(trackedEntity.toLowerCase())) {
+      const reframed = priorQuestionText.replace(new RegExp(trackedEntity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), newTopic);
+      augmented = `${augmented} ${reframed}`;
+    }
+  }
+
   const carriedContext = augmented !== query;
   const descParts: string[] = [];
   if (hasPronouns && carriedContext) descParts.push('Pronoun detected → resolved against prior context');
