@@ -72,7 +72,7 @@ export const HISTORY_AND_HUMANITY_CORPUS: KnowledgeItem[] = [
    - **Arctic Ocean** (Smallest, shallowest, covered in seasonal sea ice).
 3. **Planetary Extremes**:
    - **Highest Elevation**: Mount Everest (8,848.86 m / 29,031.7 ft above sea level in the Himalayas).
-   - **Deepest Point**: Challenger Deep in the Mariana Trench (~10,994 m / 36,070 ft deep).
+   - **Deepest Point**: Challenger Deep in the Mariana Trench (~10,935 m / 35,876 ft deep).
    - **Longest Rivers**: The Nile River (~6,650 km) and Amazon River (~6,400 km; largest by water volume discharge, carrying more water than the next 7 largest rivers combined).
    - **Largest Hot Desert**: The Sahara Desert (~9.2 million km²).`,
     createdAt: Date.now(),
