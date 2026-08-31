@@ -1046,10 +1046,14 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
     : [];
 
   const effectiveAuthorId = authorId || userId || '';
-  const isSuperChill =
-    Boolean(isSuperChillUser) ||
-    effectiveAuthorId === '1394001641899954368' ||
-    userText.includes('1394001641899954368');
+  // The `userText.includes(...)` text-scan variant of this check was removed: it let ANY caller
+  // spoof this specific VIP user's special treatment just by typing their numeric ID as plain
+  // text anywhere in an unrelated message, regardless of who actually sent it — verified live,
+  // "hey what's up 1394001641899954368" from a totally different author id granted the same
+  // no-roast treatment as the real user. The identity check now only ever looks at the actual
+  // author id field, which at least ties this to whatever identity the caller claims via the
+  // request's own id field, not arbitrary message content.
+  const isSuperChill = Boolean(isSuperChillUser) || effectiveAuthorId === '1394001641899954368';
 
   // Resolve requested persona (defaults to current server persona or nexus-homie). When the
   // website sends clientSettings, its actual selected persona is honored instead of being forced
@@ -1572,10 +1576,10 @@ app.post('/api/v1/generate', aiComputeLimiter, async (req, res) => {
 
   const requestedModel = (body.model || 'nexus-homie') as ModelPersonaId;
   const persona = DEFAULT_PERSONAS['crashout-bot'];
-  const isSuperChill =
-    Boolean(body.isSuperChillUser) ||
-    body.authorId === '1394001641899954368' ||
-    promptText.includes('1394001641899954368');
+  // Text-scan variant removed — see the identical fix/comment on this same check in the
+  // /api/v1/nexus handler above. Spoofable via plain message content, unrelated to actual author
+  // identity.
+  const isSuperChill = Boolean(body.isSuperChillUser) || body.authorId === '1394001641899954368';
 
   const customRules = body.rules || body.customRules || body.directives || body.systemInstruction || '';
 
@@ -1673,7 +1677,7 @@ app.post('/api/v1/generate', aiComputeLimiter, async (req, res) => {
 // 7. OpenAI-Compatible Chat Completions Endpoint
 app.post('/api/v1/chat/completions', aiComputeLimiter, async (req, res) => {
   authenticateApiKey(req);
-  const { model, messages, temperature, rules, customRules, directives, webSearch, search, searchEngine, provider } = req.body;
+  const { model, messages, temperature, rules, customRules, directives, webSearch, search, searchEngine, provider, user, isSuperChillUser } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Messages array is required.' });
@@ -1686,9 +1690,15 @@ app.post('/api/v1/chat/completions', aiComputeLimiter, async (req, res) => {
   const requestedModel = (model || 'nexus-homie') as ModelPersonaId;
   const persona = DEFAULT_PERSONAS['crashout-bot'];
 
-  const isSuperChill =
-    promptText.includes('1394001641899954368') ||
-    messages.some((m: any) => typeof m.content === 'string' && m.content.includes('1394001641899954368'));
+  // This endpoint had NO identity-based check at all before this fix — it scanned the actual
+  // message CONTENT for a specific numeric ID, meaning literally any caller, talking about
+  // anything, could grant themselves this VIP treatment just by including that number anywhere
+  // in the conversation. `user` is the OpenAI Chat Completions API's own standard optional field
+  // for a caller-supplied identifier — using it here at least matches the identity-comparison
+  // pattern the other two occurrences of this check already use (/api/v1/nexus, /api/v1/generate)
+  // instead of scanning free-text content, though it remains as spoofable as an unauthenticated
+  // client-supplied field can be in general (see the broader API-key-auth gap noted separately).
+  const isSuperChill = Boolean(isSuperChillUser) || user === '1394001641899954368';
 
   const userRules = rules || customRules || directives || systemMessage || '';
 
