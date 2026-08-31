@@ -481,6 +481,14 @@ export async function generateVision(
     return { status: 'unavailable', reason: 'not_configured' };
   }
 
+  // Found by a code review: unlike generate() and embed() above, this never acquired the shared
+  // Ollama concurrency slot at all — meaning vision calls (/api/v1/nexus with an image,
+  // /api/v1/raidshield with an image, /api/v1/vision/analyze) could pile up on the same Ollama
+  // instance completely unbounded, and alongside text generations too, defeating the whole point
+  // of OLLAMA_MAX_CONCURRENT (tuned specifically against this host's actual RAM/parallelism
+  // limits — see acquireOllamaSlot()'s own extensive comment above for why that cap exists and
+  // what happens without it: request pile-up and timeout cascades on the host).
+  const release = await acquireOllamaSlot();
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? 30000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -518,6 +526,7 @@ export async function generateVision(
     return { status: 'unavailable', reason: 'connection_error', detail: String(err?.message || err) };
   } finally {
     clearTimeout(timer);
+    release();
   }
 }
 

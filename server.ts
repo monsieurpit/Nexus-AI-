@@ -322,6 +322,18 @@ class RequestQueue {
   // per host without a code change.
   private readonly maxConcurrency: number = Math.max(1, Number(process.env.REQUEST_QUEUE_CONCURRENCY) || 5);
 
+  // Found by a code review: enqueue() below had NO cap on how many tasks could sit waiting —
+  // peakQueueLength was only ever recorded for telemetry, never enforced as an actual limit.
+  // Combined with the rate limiters' own skip-when-no-Discord-user-id exemption (an accepted
+  // trade-off for the website's own anonymous traffic, documented at skipUnlessDiscordUser()
+  // below), any caller hitting these endpoints directly without an authorId could enqueue tasks
+  // without bound, each holding its own resources until its 45s timeout, growing process memory
+  // and making every legitimately-queued request (real Discord traffic included) wait behind
+  // however many had already piled up. This caps the WAITING queue specifically (tasks already
+  // running are governed by maxConcurrency above, not this) — once full, a new request is
+  // rejected immediately with a clear error instead of queued indefinitely.
+  private readonly maxQueueLength: number = Math.max(1, Number(process.env.REQUEST_QUEUE_MAX_LENGTH) || 100);
+
   public get pendingCount(): number {
     return this.queue.length;
   }
@@ -357,6 +369,14 @@ class RequestQueue {
     timeoutMs: number = 45000
   ): Promise<{ data: T; queuePosition: number; waitTimeMs: number; processTimeMs: number }> {
     return new Promise((resolve, reject) => {
+      // Reject immediately rather than let the queue grow forever — see maxQueueLength's own
+      // comment above for why this exists. A caller that hits this should back off and retry,
+      // not have their request silently wait behind an unbounded and growing backlog.
+      if (this.queue.length >= this.maxQueueLength) {
+        reject(new Error(`Server is at capacity (${this.maxQueueLength} requests already queued) — please try again shortly.`));
+        return;
+      }
+
       const enqueuedAt = Date.now();
 
       if (this.queue.length + 1 > this.peakQueueLength) {
@@ -504,7 +524,11 @@ app.get('/api/v1/queue/status', (req, res) => {
 // 🌐 Dedicated Zero-API-Key Free Web Search Endpoint (Infinite Quota · Google + DuckDuckGo + Wikipedia)
 app.all(['/api/v1/web/search', '/api/v1/search'], async (req, res) => {
   const query = (req.body?.query || req.body?.q || req.query.query || req.query.q || '') as string;
-  const limit = Math.min(parseInt((req.body?.limit || req.query.limit || 5) as string, 10) || 5, 12);
+  // Math.min(parsed, 12) alone let a negative value through — `limit: -3` parses to a truthy -3
+  // (only 0/NaN trigger the `|| 5` fallback), so Math.min(-3, 12) evaluated to -3 and passed
+  // straight into executeUnifiedWebSearch downstream with no lower bound at all. Clamped to at
+  // least 1 as well now, not just at most 12.
+  const limit = Math.max(1, Math.min(parseInt((req.body?.limit || req.query.limit || 5) as string, 10) || 5, 12));
   const provider = (req.body?.provider || req.query.provider || 'all') as 'all' | 'google' | 'duckduckgo' | 'wikipedia';
 
   if (!query || !query.trim()) {
