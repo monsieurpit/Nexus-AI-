@@ -1994,7 +1994,13 @@ function conversationalReply(
       `Sup. Ask me something hard, I've been bored.`,
     ]);
   }
-  if (q.includes('hello') || q.includes('hi') || q.includes('hey') || q.includes('good morning') || q.includes('good evening') || q === 'gm') {
+  // Word-boundary matches, not .includes() — a plain substring check on "hi" false-matched any
+  // message containing it as a run of letters inside a longer word ("wallahi", "this", "shit",
+  // "which" all contain "hi"), silently misrouting them to a canned greeting reply that had
+  // nothing to do with what was actually said. Same fix applied to the crashout greeting check
+  // and the "hru" check further down, which had the identical problem ("hru" is a substring of
+  // "thru").
+  if (/\bhello\b/.test(q) || /\bhi\b/.test(q) || /\bhey\b/.test(q) || q.includes('good morning') || q.includes('good evening') || q === 'gm') {
     if (isSuperChill) {
       return pickReply([
         `Yo what's up bro! Hope your day is going legendary. What's on your mind?`,
@@ -2048,7 +2054,10 @@ function conversationalReply(
 
 Try asking me literally anything. I probably know it.`;
   }
-  if (q.includes('thank') || q.includes('thx') || q.includes('ty') || q.includes('appreciate')) {
+  // 'ty' as a bare .includes() check false-matched any message containing it as a substring
+  // ("city", "party", "empty", "twenty", "beauty", ...) — same class of bug as the "hi"/"hru"
+  // fixes above.
+  if (q.includes('thank') || q.includes('thx') || /\bty\b/.test(q) || q.includes('appreciate')) {
     if (isSuperChill) {
       return pickReply([
         `Hell yeah, no fucking problem at all bro! Anytime you need something, I got your back 24/7. You're the real one.`,
@@ -2170,7 +2179,7 @@ function crashoutConversational(query: string, corpusCount: number): string {
       `I'm at maximum voltage and you want to talk feelings? ask me a real one, I'm mid deadlift-set energy right now`,
     ]);
   }
-  if (q.includes('how are you') || q.includes('hru')) {
+  if (q.includes('how are you') || /\bhru\b/.test(q)) {
     return pickReply([
       `crashout mode so I'm at 150% emotional capacity, ask me something before I start having opinions unprompted`,
       `unwell, thriving, both, I just lost a 1v1 to a literal bot and I'm still riding that high, what do you need`,
@@ -2191,7 +2200,7 @@ function crashoutConversational(query: string, corpusCount: number): string {
       `go on then, I'm not calming down though`,
     ]);
   }
-  if (q.includes('hello') || q.includes('hi') || q.includes('hey')) {
+  if (/\bhello\b/.test(q) || /\bhi\b/.test(q) || /\bhey\b/.test(q)) {
     return pickReply([
       `yo, I'm here, crashout mode is on, full power, zero chill, what do you need?`,
       `hello, I'm already loud, what are we doing`,
@@ -2246,7 +2255,10 @@ function crashoutConversationalPolish(query: string): string {
       `nie dziękuj, tylko pytaj coś jeszcze`,
     ]);
   }
-  if (q.includes('pa') || q.includes('do zobaczenia') || q.includes('na razie')) {
+  // 'pa' (Polish "bye") as a bare .includes() check false-matched any word containing it as a
+  // substring ("pamiętam", "parking", "papryka", ...) — same class of bug as the "hi"/"ty" fixes
+  // above.
+  if (/\bpa\b/.test(q) || q.includes('do zobaczenia') || q.includes('na razie')) {
     return pickReply([
       `no dobra, będę tu na pełnej głośności`,
       `pa, wracaj jak będziesz miał coś trudniejszego`,
@@ -3610,6 +3622,68 @@ export async function generateReasoningPath(
     data: { intent, wordCount: promptWordCount, queryTerms, entities },
   });
 
+  // 3b. Literal "say/repeat X" requests — echo verbatim, never invent facts about it, and never
+  // let it get swallowed by the conversational small-talk bucket below.
+  //
+  // Observed live: `can u said "Wólka Sokołowska koło Wólki Niedźwiedzkiej"` (an obscure Polish
+  // place name the model has zero real knowledge of) went through the normal no-corpus-match free
+  // response path, which — told to "give the actual correct answer with real depth and specifics"
+  // — fabricated an entire fictional backstory (a castle, a Dracula filming location, a zoo) about
+  // a phrase it was only ever asked to repeat. This is a request to reproduce text, not a factual
+  // lookup, so it's intercepted before any LLM call reaches it — nothing left to hallucinate about
+  // if the phrase is just echoed back. Matched against the raw prompt (not the slang-normalized/
+  // typo-corrected effectivePrompt) so the exact requested text, diacritics included, survives
+  // untouched. A short filler list ("say something nice"/"say a joke") is excluded since those are
+  // genuine requests for generated content, not a literal echo.
+  //
+  // This used to run much further down the pipeline (after the conversational-intent check
+  // below), which meant it was structurally unreachable for its own most obvious case: a short
+  // "say X"/"repeat X" message almost always classifies as 'conversational' intent (no question
+  // word, no entity lookup shape), so the conversational branch's immediate-exit `return` fired
+  // first every time and this check never got a chance to run at all. Observed live: "say
+  // wallahi" never reached here — it hit the conversational bucket, and crashoutConversational's
+  // greeting detector (`q.includes('hi')`) then matched "wallahi" as a false positive (it
+  // literally contains the substring "hi") and returned a canned "hello, what's up" reply that
+  // had nothing to do with the actual request. Moved ahead of the conversational check so a
+  // literal echo request is always honored regardless of what the intent classifier or the
+  // small-talk bucket's own pattern-matching would have done with it.
+  const ECHO_REQUEST_PATTERN =
+    /^(?:can|could|will)?\s*(?:you|u)?\s*(?:say|said|repeat(?:\s+after\s+me)?|pronounce)\s*[:,]?\s+(.+?)[?!.]*$/i;
+  const ECHO_FILLER_PATTERN =
+    /^(?:something|hi|hello|hey|a\s+joke|hello\s+there|something\s+(?:nice|funny|cool|weird|random)|my\s+name|it\s+again|that\s+again|it\s+one\s+more\s+time)$/i;
+  const echoMatch = prompt.trim().match(ECHO_REQUEST_PATTERN);
+  if (echoMatch) {
+    const phrase = echoMatch[1].trim().replace(/^["'“]+|["'”]+$/g, '').trim();
+    if (phrase && phrase.length <= 200 && !ECHO_FILLER_PATTERN.test(phrase)) {
+      thoughtSteps.push({
+        id: 'step-echo-request',
+        type: 'synthesis',
+        title: '🗣️ Literal repeat request — echoing verbatim',
+        description: `Reproducing the exact phrase instead of guessing at facts about it: "${phrase}"`,
+      });
+      const echoReply = topUpLlmSwearing(
+        pickReply([
+          `Say less: "${phrase}"`,
+          `Bet, here you go: "${phrase}"`,
+          `"${phrase}" — there you go bro`,
+          `Easy: "${phrase}"`,
+        ]),
+        settings,
+        isCrashout
+      );
+      return {
+        thoughtSteps,
+        content: enforceStrictSdkRules(echoReply, prompt, settings.userCustomDirectives, {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+        }),
+        knowledgeHits: [],
+      };
+    }
+  }
+
   // 4. Conversational Intent (Immediate exit — NO corpus search!)
   //
   // The intent classifier alone doesn't catch every personal-opinion-about-a-topic question — a
@@ -3987,55 +4061,6 @@ export async function generateReasoningPath(
       return {
         thoughtSteps,
         content: enforceStrictSdkRules(formattedDate, prompt, settings.userCustomDirectives, {
-          isSuperChill,
-          username: settings.userName,
-          systemInstruction: persona.systemPrompt,
-          swearIntensity: settings.swearIntensity,
-        }),
-        knowledgeHits: [],
-      };
-    }
-  }
-
-  // 4b. Literal "say/repeat X" requests — echo verbatim, never invent facts about it
-  //
-  // Observed live: `can u said "Wólka Sokołowska koło Wólki Niedźwiedzkiej"` (an obscure Polish
-  // place name the model has zero real knowledge of) went through the normal no-corpus-match free
-  // response path, which — told to "give the actual correct answer with real depth and specifics"
-  // — fabricated an entire fictional backstory (a castle, a Dracula filming location, a zoo) about
-  // a phrase it was only ever asked to repeat. This is a request to reproduce text, not a factual
-  // lookup, so it's intercepted before any LLM call reaches it — nothing left to hallucinate about
-  // if the phrase is just echoed back. Matched against the raw prompt (not the slang-normalized/
-  // typo-corrected effectivePrompt) so the exact requested text, diacritics included, survives
-  // untouched. A short filler list ("say something nice"/"say a joke") is excluded since those are
-  // genuine requests for generated content, not a literal echo.
-  const ECHO_REQUEST_PATTERN =
-    /^(?:can|could|will)?\s*(?:you|u)?\s*(?:say|said|repeat(?:\s+after\s+me)?|pronounce)\s*[:,]?\s+(.+?)[?!.]*$/i;
-  const ECHO_FILLER_PATTERN =
-    /^(?:something|hi|hello|hey|a\s+joke|hello\s+there|something\s+(?:nice|funny|cool|weird|random)|my\s+name|it\s+again|that\s+again|it\s+one\s+more\s+time)$/i;
-  const echoMatch = prompt.trim().match(ECHO_REQUEST_PATTERN);
-  if (echoMatch) {
-    const phrase = echoMatch[1].trim().replace(/^["'“]+|["'”]+$/g, '').trim();
-    if (phrase && phrase.length <= 200 && !ECHO_FILLER_PATTERN.test(phrase)) {
-      thoughtSteps.push({
-        id: 'step-echo-request',
-        type: 'synthesis',
-        title: '🗣️ Literal repeat request — echoing verbatim',
-        description: `Reproducing the exact phrase instead of guessing at facts about it: "${phrase}"`,
-      });
-      const echoReply = topUpLlmSwearing(
-        pickReply([
-          `Say less: "${phrase}"`,
-          `Bet, here you go: "${phrase}"`,
-          `"${phrase}" — there you go bro`,
-          `Easy: "${phrase}"`,
-        ]),
-        settings,
-        isCrashout
-      );
-      return {
-        thoughtSteps,
-        content: enforceStrictSdkRules(echoReply, prompt, settings.userCustomDirectives, {
           isSuperChill,
           username: settings.userName,
           systemInstruction: persona.systemPrompt,
