@@ -426,6 +426,50 @@ function trySolveLinearEquation(input: string): MathSolution | null {
 /**
  * Unit conversions handler
  */
+// Fixed physical-constant reference points, looked up directly rather than trusting generation —
+// same "compute/lookup, don't generate" principle as the rest of this file. Found live: asked
+// "what's the boiling point of water in fahrenheit", the corpus retrieval correctly grounded the
+// LLM on a document that explicitly states "100°C = 212°F (water boils at sea level)" verbatim —
+// and the model STILL got it wrong, apparently trying to freehand-apply a nearby "double Celsius
+// and add 30" mental-math shortcut from the same document instead of just using the explicit
+// fact sitting right there, and botched even that (answered 200, not even applying the "+30").
+// A well-known, fixed, exact physical constant like this has no business being generated at all
+// when it can just be looked up.
+const PHYSICAL_CONSTANTS_F: Array<[RegExp, string, string]> = [
+  [/\bboiling\s+point\s+of\s+water\b/i, 'in Fahrenheit', '212°F'],
+  [/\bfreezing\s+point\s+of\s+water\b/i, 'in Fahrenheit', '32°F'],
+  [/\b(?:normal\s+)?(?:human\s+)?body\s+temperature\b/i, 'in Fahrenheit', '98.6°F'],
+];
+const PHYSICAL_CONSTANTS_C: Array<[RegExp, string, string]> = [
+  [/\bboiling\s+point\s+of\s+water\b/i, 'in Celsius', '100°C'],
+  [/\bfreezing\s+point\s+of\s+water\b/i, 'in Celsius', '0°C'],
+  [/\b(?:normal\s+)?(?:human\s+)?body\s+temperature\b/i, 'in Celsius', '37°C'],
+];
+
+function tryPhysicalConstantLookup(input: string): MathSolution | null {
+  const lower = input.toLowerCase();
+  const wantsFahrenheit = /\bfahrenheit\b|\b(?:in|to)\s+f\b/i.test(lower);
+  const wantsCelsius = /\bcelsius\b|\b(?:in|to)\s+c\b/i.test(lower);
+  // Ambiguous or unstated unit ("what's the boiling point of water") is intentionally left
+  // unhandled here — the corpus doc covers that framing fine on its own, this lookup exists
+  // specifically for the two exact-unit phrasings the LLM got wrong.
+  if (!wantsFahrenheit && !wantsCelsius) return null;
+  const table = wantsFahrenheit ? PHYSICAL_CONSTANTS_F : PHYSICAL_CONSTANTS_C;
+  for (const [pattern, unitLabel, value] of table) {
+    if (pattern.test(lower)) {
+      const subject = lower.match(pattern)?.[0] || 'that';
+      return {
+        isMath: true,
+        expression: `${subject} ${unitLabel}`,
+        result: value,
+        steps: [`Fixed physical reference point, not a computation: ${subject} = ${value}.`],
+        explanation: `**${value}** — this is a fixed reference point, not something that varies or needs computing.`,
+      };
+    }
+  }
+  return null;
+}
+
 function tryUnitConversion(input: string): MathSolution | null {
   const q = input.toLowerCase();
 
@@ -726,6 +770,13 @@ function trySolveWordProblemArithmetic(prompt: string): MathSolution | null {
 export function trySolveMath(prompt: string): MathSolution | null {
   const cleanPrompt = prompt.trim();
   const lower = cleanPrompt.toLowerCase();
+
+  // 0. Fixed physical-constant lookups (before unit conversion — "boiling point of water in
+  // fahrenheit" isn't actually a conversion of a user-supplied number, it's a lookup of a
+  // constant, so it needs to run first rather than risk tryUnitConversion's regexes almost-but-
+  // not-quite matching it).
+  const constantRes = tryPhysicalConstantLookup(cleanPrompt);
+  if (constantRes) return constantRes;
 
   // 1. Unit conversions
   const unitRes = tryUnitConversion(cleanPrompt);

@@ -1077,6 +1077,14 @@ export function detectQueryIntent(query: string): QueryIntent {
     /\bis\s+-?\d+\s+(?:a\s+)?(?:not\s+)?prime\b|\bis\s+-?\d+\s+(?:even|odd)\b|\b(?:gcd|lcm|greatest\s+common\s+(?:divisor|factor)|least\s+common\s+multiple)\s+(?:of\s+)?-?\d+\s*(?:and|,)\s*-?\d+\b|\b(?:next|previous)\s+prime(?:\s+number)?\s+(?:after|before)\s+-?\d+\b/i.test(
       q
     ) ||
+    // Fixed physical-constant lookups ("boiling/freezing point of water", "body temperature") in
+    // an explicit unit — no digit in the question itself, so nothing above catches it. Added
+    // after a live hallucination: even correctly grounded on a corpus doc that states "100°C =
+    // 212°F" verbatim, the LLM still answered wrong (200°F), apparently misapplying a nearby
+    // mental-math shortcut from the same document instead of using the explicit fact.
+    /\b(?:boiling|freezing)\s+point\s+of\s+water\b.{0,20}\b(?:fahrenheit|celsius)\b|\bbody\s+temperature\b.{0,20}\b(?:fahrenheit|celsius)\b/i.test(
+      q
+    ) ||
     // "what is"/"what's" both need this check — "what's 128 divided by 8" was falling through
     // because only the "what is" spelling was ever checked, so the contraction (the far more
     // common way people actually type this) never routed to the math solver.
