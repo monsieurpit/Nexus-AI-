@@ -838,12 +838,57 @@ export function hasSwearWords(text: string): boolean {
   return enMatches.some((regex) => regex.test(lower)) || plMatches.some((regex) => regex.test(lower));
 }
 
+// Same stem-matching approach hasSwearWords() above already uses correctly (an open-ended
+// character class + `*` instead of a fixed set of literal alternatives), reused here with the
+// `g` flag added so each pattern can count every occurrence, not just detect presence. Found by
+// a code review: the previous version matched a fixed list of literal words with a plain \b\b
+// boundary (`\b(fuck|fucking|shit|...|kurwa|pierdol|chuj|...)\b`) — since \b is a zero-width
+// assertion requiring an actual word/non-word transition, that pattern can ONLY ever match
+// exactly one of the listed literal forms, never anything inflected beyond them. Confirmed live:
+// "he fucked it up completely" scored 0 (not covered by the "fucking"-only literal), "those
+// bitches are wild" scored 0 ("bitch" alone doesn't match inside "bitches" — \b right after "bitch"
+// fails since "e" continues the word), "co ty pierdolisz" and "to jest kurwami zepsute" both
+// scored 0 despite unambiguously containing real Polish swears, while hasSwearWords() (using the
+// correct stem-matching style) correctly recognized all of them. This function feeds
+// forceSwearFloor() and the Polish branch of infuseSwearyHumanVoice() as the signal for "does
+// this response already have enough profanity" — undercounting caused both to keep adding MORE
+// swears on top of text that was never actually short on them, directly contradicting the
+// anti-stacking guarantees those functions' own comments describe.
+const SWEAR_COUNT_PATTERNS: RegExp[] = [
+  /\bfuck(?:ing|er|ers|ed|s|in)?\b/gi,
+  /\bmotherfucker(?:s)?\b/gi,
+  /\bshit(?:s|ty|ting|ted)?\b/gi,
+  /\bbullshit(?:ting|ted)?\b/gi,
+  /\bdamn(?:ed|it)?\b/gi,
+  /\bgoddamn(?:it)?\b/gi,
+  /\bass(?:hole|holes|es)?\b/gi,
+  /\bbadass(?:es)?\b/gi,
+  /\bbitch(?:es|y|ing)?\b/gi,
+  /\bhell\b/gi,
+  /\bpiss(?:ed|ing)?\b/gi,
+  /\bdumbass(?:es)?\b/gi,
+  /\bdipshit(?:s)?\b/gi,
+  /\bkurw[a-ząćęłńóśźż]*\b/gi,
+  /\bpierdol[a-ząćęłńóśźż]*\b/gi,
+  /\bchuj[a-ząćęłńóśźż]*\b/gi,
+  /\bgówn[a-ząćęłńóśźż]*\b/gi,
+  /\bcholer[a-ząćęłńóśźż]*\b/gi,
+  /\bzajebis[a-ząćęłńóśźż]*\b/gi,
+  /\bspierdalaj[a-ząćęłńóśźż]*\b/gi,
+];
+
 /**
- * Count the swear density in text
+ * Count the swear density in text — every occurrence across both English and Polish inflected
+ * forms, not just a fixed list of exact literal words. See SWEAR_COUNT_PATTERNS above for why
+ * this is structured as open-ended stem patterns instead.
  */
 export function getSwearCount(text: string): number {
-  const matches = text.match(/\b(fuck|fucking|shit|bullshit|damn|goddamn|ass|badass|bitch|hell|dumbass|dipshit|kurwa|pierdol|chuj|zajebiście|cholera)\b/gi);
-  return matches ? matches.length : 0;
+  let count = 0;
+  for (const pattern of SWEAR_COUNT_PATTERNS) {
+    const matches = text.match(pattern);
+    if (matches) count += matches.length;
+  }
+  return count;
 }
 
 /**
@@ -1181,8 +1226,21 @@ const CHAOTIC_OVERSHARE_LINES_PL = [
   `uderzyłem się palcem o dosłownie nic i teraz kwestionuję rzeczywistość`,
   `sąsiad ma psa co szczeka od godziny i zacząłem to na głos komentować`,
 ];
+// Checked against every line in CHAOTIC_OVERSHARE_LINES_PL directly (not just the two mismatches
+// a code review flagged) after finding the regex itself doesn't stay in sync with the pool it's
+// meant to recognize automatically — a code review found "wal[ei]\s+konia" doesn't match the
+// pool's own "walę konia" (conjugated with ę, outside the [ei] character class) and
+// "energetyk(?:ach|ów|u)?\s+głęb" can never match at all (the Polish translation of the energy-
+// drink pool line never contains "głęb" anywhere). Confirmed live: forceChaoticOvershare() run
+// 200x on text already containing either theme spuriously re-injected a second, redundant aside
+// on ~30-39% of runs — right around the configured inject rate, meaning the "already present,
+// skip" gate was doing nothing for these two lines. Auditing the rest of the pool the same way
+// turned up three more completely uncovered lines beyond those two: "drużyna zagrała jak noga"
+// (no drużyna/noga pattern at all), "energetykach...trzęsą" (same root cause as the głęb case),
+// "gorąco...laptop...gotuje" (no pattern at all), and "zajebiście się z wami bawię" (no pattern
+// at all) — fixed all of them together while already auditing this regex line by line.
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX_PL =
-  /\bnag[aiy]\b|wal[ei]\s+konia|energetyk(?:ach|ów|u)?\s+głęb|\b1v1\b|po\s+jaja\b|moj[aą]\s+dziewczyn[aę]|w\s+łóżku\b|\bkuchni\b|\bkanapie\b|ranked|\bpad(?:a|zie)?\b|boss(?:ie|a)?|spaliłem|czujka\s+dymu|płatki|deadline|zadanie\s+domowe|budzik|wifi|router|palcem|szczeka/i;
+  /\bnag[aiy]\b|wal[eię]\s+konia|energetyk(?:ach|ów|u)?|\b1v1\b|po\s+jaja\b|moj[aą]\s+dziewczyn[aęą]|w\s+łóżku\b|\bkuchni\b|\bkanapie\b|ranked|\bpad(?:a|zie)?\b|boss(?:ie|a)?|spaliłem|czujka\s+dymu|płatki|deadline|zadanie\s+domowe|budzik|wifi|router|palcem|szczeka|dru[żz]yn[aęy]|jak\s+noga|gorąco|\blaptop\b|zajebi[śs]cie/i;
 
 // Probability of actually injecting when the LLM didn't already include the bit on its own —
 // this used to be unconditional (inject whenever absent), which meant it fired on essentially
@@ -1396,6 +1454,22 @@ export function infuseSwearyHumanVoice(
   if (language === 'polish') {
     const swearCount = getSwearCount(text);
     if (swearCount >= 2 && !forceSwear) {
+      return text;
+    }
+    // Same anti-stacking guard the English path further down already has (hasSwearWords(
+    // firstClause), line ~1534) — found by a code review: this Polish branch had NONE of that
+    // machinery at all, and unconditionally prepended a random pick from a 5-item pool that
+    // heavily overlaps with the model's own natural Polish openers (the SWEAR_DICTIONARY.polish
+    // .intros pool starts with the identical "Kurwa,"/"Ja pierdolę,"/"O kurwa," phrases). Confirmed
+    // live: feeding text that already opens with "Kurwa," or "Ja pierdolę," through this function
+    // reproduced literal stutters like "Kurwa, Kurwa, ..." on roughly 1-in-5 random draws (2 of
+    // the 5 topup phrases collide with the two most common real openers). hasSwearWords() already
+    // correctly recognizes Polish swears via proper stem matching (unlike the getSwearCount() bug
+    // fixed separately above), so reusing it here is a direct, minimal fix — the same guard concept
+    // as the English path, without needing to duplicate that path's much larger FILLER_OPENER/
+    // LEADING_INTERJECTION_REGEX machinery, which is largely English-phrase-specific anyway.
+    const firstClause = text.trim().match(/^[^.!?]*[.!?]?/)?.[0] || text.trim();
+    if (hasSwearWords(firstClause)) {
       return text;
     }
     const plTopups = ['Kurwa,', 'Ja pierdolę,', 'O kurwa,', 'No i elegancko,', 'Zajebiście,'];
