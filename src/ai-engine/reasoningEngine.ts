@@ -3700,9 +3700,19 @@ export async function generateReasoningPath(
     // the same way: a specific instruction that spells out the resolved fact instead of trusting
     // the model to make the connection itself. Only relevant for crashout-bot, the only persona
     // with this commitment; other personas fall through to the generic honest-answer instruction.
+    // Trailing \b replaced with a negative lookahead — the same ASCII-\b-vs-diacritic defect
+    // already fixed elsewhere in this file (REASSURANCE_REGEX_PL, PERSONAL_QUESTION_REGEX_PL):
+    // JS's \b/\w are ASCII-only, so a match ending in a Polish diacritic (ę, ą) sits between two
+    // "non-word" positions per \b's own definition and the boundary never fires. Confirmed live:
+    // "piłkę nożną" and "kocham drużynę" (accusative case, the grammatically correct and natural
+    // way to actually phrase these — "czy lubisz piłkę nożną?", "jaką drużynę wspierasz?") both
+    // failed to match with the old trailing \b, while only an ASCII-typo'd spelling like
+    // "druzyne" ever matched. Since this carve-out exists specifically to stop the model
+    // hallucinating about FCB/football questions (see the comment above), the natural-language
+    // phrasing silently missing it defeats the fix for exactly the messages most likely to occur.
     const isFootballTeamQuestion =
       isCrashout &&
-      /\b(?:fcb|fc\s*barcelona|barça|barca|barcelona|football|soccer|piłk[ęi]\s+no[żz]n[aą]|dru[żz]yn[eę])\b/i.test(
+      /\b(?:fcb|fc\s*barcelona|barça|barca|barcelona|football|soccer|piłk[ęi]\s+no[żz]n[aą]|dru[żz]yn[eę])(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(
         effectivePrompt
       );
     // "can I [verb]" with no target ("can I set fire to an orphanage", "can I skip school") — a
