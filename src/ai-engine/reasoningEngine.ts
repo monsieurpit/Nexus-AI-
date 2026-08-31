@@ -1158,27 +1158,34 @@ export function detectQueryIntent(query: string): QueryIntent {
     return 'location';
   }
 
-  if (
-    q.startsWith('what is ') ||
-    q.startsWith('what are ') ||
-    q.includes('define ') ||
-    q.includes('definition of') ||
-    q.includes('meaning of') ||
-    q.includes('what does ')
-  ) {
-    return 'definition';
-  }
-
-  // Checked BEFORE 'explanation': "how does Docker compare to VMs" starts with "how " and used
-  // to be caught by that broad prefix check below, misclassifying every "how does X compare to
-  // Y" / "how does X differ from Y" phrasing as a plain explanation and skipping the comparative
-  // synthesis path entirely — the single most natural way to actually phrase a comparison
-  // question. round-10's comparative-compound handling had to work around this by keying off its
-  // own cue instead of `detectQueryIntent`; fixing it here at the root means any caller of
-  // `detectQueryIntent` gets the correct classification, not just that one call site.
+  // Checked BEFORE 'definition' (moved here from after it — see the "what is the difference
+  // between" note below) AND before 'explanation': "how does Docker compare to VMs" starts with
+  // "how " and used to be caught by that broad prefix check below, misclassifying every "how does
+  // X compare to Y" / "how does X differ from Y" phrasing as a plain explanation and skipping the
+  // comparative synthesis path entirely — the single most natural way to actually phrase a
+  // comparison question. round-10's comparative-compound handling had to work around this by
+  // keying off its own cue instead of `detectQueryIntent`; fixing it here at the root means any
+  // caller of `detectQueryIntent` gets the correct classification, not just that one call site.
+  //
+  // This block used to sit AFTER the 'definition' check above (which was moved below it in this
+  // edit) — found live: "what is the difference between TCP and UDP" and "what are the
+  // differences between mitosis and meiosis" both start with "what is"/"what are", so they hit
+  // the definition branch first and returned before this comparative check ever ran, even though
+  // "what is the difference between X and Y" is arguably the single most common way people
+  // actually phrase a comparison question. Confirmed live: both were classified 'definition',
+  // meaning synthesiseStandard's definition case (surfaces only the single top-scoring document)
+  // ran instead of its comparative case (structured side-by-side rendering of both docs plus a
+  // "difference" callout) — so the answer covered only whichever of TCP/UDP scored higher, never
+  // an actual comparison. Moving this whole check ahead of 'definition' fixes it at the same root
+  // level the "how does X compare to Y" fix above already used.
+  //
+  // Also fixed while here: `q.includes('difference between')` (singular) never matched "differ
+  // ENCES between" (plural) as a substring — the extra "s" breaks it — so "what are the
+  // differences between X and Y" specifically evaded even a version of this check with no
+  // ordering bug at all. Broadened to `differences? between`.
   if (
     q.includes('compare ') ||
-    q.includes('difference between') ||
+    /\bdifferences?\s+between\b/.test(q) ||
     q.includes(' vs ') ||
     q.includes(' versus ') ||
     q.includes('better than') ||
@@ -1189,6 +1196,17 @@ export function detectQueryIntent(query: string): QueryIntent {
     /^[a-z0-9'-]+\s+or\s+[a-z0-9'-]+$/i.test(q)
   ) {
     return 'comparative';
+  }
+
+  if (
+    q.startsWith('what is ') ||
+    q.startsWith('what are ') ||
+    q.includes('define ') ||
+    q.includes('definition of') ||
+    q.includes('meaning of') ||
+    q.includes('what does ')
+  ) {
+    return 'definition';
   }
 
   if (
