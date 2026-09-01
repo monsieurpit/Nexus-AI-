@@ -53,7 +53,7 @@ export const COMMON_ACRONYMS_CORPUS: KnowledgeItem[] = [
     id: 'kb-acronym-http-url',
     title: 'What Do HTTP and URL Stand For?',
     category: 'everyday-basics',
-    keywords: ['what does http stand for', 'http meaning', 'what does url stand for', 'url meaning', 'hypertext transfer protocol', 'uniform resource locator', 'https meaning'],
+    keywords: ['what does http stand for', 'http meaning', 'what does url stand for', 'url meaning', 'hypertext transfer protocol', 'uniform resource locator', 'https meaning', 'difference between http and https', 'is https safer than http', 'http vs https'],
     content: `**HTTP** stands for **HyperText Transfer Protocol** — the underlying communication protocol that web browsers and servers use to exchange data (loading web pages, images, etc.) over the internet. **HTTPS** adds an "S" for "Secure," meaning the connection is encrypted (via TLS/SSL), which is why browsers show a padlock icon and HTTPS is now the standard for virtually all websites, especially any that handle passwords or payment info. **URL** stands for **Uniform Resource Locator** — the full web address you type or click (e.g. "https://www.example.com/page"), which specifies the protocol (http/https), the domain (example.com), and often a specific path to a resource on that server.`,
     createdAt: Date.now(),
   },
