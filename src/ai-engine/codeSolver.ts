@@ -204,7 +204,9 @@ export function debounce<T extends (...args: any[]) => any>(
   }
 
   // 2. LRU Cache Implementation
-  if (lower.includes('lru cache') || lower.includes('lru')) {
+  // \b-bounded — bare 'lru' as a substring matched inside "walrus" and "bulrush", returning a full
+  // LRU cache code dump for "tell me a fact about a walrus". Verified live.
+  if (lower.includes('lru cache') || /\blru\b/.test(lower)) {
     return {
       isCode: true,
       language: 'typescript',

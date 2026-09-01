@@ -7,8 +7,11 @@
  * made-up "today" ("let's say today is February 12th") and then botch the arithmetic on top of
  * that fabricated premise. This mirrors exactly why mathSolver.ts exists for arithmetic: anything
  * with one objectively correct, mechanically computable answer should be computed, not generated.
- * JS's native Date object already correctly handles month lengths, leap years, and year rollovers,
- * so real date arithmetic is just as reliable as real number arithmetic once it's actually used.
+ * JS's native Date object correctly handles day/week arithmetic and year rollovers on its own, but
+ * NOT month-length overflow: `date.setMonth(date.getMonth() + 1)` on Jan 31 doesn't clamp to the
+ * last real day of February, it silently rolls over into March 3 (there's no "Feb 31", so JS just
+ * keeps counting). Verified live and fixed via addMonthsClamped() below — every month/year offset
+ * in this file goes through it instead of a bare setMonth()/setFullYear() call.
  */
 
 export interface DateSolution {
@@ -117,6 +120,21 @@ function tryExplicitDate(text: string, defaultYear: number): Date | null {
   return null;
 }
 
+// Adds `months` (positive or negative) to `date`, clamping the resulting day-of-month to the
+// last real day of the target month instead of letting it silently overflow into the month after
+// (JS's setMonth has no concept of "Feb 31" — it just keeps counting into March 3). Used for both
+// month and year offsets (a year offset is just months*12), so leap-year Feb 29 clamps correctly
+// too — Feb 29, 2024 + 1 year lands on Feb 28, 2025, not March 1.
+function addMonthsClamped(date: Date, months: number): Date {
+  const day = date.getDate();
+  const result = new Date(date);
+  result.setDate(1); // avoid overflow while the month itself is still being changed
+  result.setMonth(result.getMonth() + months);
+  const daysInTargetMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+  result.setDate(Math.min(day, daysInTargetMonth));
+  return result;
+}
+
 function daysBetween(a: Date, b: Date): number {
   const msPerDay = 24 * 60 * 60 * 1000;
   const utcA = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
@@ -187,7 +205,14 @@ export function trySolveDate(prompt: string, now: Date = new Date()): DateSoluti
   if (dowMatch) {
     const target = dowMatch[1].trim().replace(/^this\s+year'?s?\s*/i, '').replace(/\s+this\s+year$/i, '').replace(/\s+next\s+year$/i, '');
     const wantsNextYear = /next\s+year/i.test(dowMatch[1]);
-    const holiday = resolveHolidayTarget(target, now, !wantsNextYear && !/\d{4}/.test(dowMatch[1]));
+    // An explicit "next year" request needs to go straight to that year — resolveHolidayTarget's
+    // preferUpcoming logic only advances when the holiday has already passed THIS year, which
+    // isn't what's being asked here at all. Routing "next year" through it silently returned this
+    // year's date, verified live: "what day of the week is christmas this year" and "...next
+    // year" both returned the same December 25 date for the CURRENT year.
+    const holiday = wantsNextYear
+      ? tryNamedHoliday(target, now.getFullYear() + 1)
+      : resolveHolidayTarget(target, now, !/\d{4}/.test(dowMatch[1]));
     const explicit = holiday || tryExplicitDate(dowMatch[1], wantsNextYear ? now.getFullYear() + 1 : now.getFullYear());
     if (explicit) {
       return {
@@ -203,9 +228,17 @@ export function trySolveDate(prompt: string, now: Date = new Date()): DateSoluti
   const untilMatch = lower.match(/\bhow\s+many\s+days?\s+(until|till|to|since|ago\s+(?:was|is))\s+(.+?)\??$/i);
   if (untilMatch) {
     const isUntil = /until|till|to$/i.test(untilMatch[1]);
-    const target = untilMatch[2].trim();
-    const holiday = resolveHolidayTarget(target, now, isUntil);
-    const explicit = holiday || tryExplicitDate(target, now.getFullYear());
+    // Same "next year" handling as the day-of-week branch above — strip it from the holiday-name
+    // match (tryNamedHoliday's regex is an anchored `^christmas(\s+day)?$` and never matched
+    // "christmas next year" with the suffix still attached, so this phrasing silently fell through
+    // to null/unanswered instead of resolving to the correct year) and resolve it explicitly.
+    const rawTarget = untilMatch[2].trim();
+    const wantsNextYear = /\s+next\s+year$/i.test(rawTarget);
+    const target = rawTarget.replace(/\s+next\s+year$/i, '').replace(/\s+this\s+year$/i, '');
+    const holiday = wantsNextYear
+      ? tryNamedHoliday(target, now.getFullYear() + 1)
+      : resolveHolidayTarget(target, now, isUntil);
+    const explicit = holiday || tryExplicitDate(target, wantsNextYear ? now.getFullYear() + 1 : now.getFullYear());
     if (explicit) {
       const diff = daysBetween(now, explicit);
       const absDiff = Math.abs(diff);
@@ -230,12 +263,16 @@ export function trySolveDate(prompt: string, now: Date = new Date()): DateSoluti
     const amount = parseInt(m[1], 10);
     const unit = m[2];
     const isAgo = offsetMatch ? /ago|before/i.test(offsetMatch[3]) : true;
-    const target = new Date(now);
+    let target = new Date(now);
     const sign = isAgo ? -1 : 1;
     if (unit === 'day') target.setDate(target.getDate() + sign * amount);
     else if (unit === 'week') target.setDate(target.getDate() + sign * amount * 7);
-    else if (unit === 'month') target.setMonth(target.getMonth() + sign * amount);
-    else if (unit === 'year') target.setFullYear(target.getFullYear() + sign * amount);
+    // Month/year offsets go through addMonthsClamped (see its comment above) instead of a bare
+    // setMonth()/setFullYear() — those silently overflow into the wrong month whenever the
+    // current day-of-month doesn't exist in the target month (e.g. Jan 31 + 1 month rolling into
+    // March 3 instead of clamping to Feb 28). Verified live with exactly that repro.
+    else if (unit === 'month') target = addMonthsClamped(target, sign * amount);
+    else if (unit === 'year') target = addMonthsClamped(target, sign * amount * 12);
     return {
       isDate: true,
       result: unit === 'year' && /\byear\b/i.test(lower.match(/what\s+(date|day|year)/i)?.[1] || '') ? `${target.getFullYear()}` : formatDate(target),
