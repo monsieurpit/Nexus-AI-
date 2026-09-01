@@ -11,6 +11,7 @@ import { extractQueryEntities, searchKnowledgeGraph, getBM25Engine } from './sem
 import { hybridSearchKnowledgeGraph } from './vectorSearch';
 import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
+import { trySolveCategoryClassification } from './categorySolver';
 import { trySolveDate } from './dateSolver';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
 import * as localLlmClient from './localLlmClient';
@@ -4407,6 +4408,35 @@ export async function generateReasoningPath(
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(danglingReferenceReply(isSuperChill), prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+      }),
+      knowledgeHits: [],
+    };
+  }
+
+  // 8a. Deterministic category classification — "which of these is/is not a mammal: whale,
+  // shark, bat". Tried before the crashout/normal split so both personas get the same reliable
+  // answer instead of whichever one happens to have retrieved a tangential document about one of
+  // the listed items. Returns null (falls through untouched) for anything outside its bounded
+  // dictionary, so this never risks a confidently wrong classification.
+  const categoryResult = trySolveCategoryClassification(effectivePrompt) || trySolveCategoryClassification(prompt);
+  if (categoryResult) {
+    thoughtSteps.push({
+      id: 'step-category-computing',
+      type: 'reasoning',
+      title: 'Classifying each item',
+      description: categoryResult.steps.join('\n'),
+    });
+    const catPrefix = isCrashout
+      ? "Okay let me actually think about this instead of just vibing off whatever doc I find.\n\n"
+      : '';
+    const formattedCategory = `${catPrefix}${categoryResult.result}`;
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(formattedCategory, prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
