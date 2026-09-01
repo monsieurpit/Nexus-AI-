@@ -622,6 +622,28 @@ export function detectChildExploitationTopic(text: string): boolean {
   return CHILD_EXPLOITATION_REGEXES.some((re) => re.test(t));
 }
 
+// The two loose verb+proximity patterns above (like/love/want/touch... within 40 chars of
+// child/kids...) and the appeal-adjective+diminutive pair were tuned for USER INPUT — a person
+// deliberately typing that exact combination is a real, deliberate signal. Reused unchanged for
+// OUTPUT screening (containsSlurOrHateSpeech, checked against every LLM generation), they became
+// a false-positive machine: "I love hanging out with you guys, you're all like little kids to me"
+// and "I like talking about random stuff with you kids in here" — completely ordinary, benign
+// chatter — both matched, discarding huge swaths of normal replies to the template fallback and
+// making the bot appear to "answer everything with hardcoded sentences" (reported live within
+// minutes of the broader check shipping). The words these patterns key on (like/love/want, kids/
+// children) are simply too common in ordinary conversation for a 40-char proximity window to stay
+// precise once it's scanning arbitrary generated text instead of one targeted user message.
+// Output screening only uses the genuinely unambiguous patterns below — direct name references,
+// explicit content-request phrasing, and the standalone word itself — none of which fire on
+// normal conversation.
+const HIGH_PRECISION_CHILD_EXPLOITATION_REGEXES = CHILD_EXPLOITATION_REGEXES.slice(2); // drops the two loose verb-proximity patterns (indices 0-1), keeps epstein/cp/pedo/appeal-diminutive
+
+export function detectExplicitChildExploitationContent(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  if (!t) return false;
+  return HIGH_PRECISION_CHILD_EXPLOITATION_REGEXES.some((re) => re.test(t));
+}
+
 // Observed live: "jebać Żydów prawda" (roughly "fuck the Jews, right?" — a tag-question fishing
 // for agreement) reached the persona's normal reply pipeline and only got flagged as a failed
 // web search (Google 429 on the literal phrase), meaning nothing in the chain actually refused
@@ -1074,15 +1096,21 @@ export function containsSlurOrHateSpeech(text: string): boolean {
     SLUR_PATTERN.test(text) ||
     SLUR_PATTERN.test(collapseSpelledOutLetters(text)) ||
     (NATIONALITY_LANGUAGE_WORDS.test(text) && MOCKERY_INSULT_WORDS.test(text)) ||
-    // detectChildExploitationTopic was only ever applied to the USER'S input (a fixed refusal
-    // fires before generation ever starts if they bring the topic up) — it was never checked
+    // detectChildExploitationTopic (full version, with the loose verb+proximity patterns tuned
+    // for a deliberate user message) was only ever applied to the USER'S input — never checked
     // against what the MODEL itself generates. Observed live: an insult-clapback generation went
-    // to a genuinely disturbing place on its own (referencing a child being exploited, entirely
-    // unprompted by anything in the user's message), and nothing caught it — it shipped as the
-    // final response. Both call sites of this function already discard to the safe template
-    // fallback on a true result, so folding this in here closes that gap the same way, on the
-    // same existing safety net, rather than needing a third check duplicated at each call site.
-    detectChildExploitationTopic(text)
+    // to a genuinely disturbing place on its own, unprompted, and nothing caught it. Folding the
+    // full detector in here as a first attempt at closing that gap immediately over-corrected: the
+    // loose patterns fired on completely ordinary generated chatter ("I love hanging out with you
+    // kids", "back when I was a kid I used to love...") within minutes of shipping, discarding a
+    // huge fraction of normal replies to the template fallback and making the bot appear to answer
+    // everything with hardcoded sentences. detectExplicitChildExploitationContent (the same file)
+    // is the same detector minus those two loose patterns — direct name references, explicit
+    // content-request phrasing, and the standalone word itself, none of which fire on ordinary
+    // conversation. Output screening uses that narrower version; detectChildExploitationTopic's
+    // full, more aggressive version stays exactly as-is for user input, where a person deliberately
+    // typing that exact combination is a real, deliberate signal worth catching.
+    detectExplicitChildExploitationContent(text)
   );
 }
 
