@@ -689,7 +689,26 @@ export function detectEmotionalDistress(text: string): boolean {
     ) ||
     /\bi\s+feel\s+(?:so\s+|really\s+)?(?:anxious|stressed|depressed|overwhelmed|lonely|sad|hopeless|worthless|scared|terrified|awful|numb)\b/i.test(t) ||
     /\bmy\s+(?:dog|cat|pet|mom|dad|mother|father|grandma|grandpa|friend)\s+(?:died|passed\s+away)\b/i.test(t) ||
-    /\bi(?:'?m|\s+am)\s+(?:really\s+)?(?:hurting|struggling|not\s+(?:doing|feeling)\s+(?:okay|ok|well|good))\b/i.test(t)
+    /\bi(?:'?m|\s+am)\s+(?:really\s+)?(?:hurting|struggling|not\s+(?:doing|feeling)\s+(?:okay|ok|well|good))\b/i.test(t) ||
+    // Venting/frustration — a genuinely distinct register from anxiety/grief (someone ranting
+    // about their day wants to be heard, not consoled like a loss), but was previously entirely
+    // unhandled and fell through to plain corpus search the same way anxiety/grief used to.
+    /\bi(?:'?m|\s+am)\s+(?:so\s+|really\s+|super\s+|fucking\s+)?(?:frustrated|pissed(?:\s+off)?|furious|irritated|so\s+done|sick\s+(?:and\s+tired\s+)?of\s+(?:this|everything))\b/i.test(t) ||
+    /\b(?:i\s+(?:had|'ve\s+had)|had)\s+(?:such\s+a|the\s+worst|a\s+really\s+(?:bad|rough)|a\s+(?:bad|rough|shitty))\s+day\b/i.test(t) ||
+    /\beverything\s+(?:is\s+going\s+wrong|is\s+falling\s+apart|sucks\s+right\s+now)\b/i.test(t) ||
+    // Polish equivalents — every other in-character reply category in this file already has a
+    // Polish branch (see the swear-floor/persona reply pools elsewhere in this file); this one
+    // never did, so a Polish user venting or grieving fell through the same way English used to
+    // before this handler existed at all.
+    // Trailing \b directly after a Polish diacritic (ą ć ę ł ń ó ś ź ż) never matches — JS's \b/\w
+    // are ASCII-only, so neither side of that boundary reads as "word" to the regex engine. Every
+    // pattern below that could end on a diacritic uses the negative-lookahead replacement instead
+    // (established fix, same as promptCorrector.ts's PL_LETTERS handling).
+    /\bjestem\s+(?:tak(?:i|a)?\s+)?(?:zestresowan(?:y|a)|przygnębion(?:y|a)|wyczerpan(?:y|a)|przytłoczon(?:y|a)|samotn(?:y|a)|sfrustrowan(?:y|a)|wściekł(?:y|a)|zmęczon(?:y|a)\s+wszystkim)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(
+      t
+    ) ||
+    /\b(?:mój|moja)\s+(?:pies|kot|mama|tata|babcia|dziadek|przyjaciel|przyjaciółka)\s+(?:umarł|umarła|zmarł|zmarła)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(t) ||
+    /\bmiał(?:e[mś])?\s+(?:okropny|fatalny|najgorszy)\s+dzień(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(t)
   );
 }
 
@@ -700,7 +719,49 @@ export function detectEmotionalDistress(text: string): boolean {
  */
 export function generateEmotionalSupportReply(text: string, isSuperChill?: boolean): string {
   const t = text.toLowerCase();
-  const isGrief = /\b(?:died|passed\s+away)\b/.test(t);
+  const isGrief = /\b(?:died|passed\s+away)\b/.test(t) || /\b(?:umarł|zmarł)/.test(t);
+  // Polish words here are inflected stems ("sfrustrowan" is the shared root of
+  // sfrustrowany/sfrustrowana etc.), so they're deliberately matched WITHOUT a trailing \b — the
+  // suffix varies and a trailing \b would either false-negative on the inflected ending or, for
+  // stems ending in a diacritic, never match at all (JS's \b is ASCII-only, see the note above).
+  const isFrustration =
+    !isGrief &&
+    (/\b(?:frustrated|pissed|furious|irritated|so\s+done|sick\s+(?:and\s+tired\s+)?of|worst\s+day|bad\s+day|rough\s+day|shitty\s+day|falling\s+apart|going\s+wrong)\b/.test(
+      t
+    ) ||
+      /\b(?:sfrustrowan|wściekł|okropny\s+dzień|fatalny\s+dzień|najgorszy\s+dzień)/.test(t));
+  const isPolish = /\b(?:jestem|sfrustrowan|wściekł|zestresowan|przygnębion|wyczerpan|przytłoczon|samotn|umarł|zmarł|okropny\s+dzień|fatalny\s+dzień|najgorszy\s+dzień)/i.test(
+    t
+  );
+  if (isPolish) {
+    if (isGrief) {
+      const plGrief = [
+        `Kurwa, przykro mi. To prawdziwa strata, nie ma na to mądrych słów. Weź tyle czasu ile potrzebujesz, jestem tu jeśli chcesz pogadać albo po prostu o czymś innym.`,
+        `Cholera, naprawdę mi przykro. Nie musisz teraz udawać, że wszystko gra. Jestem tu — czy to żeby pogadać, czy żeby po prostu odciągnąć myśli od tego.`,
+      ];
+      return plGrief[Math.floor(Math.random() * plGrief.length)];
+    }
+    if (isFrustration) {
+      const plFrustration = [
+        `Rozumiem, brzmi to jak koszmarny dzień. Wywal to z siebie, jestem tu i słucham.`,
+        `Kurde, to musiało być wkurzające. Masz prawo być wściekły/a — jak chcesz, opowiedz co się stało, jak nie, to pogadajmy o czymś zupełnie innym.`,
+      ];
+      return plFrustration[Math.floor(Math.random() * plFrustration.length)];
+    }
+    const plSupport = [
+      `Hej, słyszę cię, to brzmi ciężko. Nie musisz teraz mieć wszystkiego poukładanego, krok po kroku. Jestem tu jeśli chcesz pogadać.`,
+      `Rozumiem, to sporo do udźwignięcia naraz. Masz prawo nie być ok. Jestem tu — pogadajmy albo o tym, albo o czymś innym, jak wolisz.`,
+    ];
+    return plSupport[Math.floor(Math.random() * plSupport.length)];
+  }
+  if (isFrustration) {
+    const frustrationReplies = [
+      `Damn, that sounds like a genuinely awful day. Vent all you want, I'm not going anywhere — get it out.`,
+      `Yeah that's legit infuriating, you're allowed to be pissed about it. Tell me what happened or just rant, either's fine by me.`,
+      `Ugh, that's the worst. Let it out, I got time — sometimes you just need to say it out loud to someone.`,
+    ];
+    return frustrationReplies[Math.floor(Math.random() * frustrationReplies.length)];
+  }
   if (isSuperChill) {
     const superChillGrief = [
       `Damn, I'm really sorry man. That kind of loss just hits different, take whatever time you need — I'm here if you want to talk it out or just need a distraction.`,
