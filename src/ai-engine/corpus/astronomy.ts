@@ -21,7 +21,7 @@ export const ASTRONOMY_CORPUS: KnowledgeItem[] = [
     id: 'kb-astronomy-black-holes',
     title: 'Black Holes',
     category: 'Astronomy',
-    keywords: ['black hole', 'event horizon', 'gravity', 'Schwarzschild', 'Hawking radiation', 'singularity', 'neutron star', 'accretion'],
+    keywords: ['black hole', 'event horizon', 'gravity', 'Schwarzschild', 'Hawking radiation', 'singularity', 'neutron star', 'accretion', 'co to jest czarna dziura', 'czarna dziura'],
     content: `A black hole is a region of spacetime where gravity is so strong that nothing — not even light — can escape. The boundary of no return is the event horizon; its size is the Schwarzschild radius (r_s = 2GM/c²). Black holes form from collapsed massive stars, or through the merger of compact objects. Supermassive black holes (millions to billions of solar masses) reside at the centre of most galaxies, including the Milky Way (Sagittarius A*, 4 million solar masses). The first image of a black hole shadow — M87* — was captured in 2019 by the Event Horizon Telescope. Despite the popular conception, black holes are not cosmic vacuum cleaners; they only capture matter that comes very close. Accretion disks of superheated gas spiralling inward glow brilliantly as quasars or active galactic nuclei. Stephen Hawking theorised that black holes emit thermal radiation (Hawking radiation) due to quantum effects near the event horizon, slowly losing mass over cosmic timescales. Tidal forces near stellar-mass black holes are extreme (spaghettification); supermassive black holes have gentler gradients at the event horizon.`,
     createdAt: Date.now(),
   },
