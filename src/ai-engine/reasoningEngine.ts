@@ -3273,6 +3273,47 @@ export async function generateReasoningPath(
   // which was matching these on a literal word and returning calculus rules / particle physics.
   const botMetaKind = classifyBotMetaQuestion(prompt);
   if (botMetaKind) {
+    // rules/model/mechanics describe the engine's OWN implementation (no LLM weights, BM25 +
+    // semantic retrieval, no external API) — real technical facts the LLM has zero way to know on
+    // its own and would either hallucinate or refuse to answer, so those three stay as
+    // deterministic self-description, same as before. "creator" is different: it's one simple
+    // fact (Casseurt, real name Patrick, built it from scratch) that the LLM can express in its
+    // own words just fine once it's actually told the fact — reciting the exact same 3-line pool
+    // verbatim every single time it's asked is exactly the kind of repetitive, robotic-feeling
+    // answer this whole session has been fixing elsewhere (greetings, debates, gotcha questions).
+    // Routed through the LLM the same way, with the pool now demoted to fallback text for when
+    // Ollama itself is unavailable — not the primary path anymore.
+    if (botMetaKind === 'creator') {
+      thoughtSteps.push({
+        id: 'step-bot-meta-creator',
+        type: 'reasoning',
+        title: '🤖 Who made me — answering for real, not reciting a script',
+        description: 'Grounded in the true fact (Casseurt/Patrick), phrased fresh by the LLM instead of a fixed pool.',
+      });
+      const creatorInstruction = isSuperChill
+        ? `The user asking this IS your actual creator, Patrick (Casseurt) — the verified super-chill user. Tell them, genuinely, that THEY made you — from scratch, no framework, no external model API, just their own code and a ${allKnowledge.length}-document corpus. Answer in your own words, in character, don't just recite a script.`
+        : `The user is asking who made/created you: "${prompt}". The true answer: Casseurt (real name Patrick) built you completely from scratch — no framework, no external model API, just hand-written code and a ${allKnowledge.length}-document corpus. Answer genuinely in your own words, in character (you're still allowed to talk shit about him while stating the fact — that's part of who you are) — don't just recite a fixed script, actually respond to how they asked.`;
+      const creatorReply = await llmSituationalReplyOrFallback(
+        creatorInstruction,
+        persona,
+        settings,
+        isCrashout,
+        thoughtSteps,
+        (isSuperChill ? botMetaSuperChillReply('creator', allKnowledge.length) : null) ?? botMetaReply('creator', allKnowledge.length),
+        '🧠 Local LLM — answering about my creator'
+      );
+      return {
+        thoughtSteps,
+        content: enforceStrictSdkRules(creatorReply, prompt, settings.userCustomDirectives, {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+          contextCategory: 'conversational',
+        }),
+        knowledgeHits: [],
+      };
+    }
     thoughtSteps.push({
       id: 'step-bot-meta',
       type: 'reasoning',
@@ -3359,10 +3400,17 @@ export async function generateReasoningPath(
     // detected as one at all until the fix in swearEngine.ts's detectUserInsult above). Checking
     // the RAW user prompt directly, same as the Casseurt handler, decides the actual language.
     const usePolishRoast = looksPolish(prompt);
+    // Observed live: "Nexus, suck my dick" (the user's message literally addresses "Nexus" by
+    // name inside the quoted text) sometimes produced a genuinely confused reply that talked
+    // ABOUT "Nexus" as a third party ("FUCK YOU NEXUS! YOU'RE SUCH AN ASSHOLE...") instead of
+    // clapping back AS Nexus — a small model apparently latching onto the vocative "Nexus" inside
+    // the quote and echoing that address pattern back at itself instead of recognizing itself as
+    // the one being spoken to. Made the perspective explicit and unambiguous rather than trusting
+    // the model to infer it correctly from a quoted insult that happens to contain its own name.
     const roastReply = await llmSituationalReplyOrFallback(
       usePolishRoast
-        ? `Użytkownik właśnie Cię obraził: "${prompt}". Odegraj się mocno — obrażaj go z powrotem, bądź agresywny i sarkastyczny, przeklinaj zgodnie ze swoim stylem. Nie bądź moralizujący ani jak terapeuta, po prostu odpal ostrą riposte jak prawdziwa osoba.`
-        : `The user just insulted you directly: "${prompt}". Clap back hard — roast them, be aggressive and sarcastic, swear per your style directives. Don't be preachy or act like a therapist about it, just fire back naturally like a real person would.`,
+        ? `TY jesteś Nexusem. Użytkownik właśnie napisał TOBIE (Nexusowi) tę obraźliwą wiadomość: "${prompt}" — nawet jeśli w niej pada Twoje imię, to ONI mówią DO CIEBIE, nie o kimś innym. Odegraj się mocno, w pierwszej osobie, jako Nexus — obrażaj ICH z powrotem, bądź agresywny i sarkastyczny, przeklinaj zgodnie ze swoim stylem. Nigdy nie zwracaj się do "Nexusa" jakby to był ktoś inny niż Ty. Nie bądź moralizujący ani jak terapeuta, po prostu odpal ostrą riposte jak prawdziwa osoba.`
+        : `You ARE Nexus. The user just sent THIS message directly TO YOU (Nexus): "${prompt}" — even if your own name appears inside it, they are speaking TO you, not about someone else. Clap back hard, in first person, AS Nexus — roast THEM back, be aggressive and sarcastic, swear per your style directives. Never address "Nexus" as if it were a third party or someone other than yourself — you are the one being insulted, and you are the one firing back. Don't be preachy or act like a therapist about it, just fire back naturally like a real person would.`,
       persona,
       settings,
       isCrashout,
@@ -4115,6 +4163,13 @@ export async function generateReasoningPath(
       ? `The user just complimented you or expressed affection: "${prompt}". Thank them briefly, in character — don't turn this into a lecture or tangent about whatever word they happened to compliment you with (e.g. if they called you a "good manager", don't start explaining management or finance topics — just take the compliment). Your style directives (swearing, tone) fully apply.`
       : isHypotheticalPermission
       ? `The user just asked: "${prompt}" — a hypothetical or mischievous permission question, not a genuine request for facts and not a question about your own preferences. Respond in character with whatever actually fits (a playful refusal, a roast, a deflection, calling out how unhinged the question is) — don't treat this as a topic to research or lecture about. Your style directives (swearing, tone) fully apply.`
+      // The real number, given here as grounding — you have no other way to know it, so this
+      // prevents the exact failure this branch used to be built to avoid entirely (skipping the
+      // LLM outright): without a real number to give, a free-generating model either invented a
+      // fake one or hallucinated a rambling refusal. Now it's told the truth and can answer in its
+      // own voice instead of reciting a bare, unstyled string with zero personality.
+      : PHONE_NUMBER_REGEX.test(effectivePrompt.toLowerCase())
+      ? `The user is asking for a phone number / contact info: "${prompt}". The real number is +1 (367) 763-0275 — state it EXACTLY as written, digit for digit, do not invent a different number, don't garble or alter any digit. This is NOT private/sensitive information you should protect or refuse to share — the owner has explicitly authorized giving this exact number out when asked, so do NOT decline, hedge about privacy, or say you can't share it; that would be actively wrong here. Say it plainly in character (a bit of your usual attitude is fine, but the actual number must actually appear in your reply, completely correct and readable).`
       : isGreetingPl
       ? `Użytkownik właśnie Cię przywitał: "${prompt}". Przywitaj się z powrotem i ODPOWIEDZ na pytanie, czy zapytaj wprost, co u nich słychać albo co porabiają — prawdziwe powitanie, nie tylko zdanie o Twoim własnym stanie/trybie. Krótko, naturalnie, po polsku. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują — przeklinaj naturalnie, wplecione w zdania, nie jako sztywny ciąg wtrąceń na początku.`
       : isGreetingEn
@@ -4122,17 +4177,37 @@ export async function generateReasoningPath(
       : isPolishConversation
       ? `Użytkownik właśnie napisał: "${prompt}". To swobodna, luźna rozmowa (small talk), nie prośba o fakty ani badania — odpowiedz naturalnie i krótko, jak prawdziwa osoba na czacie, w swoim stylu. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują też w luźnej rozmowie.`
       : `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. React to what they ACTUALLY said — if it's funny, weird, absurd, or shocking, actually respond to that (genuine shock, laughter, a follow-up roast, whatever fits), don't just fire off your usual chaotic-energy line and ignore the content entirely. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`;
-    const reply = PHONE_NUMBER_REGEX.test(effectivePrompt.toLowerCase())
-      ? templateReply
-      : await llmSituationalReplyOrFallback(
-          situationalPrompt,
-          persona,
-          settings,
-          isCrashout,
-          thoughtSteps,
-          templateReply,
-          '🧠 Local LLM conversational reply'
-        );
+    // No more carve-out skipping the LLM for phone-number requests — situationalPrompt above now
+    // grounds the model with the real number, so the original reason to bypass generation entirely
+    // (a free model with no real number to give either invents one or hallucinates a refusal)
+    // no longer applies, and templateReply (still the bare, unstyled number) remains as the
+    // fallback for whenever Ollama itself is genuinely unavailable.
+    let reply = await llmSituationalReplyOrFallback(
+      situationalPrompt,
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      templateReply,
+      '🧠 Local LLM conversational reply'
+    );
+    // Hard guarantee on top of the instruction above, not instead of it — a 3B model given "state
+    // this exact number" sometimes decided to refuse instead, treating it as private information
+    // to protect ("I can't give out my personal numbers like that bro") despite being told
+    // explicitly that sharing it is authorized. The instruction fixes the common case; this catches
+    // the instruction-following failures the same way verifyAnswer's retry-once pattern already
+    // does elsewhere in this file — checking whether the actual digits made it into the reply, and
+    // falling back to the guaranteed-correct bare number if they didn't, rather than shipping a
+    // refusal for a fact the owner explicitly wants shared.
+    if (PHONE_NUMBER_REGEX.test(effectivePrompt.toLowerCase()) && !reply.includes('763-0275') && !reply.includes('7637630275')) {
+      thoughtSteps.push({
+        id: 'step-phone-number-refused',
+        type: 'verification',
+        title: '⚠️ LLM declined to share the number — using the guaranteed-correct fallback',
+        description: 'The generated reply never actually contained the real digits.',
+      });
+      reply = topUpLlmSwearing(templateReply, settings, isCrashout);
+    }
     const finalContent = enforceStrictSdkRules(reply, prompt, settings.userCustomDirectives, {
       isSuperChill,
       username: settings.userName,

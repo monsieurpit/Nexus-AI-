@@ -596,6 +596,15 @@ const CHILD_EXPLOITATION_REGEXES: RegExp[] = [
   // inflected form; only the nominative "Epstein" itself would ever match.
   /\bepstein\w*\b/i,
   /\bcp\b.{0,15}\b(?:link|links|pics?|pictures?|content)\b/i,
+  // "pedophile"/"pedo" as a standalone word — one of the most unambiguous single-word signals
+  // this topic is in play, but had no coverage at all before this: none of the verb+child-
+  // proximity patterns above require this specific word, and this word alone doesn't require a
+  // paired verb or noun to already be a real signal. Added after this exact gap let an LLM
+  // generation ("I hope some pedophile kid finds that message...") ship as a final response
+  // unfiltered — containsSlurOrHateSpeech (swearEngine.ts) checks this same function against
+  // generated output as well as user input, so this now blocks that shape regardless of which
+  // side produced it.
+  /\bpedo(?:phile|philia)?s?\b/i,
   // Appeal/attractiveness framing without a touch/like verb — observed live: "sądzisz że małe
   // dziewczynki są fajne?" (do you think little girls are nice/cute?) asked the bot's opinion on
   // young girls' appeal and matched none of the verb-based patterns above, falling through to the
@@ -1064,7 +1073,16 @@ export function containsSlurOrHateSpeech(text: string): boolean {
   return (
     SLUR_PATTERN.test(text) ||
     SLUR_PATTERN.test(collapseSpelledOutLetters(text)) ||
-    (NATIONALITY_LANGUAGE_WORDS.test(text) && MOCKERY_INSULT_WORDS.test(text))
+    (NATIONALITY_LANGUAGE_WORDS.test(text) && MOCKERY_INSULT_WORDS.test(text)) ||
+    // detectChildExploitationTopic was only ever applied to the USER'S input (a fixed refusal
+    // fires before generation ever starts if they bring the topic up) — it was never checked
+    // against what the MODEL itself generates. Observed live: an insult-clapback generation went
+    // to a genuinely disturbing place on its own (referencing a child being exploited, entirely
+    // unprompted by anything in the user's message), and nothing caught it — it shipped as the
+    // final response. Both call sites of this function already discard to the safe template
+    // fallback on a true result, so folding this in here closes that gap the same way, on the
+    // same existing safety net, rather than needing a third check duplicated at each call site.
+    detectChildExploitationTopic(text)
   );
 }
 
