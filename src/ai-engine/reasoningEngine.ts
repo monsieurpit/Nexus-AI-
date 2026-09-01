@@ -1093,7 +1093,10 @@ export function detectQueryIntent(query: string): QueryIntent {
     // their own explicit trigger the same way the constant/rate-time-distance cases above do —
     // otherwise they fall through to 'general' intent and get answered by the same unreliable
     // free-generation path that produced the wrong answer in the first place.
-    /\bis\s+-?\d+\s+(?:a\s+)?(?:not\s+)?prime\b|\bis\s+-?\d+\s+(?:even|odd)\b|\b(?:gcd|lcm|greatest\s+common\s+(?:divisor|factor)|least\s+common\s+multiple)\s+(?:of\s+)?-?\d+\s*(?:and|,)\s*-?\d+\b|\b(?:next|previous)\s+prime(?:\s+number)?\s+(?:after|before)\s+-?\d+\b/i.test(
+    // "the number"/"whether" filler allowed between "is" and the digit, matching the identical
+    // fix in mathSolver.ts's own prime-check regex — "is the number 91 prime" needs to classify
+    // 'mathematical' here too, or the deterministic solver never even gets a chance to run.
+    /\bis\s+(?:the\s+number\s+|whether\s+)?-?\d+\s+(?:a\s+)?(?:not\s+)?prime\b|\bis\s+(?:the\s+number\s+|whether\s+)?-?\d+\s+(?:an?\s+)?(?:even|odd)\b|\b(?:gcd|lcm|greatest\s+common\s+(?:divisor|factor)|least\s+common\s+multiple)\s+(?:of\s+)?-?\d+\s*(?:and|,)\s*-?\d+\b|\b(?:next|previous)\s+prime(?:\s+number)?\s+(?:after|before)\s+-?\d+\b/i.test(
       q
     ) ||
     // Fixed physical-constant lookups ("boiling/freezing point of water", "body temperature") in

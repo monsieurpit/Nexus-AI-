@@ -1031,7 +1031,13 @@ export function trySolveMath(prompt: string): MathSolution | null {
   // number-theory facts like this, so — same principle as the rest of this file — compute it
   // deterministically instead of trusting generation for anything with one objectively correct
   // answer.
-  const primeMatch = lower.match(/\bis\s+(-?\d+)\s+(?:a\s+)?(not\s+)?prime\b/i);
+  // "the number"/"whether" filler allowed between "is" and the digit — "is 91 prime" worked, but
+  // the equally natural "is the number 91 prime" (or "is whether 91 is prime") didn't, silently
+  // falling through to the unreliable LLM path this whole check exists to avoid. Verified live:
+  // with this gap unfixed, "is the number 91 prime" got a free-generated answer confidently citing
+  // "91 is divisible by 3 and 7" — both false (91 = 7 × 13, not divisible by 3 at all) — despite
+  // landing on the right yes/no conclusion by coincidence.
+  const primeMatch = lower.match(/\bis\s+(?:the\s+number\s+|whether\s+)?(-?\d+)\s+(?:a\s+)?(not\s+)?prime\b/i);
   if (primeMatch) {
     const n = parseInt(primeMatch[1], 10);
     const negated = !!primeMatch[2];
@@ -1104,7 +1110,7 @@ export function trySolveMath(prompt: string): MathSolution | null {
   // 3d. Even/odd check: e.g. "is 42 even", "is 7 odd". The optional "a(n)"/"an" and "number" allow
   // the equally natural "is 42 an even number" — the original pattern required the adjective
   // immediately after the digit and had no coverage for that phrasing at all.
-  const evenOddMatch = lower.match(/\bis\s+(-?\d+)\s+(?:an?\s+)?(even|odd)(?:\s+number)?\b/i);
+  const evenOddMatch = lower.match(/\bis\s+(?:the\s+number\s+|whether\s+)?(-?\d+)\s+(?:an?\s+)?(even|odd)(?:\s+number)?\b/i);
   if (evenOddMatch) {
     const n = parseInt(evenOddMatch[1], 10);
     const isEven = n % 2 === 0;
