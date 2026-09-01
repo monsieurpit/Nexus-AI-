@@ -11,6 +11,7 @@ import {
   enforceStrictSdkRules,
 } from './src/ai-engine/ruleEngine';
 import { generateReasoningPath, assessCorpusConfidence } from './src/ai-engine/reasoningEngine';
+import { getMoodDisplay } from './src/ai-engine/moodEngine';
 import { checkAvailability as checkLocalLlmAvailability, generate as generateLlmText, generateVision } from './src/ai-engine/localLlmClient';
 import { warmPolishDictionary } from './src/ai-engine/polishSpellCheck';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
@@ -519,6 +520,14 @@ app.get('/api/v1/queue/status', (req, res) => {
     avgProcessingTimeMs: globalRequestQueue.avgProcessingTimeMs,
     timestamp: new Date().toISOString(),
   });
+});
+
+// 🎭 Nexus's current artificial "mood" (moodEngine.ts) — a lightweight polling endpoint so a
+// consumer (the Discord bot's presence status, the website's UI, anything) can show how the bot
+// is "feeling" right now without needing to send it an actual message first. No auth required,
+// same as /api/v1/queue/status — this is read-only telemetry about the bot itself, not user data.
+app.get('/api/v1/mood', (req, res) => {
+  res.json({ mood: getMoodDisplay(), timestamp: new Date().toISOString() });
 });
 
 // 🌐 Dedicated Zero-API-Key Free Web Search Endpoint (Infinite Quota · Google + DuckDuckGo + Wikipedia)
@@ -1284,6 +1293,11 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
         response: outputText,
         text: outputText,
         persona: persona.id,
+        // Current artificial mood AFTER this turn's own event nudged it (generateReasoningPath
+        // registers the mood event before generating the reply) — so a client showing this next
+        // to the response reflects what actually colored the tone the user is reading, not a
+        // stale value from before this message was processed.
+        mood: getMoodDisplay(),
         newMemory,
         personaName: persona.name,
         authorId: effectiveAuthorId || null,
@@ -1688,6 +1702,7 @@ app.post('/api/v1/generate', aiComputeLimiter, async (req, res) => {
         knowledgeHits: knowledgeTitles,
         modelVersion: persona.id,
         rulesRespected: true,
+        mood: getMoodDisplay(),
       };
     });
 

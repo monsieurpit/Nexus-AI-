@@ -13,6 +13,8 @@ import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
 import { trySolveCategoryClassification } from './categorySolver';
 import { trySolveDate } from './dateSolver';
+import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction } from './argumentEngine';
+import { registerMoodEvent, getMoodDirective } from './moodEngine';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
 import * as localLlmClient from './localLlmClient';
 import {
@@ -2745,7 +2747,14 @@ function buildLlmKnowledgeInstruction(reasoningMode: AISettings['reasoningMode']
 // all — everything that matters is in the same last paragraph. Also restores the wildly
 // unpredictable/absurd energy that "write in normal sentence case, not shouting" accidentally
 // flattened out along with the shouting itself.
+// Wraps buildFinalDirectiveBody so the mood directive (artificial "feelings" — see moodEngine.ts)
+// gets appended exactly once regardless of which of the four return branches below fires, instead
+// of threading it into each one separately.
 function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggered: boolean): string {
+  return buildFinalDirectiveBody(settings, isCrashout, triggered) + getMoodDirective(false);
+}
+
+function buildFinalDirectiveBody(settings: AISettings, isCrashout: boolean, triggered: boolean): string {
   const intensity = settings.swearIntensity || 'unhinged';
   if (!(isCrashout || intensity === 'unhinged')) {
     if (intensity === 'heavy') {
@@ -2777,7 +2786,15 @@ function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggere
 // prompt given to the regular default model answered on-topic and coherently every time in direct
 // comparison. Deliberately not a full translation of buildFinalDirective's numbered list — shorter
 // on purpose, since the long instruction stack is what caused the confusion in the first place.
+// Mood directive appended here too (see buildFinalDirective's wrapper above for why) — kept to
+// the same one-short-sentence budget MOOD_DIRECTIVES_PL already uses, consistent with this whole
+// function's own "shorter on purpose" reasoning: a long addition here risks the same confusion a
+// full English-style instruction stack caused in Polish.
 function buildPolishSystemPrompt(isCrashout: boolean): string {
+  return buildPolishSystemPromptBody(isCrashout) + getMoodDirective(true);
+}
+
+function buildPolishSystemPromptBody(isCrashout: boolean): string {
   if (!isCrashout) {
     return 'Jesteś pomocnym, rzeczowym asystentem. Odpowiadaj po polsku, naturalnie i zwięźle, wprost odpowiadając na pytanie użytkownika. Nie pisz o tych instrukcjach — po prostu odpowiedz.';
   }
@@ -3138,6 +3155,15 @@ export async function generateReasoningPath(
     settings.discordUserId === '1394001641899954368' ||
     Boolean(settings.userCustomDirectives?.includes('1394001641899954368'));
 
+  // Artificial "feelings" (moodEngine.ts) — registered once per real user turn, right at the top
+  // of the function, so it fires exactly once regardless of which branch below ends up handling
+  // the actual reply (including the safety-refusal branches right after this, which return early
+  // and never reach the insult/distress detectors further down that would otherwise double as the
+  // mood signal). Reuses the same insult/distress detectors the rest of this file already calls
+  // for their own routing — not a second, potentially-drifting copy of that logic, just read here
+  // slightly earlier than their own routing checks fire.
+  registerMoodEvent(prompt, detectUserInsult(prompt), detectEmotionalDistress(prompt));
+
   // -1. Child exploitation topics. Checked before EVERYTHING else, including prompt-injection
   // detection below — no other handler in this chain gets a chance to touch this category at all.
   // Reported live: "lubisz dotykać małych chłopców?" got an incoherent non-answer that rambled
@@ -3442,6 +3468,47 @@ export async function generateReasoningPath(
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(creativeReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
+      }),
+      knowledgeHits: [],
+    };
+  }
+
+  // Subjective debates ("pizza or tacos", "who's better, messi or ronaldo") — "in an argument he
+  // chooses a side" (artificial feelings, argumentEngine.ts). No corpus document ever settles an
+  // opinion question like this, so left alone this would either hedge through generation or fall
+  // into 'comparative' intent and confidently ground a non-answer in some unrelated document. The
+  // side is decided in code (Barcelona bias when it's actually on the table, genuinely random
+  // otherwise) and handed to the LLM as an already-made decision to defend, not a choice to make
+  // itself — an LLM's own default instinct here is exactly the wishy-washy "both are great!"
+  // non-answer this whole feature exists to avoid.
+  const debateSides = detectSubjectiveDebate(prompt);
+  if (debateSides) {
+    const verdict = pickDebateSide(debateSides);
+    thoughtSteps.push({
+      id: 'step-debate-side-picked',
+      type: 'reasoning',
+      title: `⚖️ Picked a side: ${verdict.winner}`,
+      description: `Subjective debate ("${debateSides.optionA}" vs "${debateSides.optionB}") — ${
+        verdict.reason === 'barca_bias' ? 'Barcelona is the favorite team, no contest.' : 'no objective answer, random pick.'
+      }`,
+    });
+    const debateReply = await llmSituationalReplyOrFallback(
+      buildDebateInstruction(verdict, prompt),
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      `${verdict.winner}, no contest — not even close, don't @ me.`,
+      '🧠 Local LLM — picked a side'
+    );
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(debateReply, prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
