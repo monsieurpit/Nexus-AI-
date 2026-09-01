@@ -847,7 +847,18 @@ export function shouldTriggerLiveWebSearch(
     // Only the explicit "now/today/currently" qualifier — bare "how old is X" also covers static,
     // never-changing facts ("how old is the earth", "how old is the universe") that the corpus
     // already answers fine and shouldn't be forced to the web.
-    /\bhow\s+old\s+is\s+.{2,40}\s+(?:now|today|currently)\b/i.test(q);
+    /\bhow\s+old\s+is\s+.{2,40}\s+(?:now|today|currently)\b/i.test(q) ||
+    // Polish: "kto jest prezydentem/premierem/..." (who is the president/PM/...), same
+    // time-sensitive-leadership-role reasoning as the English "who is the president of X" check
+    // above — this whole trigger had zero Polish coverage. Verified live: "kto jest prezydentem
+    // usa" fell through to normal corpus retrieval with no live-verification safety net at all,
+    // and matched a completely unrelated 1980 Olympic hockey document via weak keyword overlap.
+    // Trailing negative lookahead instead of \b — "królową" ends in "ą", a Polish diacritic, and
+    // JS's \b is ASCII-only (same defect just fixed twice already in reasoningEngine.ts's own new
+    // Polish patterns this session; verified live that a bare trailing \b here genuinely failed to
+    // match "kto jest królową anglii").
+    /\bkto\s+jest\s+(?:aktualnym|obecnym)?\s*(?:prezydentem|premierem|królem|królową|papieżem|dyrektorem|prezesem|burmistrzem|liderem)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(q) ||
+    /\bczy\s+.{2,40}\s+(?:nadal|jeszcze)\s+żyje\b/i.test(q);
   if (isCurrentEventOrLiveLookup) return 'current-events';
 
   // 7. FALLBACK: Local corpus has no confident match — reach for the web instead of giving up.
