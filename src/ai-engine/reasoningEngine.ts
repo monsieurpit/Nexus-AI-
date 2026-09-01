@@ -149,6 +149,19 @@ const PHONE_NUMBER_REGEX =
 const PERSONAL_QUESTION_REGEX =
   /^(?:why\s+are\s+you|why\s+do\s+you|why\s+don'?t\s+you|why\s+doesn'?t\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with|have|got|has)\b|\byou\s+got\s+any\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b|\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b/i;
 
+// Genuine creative-writing requests ("write a haiku about autumn", "compose a poem about love")
+// have no factual answer to retrieve at all — they're a pure generation task. Never had any
+// detection of their own, so they fell through to 'general' intent, which searches the corpus
+// like any factual question and grounds the reply in whatever weakly-scored document happens to
+// share a keyword. Observed live: "write a haiku about autumn" matched a "Why Earth Has Seasons"
+// science article (score 6.69, nothing to do with writing a haiku) purely on "autumn"/"seasons"
+// keyword overlap, and the model wrote an explanation of axial tilt instead of a haiku. "tell me a
+// joke"/"roast me"/"give me a riddle" are deliberately excluded — those already have their own
+// dedicated handling elsewhere in this file and pipeline, this is specifically for the poem/story/
+// song-type requests nothing else was catching.
+const CREATIVE_WRITING_REGEX =
+  /\b(?:write|compose|make\s+up|come\s+up\s+with)\s+(?:me\s+)?(?:an?\s+)?(?:short\s+|little\s+|small\s+)?(poem|haiku|song|lyrics?|limerick|sonnet|verse|rap|story|tale|fable)\b/i;
+
 // A quantity word problem ("if you have 3 apples and eat 2, how many do you have") ends in the
 // exact same "do you have"/"you got any" shape PERSONAL_QUESTION_REGEX's possession-question
 // alternatives match (added for "do you have dih"/"you got any bitches" — genuine personal
@@ -3383,6 +3396,44 @@ export async function generateReasoningPath(
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(vagueReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
+      }),
+      knowledgeHits: [],
+    };
+  }
+
+  // Creative-writing requests ("write a haiku about autumn") — no fact to retrieve, so skip
+  // corpus search entirely and go straight to free generation with an instruction actually built
+  // for the task, instead of letting 'general' intent search the corpus and ground the reply in
+  // whatever weakly-scored, likely-unrelated document happens to share a keyword. See
+  // CREATIVE_WRITING_REGEX's own comment for the live-observed failure this fixes.
+  // Matched against the raw prompt, not effectivePrompt — this early in the function, before
+  // typo correction and slang normalization have run yet (same as detectVagueInfoDumpRequest(prompt)
+  // right above, which is at this same point in the pipeline for the identical reason).
+  const creativeMatch = prompt.match(CREATIVE_WRITING_REGEX);
+  if (creativeMatch) {
+    thoughtSteps.push({
+      id: 'step-creative-writing',
+      type: 'synthesis',
+      title: '🎨 Creative writing request — no corpus lookup needed',
+      description: `Nothing to retrieve for a ${creativeMatch[1]} request — writing it directly instead of grounding in an unrelated document.`,
+    });
+    const creativeReply = await llmSituationalReplyOrFallback(
+      `The user asked you to write something creative: "${prompt}". Actually write it — a real ${creativeMatch[1]}, on the topic they asked for, not an explanation or factual answer about the topic. Stay in character while you do it.`,
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      `Aight, give me a sec — a real ${creativeMatch[1]} takes more than one breath to cook up, ask me again in a bit.`,
+      '🧠 Local LLM creative response'
+    );
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(creativeReply, prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
