@@ -3503,6 +3503,43 @@ export async function generateReasoningPath(
     };
   }
 
+  // Gotcha trick questions and classic logic puzzles (logicSolver.ts) — checked here, this early,
+  // on the RAW prompt, rather than relying solely on the unconditional check further down this
+  // function. Observed live: "divide 30 by half and add 10" recognizably matches a handler already
+  // built for it, but detectQueryIntent() classified it as 'conversational' at runtime (numbers
+  // and "divide"/"add" alone weren't enough to read as 'mathematical', and it has none of the
+  // trigger words 'logical' intent looks for either) — the conversational-intent branch returns
+  // early with a free-generation LLM reply LONG before the pipeline ever reaches the unconditional
+  // trySolveLogic() call near the bottom of this function, so the correct, already-built answer
+  // was never reached. Same "solver exists but the pipeline never gets there" gap already fixed
+  // several times this session for math/date solvers — checking here, before any intent-based
+  // branch can claim the query and return early, closes it for every intent uniformly instead of
+  // chasing down each individual branch that might independently shadow it.
+  const earlyLogicSolution = trySolveLogic(prompt);
+  if (earlyLogicSolution && earlyLogicSolution.isLogic) {
+    thoughtSteps.push({
+      id: 'step-logic-early',
+      type: 'reasoning',
+      title: `🧩 ${earlyLogicSolution.title}`,
+      description: `Verdict: ${earlyLogicSolution.verdict}`,
+    });
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(
+        `**Verdict:** ${earlyLogicSolution.verdict}\n\n${earlyLogicSolution.explanation}`,
+        prompt,
+        settings.userCustomDirectives,
+        {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+        }
+      ),
+      knowledgeHits: [],
+    };
+  }
+
   // Subjective debates ("pizza or tacos", "who's better, messi or ronaldo") — "in an argument he
   // chooses a side" (artificial feelings, argumentEngine.ts). No corpus document ever settles an
   // opinion question like this, so left alone this would either hedge through generation or fall
@@ -4246,6 +4283,43 @@ export async function generateReasoningPath(
 
   // 4. Mathematical Intent
   if (intent === 'mathematical') {
+    // Tried FIRST, before the arithmetic solver — a "gotcha" trick question like "divide 30 by
+    // half and add 10" is full of numbers and operation words, so it classifies as 'mathematical'
+    // intent same as genuine arithmetic, but it's really a wording trick (logicSolver.ts's job),
+    // not something trySolveMath's expression parser recognizes. Observed live: with no check
+    // here, that exact question fell through this whole math branch (trySolveMath doesn't
+    // understand "by half" isn't a number) into free LLM generation with no grounding at all,
+    // producing an incoherent, wrong answer instead of ever reaching the trick-question handler
+    // that already existed for it. Same intent-classification-gating pattern already fixed
+    // several times this session for prime/GCD/discount/letter-counting — a solver being correct
+    // in isolation doesn't matter if the pipeline never actually reaches it.
+    const earlyLogicResult = trySolveLogic(effectivePrompt) || trySolveLogic(prompt);
+    if (earlyLogicResult && earlyLogicResult.isLogic) {
+      thoughtSteps.push({
+        id: 'step-logic-in-math-branch',
+        type: 'reasoning',
+        title: earlyLogicResult.title,
+        description: earlyLogicResult.formalSteps.join('\n'),
+      });
+      return {
+        thoughtSteps,
+        // Same "**Verdict:** ... explanation" format the dedicated logic-solution branch further
+        // down this function already uses — kept consistent rather than inventing a second format
+        // for the same solver just because it's reached from a different intent branch this time.
+        content: enforceStrictSdkRules(
+          `**Verdict:** ${earlyLogicResult.verdict}\n\n${earlyLogicResult.explanation}`,
+          prompt,
+          settings.userCustomDirectives,
+          {
+            isSuperChill,
+            username: settings.userName,
+            systemInstruction: persona.systemPrompt,
+            swearIntensity: settings.swearIntensity,
+          }
+        ),
+        knowledgeHits: [],
+      };
+    }
     const mathResult = trySolveMath(effectivePrompt) || trySolveMath(prompt);
     if (mathResult && mathResult.isMath) {
       thoughtSteps.push({

@@ -103,6 +103,60 @@ const CLASSIC_RIDDLES: { match: RegExp; title: string; answer: string; explanati
     answer: 'A clock.',
     explanation: `A clock has a "face" and "hands" but no arms or legs — the words are borrowed from the body but describe parts of the clock instead.`,
   },
+  // "Gotcha" trick questions — a different flavor from the word riddles above (those hide an
+  // answer behind a metaphor; these hide a false premise or a wording trick behind an
+  // ordinary-sounding question). The whole point of these is that a pattern-completing answerer
+  // — human or LLM — reaches for the intuitive-but-wrong response, which is exactly the failure
+  // mode this whole file exists to route around. Same "compute/recognize it, don't generate it"
+  // principle as everything else here.
+  {
+    match: /how\s+many\s+months\s+(?:have|has)\s+(?:28|twenty[\s-]?eight)\s+days/i,
+    title: 'Gotcha: "How Many Months Have 28 Days"',
+    answer: 'All 12 of them.',
+    explanation: `The trap is assuming this is asking specifically about February. Every month has AT LEAST 28 days — February has exactly 28 (29 in a leap year), and every other month has 28 days plus a few more on top. So the honest answer to "how many months HAVE 28 days" (not "how many months have ONLY/EXACTLY 28 days") is all 12.`,
+  },
+  {
+    match: /(?:plane|airplane|aircraft)\s+crash(?:es)?\s+(?:exactly\s+)?on\s+the\s+border.{0,60}(?:bury|buried)\s+the\s+survivors/i,
+    title: 'Gotcha: "Where Do They Bury the Survivors"',
+    answer: "Nowhere — you don't bury survivors.",
+    explanation: `Survivors, by definition, survived — they're alive. Nobody buries living people. The question is built to slide "survivors" past you while your brain is busy working out which country's border rules apply.`,
+  },
+  {
+    match: /rooster.{0,30}(?:lays?|laid)\s+an?\s+egg.{0,60}which\s+(?:way|direction).{0,20}(?:roll|fall)/i,
+    title: 'Gotcha: "Which Way Does the Rooster\'s Egg Roll"',
+    answer: "Neither way — roosters don't lay eggs.",
+    explanation: `Roosters are male chickens; only hens lay eggs. The whole "which way does it roll" setup is designed to get you calculating roof slope and wind direction instead of questioning the premise.`,
+  },
+  {
+    match: /(?:legal|allowed)\s+for\s+a\s+man\s+to\s+marry\s+his\s+widow'?s?\s+sister/i,
+    title: 'Gotcha: "Marrying His Widow\'s Sister"',
+    answer: "No — he's dead.",
+    explanation: `A "widow" is, by definition, the surviving wife of a man who has already died. If he has a widow, he's no longer alive to marry anyone, sister-in-law or otherwise.`,
+  },
+  {
+    match: /how\s+many\s+(?:of\s+each\s+(?:kind\s+of\s+)?animal|animals?)\s+did\s+moses\s+(?:take|bring|load)\s+(?:on(?:to)?|into)\s+the\s+ark/i,
+    title: 'Gotcha: "Moses and the Ark"',
+    answer: 'None — that was Noah, not Moses.',
+    explanation: `It was Noah who built the ark and brought the animals aboard in the Genesis flood story. Moses is a different biblical figure entirely (the Exodus/parting-of-the-Red-Sea story) who has nothing to do with the ark — the question smuggles in a false premise by swapping the name.`,
+  },
+  {
+    match: /divide\s+30\s+by\s+(?:a\s+)?half\s+and\s+add\s+10/i,
+    title: 'Gotcha: "Divide 30 by Half"',
+    answer: '70.',
+    explanation: `"Divide BY half" means divide by 0.5 (which doubles the number), not "divide IN half" (which halves it) — a wording trick most people misread on autopilot. 30 ÷ 0.5 = 60, then 60 + 10 = **70**, not the 25 you'd get from wrongly halving 30 first.`,
+  },
+  {
+    match: /(?:have|has)\s+3\s+apples.{0,20}take\s+away\s+2.{0,20}how\s+many\s+(?:do\s+you|apples\s+do\s+you)\s+have/i,
+    title: 'Gotcha: "3 Apples, Take Away 2"',
+    answer: '2.',
+    explanation: `The question asks how many YOU have, not how many are left in the original pile. If you took 2 apples away, those 2 are now in your hand — you have 2 apples, not the 1 remaining behind.`,
+  },
+  {
+    match: /doctor\s+gives?\s+you\s+3\s+pills?.{0,60}(?:one\s+)?every\s+(?:30\s+minutes|half\s+an?\s+hour).{0,60}how\s+long/i,
+    title: 'Gotcha: "3 Pills Every 30 Minutes"',
+    answer: '1 hour, not 1.5.',
+    explanation: `You take pill 1 immediately (0 minutes), pill 2 thirty minutes later, and pill 3 thirty minutes after that — 60 minutes total. There are only 2 gaps between 3 pills, not 3, so the intuitive "3 pills × 30 minutes = 90 minutes" answer double-counts a gap that doesn't exist.`,
+  },
 ];
 
 // "A farmer has 17 sheep, all but 9 die, how many are left" — a classic trick riddle where the
