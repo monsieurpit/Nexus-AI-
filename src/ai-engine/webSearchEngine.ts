@@ -569,7 +569,11 @@ export function shouldTriggerLiveWebSearch(
   const isConversational =
     /^(?:yo|wassup|wazzup|what'?s\s*up|whats\s*up|what\s*up|sup|hey|hello|hi|howdy|good\s*(?:morning|afternoon|evening|night))\b/i.test(q) ||
     /(?:how\s+are\s+(?:you|u)|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|how\s+you\s+been|hru|wyd|what\s+are\s+you\s+doing|wym|wdym|what\s+do\s+you\s+mean)/i.test(q) ||
-    /^(?:who\s+are\s+you|what\s+are\s+you|what\s+is\s+your\s+name|who\s+made\s+you|who\s+created\s+you|tell\s+me\s+about\s+yourself|are\s+you\s+real|are\s+you\s+an\s+ai|what\s+can\s+you\s+do|help\s+me)\b/i.test(q) ||
+    // "who\s+made" widened to also accept the common informal/typo'd verb "maked" and "u" for
+    // "you" — observed live, "who maked u" fell through this whole check (only the grammatically
+    // correct "who made you" matched) and got searched verbatim, rate-limited by Google (429) for
+    // a personal question about the bot with nothing on the web that could ever answer it.
+    /^(?:who\s+are\s+you|what\s+are\s+you|what\s+is\s+your\s+name|who\s+(?:made|maked|created)\s+(?:you|u)|tell\s+me\s+about\s+yourself|are\s+you\s+real|are\s+you\s+an\s+ai|what\s+can\s+you\s+do|help\s+me)\b/i.test(q) ||
     /^(?:thanks|thank\s+you|thx|ty|appreciate\s+it|much\s+appreciated|bye|goodbye|cya|see\s+ya|see\s+you)\b/i.test(q) ||
     /^(?:lol|lmao|lmfao|haha|hahaha|xd|fr|fr\s+fr|no\s+cap|ong|facts|ok|okay|nice|cool)\b/i.test(q) ||
     /(?:tell\s+me\s+a\s+joke|make\s+me\s+laugh|roast\s+me|can\s+you\s+swear|say\s+fuck)\b/i.test(q) ||
@@ -596,6 +600,13 @@ export function shouldTriggerLiveWebSearch(
     // way, breaking the plain single-word match) — `(?:you|u)` said twice, second optional.
     /\bdo\s+(?:you|u)(?:\s+(?:you|u))?\s+(?:like|love|hate|think|believe|even|support|agree\s+with|have|got|has)\b/i.test(q) ||
     /\b(?:you|u)\s+got\s+any\b/i.test(q) ||
+    // "do u wanna/want to see/show/tell/hear smth/something" — teasing banter directed at the
+    // bot ("do u wana see smth"), not a real information request. Observed live: got searched
+    // verbatim and rate-limited (429) — nothing on the web answers "does the bot want to show you
+    // something", the question isn't actually asking to look anything up at all.
+    // "wana" (single n) is the exact informal spelling observed live alongside "wanna" — both
+    // kept rather than assuming the double-n spelling is the only real-world variant.
+    /\b(?:do\s+(?:you|u)\s+)?(?:wanna|wana|want\s+to)\s+(?:see|show|tell|hear)\s+(?:some\s?thing|smth|somethin)\b/i.test(q) ||
     // "how [long/big/small/thick] is your X" — a question about the bot's own body/attributes,
     // observed live as "how long is your dih", never a real factual lookup regardless of the noun.
     /\bhow\s+(?:long|big|small|thick|tall)\s+is\s+your\b/i.test(q) ||

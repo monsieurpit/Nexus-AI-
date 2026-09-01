@@ -916,6 +916,19 @@ export function hasSwearWords(text: string): boolean {
 // swears on top of text that was never actually short on them, directly contradicting the
 // anti-stacking guarantees those functions' own comments describe.
 const SWEAR_COUNT_PATTERNS: RegExp[] = [
+  // Compound profane idioms — deliberately counted ON TOP OF (not instead of) the bare-word
+  // patterns below, so "go fuck yourself" contributes 2 to the total, not 1. Observed live: a
+  // hand-written insult-clapback template ("Bro, go fuck yourself... you absolute dipshit.") is
+  // about as aggressive as text gets to an actual reader, but getSwearCount only found 2 matches
+  // (one bare "fuck", one "dipshit") against a floor of 4 — forceSwearFloor then padded an
+  // ALREADY-appropriate hand-curated line with more mechanically-inserted interjections, producing
+  // the exact same front-stacking artifact ("SHIT, BRO, HELL, GO FUCK YOURSELF...") already fixed
+  // for LLM-generated text, but this time on text that never needed topping up in the first place.
+  // A compound idiom like "fuck yourself" is doing more rhetorical work than an isolated "damn",
+  // so it earning double weight is the more accurate count, not a hack to dodge the padding.
+  /\bfuck\s+(?:yourself|you|off)\b/gi,
+  /\bgo\s+to\s+hell\b/gi,
+  /\bpiece\s+of\s+shit\b/gi,
   /\bfuck(?:ing|er|ers|ed|s|in)?\b/gi,
   /\bmotherfucker(?:s)?\b/gi,
   /\bshit(?:s|ty|ting|ted)?\b/gi,
