@@ -44,6 +44,8 @@ export const SCIENCE_AND_ANATOMY_CORPUS: KnowledgeItem[] = [
       'brain',
       'brain lobes',
       'frontal lobe',
+      'jak dziala ludzki mozg',
+      'jak działa mózg',
       'temporal lobe',
       'parietal lobe',
       'occipital lobe',
