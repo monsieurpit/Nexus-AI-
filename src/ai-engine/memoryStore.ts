@@ -428,6 +428,38 @@ const FACT_PATTERNS: Array<{ regex: RegExp; key: string; label: (m: RegExpMatchA
     key: 'age',
     label: (m) => `Age: ${m[1]}`,
   },
+  // Widened past the original 6 fact types (football game, team, player, name, location, age) —
+  // a real person remembers a lot more about someone than that, and the whole point of the memory
+  // recall path is feeling like the bot actually knows you, not just your name and hometown.
+  {
+    regex: /\b(?:i\s+work\s+as\s+an?|my\s+job\s+is)\s+([A-Za-z][A-Za-z .]{1,30}?)(?=[,.!?]|\s+(?:and|because|since|but|so|at|too|tbh|fr|ngl|lol|lmao|rn|imo|honestly)\b|$)/i,
+    key: 'job',
+    label: (m) => `Works as ${m[1].trim()}`,
+  },
+  {
+    regex: /\b(?:i\s+study|i'?m\s+studying|i\s+major\s+in)\s+([A-Za-z][A-Za-z .]{1,30}?)(?=[,.!?]|\s+(?:and|because|since|but|so|at|too|tbh|fr|ngl|lol|lmao|rn|imo|honestly)\b|$)/i,
+    key: 'studying',
+    label: (m) => `Studying ${m[1].trim()}`,
+  },
+  {
+    regex: /\bmy\s+hobby\s+is\s+([A-Za-z][A-Za-z .]{1,30}?)(?=[,.!?]|\s+(?:and|because|since|but|so|too|tbh|fr|ngl|lol|lmao|rn|imo|honestly)\b|$)/i,
+    key: 'hobby',
+    label: (m) => `Hobby: ${m[1].trim()}`,
+  },
+  // "my dog's name is X" / "my dog is named X" / "my dog named X" — deliberately requires an
+  // explicit naming phrase rather than a bare "I have a dog", which carries no memorable detail
+  // worth surfacing later (the fact itself, "has a dog", is much less useful to recall than the
+  // pet's actual name).
+  {
+    regex: /\bmy\s+(dog|cat|pet)(?:'?s\s+name\s+is|\s+is\s+named|\s+named)\s+([A-Za-z][A-Za-z'-]{1,20})\b/i,
+    key: 'pet',
+    label: (m) => `Has a ${m[1].toLowerCase()} named ${m[2].trim()}`,
+  },
+  {
+    regex: /\bmy\s+birthday\s+is\s+(?:on\s+)?((?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?)\b/i,
+    key: 'birthday',
+    label: (m) => `Birthday: ${m[1].trim()}`,
+  },
 ];
 
 export function extractMemorableFact(prompt: string): { key: string; fact: string } | null {
