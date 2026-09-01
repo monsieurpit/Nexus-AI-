@@ -45,6 +45,7 @@ import { FOOTBALL_GAMES_CORPUS } from './corpus/footballGames';
 import { OTHER_SPORTS_CORPUS } from './corpus/otherSports';
 import { PETS_AND_ANIMALS_CORPUS } from './corpus/petsAndAnimals';
 import { RELATIONSHIPS_CORPUS } from './corpus/relationships';
+import { POLISH_LANGUAGE_CONTENT_CORPUS } from './corpus/polishLanguageContent';
 import { SEXUAL_HEALTH_CORPUS } from './corpus/sexualHealth';
 import { TRAVEL_CORPUS } from './corpus/travel';
 import { SUBSTANCE_SAFETY_CORPUS } from './corpus/substanceSafety';
@@ -697,6 +698,7 @@ Dynamic programming breaks problems into overlapping subproblems with optimal su
 
 export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...CORE_BUILTIN_KNOWLEDGE,
+  ...POLISH_LANGUAGE_CONTENT_CORPUS,
   ...EVERYDAY_BASICS_CORPUS,
   ...SCIENCE_AND_ANATOMY_CORPUS,
   ...TECH_AND_COMPUTING_CORPUS,
