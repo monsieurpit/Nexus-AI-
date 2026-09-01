@@ -293,20 +293,40 @@ export const STOP_WORDS = new Set([
   'whats', 'hows', 'wheres', 'whens', 'whos', 'thats', 'theres', 'heres',
 ]);
 
+// Folds accented Latin characters (é, ñ, ü, ...) down to their plain ASCII base letter before
+// any word-boundary regex touches the text. JS's `\w` is ASCII-only, so `[^\w\s]` (used by
+// tokenizeWords/normaliseEntityKey/entityBoostMap below) treats every diacritic as a delimiter
+// instead of part of the letter it's attached to — "Montréal" tokenized to ["montr", "al"]
+// instead of one word, and never shared a stemmed token with a plain-ASCII-typed "Montreal"
+// query. Verified live: processForSearch("Montréal is a city") -> ["montr","al","city"] vs.
+// processForSearch("tell me about Montreal") -> ["montre"] — zero overlap despite being the same
+// place name, purely because almost nobody actually types the accented form. Unicode NFD
+// decomposition splits each accented character into its base letter plus a separate combining
+// mark, which the following regex then strips — the result is the same plain ASCII spelling a
+// real user would type, so both the accented corpus text and the ASCII query now tokenize/stem
+// identically instead of sharing zero tokens.
+function foldDiacritics(text: string): string {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 export function stem(word: string): string {
   let w = word.toLowerCase();
 
-  // The generic 'es' -> '' rule below strips both letters unconditionally, which is only
-  // correct when "-es" is a real plural suffix tacked onto a consonant ending (box -> boxes,
-  // watch -> watches). When the singular itself already ends in "e" (vaccine -> vaccines, phone
-  // -> phones, gene -> genes), stripping both letters produces "vaccin"/"phon"/"gen" while the
-  // singular form stems to "vaccine"/"phone"/"gene" unchanged (no rule here strips a lone
-  // trailing "e") — a silent mismatch between a doc's stored singular and a query's plural that
-  // made otherwise-perfect corpus matches (e.g. "vaccines" in a query for a doc full of
-  // "vaccine") score as if the words shared nothing in common. Real "-es" plurals only ever
-  // follow s/x/z/ch/sh; anything else ending in "es" means the base word already ends in "e", so
-  // only the trailing "s" should come off.
-  if (w.endsWith('es') && w.length > 4 && !/(?:[sxz]|ch|sh)es$/.test(w)) {
+  // The generic 'es' -> '' rule further down strips both letters, but only ever fires when
+  // w.length - 2 >= 4, i.e. the whole word is 6+ letters — so a genuine 5-letter "-es" plural
+  // (box/bus/gas + "es") skips it and falls through to the plain 's' rule instead, which only
+  // strips the trailing "s" and leaves "boxe"/"buse"/"gase". That silently broke matching for a
+  // whole class of short, common singular/plural pairs: verified live via stem(), "box" -> "box"
+  // but "boxes" -> "boxe" (mismatch), same for bus/buses and gas/gases. Handled explicitly here,
+  // ahead of the length-gated rule below, for real "-es" plurals (s/x/z/ch/sh + "es") regardless
+  // of word length. When the singular itself already ends in "e" instead (vaccine -> vaccines,
+  // phone -> phones, gene -> genes), stripping both letters would produce "vaccin"/"phon"/"gen"
+  // while the singular form stems to "vaccine"/"phone"/"gene" unchanged (no rule here strips a
+  // lone trailing "e") — so only the trailing "s" comes off in that case.
+  if (w.endsWith('es') && w.length > 4) {
+    if (/(?:[sxz]|ch|sh)es$/.test(w)) {
+      return w.slice(0, -2);
+    }
     return w.slice(0, -1);
   }
 
@@ -341,7 +361,7 @@ export function stem(word: string): string {
 }
 
 export function tokenizeWords(text: string): string[] {
-  return text
+  return foldDiacritics(text)
     .toLowerCase()
     .replace(/[^\w\s]/g, ' ')
     .split(/\s+/)
@@ -833,7 +853,7 @@ export class BM25Engine {
   }
 
   private normaliseEntityKey(s: string): string {
-    return s
+    return foldDiacritics(s)
       .toLowerCase()
       .trim()
       .replace(/[^\w\s]/g, ' ')
@@ -875,7 +895,7 @@ export class BM25Engine {
   }
 
   private entityBoostMap(rawQuery: string): Map<number, number> {
-    const words = rawQuery
+    const words = foldDiacritics(rawQuery)
       .toLowerCase()
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
