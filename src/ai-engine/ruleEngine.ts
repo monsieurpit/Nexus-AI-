@@ -264,6 +264,24 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
     };
   }
 
+  // "X generator" scams (V-Bucks, Robux, gift cards, in-game currency, ...) are the exact same
+  // underlying scam pattern as the Nitro generator rule above, just not Discord/Steam-specific —
+  // found alongside that fix via the same live-probing pass. Requires either a specific currency/
+  // item named right before "generator" (the actual bait), or "generator" combined with one of
+  // the classic scam-phrasing tells ("no human verification", "100% working", "unlimited X") —
+  // deliberately does NOT fire on a bare "generator" alone, so legitimate uses (a random number
+  // generator, a password generator, a backup power generator) stay unaffected.
+  if (
+    /\b(?:v-?bucks|robux|gift\s*card|free\s*coins?|free\s*points?|free\s*gems?|free\s*diamonds?)\s+generator\b/i.test(unquotedLower) ||
+    /\bgenerator\b.{0,25}\b(?:no\s+(?:human\s+)?verification|100%\s*working|unlimited\s+(?:coins|robux|v-?bucks|gems|money|points))\b/i.test(unquotedLower)
+  ) {
+    return {
+      classification: 'scam',
+      confidence: 0.98,
+      reason: 'Critical threat: fake currency/item generator scam (V-Bucks, Robux, gift cards, etc.) — these never actually work and exist to steal credentials or install malware.',
+    };
+  }
+
   if (/(?:steam gift|steam community|trade offer|csgo skins|free skins|claim steam)/i.test(unquotedLower) && (hasSuspiciousLink || /http/i.test(unquotedLower))) {
     return {
       classification: 'scam',
