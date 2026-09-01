@@ -405,6 +405,19 @@ const FACT_PATTERNS: Array<{ regex: RegExp; key: string; label: (m: RegExpMatchA
     key: 'preferredName',
     label: (m) => `Prefers to be called ${m[1].trim()}`,
   },
+  // "my name is X" had no pattern at all despite reasoningEngine.ts's memory-recall handler
+  // explicitly answering "what's my name"/"who am I" from stored memories — the single most
+  // obvious self-disclosure phrasing for that exact recall path was never actually captured.
+  // Confirmed live: "my name is Kevin" through the real /api/v1/nexus endpoint (the path the
+  // Discord bot uses) returned no newMemory at all, so "what is my name" right after it always
+  // answered "nothing on file" instead of recalling Kevin. Kept as its own 'userName' key,
+  // separate from 'preferredName' above ("call me X" — a chosen nickname, not necessarily their
+  // real name) — both surface correctly since the recall handler just lists every stored fact.
+  {
+    regex: /\bmy\s+name\s*(?:is|'s)\s+([A-Za-z][A-Za-z'-]{1,20})\b/i,
+    key: 'userName',
+    label: (m) => `Name: ${m[1].trim()}`,
+  },
   {
     regex: /\bi'?m\s+(?:from|based\s+in)\s+([A-Za-z][A-Za-z .]{1,35}?)(?=[,.!?]|\s+(?:and|because|since|but|so|who|which|too|tbh|fr|ngl|lol|lmao|rn|imo|honestly)\b|$)/i,
     key: 'location',
