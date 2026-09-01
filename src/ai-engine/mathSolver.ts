@@ -618,6 +618,53 @@ function tryUnitConversion(input: string): MathSolution | null {
     };
   }
 
+  // Distance/weight, reversed "how many X are/is in N Y" phrasing — the volume-unit table already
+  // supports this sentence shape (see howManyMatch below), but it was never carried over to
+  // distance/weight above, which only ever matched the forward "N unit to unit" order. Verified
+  // live: "10 km to miles" worked, but the equally natural "how many miles are in 10 km" (or the
+  // singular-verb "how many miles is 10 km") returned null — same bug class as the volume table
+  // was already fixed for.
+  const howManyDistanceWeightMatch = q.match(
+    /how\s+many\s+(miles|mi|km|kilometers|kilometres|lbs|pounds|kg|kilos|kilograms)\s+(?:are|is)\s+(?:in\s+)?(\d+\.?\d*)\s*(miles|mi|km|kilometers|kilometres|lbs|pounds|kg|kilos|kilograms)\b/i
+  );
+  if (howManyDistanceWeightMatch) {
+    const toUnitRaw = howManyDistanceWeightMatch[1].toLowerCase();
+    const amount = parseFloat(howManyDistanceWeightMatch[2]);
+    const fromUnitRaw = howManyDistanceWeightMatch[3].toLowerCase();
+    const isDistanceUnit = (u: string) => /^(?:miles?|mi|km|kilometers?|kilometres?)$/.test(u);
+    const isKm = (u: string) => /^(?:km|kilometers?|kilometres?)$/.test(u);
+    const isWeightUnit = (u: string) => /^(?:lbs|pounds?|kg|kilos?|kilograms?)$/.test(u);
+    const isKg = (u: string) => /^(?:kg|kilos?|kilograms?)$/.test(u);
+    if (isDistanceUnit(toUnitRaw) && isDistanceUnit(fromUnitRaw)) {
+      const result = isKm(fromUnitRaw) ? amount * 0.621371 : amount * 1.60934;
+      const toUnitLabel = isKm(toUnitRaw) ? 'km' : 'miles';
+      return {
+        isMath: true,
+        expression: `${amount} ${fromUnitRaw} in ${toUnitLabel}`,
+        result: `${result.toFixed(4)} ${toUnitLabel}`,
+        steps: [
+          isKm(fromUnitRaw) ? `Conversion factor: 1 km ≈ 0.621371 miles` : `Conversion factor: 1 mile ≈ 1.60934 km`,
+          `${amount} × ${isKm(fromUnitRaw) ? 0.621371 : 1.60934} = ${result.toFixed(4)} ${toUnitLabel}`,
+        ],
+        explanation: `There are **${result.toFixed(4)} ${toUnitLabel}** in ${amount} ${fromUnitRaw}.`,
+      };
+    }
+    if (isWeightUnit(toUnitRaw) && isWeightUnit(fromUnitRaw)) {
+      const result = isKg(fromUnitRaw) ? amount * 2.20462 : amount / 2.20462;
+      const toUnitLabel = isKg(toUnitRaw) ? 'kg' : 'lbs';
+      return {
+        isMath: true,
+        expression: `${amount} ${fromUnitRaw} in ${toUnitLabel}`,
+        result: `${result.toFixed(4)} ${toUnitLabel}`,
+        steps: [
+          isKg(fromUnitRaw) ? `Conversion factor: 1 kg ≈ 2.20462 lbs` : `Conversion factor: 1 lb ≈ 0.453592 kg`,
+          `${amount} ${isKg(fromUnitRaw) ? '×' : '÷'} ${isKg(fromUnitRaw) ? 2.20462 : 2.20462} = ${result.toFixed(4)} ${toUnitLabel}`,
+        ],
+        explanation: `There are **${result.toFixed(4)} ${toUnitLabel}** in ${amount} ${fromUnitRaw}.`,
+      };
+    }
+  }
+
   // Volume: any US customary/metric volume unit to any other, via a single shared lookup table
   // (each unit's size in liters) rather than one hand-written function per pair — a gallon has 6
   // other common units it might convert to/from (quart, pint, cup, fl oz, liter, ml), and every
@@ -1054,8 +1101,10 @@ export function trySolveMath(prompt: string): MathSolution | null {
     };
   }
 
-  // 3d. Even/odd check: e.g. "is 42 even", "is 7 odd"
-  const evenOddMatch = lower.match(/\bis\s+(-?\d+)\s+(even|odd)\b/i);
+  // 3d. Even/odd check: e.g. "is 42 even", "is 7 odd". The optional "a(n)"/"an" and "number" allow
+  // the equally natural "is 42 an even number" — the original pattern required the adjective
+  // immediately after the digit and had no coverage for that phrasing at all.
+  const evenOddMatch = lower.match(/\bis\s+(-?\d+)\s+(?:an?\s+)?(even|odd)(?:\s+number)?\b/i);
   if (evenOddMatch) {
     const n = parseInt(evenOddMatch[1], 10);
     const isEven = n % 2 === 0;

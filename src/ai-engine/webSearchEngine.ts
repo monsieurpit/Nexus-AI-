@@ -791,8 +791,12 @@ export function shouldTriggerLiveWebSearch(
   // web search when the corpus doesn't already clear the same confidence floor
   // (CONFIDENCE_FLOOR in reasoningEngine.ts) used everywhere else confidence gates a decision —
   // undefined confidence (caller didn't pass one) still triggers the search, same as before.
+  // "what does X mean" is covered, but not its equally-common contracted form "what's X mean" /
+  // "whats X mean" — verified live, "what does rizz mean" correctly returned 'meaning' but "what's
+  // rizz mean" returned false, and with no confidence score to fall back on, the query was silently
+  // dropped with no search at all.
   const isMeaningSearch =
-    /(?:what\s+is\s+the\s+meaning\s+of|what\s+does\s+.+\s+mean|meaning\s+of|definition\s+of|define\s+|what\s+is\s+the\s+definition\s+of|what\s+does\s+.+\s+stand\s+for|what\s+means\s+|meaning\s+behind)/i.test(q);
+    /(?:what\s+is\s+the\s+meaning\s+of|what\s+does\s+.+\s+mean|what'?s\s+.+\s+mean|meaning\s+of|definition\s+of|define\s+|what\s+is\s+the\s+definition\s+of|what\s+does\s+.+\s+stand\s+for|what\s+means\s+|meaning\s+behind)/i.test(q);
   if (isMeaningSearch && (matchedConfidence === undefined || matchedConfidence < 0.5)) return 'meaning';
 
   // 5. TRIGGER: Explicit user requests to search Google or the web

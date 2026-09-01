@@ -182,7 +182,13 @@ function trySolveCapabilitySyllogism(prompt: string): LogicSolution | null {
 
 function trySolveSequence(prompt: string): LogicSolution | null {
   const lower = prompt.toLowerCase();
-  if (!/next\s+(?:number|term|value)|what\s+comes?\s+next|complete\s+the\s+(?:sequence|pattern)/.test(lower)) return null;
+  // "what number comes next" has "number" sitting BETWEEN "what" and "comes/next", which matched
+  // neither the "next (?:number|term|value)" alternative (requires "next" immediately before the
+  // noun) nor "what comes? next" (requires "comes/next" immediately after "what") — verified live,
+  // "what comes next: 2,4,6,8" worked but the equally natural "what number comes next: 2,4,6,8"
+  // returned null. Added explicitly rather than trying to generalize the existing alternatives,
+  // to avoid loosening them into a false-positive risk on unrelated "what ... comes next" phrasing.
+  if (!/next\s+(?:number|term|value)|what\s+comes?\s+next|what\s+number\s+comes?\s+next|complete\s+the\s+(?:sequence|pattern)/.test(lower)) return null;
 
   // Pull out the run of numbers in the sequence itself, ignoring stray digits elsewhere in the
   // sentence (e.g. "riddle #3"). Requires at least 3 terms to have any hope of inferring a rule.
