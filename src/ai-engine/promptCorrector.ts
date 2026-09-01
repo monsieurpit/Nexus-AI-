@@ -93,6 +93,42 @@ const CHAT_TYPO_MAP = new Map<string, string>(Object.entries({
   percentt: 'percent', precent: 'percent',
 }));
 
+// Polish counterpart of LEAD_TARGETS/KEYWORD_TARGETS above — added alongside this session's
+// detectQueryIntent() fix, which added Polish question-word classification to reasoningEngine.ts
+// for the first time. Without this, a typo'd Polish lead word ("jka jest stolica polski" instead
+// of "jaka") would still misclassify intent even after that fix — the exact same problem this
+// whole file exists to solve for English, just never extended to Polish. Kept to the same 4+
+// letter floor as English's own short-word caution (jak/kto/co/czy/ile are all 2-3 letters, too
+// short for edit-distance-1 to reach safely without a real dictionary — "kot"/cat and "kto"/who
+// are themselves a transposition pair, exactly the "hwo" ambiguity English already has to special-
+// case, so those stay uncorrected by design rather than guessed at).
+const LEAD_TARGETS_PL = [
+  'gdzie', 'kiedy', 'dlaczego', 'czemu', 'jaki', 'jaka', 'jakie', 'jaką', 'wyjaśnij', 'wytłumacz',
+];
+const KEYWORD_TARGETS_PL = [
+  'wyjaśnij', 'wytłumacz', 'porównaj', 'różnica', 'oblicz', 'policz', 'dlaczego', 'stolica',
+  'procent', 'podziel', 'pomnóż', 'wynalazł', 'odkrył', 'wyjaśnia',
+];
+const ALL_TARGETS_PL = new Set([...LEAD_TARGETS_PL, ...KEYWORD_TARGETS_PL]);
+
+// Reviewed literal map of common Polish chat typos, same reasoning as CHAT_TYPO_MAP above —
+// outranks the generic edit-distance mechanism for shapes worth a specific, checked entry rather
+// than trusting a distance-1 guess.
+const CHAT_TYPO_MAP_PL = new Map<string, string>(Object.entries({
+  gdize: 'gdzie', gdzje: 'gdzie', gdzoe: 'gdzie',
+  kiedu: 'kiedy', kiwdy: 'kiedy',
+  dlczego: 'dlaczego', dlaczeg: 'dlaczego',
+  // Bare, no-diacritic spellings of a diacritic-bearing target — the most common real-world
+  // "typo" for Polish text typed without easy access to accented characters, distinct from the
+  // genuine chat-typo shapes above.
+  wyjasnij: 'wyjaśnij', wyjaśnji: 'wyjaśnij',
+  wytlumacz: 'wytłumacz',
+  roznica: 'różnica', rożnica: 'różnica',
+  porownaj: 'porównaj',
+  wynalazl: 'wynalazł',
+  odkryl: 'odkrył',
+}));
+
 // "hwo" is an adjacent transposition of BOTH "how" and "who", so it can only be resolved from
 // what follows it. "dose"/"si" are real words (a dose of medicine, Spanish "sí") and so are only
 // rewritten in the one position where they are unambiguously a typo: right after a question word.
@@ -146,17 +182,24 @@ export function correctPromptTypos(text: string, vocabulary: Set<string>): Corre
     STOP_WORDS.has(w) ||
     PROTECTED_WORDS.has(w) ||
     ALL_TARGETS.has(w) ||
+    ALL_TARGETS_PL.has(w) ||
     vocabulary.has(w) ||
     vocabulary.has(stem(w));
 
+  // Polish letters added to every word-boundary regex in this function — previously ASCII-only
+  // (`[A-Za-z]`), which meant any token containing a Polish diacritic (ą ć ę ł ń ó ś ź ż) failed
+  // the "is this actually a word" check below and was silently skipped from correction entirely,
+  // regardless of whether a Polish target list existed. Verified live: "jaką jest stolica" wasn't
+  // even considered for correction before this fix, target list or not.
+  const PL_LETTERS = 'a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ';
   const parts = text.split(/(\s+)/);
   let seenWord = false;
   const out = parts.map((tok, idx) => {
     if (!tok || /^\s+$/.test(tok)) return tok;
-    const leading = tok.match(/^[^A-Za-z]*/)?.[0] ?? '';
-    const trailing = tok.match(/[^A-Za-z]*$/)?.[0] ?? '';
+    const leading = tok.match(new RegExp(`^[^${PL_LETTERS}]*`))?.[0] ?? '';
+    const trailing = tok.match(new RegExp(`[^${PL_LETTERS}]*$`))?.[0] ?? '';
     const core = tok.slice(leading.length, tok.length - trailing.length);
-    if (core.length < 2 || !/^[A-Za-z]+$/.test(core)) {
+    if (core.length < 2 || !new RegExp(`^[${PL_LETTERS}]+$`).test(core)) {
       seenWord = true;
       return tok;
     }
@@ -189,7 +232,7 @@ export function correctPromptTypos(text: string, vocabulary: Set<string>): Corre
     // *stems*, not words, so it is a poor "is this a real word" oracle in both directions. It
     // contains truncated non-words ("calculat" from "calculated", "definit", "recur") that
     // wrongly protected genuine misspellings from ever being fixed.
-    const literal = CHAT_TYPO_MAP.get(lower);
+    const literal = CHAT_TYPO_MAP.get(lower) ?? CHAT_TYPO_MAP_PL.get(lower);
     if (literal) return rewrite(literal);
 
     if (isKnownWord(lower)) return tok;
@@ -198,6 +241,13 @@ export function correctPromptTypos(text: string, vocabulary: Set<string>): Corre
     if (lead) return rewrite(lead);
     const keyword = closestTarget(lower, KEYWORD_TARGETS, 6);
     if (keyword) return rewrite(keyword);
+
+    // Polish counterparts of the two generic tiers above — see LEAD_TARGETS_PL's comment for why
+    // this exists.
+    const leadPl = isLead ? closestTarget(lower, LEAD_TARGETS_PL, 4) : null;
+    if (leadPl) return rewrite(leadPl);
+    const keywordPl = closestTarget(lower, KEYWORD_TARGETS_PL, 5);
+    if (keywordPl) return rewrite(keywordPl);
     return tok;
   });
 
