@@ -21,7 +21,7 @@ import {
   addRuntimeKnowledgeItem,
   removeRuntimeKnowledgeItem,
 } from './src/ai-engine/knowledgeBase';
-import { searchKnowledgeGraph, extractQueryEntities, getBM25Engine } from './src/ai-engine/semanticEngine';
+import { searchKnowledgeGraph, extractQueryEntities } from './src/ai-engine/semanticEngine';
 import { BM25Engine } from './src/ai-engine/bm25Engine';
 import { trySolveMath } from './src/ai-engine/mathSolver';
 import {
@@ -2089,12 +2089,20 @@ async function startServer() {
     // warmPolishDictionary for why this exists — a synchronous parse can't be timeout-guarded
     // once it starts, so the only real fix is not letting it start mid-request.
     warmPolishDictionary();
-    // Fire-and-forget: same reasoning as warmPolishDictionary above, applied to the BM25 index.
-    // getBM25Engine() lazily builds and caches a BM25Engine the first time anything searches the
-    // knowledge graph — measured at ~458ms for the current corpus size. Left unwarmed, the very
-    // first real request after every deploy/restart silently eats that cost; calling it here once,
-    // synchronously, at startup means every actual user request hits the already-built cache.
-    getBM25Engine(getAllKnowledge());
+    // REVERTED: an earlier version of this comment argued for eagerly warming the BM25 index here
+    // too (getBM25Engine(getAllKnowledge())), the same way warmPolishDictionary above pays its
+    // one-time cost at boot instead of on a live request. That was wrong to add without measuring
+    // actual memory headroom on the real deployment target: the live Railway deployment crashed
+    // with "JavaScript heap out of memory" during startup, and the crash log placed it immediately
+    // after this exact console.log line — i.e. during this callback's own synchronous work. Index
+    // construction (tokenizing/stemming every corpus document, building bigram/trigram and entity
+    // indices) allocates well above the resting size of the final index while it runs, and stacking
+    // that transient spike on top of everything else already happening at boot (Express init,
+    // parsing the multi-megabyte embeddings.generated.json, the Polish dictionary parse right
+    // above) was enough to tip a memory-constrained container over its heap limit. Left lazy again
+    // — the first real request after a deploy pays the ~458ms one-time build cost instead of
+    // startup itself risking a crash that takes the whole server down for every user, which is a
+    // far worse outcome than one slightly slower first request.
   });
 }
 
