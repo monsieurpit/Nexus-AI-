@@ -291,6 +291,21 @@ export const STOP_WORDS = new Set([
   // nearly every "whats X"/"wheres X" query and dragging in an unrelated top-3 result. Filtering
   // them as stopwords, same as their apostrophised forms already are, is the actual fix.
   'whats', 'hows', 'wheres', 'whens', 'whos', 'thats', 'theres', 'heres',
+  // Common Polish function words — this list was English-only, which had a real, damaging
+  // consequence for Polish queries specifically: a word like "jest" (is) is genuinely rare across
+  // this predominantly-English corpus (unlike its English equivalent "is", already a stopword
+  // above), so BM25's IDF weighting treats it as a RARE, HIGH-SIGNAL term instead of the near-
+  // meaningless connector it actually is in Polish. Verified live: "co to jest czarna dziura"
+  // (what is a black hole) top-matched three unrelated country-capital entries — purely because
+  // they happen to contain "jest" in their keywords (added this session for the Polish capital-
+  // city fix) — with the genuine black-hole corpus content nowhere in the top 3. Adding these as
+  // proper stopwords stops "jest"/"to"/"co"/etc. from masquerading as topical signal for any
+  // Polish query that happens to contain them, the same protection English queries already get
+  // from "is"/"the"/"what" already being filtered.
+  'jest', 'są', 'był', 'była', 'było', 'były', 'być', 'to', 'co', 'jak', 'czy', 'ale', 'dla',
+  'na', 'nie', 'tak', 'się', 'ja', 'ty', 'on', 'ona', 'ono', 'my', 'wy', 'oni', 'one', 'ten',
+  'ta', 'te', 'tego', 'tej', 'tym', 'tych', 'przez', 'bez', 'od', 'pod', 'nad', 'przy', 'że',
+  'żeby', 'oraz', 'lub', 'czyli', 'więc', 'bardzo', 'tylko', 'już', 'jeszcze', 'także', 'też',
 ]);
 
 // Folds accented Latin characters (é, ñ, ü, ...) down to their plain ASCII base letter before
