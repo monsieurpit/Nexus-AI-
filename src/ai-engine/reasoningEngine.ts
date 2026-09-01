@@ -1096,7 +1096,10 @@ export function detectQueryIntent(query: string): QueryIntent {
     // "the number"/"whether" filler allowed between "is" and the digit, matching the identical
     // fix in mathSolver.ts's own prime-check regex — "is the number 91 prime" needs to classify
     // 'mathematical' here too, or the deterministic solver never even gets a chance to run.
-    /\bis\s+(?:the\s+number\s+|whether\s+)?-?\d+\s+(?:a\s+)?(?:not\s+)?prime\b|\bis\s+(?:the\s+number\s+|whether\s+)?-?\d+\s+(?:an?\s+)?(?:even|odd)\b|\b(?:gcd|lcm|greatest\s+common\s+(?:divisor|factor)|least\s+common\s+multiple)\s+(?:of\s+)?-?\d+\s*(?:and|,)\s*-?\d+\b|\b(?:next|previous)\s+prime(?:\s+number)?\s+(?:after|before)\s+-?\d+\b/i.test(
+    // "the numbers" filler allowed for gcd/lcm too, matching mathSolver.ts's own identical fix —
+    // "gcd of the numbers 24 and 36" needs to classify 'mathematical' or the deterministic solver
+    // never gets a chance to run.
+    /\bis\s+(?:the\s+number\s+|whether\s+)?-?\d+\s+(?:a\s+)?(?:not\s+)?prime\b|\bis\s+(?:the\s+number\s+|whether\s+)?-?\d+\s+(?:an?\s+)?(?:even|odd)\b|\b(?:gcd|lcm|greatest\s+common\s+(?:divisor|factor)|least\s+common\s+multiple)\s+(?:of\s+)?(?:the\s+numbers?\s+)?-?\d+\s*(?:and|,)\s*-?\d+\b|\b(?:next|previous)\s+prime(?:\s+number)?\s+(?:after|before)\s+-?\d+\b/i.test(
       q
     ) ||
     // Fixed physical-constant lookups ("boiling/freezing point of water", "body temperature") in

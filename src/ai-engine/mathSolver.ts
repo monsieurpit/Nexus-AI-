@@ -1001,8 +1001,14 @@ export function trySolveMath(prompt: string): MathSolution | null {
   // gamble every other addition in this file exists to remove — this is an extremely common
   // real-world question shape (sale prices, tips, tax) worth making guaranteed-correct rather
   // than leaving to chance.
+  // "off of" ("15% off of 80 dollars") is an extremely common compound connector, but the filler
+  // between the discount word and the number only ever allowed "of a"/"of an" (requiring an
+  // article after "of"), not bare "of" on its own — verified live, "15% off of 80 dollars" fell
+  // through this check entirely (the "of" before "80" had nothing to match it, since it isn't
+  // followed by "a"/"an"), reaching free LLM generation and getting a confidently wrong answer
+  // ($96, not the correct $68) for a calculation this file exists specifically to make reliable.
   const discountMatch = lower.match(
-    /([0-9.]+)\s*(?:%|percent)\s*(off|discount on|discount off|less than|more than|on top of|tax (?:on|to))?\s*(?:an?\s+|of\s+an?\s+)?\$?\s*([0-9.]+)(?:\s*dollars?)?/i
+    /([0-9.]+)\s*(?:%|percent)\s*(off|discount on|discount off|less than|more than|on top of|tax (?:on|to))?\s*(?:of\s+)?(?:an?\s+)?\$?\s*([0-9.]+)(?:\s*dollars?)?/i
   );
   if (discountMatch && discountMatch[2]) {
     const p = parseFloat(discountMatch[1]);
@@ -1089,7 +1095,11 @@ export function trySolveMath(prompt: string): MathSolution | null {
   }
 
   // 3c. GCD / LCM of two numbers: e.g. "gcd of 24 and 36", "lcm of 4 and 6"
-  const gcdLcmMatch = lower.match(/\b(gcd|greatest common (?:divisor|factor)|lcm|least common multiple)\s+(?:of\s+)?(-?\d+)\s*(?:and|,)\s*(-?\d+)\b/i);
+  // "the numbers" allowed between "of" and the first digit — "gcd of 24 and 36" worked, but the
+  // equally natural "gcd of the numbers 24 and 36" didn't, falling through to free generation
+  // (which, verified live, didn't even state a number — just rambled about the answer being
+  // "obvious" with nothing computed) instead of this deterministic solver.
+  const gcdLcmMatch = lower.match(/\b(gcd|greatest common (?:divisor|factor)|lcm|least common multiple)\s+(?:of\s+)?(?:the\s+numbers?\s+)?(-?\d+)\s*(?:and|,)\s*(-?\d+)\b/i);
   if (gcdLcmMatch) {
     const isGcd = /gcd|greatest/i.test(gcdLcmMatch[1]);
     const a = Math.abs(parseInt(gcdLcmMatch[2], 10));
