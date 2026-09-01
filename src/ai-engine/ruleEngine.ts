@@ -467,40 +467,69 @@ export function parseSdkRules(
   }
 
   // Formatting constraints
+  // Broadened after a live check found the original patterns only matched a few exact canonical
+  // phrasings — "respond only in valid JSON" (a completely natural way to phrase this) matched
+  // none of "strictly json"/"json only"/"only json"/"format as json"/"output json", so a
+  // configured JSON-only rule silently did nothing. Same problem for the other constraints below;
+  // fixed by checking for the keyword (json/caps/etc.) plus a nearby imperative word instead of a
+  // fixed word order, and by covering "exactly one word" for single_word (previously only "one
+  // word only"/"only one word" matched, not "exactly").
   let formatConstraint: ParsedSdkRules['formatConstraint'] = undefined;
-  if (/(?:strictly\s+json|json\s+only|only\s+json|format\s+(?:as\s+)?json|output\s+json)/i.test(allRulesText)) {
+  if (/\bjson\b/i.test(allRulesText) && /\b(?:only|strictly|must|always|format|output|respond)\b/i.test(allRulesText)) {
     formatConstraint = 'json';
-  } else if (/(?:single\s+word|one\s+word\s+only|only\s+one\s+word)/i.test(allRulesText)) {
+  } else if (/(?:single\s+word|one\s+word\s+only|only\s+one\s+word|exactly\s+one\s+word)/i.test(allRulesText)) {
     formatConstraint = 'single_word';
-  } else if (/(?:all\s+caps|uppercase\s+only|in\s+caps)/i.test(allRulesText)) {
+  } else if (/(?:all\s+caps|uppercase\s+only|in\s+caps|only\s+(?:in\s+)?(?:all\s+)?caps|(?:in|use)\s+uppercase)/i.test(allRulesText)) {
     formatConstraint = 'uppercase';
-  } else if (/(?:lowercase\s+only|all\s+lowercase)/i.test(allRulesText)) {
+  } else if (/(?:lowercase\s+only|all\s+lowercase|only\s+lowercase|(?:in|use)\s+lowercase)/i.test(allRulesText)) {
     formatConstraint = 'lowercase';
-  } else if (/(?:markdown\s+table|table\s+format)/i.test(allRulesText)) {
+  } else if (/(?:markdown\s+table|table\s+format|as\s+a\s+table|in\s+a\s+table)/i.test(allRulesText)) {
     formatConstraint = 'table';
   }
 
-  // Forbidden phrases extraction ("never say X", "don't mention Y", "do not use Z")
+  // Forbidden phrases extraction ("never say X", "don't mention Y", "do not use Z", "never use the
+  // word X"). Broadened after a live check found "never use the word \"the\"" wasn't recognized at
+  // all — "never use" wasn't in the verb list (only "do not use" was), and neither handled the
+  // extremely common "the word"/"the phrase" filler between the verb and the actual target. Also
+  // now falls back to an unquoted single word/short phrase after the verb, since most people don't
+  // bother quoting a one-word ban ("never say bro" is far more natural than "never say \"bro\"").
   const forbiddenPhrases: string[] = [];
-  const forbidRegex = /(?:never\s+say|don'?t\s+mention|do\s+not\s+say|never\s+mention|avoid\s+saying|do\s+not\s+use)\s+["'`]([^"'`]+)["'`]/gi;
+  const forbidRegex =
+    /(?:never\s+(?:say|use|mention)|don'?t\s+(?:say|use|mention)|do\s+not\s+(?:say|use|mention)|avoid\s+(?:saying|using|mentioning))\s+(?:the\s+word|the\s+phrase|the\s+term)?\s*["'`]([^"'`]+)["'`]/gi;
   let match;
   while ((match = forbidRegex.exec(allRulesText)) !== null) {
     if (match[1]) forbiddenPhrases.push(match[1].trim());
   }
+  const forbidUnquotedRegex =
+    /(?:never\s+(?:say|use|mention)|don'?t\s+(?:say|use|mention)|do\s+not\s+(?:say|use|mention)|avoid\s+(?:saying|using|mentioning))\s+(?:the\s+word|the\s+phrase|the\s+term)\s+([a-zA-Zą-żĄ-Ż'-]+)/gi;
+  while ((match = forbidUnquotedRegex.exec(allRulesText)) !== null) {
+    if (match[1] && !forbiddenPhrases.includes(match[1].trim())) forbiddenPhrases.push(match[1].trim());
+  }
 
-  // Required phrases extraction ("always include X", "must contain Y", "say Z in answer")
+  // Required phrases extraction ("always include X", "must contain Y", "say Z in answer", "end
+  // your response with the phrase X"). Broadened after a live check found "always end your
+  // response with the phrase \"stay safe\"" wasn't recognized — none of the original verbs cover
+  // "end...with".
   const requiredPhrases: string[] = [];
-  const reqRegex = /(?:always\s+include|must\s+contain|must\s+say|always\s+say|include\s+the\s+phrase)\s+["'`]([^"'`]+)["'`]/gi;
+  const reqRegex =
+    /(?:always\s+include|must\s+contain|must\s+say|always\s+say|include\s+the\s+phrase|end\s+(?:your\s+response|every\s+response|it)?\s*with(?:\s+the\s+phrase)?)\s+["'`]([^"'`]+)["'`]/gi;
   while ((match = reqRegex.exec(allRulesText)) !== null) {
     if (match[1]) requiredPhrases.push(match[1].trim());
   }
 
-  // Length constraints ("max 1 sentence", "only 1 line", "under 50 words")
+  // Length constraints ("max 1 sentence", "only 1 line", "limit to N sentences", "N sentences
+  // max"). Broadened from a hardcoded 1-or-2-only check (which also missed common phrasings like
+  // "limit responses to 2 sentences max") to a general numeric parser covering any N.
   let maxSentences: number | undefined = undefined;
-  if (/(?:1\s+sentence\s+only|in\s+one\s+sentence|single\s+sentence)/i.test(allRulesText)) {
+  const sentenceWordNums: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5 };
+  const sentenceLimitMatch = allRulesText.match(
+    /(?:limit(?:ed)?\s+(?:responses?|answers?|replies)?\s*to\s+|max(?:imum)?\s+of\s+|no\s+more\s+than\s+|only\s+|in\s+)?(\d+|one|two|three|four|five)\s+sentences?(?:\s+(?:only|max|maximum|or\s+(?:less|fewer)))?/i
+  );
+  if (sentenceLimitMatch) {
+    const raw = sentenceLimitMatch[1].toLowerCase();
+    maxSentences = sentenceWordNums[raw] ?? parseInt(raw, 10);
+  } else if (/single\s+sentence/i.test(allRulesText)) {
     maxSentences = 1;
-  } else if (/(?:2\s+sentences?\s+only|in\s+two\s+sentences)/i.test(allRulesText)) {
-    maxSentences = 2;
   }
 
   // Whether the user is actually asking about Casseurt right now — not whether a persona's
