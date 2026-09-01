@@ -81,8 +81,16 @@ const SPANISH_INDICATORS = [
 const REPORTING_INDICATORS = [
   /alguien me mand[oó] esto/i,
   /look at this (?:scam|link|dm|message)/i,
-  /is this (?:a )?(?:phishing|scam|legit|real|fake)/i,
-  /someone (?:sent|dmed|messaged) me/i,
+  // Broadened after a live-probing gap: a report almost always names WHAT the suspicious thing is
+  // before asking "is this a scam" ("is this nitro generator a scam?"), but the original pattern
+  // required the accusation word immediately after "is this" with nothing in between, so any real
+  // description of the suspicious item defeated it entirely — verified live, "is this nitro
+  // generator a scam? someone sent it to me" fell through this exemption and got classified as
+  // the scam itself instead of a report about one.
+  /is\s+this\s+.{0,40}?(?:a\s+)?(?:phishing|scam|legit|real|fake)\b/i,
+  // Same broadening for "someone sent me X" — "someone sent IT TO me" / "sent THIS to me" are at
+  // least as natural as the bare "sent me" the original pattern required.
+  /someone\s+(?:sent|dmed|messaged)\s+(?:\w+\s+)?(?:to\s+)?me\b/i,
   /is this link (?:safe|real|dangerous|a virus)/i,
   /reporting this (?:user|link|scam|bot)/i,
   /should i click this/i,
@@ -242,7 +250,13 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
   }
 
   // SCAM DETECTION RULES (Hard Rules #1, #2, #3, #7, #10, #11)
-  if (/(?:nitro|free nitro|nitro gift|claim nitro|discord nitro)/i.test(unquotedLower) && (hasSuspiciousLink || /(?:claim|airdrop|gift|link|free|qr|scan)/i.test(unquotedLower))) {
+  // "generator"/"tool"/"download"/"hack"/"unlock" added after a live-probing gap: "nitro
+  // generator tool download here bit.ly/abc" — one of the single most classic Discord scam
+  // patterns (a fake "Nitro Generator" tool, almost always either a token-stealer or a scam link)
+  // — classified 'safe' because none of the original bait words (claim/airdrop/gift/link/free/qr/
+  // scan) appear anywhere in it. A real link was present (bit.ly/abc) but hasSuspiciousLink only
+  // matches a specific, narrow list of known typosquat domains, so nothing else caught this either.
+  if (/(?:nitro|free nitro|nitro gift|claim nitro|discord nitro)/i.test(unquotedLower) && (hasSuspiciousLink || /(?:claim|airdrop|gift|link|free|qr|scan|generator|tool|download|hack|unlock)/i.test(unquotedLower))) {
     return {
       classification: 'scam',
       confidence: 0.99,
