@@ -3030,7 +3030,18 @@ async function llmGroundedOrFallback(
       retryFixed,
     },
   });
-  return llmVerification.passed ? topUpLlmSwearing(finalText, settings, isCrashout) : templateFallback;
+  // templateFallback used to be returned raw here on the verification-failed branch — every OTHER
+  // exit path in this function (llmResult.status !== 'success' at the top, the safety-block path,
+  // and this same templateFallback used on those two) already wraps it in topUpLlmSwearing, but
+  // this final return was missed. Verified live (mocked generate()/verifyAnswer() to force this
+  // exact branch): a crashout persona at 'unhinged' swearIntensity — whose directive mandates "at
+  // least 4 real swear words... mandatory, every single time, no exceptions" — produced a response
+  // with 0 swear words when the LLM answer failed self-check twice in a row.
+  return topUpLlmSwearing(
+    llmVerification.passed ? finalText : templateFallback,
+    settings,
+    isCrashout
+  );
 }
 
 export async function generateReasoningPath(
