@@ -1132,7 +1132,20 @@ export function detectQueryIntent(query: string): QueryIntent {
     // current-date-relative math these questions need never got a chance to run.
     /\bhow\s+many\s+days?\s+(?:until|till|since)\b/i.test(q) ||
     /\bwhat\s+day\s+(?:of\s+the\s+week\s+)?(?:is|was|will)\b/i.test(q) ||
-    /\bwhat\s+day\s+is\s+(?:it|today)\b/i.test(q)
+    /\bwhat\s+day\s+is\s+(?:it|today)\b/i.test(q) ||
+    // Polish equivalents — this whole English question-word classification block had ZERO Polish
+    // coverage before this pass (see the definition/explanation/causal/location/person branches
+    // below for the same fix), so every Polish factual question fell through this entire function
+    // to 'general' intent regardless of what it was actually asking, and — worse — the separate
+    // intent-downgrade heuristic further down this file then frequently collapsed 'general' into
+    // 'conversational' for short Polish questions with no recognized leading word, skipping corpus
+    // retrieval ENTIRELY. Observed live: "jaka jest stolica polski" (what is the capital of
+    // Poland) got classified 'conversational' and answered with pure LLM free generation — one
+    // resample produced disconnected swear-word filler with no actual answer at all.
+    /\bkiedy\b/.test(q) ||
+    q.includes('jaki rok') ||
+    q.includes('jaka data') ||
+    /\bhistoria\s+\w/.test(q)
   ) {
     return 'temporal';
   }
@@ -1143,7 +1156,15 @@ export function detectQueryIntent(query: string): QueryIntent {
     q.includes('who is ') ||
     q.includes('who invented') ||
     q.includes('who discovered') ||
-    q.includes('who created')
+    q.includes('who created') ||
+    // Polish: "kto" (who) — see the temporal branch's comment above for why this whole block of
+    // Polish additions exists. Trailing negative lookahead instead of \b: several of these verbs
+    // (był, wynalazł, odkrył, stworzył, wymyślił) end in "ł", and JS's \b is ASCII-only — it
+    // silently fails to assert a boundary right after a Polish diacritic letter (the "ł" itself
+    // reads as non-word to \b, same as the space that follows it, so there's no detectable
+    // transition). Same defect already fixed this session in several other regexes; verified live
+    // that a bare trailing \b here genuinely failed to match "kto wynalazł żarówkę".
+    /\bkto\s+(?:jest|był|była|wynalazł|odkrył|stworzył|wymyślił)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/.test(q)
   ) {
     return 'person';
   }
@@ -1153,7 +1174,10 @@ export function detectQueryIntent(query: string): QueryIntent {
     q.includes('capital of') ||
     q.includes('located in') ||
     q.includes('where is ') ||
-    q.includes('where are ')
+    q.includes('where are ') ||
+    // Polish: "gdzie" (where), "stolica" (capital) — same reasoning as above.
+    /\bgdzie\b/.test(q) ||
+    q.includes('stolica')
   ) {
     return 'location';
   }
@@ -1204,7 +1228,16 @@ export function detectQueryIntent(query: string): QueryIntent {
     q.includes('define ') ||
     q.includes('definition of') ||
     q.includes('meaning of') ||
-    q.includes('what does ')
+    q.includes('what does ') ||
+    // Polish: "co to jest"/"co to są" (what is/are this), "czym jest" (what is [X], lit. "with
+    // what is"), and "jaki/jaka/jakie/jaką jest" (what/which is, matching the noun's grammatical
+    // gender) — same reasoning as the temporal/person/location branches above.
+    // Same trailing-\b-after-diacritic bug as the person branch's "kto" fix above — "są" ends in
+    // "ą", so a plain trailing \b here failed to match "co to są bakterie" entirely.
+    /\bco\s+to\s+(?:jest|są)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/.test(q) ||
+    /\bczym\s+jest\b/.test(q) ||
+    /\bjak(?:i|a|ie|ą|iej|iego)\s+jest\b/.test(q) ||
+    q.includes('co oznacza')
   ) {
     return 'definition';
   }
@@ -1221,7 +1254,13 @@ export function detectQueryIntent(query: string): QueryIntent {
     /\bexplain\s+(?:to\s+me\s+)?(?:what|how|why)\b/.test(q) ||
     q.includes('how does') ||
     q.includes('how do ') ||
-    q.includes('how can')
+    q.includes('how can') ||
+    // Polish: "jak" (how) as a leading/standalone word — deliberately \b-bounded on both sides so
+    // it can never match inside "jaki"/"jaka"/"jakie" (a different word, "what/which", already
+    // handled by the definition branch above) — and "wyjaśnij"/"wytłumacz" (explain, imperative).
+    /\bjak\b/.test(q) ||
+    q.includes('wyjaśnij') ||
+    q.includes('wytłumacz')
   ) {
     return 'explanation';
   }
@@ -1232,7 +1271,10 @@ export function detectQueryIntent(query: string): QueryIntent {
     q.includes('cause of') ||
     q.includes('why is ') ||
     q.includes('why are ') ||
-    q.includes('why does')
+    q.includes('why does') ||
+    // Polish: "dlaczego"/"czemu" (why) — same reasoning as above.
+    q.includes('dlaczego') ||
+    /\bczemu\b/.test(q)
   ) {
     return 'causal';
   }
@@ -1243,7 +1285,11 @@ export function detectQueryIntent(query: string): QueryIntent {
     q.includes('examples of') ||
     q.includes('types of') ||
     q.includes('kinds of') ||
-    q.includes('what are some')
+    q.includes('what are some') ||
+    // Polish: "wymień" (list, imperative), "podaj przykłady" (give examples), "rodzaje" (types).
+    q.includes('wymień') ||
+    q.includes('podaj przykłady') ||
+    q.includes('rodzaje ')
   ) {
     return 'listing';
   }
@@ -3608,7 +3654,21 @@ export async function generateReasoningPath(
     const wordCount = effectivePrompt.trim().split(/\s+/).filter(Boolean).length;
     const looksLikeRealRequest =
       effectivePrompt.includes('?') ||
-      /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should|explain|tell\s+me|describe|define|give\s+me|show\s+me|list|write|calculate|solve|translate|summarize|compare|czy|jak|co|kto|kiedy|gdzie|dlaczego)\b/i.test(
+      // Polish leading words broadened alongside detectQueryIntent()'s own new Polish coverage
+      // (see that function's temporal/person/location/definition/explanation/causal branches) —
+      // this list previously had only the base forms (jak/co/kto/kiedy/gdzie/dlaczego), missing
+      // "jaki"/"jaka"/"jakie"/"jaką" (what/which, declined by grammatical gender/case) entirely.
+      // "jaka jest stolica polski" (what is the capital of Poland) starts with "jaka", not "jak"
+      // — a real word-boundary miss since \b prevents "jak" from matching inside "jaka" at all —
+      // so this heuristic was still downgrading a real Polish factual question to conversational
+      // even after fixing detectQueryIntent() to classify it correctly upstream. Also added
+      // "czym" (what, instrumental case), "ile" (how many/much), and "czemu" (why, alternate to
+      // dlaczego), all real gaps of the same shape. Trailing negative lookahead instead of \b —
+      // "jaką" ends in "ą", a Polish diacritic, and JS's \b is ASCII-only: it silently fails to
+      // assert a boundary right after one (same defect just fixed in detectQueryIntent()'s own
+      // new Polish patterns above), which would have quietly left this one word still broken
+      // despite being added here.
+      /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should|explain|tell\s+me|describe|define|give\s+me|show\s+me|list|write|calculate|solve|translate|summarize|compare|czy|jak|jaki|jaka|jakie|jaką|co|czym|kto|kiedy|gdzie|ile|dlaczego|czemu)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(
         effectivePrompt.trim()
       );
     if (wordCount <= 12 && !looksLikeRealRequest) {
