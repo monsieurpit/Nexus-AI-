@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   BrainCircuit,
@@ -31,6 +31,21 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
     lastPrompt || 'How does self-attention compute query, key, and value vectors in transformers?'
   );
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
+
+  // This modal is always mounted by App.tsx (isOpen only gates an early return below, it never
+  // unmounts the component), so the useState initializer above only ever runs once, on the very
+  // first mount — before the user has sent any message, when lastPrompt is still undefined. Every
+  // later "inspect attention" click on a real message updates lastPrompt in the parent, but
+  // without this effect nothing here ever re-syncs inputText to it, so the visualizer keeps
+  // showing whatever was there at mount (the hardcoded placeholder, or whatever the user last
+  // typed manually) instead of the specific message the user clicked to inspect — silently
+  // analyzing the wrong text. Matches the same open-sync pattern ModelCustomizerModal and
+  // KnowledgeTrainerModal already use for their own local-state-from-props initialization.
+  useEffect(() => {
+    if (isOpen && lastPrompt) {
+      setInputText(lastPrompt);
+    }
+  }, [isOpen, lastPrompt]);
 
   if (!isOpen) return null;
 

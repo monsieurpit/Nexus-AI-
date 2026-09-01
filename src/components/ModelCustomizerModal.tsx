@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Sliders,
@@ -39,6 +39,13 @@ export const ModelCustomizerModal: React.FC<ModelCustomizerModalProps> = ({
   const [localSettings, setLocalSettings] = useState<AISettings>(settings);
   const [activeTab, setActiveTab] = useState<'persona' | 'parameters' | 'tone' | 'system'>('persona');
   const [savedToast, setSavedToast] = useState(false);
+  // Tracks the pending "close after showing the Saved toast" timeout so it can be cancelled —
+  // this modal never actually unmounts (App.tsx always renders it, `isOpen` only gates the early
+  // `return null` below), so a timer started here survives across close/reopen cycles with no
+  // cleanup otherwise. Observed failure: click Save (starts a 400ms timer that will call
+  // onClose()), then reopen the same modal before that timer fires — at t+400ms the stale timer
+  // still fires and immediately closes the modal the user just reopened, with no indication why.
+  const saveCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Re-sync local draft from the live settings every time the modal opens — otherwise a
   // persona switched elsewhere (e.g. the Header dropdown) while this modal was closed would be
@@ -46,9 +53,24 @@ export const ModelCustomizerModal: React.FC<ModelCustomizerModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setLocalSettings(settings);
+      // A reopen cancels any leftover auto-close timer from a previous Save — otherwise the stale
+      // timer would still fire mid-session and yank the just-reopened modal shut.
+      if (saveCloseTimeoutRef.current) {
+        clearTimeout(saveCloseTimeoutRef.current);
+        saveCloseTimeoutRef.current = null;
+        setSavedToast(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  // Also clear the timer on unmount, for correctness if this component's mounting behavior ever
+  // changes — cheap insurance even though App.tsx currently keeps it mounted permanently.
+  useEffect(() => {
+    return () => {
+      if (saveCloseTimeoutRef.current) clearTimeout(saveCloseTimeoutRef.current);
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -181,9 +203,11 @@ Tone guidelines:
   const handleSave = () => {
     onSaveSettings(localSettings);
     setSavedToast(true);
-    setTimeout(() => {
+    if (saveCloseTimeoutRef.current) clearTimeout(saveCloseTimeoutRef.current);
+    saveCloseTimeoutRef.current = setTimeout(() => {
       setSavedToast(false);
       onClose();
+      saveCloseTimeoutRef.current = null;
     }, 400);
   };
 

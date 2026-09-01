@@ -135,8 +135,15 @@ export const ApiIntegrationModal: React.FC<ApiIntegrationModalProps> = ({
       });
       if (res.ok) {
         const data = await res.json();
+        // Don't call fetchKeys() here directly — it's a plain function re-created each render, so
+        // calling it in this same tick still closes over THIS render's `apiKey` (the old, just-
+        // superseded one), not the value just set above. That raced against the useEffect below
+        // (which has `apiKey` as a dependency and re-fires with the correct new key once the
+        // state update flows through a render): whichever of the two GET /api/v1/keys requests
+        // resolved last won, so the stale-key request could overwrite the fresh key list with
+        // outdated/empty data right after a successful key generation. setApiKey below is already
+        // sufficient — the effect's own dependency on `apiKey` handles the re-fetch correctly.
         setApiKey(data.apiKey);
-        fetchKeys();
       } else {
         const fallback = `nexus_sk_${labelToUse || 'discord_bot'}_${Math.random().toString(36).substring(2, 10)}`;
         setApiKey(fallback);
