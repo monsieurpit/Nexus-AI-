@@ -1133,7 +1133,14 @@ export function detectQueryIntent(query: string): QueryIntent {
     // digit-presence check above never catches these on its own, so this fell through to
     // 'definition' intent and never reached the math solver, which already supports evaluating
     // both constants correctly.
-    /\b(?:what\s+is|value\s+of)\s+(?:pi|euler'?s?\s+number)\b|^(?:pi|euler'?s?\s+number)\??$/i.test(q)
+    /\b(?:what\s+is|value\s+of)\s+(?:pi|euler'?s?\s+number)\b|^(?:pi|euler'?s?\s+number)\??$/i.test(q) ||
+    // Letter/word counting ("how many r's in strawberry") — mathSolver.ts's tryTextCounting
+    // handles this deterministically, but it's only ever called when intent === 'mathematical',
+    // and every one of these phrasings starts with "how", which the 'explanation' branch further
+    // down claims first via its own `q.startsWith('how ')` check. Without this, the deterministic
+    // solver built specifically to fix the most famous LLM letter-counting weak spot never gets a
+    // chance to run at all.
+    /\bhow\s+many\s+(?:times\s+(?:does|is)\s+)?(?:the\s+letter\s+)?[a-z]'?s?\s+(?:appear|occur|are|is|in)\b.{0,20}\bin\b|\bhow\s+many\s+letters?\s+(?:are\s+)?(?:in|does)\b|\bhow\s+many\s+words?\s+(?:are\s+)?in\s+["']/i.test(q)
   ) {
     return 'mathematical';
   }

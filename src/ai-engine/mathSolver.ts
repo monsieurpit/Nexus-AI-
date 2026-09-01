@@ -906,9 +906,83 @@ function trySolveWordProblemArithmetic(prompt: string): MathSolution | null {
   };
 }
 
+// Letter/word counting — arguably THE most famous specific LLM weak spot: "how many R's are in
+// strawberry" is a coin flip even for large frontier models, because they read subword tokens
+// ("straw" + "berry", or similar chunks), not individual letters — the model has no direct access
+// to the literal character sequence it's being asked about. Same "compute it, don't generate it"
+// principle as every other solver in this file, and an unusually easy one to make deterministic:
+// this is just counting, not even arithmetic.
+function tryTextCounting(prompt: string): MathSolution | null {
+  const lower = prompt.toLowerCase();
+
+  // "how many r's are in strawberry" / "how many times does r appear in strawberry" / "how many
+  // times is the letter r in strawberry" — a specific letter's occurrence count in a word.
+  // Checked before the whole-word letter-count pattern below since it's the more specific shape.
+  const letterOccurrenceMatch = lower.match(
+    /how\s+many\s+(?:times\s+(?:does|is)\s+)?(?:the\s+letter\s+)?([a-z])'?s?\s+(?:appear(?:s)?(?:\s+in)?|occur(?:s)?(?:\s+in)?|are(?:\s+there)?(?:\s+in)?|is(?:\s+there)?(?:\s+in)?|in)\s+(?:the\s+word\s+)?['"]?([a-z]+)['"]?\b/i
+  );
+  if (letterOccurrenceMatch) {
+    const letter = letterOccurrenceMatch[1];
+    const word = letterOccurrenceMatch[2];
+    const count = word.split('').filter((c) => c === letter).length;
+    return {
+      isMath: true,
+      expression: `count of "${letter}" in "${word}"`,
+      result: `${count}`,
+      steps: [
+        `Spelling out "${word}": ${word.split('').join('-')}`,
+        `Counting each "${letter}": ${count} occurrence${count === 1 ? '' : 's'}.`,
+      ],
+      explanation: `**${word}** contains **${count}** occurrence${count === 1 ? '' : 's'} of the letter **${letter}**.`,
+    };
+  }
+
+  // "how many letters in strawberry" / "how many letters does strawberry have" — total letter
+  // count of a single word. Checked after the more specific single-letter pattern above, since
+  // "letters" itself would otherwise get captured as the target "letter" by the looser pattern.
+  const letterCountMatch = lower.match(
+    /how\s+many\s+letters?\s+(?:are\s+)?(?:in|does)\s+(?:the\s+word\s+)?['"]?([a-z]+)['"]?(?:\s+have)?\b/i
+  );
+  if (letterCountMatch) {
+    const word = letterCountMatch[1];
+    return {
+      isMath: true,
+      expression: `letters in "${word}"`,
+      result: `${word.length}`,
+      steps: [`Spelling out "${word}": ${word.split('').join('-')}`, `Total letters: ${word.length}`],
+      explanation: `**${word}** has **${word.length}** letters.`,
+    };
+  }
+
+  // "how many words are in 'the quick brown fox'" — requires the phrase in quotes, since an
+  // unquoted trailing phrase has no reliable end boundary to detect (unlike a single target word
+  // above). A user asking this without quotes still gets a real answer from free generation
+  // (imperfect but not the same "invisible to the model" blind spot letter-counting is) — this is
+  // specifically for the case where the exact phrase is unambiguous.
+  const wordCountMatch = prompt.match(/how\s+many\s+words?\s+(?:are\s+)?in\s+["']([^"']+)["']/i);
+  if (wordCountMatch) {
+    const phrase = wordCountMatch[1].trim();
+    const words = phrase.split(/\s+/).filter(Boolean);
+    return {
+      isMath: true,
+      expression: `words in "${phrase}"`,
+      result: `${words.length}`,
+      steps: [`Splitting on spaces: ${words.join(' | ')}`, `Total words: ${words.length}`],
+      explanation: `"${phrase}" has **${words.length}** word${words.length === 1 ? '' : 's'}.`,
+    };
+  }
+
+  return null;
+}
+
 export function trySolveMath(prompt: string): MathSolution | null {
   const cleanPrompt = prompt.trim();
   const lower = cleanPrompt.toLowerCase();
+
+  // -1. Letter/word counting — checked first, before anything else in this function gets a
+  // chance to (mis)parse "how many r's in strawberry" as some other shape entirely.
+  const textCountRes = tryTextCounting(cleanPrompt);
+  if (textCountRes) return textCountRes;
 
   // 0. Fixed physical-constant lookups (before unit conversion — "boiling point of water in
   // fahrenheit" isn't actually a conversion of a user-supplied number, it's a lookup of a
