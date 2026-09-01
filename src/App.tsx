@@ -438,6 +438,17 @@ export default function App() {
       {/* Main Chat Interface */}
       <main className="flex-1 flex flex-col min-w-0">
         <ChatView
+          // Forces a full remount whenever the active conversation changes, resetting every piece
+          // of ChatView's own local state (attachedImage, inputText, expandedThoughts, etc.) —
+          // found by a dedicated review: without this, ChatView is a single persistent component
+          // instance reused across every conversation, so none of its local state was scoped per
+          // conversation at all. Concretely: drag an image into the input box in Conversation A,
+          // switch to Conversation B before sending, type a message and hit Enter — A's stale
+          // attachedImage was still there and got silently sent into B's history. Same problem for
+          // an unsent draft in the input box bleeding into whichever conversation you switch to.
+          // This is the identical class of bug this session already fixed in App.tsx itself
+          // (generation state not scoped per conversation) — same root cause, different component.
+          key={activeConversationId}
           messages={messages}
           isGenerating={isGenerating}
           streamingChunk={streamingChunk}
