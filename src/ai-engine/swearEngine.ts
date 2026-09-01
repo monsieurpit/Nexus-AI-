@@ -1154,24 +1154,36 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
   let remaining = minCount - startCount - 1;
 
   if (remaining > 0) {
-    // Sentence-end positions alone cap how many interjections a short reply can ever receive —
-    // a typical 1-2 sentence casual response has zero or one such position, so raising minCount
-    // couldn't actually raise the delivered count for most short replies (verified directly: a
-    // 2-sentence, 0-swear input asked for a floor of 4 only ever received 2). Comma positions are
-    // included as a fallback source once sentence-ends run out, since a mid-clause swear ("hey
-    // man, shit, why should I be") reads just as naturally as one after a full stop — this gives
-    // short multi-clause replies enough real insertion points to actually reach the requested
-    // floor instead of silently capping out well below it.
-    // frontWord itself was just prepended as "word, " — its own trailing comma sits at exactly
-    // frontWord.length + 1 and must be excluded from commaBreaks, or it gets treated as a real
-    // insertion point and stacks a second interjection immediately after the first ("chuj, cholera,
-    // Nexus?" instead of a natural spread through the actual sentence).
-    const frontWordCommaEnd = frontWord.length + 1;
-    const sentenceBreaks = [...result.matchAll(/[.!?]\s+(?=[A-Z"'])/g)].map((m) => m.index! + m[0].length);
-    const commaBreaks = [...result.matchAll(/,\s+/g)]
-      .map((m) => m.index! + m[0].length)
-      .filter((pos) => pos !== frontWordCommaEnd);
-    const breakPositions = [...new Set([...sentenceBreaks, ...commaBreaks])].sort((a, b) => a - b);
+    // Every insertion beyond frontWord used to lead the NEXT clause ("word, <continuation>") —
+    // fine for exactly one, but a short multi-sentence reply needing 3+ more swears got one such
+    // leading interjection at the start of EVERY remaining sentence, reading like a mechanical
+    // tic ("damn, Hey Nexus! shit, How's been your day? hell, Same question for ya.") instead of
+    // natural speech — reported live as "too robotic". Real people don't open every sentence with
+    // an interjection; they tag a swear onto the END of a clause just as often ("that's wild,
+    // ngl", "no cap fr"). Inserting as a TRAILING tag on the clause that's ENDING at each break
+    // (right before its own punctuation) instead of a leading tag on the clause that's starting
+    // fixes this without losing the guaranteed count: same number of words land, just distributed
+    // as "<clause>, word!" instead of "word, <clause>!" everywhere after the first.
+    //
+    // Sentence-end positions alone cap how many insertion points a short reply can ever have — a
+    // typical 1-2 sentence casual response has zero or one, so raising minCount couldn't actually
+    // raise the delivered count for most short replies (verified directly: a 2-sentence, 0-swear
+    // input asked for a floor of 4 only ever received 2). Comma positions are included as a
+    // fallback source once sentence-ends run out, since a mid-clause tag ("hey man, shit, why
+    // should I be") reads just as naturally.
+    // frontWord itself was just prepended as "word, " — its own comma sits at exactly
+    // frontWord.length and must be excluded from commaBreaks, or it gets treated as a real
+    // insertion point and stacks a second interjection immediately after the first.
+    // frontWord already carries its own trailing comma (e.g. "shit,", 5 chars) — the comma's own
+    // 0-indexed position within `result` is length - 1, not length itself (an earlier off-by-one
+    // here meant this exclusion never actually matched, letting a second insertion land right
+    // after frontWord with nothing between them).
+    const frontWordCommaPos = frontWord.length - 1;
+    const sentenceEndPositions = [...result.matchAll(/[.!?](?=\s+[A-Z"'])/g)].map((m) => m.index!);
+    const commaPositions = [...result.matchAll(/,(?=\s)/g)]
+      .map((m) => m.index!)
+      .filter((pos) => pos !== frontWordCommaPos);
+    const breakPositions = [...new Set([...sentenceEndPositions, ...commaPositions])].sort((a, b) => a - b);
     let offset = 0;
     // Same anti-stutter reasoning as the front word above, extended to every later insertion too
     // — skip any pool word whose bare form already appears anywhere in the response so far.
@@ -1179,10 +1191,15 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
     let poolIdx = 0;
     for (const pos of breakPositions) {
       if (remaining <= 0 || poolIdx >= remainingPool.length) break;
-      const word = remainingPool[poolIdx++];
+      // bareWord() here, not the raw pool entry — pool words already carry their OWN trailing
+      // comma (for the frontWord "word, <rest>" leading-interjection format above), which would
+      // otherwise double up with the comma this trailing-tag format adds itself ("clause, damn,!"
+      // instead of the intended "clause, damn!").
+      const word = bareWord(remainingPool[poolIdx++]);
       const insertAt = pos + offset;
-      result = `${result.slice(0, insertAt)}${word} ${result.slice(insertAt)}`;
-      offset += word.length + 1;
+      const insertion = `, ${word}`;
+      result = `${result.slice(0, insertAt)}${insertion}${result.slice(insertAt)}`;
+      offset += insertion.length;
       remaining--;
     }
   }

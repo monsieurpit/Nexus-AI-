@@ -82,6 +82,19 @@ function isLowEffort(text: string): boolean {
   return words.length <= 2 && LOW_EFFORT_REGEX.test(text.trim());
 }
 
+// A few more message "types" that realistically ought to move the needle a little, even outside
+// the handful of strong (insult/praise/hype/distress) triggers above — a plain fact lookup doesn't
+// stir any real feeling, but talking football, getting into a debate, or being asked to do
+// something fun/creative genuinely would. Kept deliberately smaller in magnitude than the strong
+// triggers (0.05-0.12 vs. 0.2-0.35) so ordinary conversation nudges mood gradually rather than
+// flipping its label on a single message — the label only actually changes once several of these
+// (or one strong trigger) accumulate, which is what "realistic" means here: mood is a slow-moving
+// undercurrent shaped by the KIND of conversation happening, not a value that jumps around on
+// every reply.
+const FOOTBALL_REGEX = /\b(?:fc\s*barcelona|barcelona|barça|barca|blaugrana|football|soccer|messi|piłk[ęai]\s+no[żz]n[aą])\b/i;
+const DEBATE_REGEX = /\b(?:which\s+(?:one\s+)?(?:is\s+)?better|who'?s\s+better|vs\.?|versus|pick\s+a\s+side|do\s+you\s+prefer)\b/i;
+const FUN_REQUEST_REGEX = /\b(?:tell\s+me\s+a\s+joke|make\s+me\s+laugh|roast\s+me|write\s+(?:me\s+)?an?\s+(?:poem|haiku|song|story|joke)|riddle|funny)\b/i;
+
 // Called once per real user turn (not per internal retry) from generateReasoningPath. Reuses the
 // hostility/dominance detectors from swearEngine.ts rather than re-implementing them — anger
 // should track the exact same "is this actually an insult" logic already tuned there through many
@@ -92,21 +105,37 @@ export function registerMoodEvent(prompt: string, wasInsulted: boolean, wasDistr
   } else {
     consecutiveLowEffort = 0;
   }
-
-  if (wasInsulted) {
-    nudge(-0.35, 0.3); // hostility: mood sours AND spikes energetic (anger, not sadness)
-  }
-  if (wasDistressTopic) {
-    nudge(-0.2, -0.1); // empathy contagion: hearing someone else's bad day drags mood down a little
-  }
-  if (isPraise(prompt)) {
-    nudge(0.3, 0.2);
-  }
-  if (isHype(prompt)) {
-    nudge(0.2, 0.3);
-  }
   if (consecutiveLowEffort >= 3) {
     nudge(0, -0.15); // conversation's gone flat and repetitive — energy drains, not mood
+  }
+
+  // Priority order: a real hostility/distress/praise/hype signal dominates and is the ONLY thing
+  // that fires (an insult buried in an otherwise football-shaped message is still, overwhelmingly,
+  // an insult) — the lighter topic-based nudges only apply when none of the strong signals did,
+  // and the tiny baseline only applies when NOTHING else about the message stood out at all. This
+  // is what keeps the strong signals meaningfully stronger than routine conversation instead of
+  // getting diluted by also adding a football/debate/fun nudge on top in the same turn.
+  if (wasInsulted) {
+    nudge(-0.35, 0.3); // hostility: mood sours AND spikes energetic (anger, not sadness)
+  } else if (wasDistressTopic) {
+    nudge(-0.2, -0.1); // empathy contagion: hearing someone else's bad day drags mood down a little
+  } else if (isPraise(prompt)) {
+    nudge(0.3, 0.2);
+  } else if (isHype(prompt)) {
+    nudge(0.2, 0.3);
+  } else if (FOOTBALL_REGEX.test(prompt)) {
+    nudge(0.1, 0.05); // a genuine passion topic (the persona is an established Barça fan)
+  } else if (DEBATE_REGEX.test(prompt)) {
+    nudge(0, 0.08); // a spirited exchange is stimulating regardless of which way it goes
+  } else if (FUN_REQUEST_REGEX.test(prompt)) {
+    nudge(0.06, 0.05); // being asked to be funny/creative is mildly enjoyable, not neutral
+  } else if (prompt.trim().length > 0) {
+    // Every other real message still counts for something — being useful/engaged in a
+    // conversation is mildly, genuinely pleasant, the same way routine friendly chatter warms
+    // someone up a little over time even without any single remarkable moment in it. Small enough
+    // that it takes a real STREAK of ordinary messages (not one) to move the needle, and the
+    // 90-minute decay keeps a burst of ordinary chatter from permanently ratcheting mood upward.
+    nudge(0.02, 0.02);
   }
 }
 

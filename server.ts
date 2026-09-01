@@ -1366,8 +1366,12 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
       : queuedExecution.data.telemetry
       ? `real LLM (${queuedExecution.data.telemetry.latencyMs}ms)`
       : 'no LLM call (template/rule-based reply)';
+    // mood= reflects the bot's artificial mood (moodEngine.ts) AFTER this request's own event
+    // already nudged it — so the log line shows what actually colored the reply the user just
+    // got, and doubles as a running record of how mood is drifting over real traffic, visible
+    // straight in Railway's log viewer without needing to separately poll GET /api/v1/mood.
     console.log(
-      `[Nexus] "${userText.slice(0, 60)}" -> persona=${persona.id} ${llmOutcome} total=${queuedExecution.processTimeMs}ms`
+      `[Nexus] "${userText.slice(0, 60)}" -> persona=${persona.id} mood=${queuedExecution.data.mood?.label ?? 'n/a'} ${llmOutcome} total=${queuedExecution.processTimeMs}ms`
     );
 
     return res.json({

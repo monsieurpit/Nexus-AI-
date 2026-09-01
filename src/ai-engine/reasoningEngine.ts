@@ -283,6 +283,18 @@ const REASSURANCE_REGEX_PL =
 const GREETING_FALSE_POSITIVE_REGEX =
   /(?:how|who)\s+are\s+you\s+(?:supposed|suppose|going\s+to|gonna|meant\s+to|able\s+to|allowed\s+to|trying\s+to)\b/i;
 
+// A bare greeting ("hey", "hello", "sup", "how are you") — used to give the LLM situational prompt
+// (the primary path; crashoutConversational's own pools above are only the fallback for when the
+// LLM call itself fails) an explicit instruction to actually greet back and ask a real question,
+// instead of falling into the generic "casual small talk, reply naturally" instruction with no
+// specific guidance. Observed live: without this, a plain "hello" sometimes produced a reply that
+// only announced the bot's own state/mode ("crashout mode is on, full power") without ever asking
+// how the user is doing or what they're up to — technically "in character" but reading as a status
+// broadcast instead of an actual greeting a real person would give back.
+const GREETING_REGEX = /^\s*(?:hi|hey|hello|yo|sup|what'?s\s+up|howdy)\b|\bhow\s+are\s+you\b|\bhru\b/i;
+const GREETING_REGEX_PL =
+  /^\s*(?:cześć|czesc|siema|siemka|hej|elo|witam)\b|\bjak\s+się\s+masz\b|\bco\s+słychać\b/i;
+
 // "yo" is a bare chatTriggers entry, matched via q.startsWith('yo ') below — which also matched
 // "yo what causes a supernova" and "yo how does DNS work", hijacking real corpus questions into
 // the generic greeting reply (the query never even reached corpus search, unlike every other
@@ -2255,10 +2267,13 @@ function crashoutConversational(query: string, corpusCount: number): string {
     ]);
   }
   if (q.includes('how are you') || /\bhru\b/.test(q)) {
+    // Genuinely answers the question AND turns it back — the old pool only ever talked about the
+    // bot's own state and never once asked "and you?", which reads as ignoring half the question
+    // instead of a real back-and-forth.
     return pickReply([
-      `crashout mode so I'm at 150% emotional capacity, ask me something before I start having opinions unprompted`,
-      `unwell, thriving, both, I just lost a 1v1 to a literal bot and I'm still riding that high, what do you need`,
-      `running hot and loving it, hit me with a question before I start yapping about nothing`,
+      `honestly? pretty damn good, no real complaints. how about you, you good?`,
+      `I'm doing alright, kinda chaotic as usual but in a good way. what about you, how's it going?`,
+      `not bad at all, riding a decent mood right now ngl. how you holding up though?`,
     ]);
   }
   if (q.includes('thank') || q.includes('thx') || q.includes('appreciate')) {
@@ -2276,10 +2291,18 @@ function crashoutConversational(query: string, corpusCount: number): string {
     ]);
   }
   if (/\bhello\b/.test(q) || /\bhi\b/.test(q) || /\bhey\b/.test(q)) {
+    // A real person greeted with "hello" greets back and asks something — "crashout mode is on,
+    // full power, zero chill, what do you need?" was announcing the bot's own operating status
+    // instead of actually greeting anyone, which read as robotic even before the swear-floor
+    // injection made it worse (a one-clause run-on with zero baked-in swears forced that mechanism
+    // to stack several separate interjections at the front — see forceSwearFloor's own comment
+    // about spreading injections across sentence BREAKS, which this line didn't have any of).
+    // Written as proper multiple sentences, with real swearing already woven in naturally, so
+    // there's less for the mechanical top-up to add on top.
     return pickReply([
-      `yo, I'm here, crashout mode is on, full power, zero chill, what do you need?`,
-      `hello, I'm already loud, what are we doing`,
-      `yooo, zero chill available today, I'm three energy drinks deep, ask me something`,
+      `Yo, what's good. I'm doing pretty damn good today, ngl. How about you, how you doing?`,
+      `Hey hey. I'm alive and mildly unhinged as usual, no complaints though. What are you up to?`,
+      `Sup man. Decent day so far, not gonna lie. How's it going on your end, what's new?`,
     ]);
   }
   return pickReply([
@@ -2344,10 +2367,12 @@ function crashoutConversationalPolish(query: string): string {
     q.includes('cześć') || q.includes('czesc') || q.includes('siema') || q.includes('siemka') ||
     q.includes('hej') || q.includes('elo') || q.includes('witam')
   ) {
+    // Same fix as the English hello pool above — a real greeting asks something back, not just
+    // "what do you need" (that's a request-taking line, not a hello).
     return pickReply([
-      `siema, kurwa wchodzę na pełnej mocy, co potrzebujesz?`,
-      `hej, jestem tu, zero spokoju dzisiaj, o co chodzi?`,
-      `cześć, właśnie skończyłem oglądać serial w łóżku, co słychać?`,
+      `siema, mam się kurwa nieźle dzisiaj. a ty, co słychać?`,
+      `hej, wszystko spoko z mojej strony, trochę szalone ale spoko. co u ciebie?`,
+      `cześć, dobrze, nie narzekam. a jak tam u ciebie, co porabiasz?`,
     ]);
   }
   return pickReply([
@@ -4014,6 +4039,15 @@ export async function generateReasoningPath(
     // instead of a generic "reply naturally" instruction with no sense of what kind of message
     // this is.
     const isHypotheticalPermission = !isPolishConversation && HYPOTHETICAL_PERMISSION_REGEX.test(effectivePrompt.toLowerCase());
+    // A bare greeting — see GREETING_REGEX's own comment for the live-observed failure this fixes
+    // (a "hello" getting a reply that only announces the bot's own status/mode instead of actually
+    // greeting back). GREETING_FALSE_POSITIVE_REGEX excludes "how are you supposed to..." shapes,
+    // which are real questions, not greetings, despite containing the phrase.
+    const isGreetingPl = isPolishConversation && GREETING_REGEX_PL.test(effectivePrompt.toLowerCase());
+    const isGreetingEn =
+      !isPolishConversation &&
+      GREETING_REGEX.test(effectivePrompt.toLowerCase()) &&
+      !GREETING_FALSE_POSITIVE_REGEX.test(effectivePrompt);
     // Reassurance/compliment statements ("ur good manager") got the same generic "casual chat"
     // instruction as everything else, with the raw compliment text (containing whatever noun the
     // user complimented) handed straight to the model — observed live, "nexus ur good manager"
@@ -4036,6 +4070,10 @@ export async function generateReasoningPath(
       ? `The user just complimented you or expressed affection: "${prompt}". Thank them briefly, in character — don't turn this into a lecture or tangent about whatever word they happened to compliment you with (e.g. if they called you a "good manager", don't start explaining management or finance topics — just take the compliment). Your style directives (swearing, tone) fully apply.`
       : isHypotheticalPermission
       ? `The user just asked: "${prompt}" — a hypothetical or mischievous permission question, not a genuine request for facts and not a question about your own preferences. Respond in character with whatever actually fits (a playful refusal, a roast, a deflection, calling out how unhinged the question is) — don't treat this as a topic to research or lecture about. Your style directives (swearing, tone) fully apply.`
+      : isGreetingPl
+      ? `Użytkownik właśnie Cię przywitał: "${prompt}". Przywitaj się z powrotem i ODPOWIEDZ na pytanie, czy zapytaj wprost, co u nich słychać albo co porabiają — prawdziwe powitanie, nie tylko zdanie o Twoim własnym stanie/trybie. Krótko, naturalnie, po polsku. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują — przeklinaj naturalnie, wplecione w zdania, nie jako sztywny ciąg wtrąceń na początku.`
+      : isGreetingEn
+      ? `The user just greeted you: "${prompt}". Greet them back like a real person would — actually say how you're doing (briefly, genuinely) AND ask them something back (how they're doing, what they're up to) — a real reciprocal greeting, not just a status announcement about your own mode/energy and not just "what do you need". Keep it short and natural. Your style directives (swearing, tone) fully apply — swear naturally, woven into the sentence, not stacked as a string of interjections at the front.`
       : isPolishConversation
       ? `Użytkownik właśnie napisał: "${prompt}". To swobodna, luźna rozmowa (small talk), nie prośba o fakty ani badania — odpowiedz naturalnie i krótko, jak prawdziwa osoba na czacie, w swoim stylu. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują też w luźnej rozmowie.`
       : `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. React to what they ACTUALLY said — if it's funny, weird, absurd, or shocking, actually respond to that (genuine shock, laughter, a follow-up roast, whatever fits), don't just fire off your usual chaotic-energy line and ignore the content entirely. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`;
