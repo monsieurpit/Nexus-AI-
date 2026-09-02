@@ -13,7 +13,7 @@ import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
 import { trySolveCategoryClassification } from './categorySolver';
 import { trySolveDate } from './dateSolver';
-import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction } from './argumentEngine';
+import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
 import { registerMoodEvent, getMoodDirective, getMoodResponseLengthMultiplier } from './moodEngine';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
 import * as localLlmClient from './localLlmClient';
@@ -1075,6 +1075,14 @@ export function detectQueryIntent(query: string): QueryIntent {
     // as the English "what is"+digit check below — the bare phrase alone is a general question
     // opener in Polish, not specifically a math request.
     (/\bile\s+(?:to\s+)?jest\b/i.test(q) && /\d/.test(q)) ||
+    // French word-form arithmetic — same gap as Polish above, found in a full French-support
+    // review. "fois" (times), "plus"/"moins" (already shared with English spelling), "divisé par"
+    // (divided by).
+    /\d+\s*(?:fois|plus|moins|divisé\s+par)\s*\d+/i.test(q) ||
+    // "combien font/fait/est/sont" ("how much is/are") — same digit-gating reasoning as the
+    // Polish "ile to jest" trigger above, since the bare phrase alone is a general question
+    // opener in French too, not specifically a math request.
+    (/\bcombien\s+(?:font|fait|est|sont)\b/i.test(q) && /\d/.test(q)) ||
     // Distance/rate/time word problems ("60mph for 2.5 hours, how far") have no operator symbol
     // or "calculate"/"solve" keyword at all, so they need their own explicit trigger.
     (/\d\s*(?:mph|km\/h|kmh|miles per hour|kilometers? per hour|kilometres? per hour)/.test(q) &&
@@ -3755,7 +3763,7 @@ export async function generateReasoningPath(
       }`,
     });
     const debateReply = await llmSituationalReplyOrFallback(
-      buildDebateInstruction(verdict, prompt),
+      looksFrench(prompt) ? buildDebateInstructionFr(verdict, prompt) : buildDebateInstruction(verdict, prompt),
       persona,
       settings,
       isCrashout,
@@ -4577,13 +4585,17 @@ export async function generateReasoningPath(
       // an otherwise-Polish conversation. Gated on the same looksPolish() check the rest of this
       // file already uses for language-of-response decisions.
       const isPolishMath = localLlmClient.looksPolish(prompt);
+      // Same fix, extended to French — found in a full French-support review.
+      const isFrenchMath = !isPolishMath && localLlmClient.looksFrench(prompt);
       const mathPrefix = isCrashout
         ? isPolishMath
           ? 'No dobra, zaraz to policzę, bo liczby nie obchodzą moje emocje.\n\n'
+          : isFrenchMath
+          ? "Ok tabarnak, je fais le calcul vite fait parce que les chiffres s'en câlissent de mes émotions.\n\n"
           : "Okay fine, let me do this math real quick because numbers don't give a shit about my emotional state.\n\n"
         : '';
-      const resultLabel = isPolishMath ? 'Wynik' : 'Result';
-      const stepsLabel = isPolishMath ? 'Jak do tego doszedłem' : 'How I got there';
+      const resultLabel = isPolishMath ? 'Wynik' : isFrenchMath ? 'Résultat' : 'Result';
+      const stepsLabel = isPolishMath ? 'Jak do tego doszedłem' : isFrenchMath ? "Comment j'y suis arrivé" : 'How I got there';
       const formattedMath = `${mathPrefix}**${resultLabel}:** ${mathResult.result}\n\n**${stepsLabel}:**\n${mathResult.steps.map((s) => `  ${s}`).join('\n')}`;
       return {
         thoughtSteps,

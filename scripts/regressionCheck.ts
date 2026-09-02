@@ -69,6 +69,8 @@ async function runDeterministicChecks() {
 
   console.log('\nMath solver:');
   check('"what is 47 times 83" -> 3901', trySolveMath('what is 47 times 83')?.result === '3901');
+  check('FR "combien font 47 fois 83" -> 3901', trySolveMath('combien font 47 fois 83')?.result === '3901');
+  check('FR "100 divisé par 4" -> 25', trySolveMath('100 divisé par 4')?.result === '25');
 
   console.log('\nCategory classification:');
   const catResult = trySolveCategoryClassification('which of these is not a mammal: whale, shark, bat');
@@ -77,6 +79,15 @@ async function runDeterministicChecks() {
   console.log('\nSubjective debate / side-picking:');
   const debate = detectSubjectiveDebate('barcelona vs real madrid, who\'s better?');
   check('detects the debate shape', debate !== null);
+  const frDebate = detectSubjectiveDebate('barcelone ou real madrid, qui est le meilleur');
+  check('FR debate detects the debate shape', frDebate !== null);
+  if (frDebate) {
+    let allBarcaFr = true;
+    for (let i = 0; i < 5; i++) {
+      if (!/barcelon/i.test(pickDebateSide(frDebate).winner)) allBarcaFr = false;
+    }
+    check('FR "Barcelone" spelling still triggers the bias', allBarcaFr);
+  }
   if (debate) {
     let allBarca = true;
     for (let i = 0; i < 5; i++) {

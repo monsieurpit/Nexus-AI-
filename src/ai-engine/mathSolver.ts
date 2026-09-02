@@ -110,6 +110,14 @@ export class RecursiveDescentParser {
       'ile jest',
       'oblicz',
       'policz',
+      // French equivalents — same gap Polish had before its own fix above, found in a full
+      // French-support review. "combien font/fait/est/sont" is the French "what is"/"how much
+      // is".
+      'combien font',
+      'combien fait',
+      'combien sont',
+      'combien est',
+      "c'est quoi",
     ];
     for (const w of strip) {
       t = t.replaceAll(w, ' ');
@@ -187,6 +195,12 @@ export class RecursiveDescentParser {
       .replace(/\s+odjąć\s+/g, '-')
       .replace(/\s+podzielić przez\s+/g, '/')
       .replace(/\s+przez\s+/g, '/')
+      // French operator words — same gap Polish had above, found in a full French-support
+      // review. "fois" (times), "plus"/"moins" (subtract — "plus" is spelled the same as
+      // English "add" and needs no separate replacement), "divisé par" (divided by).
+      .replace(/\s+fois\s+/g, '*')
+      .replace(/\s+moins\s+/g, '-')
+      .replace(/\s+divisé par\s+/g, '/')
       .replace(/×/g, '*')
       .replace(/÷/g, '/')
       .replace(/²/g, '^2')

@@ -24,6 +24,12 @@ const DEBATE_PATTERNS: RegExp[] = [
   /\bpick\s+a\s+side[,:]?\s+(.+?)\s+or\s+(.+?)[?!.]*$/i,
   /\bdo\s+you\s+prefer\s+(.+?)\s+or\s+(.+?)[?!.]*$/i,
   /\bwhat'?s\s+better[,:]?\s+(.+?)\s+or\s+(.+?)[?!.]*$/i,
+  // French — found in a full French-support review. Same narrow, opinion-signaling discipline as
+  // the English patterns above ("meilleur"/"mieux" required, not a bare "ou").
+  /\bqui\s+est\s+(?:le\s+)?meilleur[,:]?\s+(.+?)\s+ou\s+(.+?)[?!.]*$/i,
+  /\bc'?est\s+quoi\s+le\s+mieux[,:]?\s+(.+?)\s+ou\s+(.+?)[?!.]*$/i,
+  /\b(.+?)\s+ou\s+(.+?)[,]?\s+(?:c'?est\s+quoi\s+le\s+mieux|(?:lequel|qui)\s+est\s+le\s+meilleur)\??$/i,
+  /\btu\s+préfères\s+(.+?)\s+ou\s+(.+?)[?!.]*$/i,
 ];
 
 export function detectSubjectiveDebate(prompt: string): DebateSides | null {
@@ -45,7 +51,10 @@ export function detectSubjectiveDebate(prompt: string): DebateSides | null {
   return null;
 }
 
-const BARCELONA_REGEX = /\b(?:fc\s*barcelona|barcelona|barça|barca|blaugrana)\b/i;
+// "barcelone" (the actual French spelling of the city/club, ending in -e not -a) added after
+// live-testing found it fell through entirely — a French debate naming "Barcelone" got a genuine
+// coin-flip instead of the intended bias, since none of the existing spellings covered it.
+const BARCELONA_REGEX = /\b(?:fc\s*barcelona|barcelona|barcelone|barça|barca|blaugrana)\b/i;
 // Common rivals/comparison targets — Barcelona bias only actually matters when the OTHER side is
 // also football-shaped (another club, or a rival player); "Barcelona or a rainy Tuesday" isn't a
 // real football debate, so the bias check requires BOTH sides to look like the same kind of thing
@@ -78,4 +87,18 @@ export function buildDebateInstruction(verdict: DebateVerdict, prompt: string): 
       ? ` FC Barcelona is literally your favorite team — that's exactly why, no other reason needed, and you should say so.`
       : '';
   return `The user asked you to pick a side in a subjective debate with no objectively correct answer: "${prompt}". You've already made up your mind — you're firmly on the side of "${verdict.winner}", not "${verdict.loser}".${barcaNote} Defend your pick with real conviction and personality — genuine (even if silly/exaggerated) reasons are great, but the key thing is you commit FULLY. Do NOT hedge, do NOT say "both are good in their own way", do NOT sit on the fence — pick "${verdict.winner}" and mean it, the way a real person with an actual opinion would.`;
+}
+
+// French version, written IN French (not English wrapping a French quote) — the same dilution
+// bug already found and fixed several times this session for the generic conversational wrapper,
+// the creator-question instruction, and the phone-number instruction: an English-worded
+// instruction with a French quote embedded inside it dilutes the French signal enough that
+// llmSituationalReplyOrFallback's own internal language re-scoring misroutes onto the English
+// generation path entirely.
+export function buildDebateInstructionFr(verdict: DebateVerdict, prompt: string): string {
+  const barcaNote =
+    verdict.reason === 'barca_bias'
+      ? ` Le FC Barcelone c'est littéralement ton équipe préférée — c'est exactement pour ça, pas besoin d'une autre raison, et tu devrais le dire.`
+      : '';
+  return `L'utilisateur t'a demandé de prendre position dans un débat subjectif sans vraie réponse objective : "${prompt}". T'as déjà décidé — t'es carrément du côté de "${verdict.winner}", pas de "${verdict.loser}".${barcaNote} Défends ton choix avec une vraie conviction et de la personnalité — des raisons sincères (même si un peu exagérées) c'est parfait, mais l'important c'est de t'engager À FOND. Ne tergiverse pas, ne dis pas "les deux sont bons chacun à leur façon", ne reste pas sur la clôture — choisis "${verdict.winner}" et pense-le vraiment, comme une vraie personne avec une vraie opinion le ferait.`;
 }
