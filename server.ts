@@ -13,7 +13,6 @@ import {
 import { generateReasoningPath, assessCorpusConfidence } from './src/ai-engine/reasoningEngine';
 import { getMoodDisplay } from './src/ai-engine/moodEngine';
 import { checkAvailability as checkLocalLlmAvailability, generate as generateLlmText, generateVision } from './src/ai-engine/localLlmClient';
-import { warmPolishDictionary } from './src/ai-engine/polishSpellCheck';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
 import {
   BUILTIN_KNOWLEDGE,
@@ -2130,25 +2129,34 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Nexus & RaidShield API Server active at http://0.0.0.0:${PORT}`);
-    // Fire-and-forget: pays the expensive one-time Polish-dictionary parse cost during startup
-    // instead of on a live user's first Polish message. See polishSpellCheck.ts's comment on
-    // warmPolishDictionary for why this exists — a synchronous parse can't be timeout-guarded
-    // once it starts, so the only real fix is not letting it start mid-request.
-    warmPolishDictionary();
-    // REVERTED: an earlier version of this comment argued for eagerly warming the BM25 index here
-    // too (getBM25Engine(getAllKnowledge())), the same way warmPolishDictionary above pays its
-    // one-time cost at boot instead of on a live request. That was wrong to add without measuring
+    // REVERTED: this used to fire warmPolishDictionary() here, eagerly building the Polish nspell
+    // dictionary at boot instead of on a live user's first Polish message — same "pay the one-time
+    // cost at boot" idea the BM25 index warm-up below was also tried and reverted for, and it
+    // turned out to be wrong for the identical reason, just measured later. Isolated live
+    // measurement of nspell's constructor (the ~4.7MB Polish affix/word-list file) found it costs
+    // ~175MB of heap and pushes RSS up by ~600MB+ — by far the single largest chunk of memory this
+    // process allocates anywhere, paid on EVERY deploy for EVERY user regardless of whether anyone
+    // ever actually writes in Polish. Real Polish traffic on this bot is rare, so that's a bad
+    // trade: a huge permanent memory cost, on the exact 1GB-limited host that was already OOM-
+    // crashing, in exchange for avoiding one slow (~10-20s) first reply the rare time someone
+    // does message in Polish. getSpell() in polishSpellCheck.ts already lazily builds and caches
+    // the dictionary on first real use (same promise-caching pattern as the BM25 index and the
+    // embeddings loader below) — removing this eager call is the only change needed; the lazy path
+    // was already fully built and working, just never actually relied on until now.
+    //
+    // An earlier version of this comment also argued for eagerly warming the BM25 index here
+    // too (getBM25Engine(getAllKnowledge())), the same way. That was wrong to add without measuring
     // actual memory headroom on the real deployment target: the live Railway deployment crashed
     // with "JavaScript heap out of memory" during startup, and the crash log placed it immediately
     // after this exact console.log line — i.e. during this callback's own synchronous work. Index
     // construction (tokenizing/stemming every corpus document, building bigram/trigram and entity
     // indices) allocates well above the resting size of the final index while it runs, and stacking
     // that transient spike on top of everything else already happening at boot (Express init,
-    // parsing the multi-megabyte embeddings.generated.json, the Polish dictionary parse right
-    // above) was enough to tip a memory-constrained container over its heap limit. Left lazy again
-    // — the first real request after a deploy pays the ~458ms one-time build cost instead of
-    // startup itself risking a crash that takes the whole server down for every user, which is a
-    // far worse outcome than one slightly slower first request.
+    // parsing the multi-megabyte embeddings.generated.json, and previously the Polish dictionary
+    // parse too) was enough to tip a memory-constrained container over its heap limit. Left lazy
+    // — the first real request after a deploy pays the one-time build cost instead of startup
+    // itself risking a crash that takes the whole server down for every user, which is a far worse
+    // outcome than one slightly slower first request.
   });
 }
 

@@ -46,21 +46,20 @@ function getSpell() {
   return spellPromise;
 }
 
-// Fired once, fire-and-forget, as early as possible in the process's life (see server.ts) so the
-// expensive synchronous parse above happens during deploy warmup instead of blocking the first
-// real Polish message a user sends. nspell's constructor blocks the entire single-threaded event
-// loop for its whole duration — no `await`/timeout wrapper can interrupt synchronous work once it
-// starts, so the only real fix is making sure that block happens when nobody's waiting on it,
-// not mid-request. Observed live: a Polish message got Railway's own "Application failed to
-// respond" (502) after ~17s with no application-level error at all, consistent with the event
-// loop being fully blocked long enough for Railway's gateway to give up waiting — this warms the
-// dictionary before any user ever triggers that cold-start cost.
-export function warmPolishDictionary(): void {
-  getSpell().catch(() => {
-    // Swallowed deliberately: a failed warmup just means the next real Polish message pays the
-    // cold-start cost itself (and can retry, thanks to the fix above) instead of crashing startup.
-  });
-}
+// An eager warmPolishDictionary(), fired fire-and-forget at server startup, used to live here and
+// get called from server.ts's listen() callback — built specifically to avoid a real, observed
+// problem: a Polish message once got Railway's own "Application failed to respond" (502) after
+// ~17s with no application-level error, consistent with nspell's synchronous constructor (it
+// blocks the entire single-threaded event loop for its whole duration, un-interruptible by any
+// `await`/timeout wrapper) blocking mid-request. That fix traded one real problem for a bigger
+// one it wasn't measured against: isolated live measurement found building the dictionary costs
+// ~175MB of heap and pushes RSS up by ~600MB+ — paid on EVERY process boot, for EVERY user,
+// regardless of whether anyone ever actually writes in Polish, on the exact 1GB-limited Railway
+// host that was independently OOM-crashing. With real Polish traffic confirmed rare, the eager
+// warm-up was removed — getSpell() below already builds and caches the dictionary lazily on
+// first real use (same promise-caching pattern the BM25 index and embeddings loader use), so a
+// rare Polish message now simply pays its own one-time build cost directly, same as those other
+// two lazy-built subsystems already do without incident.
 
 // Words the bot's persona/topics legitimately use that a general-purpose dictionary won't know
 // (platform/brand names) — checked against these before being counted as "invalid" so a perfectly
