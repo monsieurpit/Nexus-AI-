@@ -3132,6 +3132,21 @@ async function llmFreeResponseOrFallback(
   );
 }
 
+// Reflect-and-retry telemetry — the retry mechanism inside llmGroundedOrFallback fires a SECOND
+// full generate() call whenever verifyAnswer() fails, doubling latency for that request. Until
+// now there was no way to know how often that actually happens in practice (only a per-request
+// retryAttempted/retryFixed boolean buried in that one response's thoughtSteps, never aggregated)
+// — this in-process counter, mirroring the RequestQueue telemetry pattern already surfaced on
+// /health and /api/v1/queue/status, exists purely to get a real number before deciding whether the
+// retry rate is worth optimizing further (e.g. tightening verifyAnswer's false-positive rate).
+// Resets on every process restart, same as every other in-memory counter in this codebase — that's
+// fine, it's a live-rate signal, not a durable metric.
+export const retryTelemetry = {
+  confidentGroundedTotal: 0,
+  retryFired: 0,
+  retryFixedCount: 0,
+};
+
 async function llmGroundedOrFallback(
   prompt: string,
   persona: ModelPersona,
@@ -3235,6 +3250,7 @@ async function llmGroundedOrFallback(
   let finalLatency = llmResult.latencyMs;
   let retryAttempted = false;
   let retryFixed = false;
+  retryTelemetry.confidentGroundedTotal++;
 
   // Reflect-and-retry: previously, a failed self-check discarded the model's output entirely for
   // the canned template — the model never got a chance to fix its own mistake, even though
@@ -3246,6 +3262,7 @@ async function llmGroundedOrFallback(
   // second attempt ALSO fails verification, exactly as before this existed.
   if (!llmVerification.passed) {
     retryAttempted = true;
+    retryTelemetry.retryFired++;
     const issueSummary = llmVerification.issues.map((i) => i.detail).join(' ');
     const correctionNote = usePolish
       ? `\n\nTwoja poprzednia odpowiedź miała problem: ${issueSummary} Popraw to i odpowiedz ponownie, konkretnie na pytanie: ${prompt}`
@@ -3273,6 +3290,7 @@ async function llmGroundedOrFallback(
         finalText = retryResult.text;
         finalLatency = retryResult.latencyMs;
         retryFixed = true;
+        retryTelemetry.retryFixedCount++;
       }
     }
   }

@@ -10,7 +10,7 @@ import {
   parseSdkRules,
   enforceStrictSdkRules,
 } from './src/ai-engine/ruleEngine';
-import { generateReasoningPath, assessCorpusConfidence } from './src/ai-engine/reasoningEngine';
+import { generateReasoningPath, assessCorpusConfidence, retryTelemetry } from './src/ai-engine/reasoningEngine';
 import { getMoodDisplay } from './src/ai-engine/moodEngine';
 import { checkAvailability as checkLocalLlmAvailability, generate as generateLlmText, generateVision } from './src/ai-engine/localLlmClient';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
@@ -499,6 +499,18 @@ app.get('/api/health', async (req, res) => {
       isBusy: globalRequestQueue.isBusy,
       totalProcessed: globalRequestQueue.totalProcessed,
       avgProcessingTimeMs: globalRequestQueue.avgProcessingTimeMs,
+    },
+    // Diagnostic for the reflect-and-retry mechanism (llmGroundedOrFallback) — a failed
+    // verifyAnswer() check fires a SECOND full Ollama call, doubling latency for that request.
+    // Surfaced here to get a real fire-rate before deciding whether it's worth optimizing further.
+    retryRate: {
+      confidentGroundedTotal: retryTelemetry.confidentGroundedTotal,
+      retryFired: retryTelemetry.retryFired,
+      retryFixedCount: retryTelemetry.retryFixedCount,
+      retryFireRatePct:
+        retryTelemetry.confidentGroundedTotal > 0
+          ? Math.round((retryTelemetry.retryFired / retryTelemetry.confidentGroundedTotal) * 1000) / 10
+          : 0,
     },
     availableEndpoints: [
       'POST /api/v1/nexus',
