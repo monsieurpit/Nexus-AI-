@@ -420,6 +420,16 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     }
 
     const data: any = await res.json();
+    // Opt-in diagnostic (off by default, zero cost when unset) — added while chasing a real user
+    // complaint about 12-30s replies. Found live: prefill (reading the prompt) scales with token
+    // count on this hardware, and the system/instruction prompt stack had grown to 4000+ tokens
+    // for a grounded factual answer, directly costing many real seconds regardless of how short
+    // the actual reply was. Set LATENCY_DEBUG=true to see the prefill/decode split per call.
+    if (process.env.LATENCY_DEBUG === 'true') {
+      console.log(
+        `[latencydebug] system_chars=${options.system?.length || 0} user_chars=${prompt.length} prompt_eval_count=${data.prompt_eval_count} prompt_eval_ms=${((data.prompt_eval_duration || 0) / 1e6).toFixed(0)} eval_count=${data.eval_count} eval_ms=${((data.eval_duration || 0) / 1e6).toFixed(0)} load_ms=${((data.load_duration || 0) / 1e6).toFixed(0)} total_ms=${((data.total_duration || 0) / 1e6).toFixed(0)}`
+      );
+    }
     let text = typeof data?.message?.content === 'string' ? data.message.content.trim() : '';
     if (!text) {
       return { status: 'unavailable', reason: 'empty_response' };
