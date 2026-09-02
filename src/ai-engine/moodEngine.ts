@@ -57,8 +57,14 @@ function isPraise(text: string): boolean {
   return PRAISE_REGEX.test(t) || PRAISE_REGEX_2.test(t) || PRAISE_REGEX_PL.test(t);
 }
 
+// Bug found in review: (?:hell\s+)?ye+a*h+ has every quantifier satisfiable by its minimum (one
+// e, zero a's, one h) — meaning a bog-standard, low-energy "yeah" (arguably one of the single most
+// common words in casual chat) matched this and registered as genuine hype every time. Verified
+// live: registerMoodEvent('yeah', ...) alone was enough to jump the mood straight to "happy".
+// Requires actual emphasis now — a real elongation/repetition ("yeeeah", "yeahhh") or the "hell"
+// intensifier, not the bare word.
 const HYPE_REGEX =
-  /\b(?:let'?s\s*go+|lets\s*go+|lesgo+|yess+|omg+|hyped?|so\s+excited|pumped|can'?t\s+wait|w\s+w\s+w|(?:hell\s+)?ye+a*h+)\b/i;
+  /\b(?:let'?s\s*go+|lets\s*go+|lesgo+|yess+|omg+|hyped?|so\s+excited|pumped|can'?t\s+wait|w\s+w\s+w|hell\s+ye+a*h+|ye{2,}a*h+|yea+h{2,})\b/i;
 
 function isHype(text: string): boolean {
   const t = text.trim();
@@ -95,6 +101,19 @@ const FOOTBALL_REGEX = /\b(?:fc\s*barcelona|barcelona|barça|barca|blaugrana|foo
 const DEBATE_REGEX = /\b(?:which\s+(?:one\s+)?(?:is\s+)?better|who'?s\s+better|vs\.?|versus|pick\s+a\s+side|do\s+you\s+prefer)\b/i;
 const FUN_REQUEST_REGEX = /\b(?:tell\s+me\s+a\s+joke|make\s+me\s+laugh|roast\s+me|write\s+(?:me\s+)?an?\s+(?:poem|haiku|song|story|joke)|riddle|funny)\b/i;
 
+// Bug found in review: the light nudges below (topic-based + the generic baseline) were gated
+// only by WHICH message type fired, never by how often — fine for a single 1:1 conversation
+// (naturally paced by typing speed), but on a busy multi-user server, message volume can vastly
+// outrun decay's ability to counteract it. Verified live: 200 ordinary messages in a tight burst
+// (a realistic few minutes of a busy channel) pinned mood at the max clamp (valence/arousal both
+// at 1.0, "super_happy") and it would just STAY there — the opposite of "realistic, slow-moving."
+// A cooldown on light nudges specifically (NOT on the strong insult/praise/hype/distress signals,
+// which should still compound freely — someone spamming insults really should anger the bot
+// faster) makes the mood track real elapsed TIME spent in engaging conversation, the way the decay
+// half-life already does, rather than raw message count.
+const LIGHT_NUDGE_COOLDOWN_MS = 30 * 1000;
+let lastLightNudgeAt = 0;
+
 // Called once per real user turn (not per internal retry) from generateReasoningPath. Reuses the
 // hostility/dominance detectors from swearEngine.ts rather than re-implementing them — anger
 // should track the exact same "is this actually an insult" logic already tuned there through many
@@ -105,7 +124,12 @@ export function registerMoodEvent(prompt: string, wasInsulted: boolean, wasDistr
   } else {
     consecutiveLowEffort = 0;
   }
-  if (consecutiveLowEffort >= 3) {
+  // Same volume-vs-time bug as the light nudges below, verified live: 50 rapid low-effort messages
+  // (plausible in a busy multi-user channel, even without any single user actually spamming) drove
+  // arousal straight to the -1 clamp. Boredom is a real, gradual thing, not something a burst of
+  // "k"s should instantly max out — same cooldown treatment.
+  if (consecutiveLowEffort >= 3 && Date.now() - lastLightNudgeAt >= LIGHT_NUDGE_COOLDOWN_MS) {
+    lastLightNudgeAt = Date.now();
     nudge(0, -0.15); // conversation's gone flat and repetitive — energy drains, not mood
   }
 
@@ -123,18 +147,26 @@ export function registerMoodEvent(prompt: string, wasInsulted: boolean, wasDistr
     nudge(0.3, 0.2);
   } else if (isHype(prompt)) {
     nudge(0.2, 0.3);
+  } else if (Date.now() - lastLightNudgeAt < LIGHT_NUDGE_COOLDOWN_MS) {
+    // Cooldown active — a light-nudge-shaped message arrived too soon after the last one. Skip it
+    // entirely rather than queueing/accumulating it; the next eligible message picks up normally.
   } else if (FOOTBALL_REGEX.test(prompt)) {
+    lastLightNudgeAt = Date.now();
     nudge(0.1, 0.05); // a genuine passion topic (the persona is an established Barça fan)
   } else if (DEBATE_REGEX.test(prompt)) {
+    lastLightNudgeAt = Date.now();
     nudge(0, 0.08); // a spirited exchange is stimulating regardless of which way it goes
   } else if (FUN_REQUEST_REGEX.test(prompt)) {
+    lastLightNudgeAt = Date.now();
     nudge(0.06, 0.05); // being asked to be funny/creative is mildly enjoyable, not neutral
   } else if (prompt.trim().length > 0) {
     // Every other real message still counts for something — being useful/engaged in a
     // conversation is mildly, genuinely pleasant, the same way routine friendly chatter warms
     // someone up a little over time even without any single remarkable moment in it. Small enough
     // that it takes a real STREAK of ordinary messages (not one) to move the needle, and the
-    // 90-minute decay keeps a burst of ordinary chatter from permanently ratcheting mood upward.
+    // 90-minute decay keeps a burst of ordinary chatter from permanently ratcheting mood upward —
+    // now further protected by the cooldown above against sheer message-volume runaway too.
+    lastLightNudgeAt = Date.now();
     nudge(0.02, 0.02);
   }
 }
@@ -213,4 +245,5 @@ export function _resetMoodForTests(): void {
   mood = { valence: 0, arousal: 0 };
   lastTouchedAt = Date.now();
   consecutiveLowEffort = 0;
+  lastLightNudgeAt = 0;
 }
