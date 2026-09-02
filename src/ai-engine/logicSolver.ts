@@ -157,6 +157,54 @@ const CLASSIC_RIDDLES: { match: RegExp; title: string; answer: string; explanati
     answer: '1 hour, not 1.5.',
     explanation: `You take pill 1 immediately (0 minutes), pill 2 thirty minutes later, and pill 3 thirty minutes after that — 60 minutes total. There are only 2 gaps between 3 pills, not 3, so the intuitive "3 pills × 30 minutes = 90 minutes" answer double-counts a gap that doesn't exist.`,
   },
+  {
+    match: /how\s+many\s+times\s+can\s+you\s+subtract\s+5\s+from\s+25/i,
+    title: 'Gotcha: "Subtracting 5 From 25"',
+    answer: 'Only once.',
+    explanation: `After you subtract 5 from 25 the first time, you're left with 20 — every subtraction after that is subtracting 5 from 20, then 15, then 10, not from 25 again. The question asks specifically how many times you can subtract 5 FROM 25, and 25 only exists for that first subtraction.`,
+  },
+  {
+    match: /before\s+(?:mount\s+)?everest\s+was\s+discovered.{0,40}(?:what|which)\s+(?:was|is)\s+the\s+(?:tallest|highest)\s+mountain/i,
+    title: 'Gotcha: "Before Everest Was Discovered"',
+    answer: 'Still Mount Everest.',
+    explanation: `Everest being "discovered" (i.e., identified/measured by outsiders) didn't change its actual height — it was already the tallest mountain on Earth the entire time, nobody having measured it yet doesn't make it shorter. The trap is assuming "discovered" means "started existing" or "started being the tallest."`,
+  },
+  {
+    match: /what\s+goes\s+up\s+but\s+never\s+comes\s+down/i,
+    title: 'Classic Riddle: Age',
+    answer: 'Your age.',
+    explanation: `Your age only ever increases — it goes up every year but never comes back down, unlike almost everything else that goes up (a ball, a balloon, temperature).`,
+  },
+  {
+    match: /what\s+can\s+you\s+catch\s+but\s+(?:not|can'?t)\s+throw/i,
+    title: 'Classic Riddle: A Cold',
+    answer: 'A cold.',
+    explanation: `You "catch" a cold (get sick) the same way you'd catch a ball, but there's no way to physically throw a cold to someone — the verb "catch" is doing double duty between the literal and illness senses.`,
+  },
+  {
+    match: /what\s+has\s+to\s+be\s+broken\s+before\s+you\s+can\s+use\s+it/i,
+    title: 'Classic Riddle: An Egg',
+    answer: 'An egg.',
+    explanation: `You have to crack (break) an egg's shell before you can actually use what's inside it for cooking — nothing about the egg is usable while it's still intact.`,
+  },
+  {
+    match: /(?:a\s+)?greenhouse\s+is\s+made\s+of\s+what|what\s+(?:is|'s)\s+a\s+greenhouse\s+made\s+of/i,
+    title: 'Classic Riddle: Glass',
+    answer: 'Glass.',
+    explanation: `Despite the name, a "greenhouse" isn't made of green material at all — it's a glass structure that lets sunlight in to grow plants. The name refers to what grows inside it, not what it's built from (the same trick as "a red house is made of red bricks, a blue house is made of blue bricks" riddles).`,
+  },
+  {
+    match: /two\s+fathers\s+and\s+two\s+sons.{0,60}fish.{0,60}(?:catch|caught)\s+3\s+fish.{0,60}(?:one\s+each|each\s+(?:person\s+)?(?:gets?|got)\s+one)/i,
+    title: 'Classic Riddle: Two Fathers, Two Sons',
+    answer: 'Three people: a grandfather, his son, and his grandson.',
+    explanation: `"Two fathers and two sons" sounds like four people, but it only takes three: the grandfather is a father (to the middle person) and the middle person is both a son (to the grandfather) AND a father (to the grandson). Three people, three fish, one each — no math trick needed once you see the family structure.`,
+  },
+  {
+    match: /5\s+machines.{0,20}5\s+minutes.{0,20}(?:make|produce)\s+5\s+widgets.{0,60}how\s+long.{0,60}100\s+machines.{0,20}100\s+widgets/i,
+    title: 'Classic Lateral-Thinking Puzzle: 5 Machines, 5 Widgets',
+    answer: 'Still 5 minutes.',
+    explanation: `Each machine takes 5 minutes to make ONE widget (5 machines making 5 widgets in 5 minutes means each machine makes exactly one widget in that time) — the machines work in parallel, not by splitting the work. So 100 machines running at the same time each make their own widget in the same 5 minutes, producing 100 widgets total in 5 minutes, not 100 minutes. The intuitive "scale the time with the quantity" instinct is wrong here because more machines means more parallel work, not more sequential work.`,
+  },
 ];
 
 // "A farmer has 17 sheep, all but 9 die, how many are left" — a classic trick riddle where the
