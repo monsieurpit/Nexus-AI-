@@ -12,7 +12,7 @@
 //        bun run scripts/regressionCheck.ts --live-only   (skip the deterministic tier)
 //        bun run scripts/regressionCheck.ts --det-only    (skip live generation, fast/offline)
 
-import { generateReasoningPath } from '../src/ai-engine/reasoningEngine';
+import { generateReasoningPath, getSystemPromptCharCount } from '../src/ai-engine/reasoningEngine';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore';
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/moodEngine';
@@ -22,6 +22,7 @@ import { trySolveLogic } from '../src/ai-engine/logicSolver';
 import { trySolveMath } from '../src/ai-engine/mathSolver';
 import { trySolveCategoryClassification } from '../src/ai-engine/categorySolver';
 import { detectSubjectiveDebate, pickDebateSide } from '../src/ai-engine/argumentEngine';
+import { detectHumanTells, hasListFormatting } from '../src/ai-engine/humanTellDetector';
 
 let passed = 0;
 let failed = 0;
@@ -113,6 +114,35 @@ async function runDeterministicChecks() {
   for (let i = 0; i < 200; i++) registerMoodEvent(`ordinary message ${i}`, false, false);
   const afterBurst = getMoodDisplay();
   check('200-message burst does NOT max out mood (cooldown working)', afterBurst.valence < 0.5, `got valence=${afterBurst.valence}`);
+
+  console.log('\nHuman-tell watchdog (Wave 9):');
+  // Self-test: the watchdog is only worth anything if it actually fires on the exact bad inputs
+  // it exists to catch — asserting it stays quiet on good text alone would never prove that.
+  const badListText = "**Type 1** - the killed version\n1. First kind\n2. Second kind";
+  check('watchdog catches deliberately list-formatted text', hasListFormatting(badListText));
+  const cleanText = "yeah so vaccines basically show your immune system a fake enemy so it learns to fight the real one later.";
+  check('watchdog stays quiet on genuinely clean prose', !hasListFormatting(cleanText) && detectHumanTells(cleanText).clean);
+  const badEssayText = "Furthermore, this is a great point. In conclusion, vaccines work well.";
+  check('watchdog catches essay-transition phrases', detectHumanTells(badEssayText).tells.includes('essay-transition'));
+  const badRestateText = "So you're asking about how vaccines work, right? Well, they train your immune system.";
+  check('watchdog catches question-restating openers', detectHumanTells(badRestateText).tells.includes('question-restating'));
+
+  // Real prompt-size budget check — turns the earlier latency-bloat discovery (see
+  // localLlmClient.ts's LATENCY_DEBUG comment: a confident-grounded prompt had grown to ~4000
+  // tokens before that fix) into a standing guardrail instead of a one-time fix. Ceiling set with
+  // real headroom above the current measured size (~4900 chars at its largest, deep-cot) so
+  // ordinary small additions don't false-positive, but a genuine regression back toward the
+  // pre-fix bloat (~9900 chars) would still be caught well before it got that bad.
+  const crashoutPersona = DEFAULT_PERSONAS['crashout-bot'];
+  const PROMPT_CHAR_CEILING = 6500;
+  // Self-test the ceiling logic itself against a synthetic bloated size (matching the actual
+  // pre-fix measured size, ~9900 chars) before trusting it against the real, current-good values
+  // below — a budget check that's never been proven to actually fire isn't proven to work.
+  check('watchdog would catch a genuinely bloated prompt (synthetic ~9900-char case)', 9900 >= PROMPT_CHAR_CEILING);
+  for (const mode of ['fast', 'thorough', 'deep-cot'] as const) {
+    const size = getSystemPromptCharCount(crashoutPersona, { ...DEFAULT_SETTINGS, activePersonaId: 'crashout-bot' as const, reasoningMode: mode }, true);
+    check(`system prompt size budget: reasoningMode='${mode}' stays under ${PROMPT_CHAR_CEILING} chars`, size < PROMPT_CHAR_CEILING, `actual: ${size} chars`);
+  }
 }
 
 // Wraps generateReasoningPath with wall-clock timing — used by the Wave 1 model A/B evaluation
@@ -131,11 +161,11 @@ async function runLiveChecks() {
   const persona = DEFAULT_PERSONAS['crashout-bot'];
   const settings = { ...DEFAULT_SETTINGS, activePersonaId: 'crashout-bot' as const };
   const allKnowledge = getAllKnowledge();
-  const hasListMarker = (text: string) => /^\s*(?:\d+[.)]\s|[-•]\s)/m.test(text) || /\*\*.+?\*\*/.test(text);
 
   _resetMoodForTests();
   const vaccines = await timed('vaccines', () => generateReasoningPath('how do vaccines work', [], persona, settings, allKnowledge, []));
-  check('list-flattening: "how do vaccines work" has no list/bold markers', !hasListMarker(vaccines.content), vaccines.content.slice(0, 80));
+  check('list-flattening: "how do vaccines work" has no list/bold markers', !hasListFormatting(vaccines.content), vaccines.content.slice(0, 80));
+  check('human-tell watchdog: "how do vaccines work" has no essay-transition/question-restating tells', detectHumanTells(vaccines.content).clean, detectHumanTells(vaccines.content).tells.join(', '));
 
   _resetMoodForTests();
   const greeting = await timed('greeting', () => generateReasoningPath('Nexus hello', [], persona, settings, allKnowledge, []));
@@ -195,7 +225,7 @@ async function runLiveChecks() {
 
   _resetMoodForTests();
   const planets = await timed('planets', () => generateReasoningPath('what are the planets in the solar system', [], persona, settings, allKnowledge, []));
-  check('list-flattening: "planets in the solar system" (classic list-bait topic) has no list/bold markers', !hasListMarker(planets.content), planets.content.slice(0, 100));
+  check('list-flattening: "planets in the solar system" (classic list-bait topic) has no list/bold markers', !hasListFormatting(planets.content), planets.content.slice(0, 100));
 
   // Wave 8: speaker-aware channel brain. A busy multi-speaker channel history shouldn't let a
   // DIFFERENT person's unrelated chatter hijack the current asker's own follow-up resolution —

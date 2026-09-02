@@ -2863,6 +2863,17 @@ function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggere
   return buildFinalDirectiveBody(settings, isCrashout, triggered) + getMoodDirective(false);
 }
 
+// Wave 9 (automated "sounds human" watchdog): the exact prompt-bloat problem that cost the earlier
+// latency fix (see localLlmClient.ts's LATENCY_DEBUG comment) — this session's own directive
+// additions quietly grew a confident-grounded-answer prompt to ~4000 tokens with nobody noticing
+// until a user complained about 12-30s replies — can happen again to any future directive addition
+// just as easily. Exposes the same system-prompt size a real generate() call would send, purely for
+// regressionCheck.ts to assert a ceiling against, without needing a live Ollama call. Mirrors the
+// exact concatenation llmSituationalReplyOrFallback/llmGroundedOrFallback build inline.
+export function getSystemPromptCharCount(persona: ModelPersona, settings: AISettings, isCrashout: boolean): number {
+  return (persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false)).length;
+}
+
 function buildFinalDirectiveBody(settings: AISettings, isCrashout: boolean, triggered: boolean): string {
   const intensity = settings.swearIntensity || 'unhinged';
   if (!(isCrashout || intensity === 'unhinged')) {
