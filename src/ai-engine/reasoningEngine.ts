@@ -3060,6 +3060,7 @@ async function llmSituationalReplyOrFallback(
     maxTokens: Math.round(Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier()),
     preferPolish: usePolish,
     preferFrench: useFrench,
+    model: localLlmClient.modelForReasoningMode(settings.reasoningMode),
   });
   if (llmResult.status === 'success' && containsSlurOrHateSpeech(llmResult.text)) {
     thoughtSteps.push({
@@ -3186,6 +3187,7 @@ async function llmGroundedOrFallback(
     maxTokens: estimateResponseBudget(prompt),
     preferPolish: usePolish,
     preferFrench: useFrench,
+    model: localLlmClient.modelForReasoningMode(settings.reasoningMode),
   });
   if (llmResult.status !== 'success') {
     thoughtSteps.push({
@@ -3257,6 +3259,7 @@ async function llmGroundedOrFallback(
       maxTokens: estimateResponseBudget(prompt),
       preferPolish: usePolish,
       preferFrench: useFrench,
+      model: localLlmClient.modelForReasoningMode(settings.reasoningMode),
     });
     // The retry attempt goes through the exact same safety gate as the first — a corrective
     // regeneration is not exempt from anything the original response had to pass.

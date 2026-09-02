@@ -321,7 +321,16 @@ class RequestQueue {
   // crash-protection intent as the original single-slot queue — so a traffic burst still
   // can't exhaust memory or overwhelm the process. Configurable via env var for tuning
   // per host without a code change.
-  private readonly maxConcurrency: number = Math.max(1, Number(process.env.REQUEST_QUEUE_CONCURRENCY) || 5);
+  //
+  // Default lowered from 5 to 2 to actually match OLLAMA_MAX_CONCURRENT's own default (2, tuned
+  // against the Mac Mini host's real KV-cache headroom — see localLlmClient.ts). Every one of
+  // these "concurrent requests" runs a full generateReasoningPath pass — BM25/embeddings
+  // retrieval plus a real Ollama call — not just the Ollama call itself, so a queue default of 5
+  // let up to 5 of those full, memory-heavier passes run at once even though only 2 could ever
+  // actually get an Ollama slot; the other 3 just sat there each holding their own retrieval
+  // buffers in memory while blocked on the Ollama semaphore, directly inflating peak memory
+  // during exactly the kind of Discord traffic burst that was crashing Railway's 1GB container.
+  private readonly maxConcurrency: number = Math.max(1, Number(process.env.REQUEST_QUEUE_CONCURRENCY) || 2);
 
   // Found by a code review: enqueue() below had NO cap on how many tasks could sit waiting —
   // peakQueueLength was only ever recorded for telemetry, never enforced as an actual limit.
@@ -2099,6 +2108,24 @@ async function startServer() {
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
+  }
+
+  // Opt-in diagnostic (off by default, zero cost when unset) — logs RSS/heap every 3s so real
+  // memory behavior can be measured under actual load instead of estimated. Added while
+  // root-causing the Railway OOM crash: a local test (this same server, under real load, though
+  // run via Bun in dev rather than the Node runtime Railway deploys — so treat these as directional,
+  // not 1:1 with production) showed heapUsed staying flat (~345MB) through a concurrent-request
+  // burst while rss spiked as high as ~1GB — a gap consistent with GC/allocator pressure near a
+  // hard container ceiling (matching the Mark-Compact thrashing observed on Railway) rather than a
+  // slow leak. Set MEMORY_PROFILE=true on Railway itself for a short window to get a fully
+  // faithful reading on the actual runtime/container, then unset it again.
+  if (process.env.MEMORY_PROFILE === 'true') {
+    setInterval(() => {
+      const m = process.memoryUsage();
+      console.log(
+        `[memprofile] rss=${(m.rss / 1024 / 1024).toFixed(1)}MB heapUsed=${(m.heapUsed / 1024 / 1024).toFixed(1)}MB heapTotal=${(m.heapTotal / 1024 / 1024).toFixed(1)}MB external=${(m.external / 1024 / 1024).toFixed(1)}MB arrayBuffers=${(m.arrayBuffers / 1024 / 1024).toFixed(1)}MB`
+      );
+    }, 3000);
   }
 
   app.listen(PORT, '0.0.0.0', () => {

@@ -17,6 +17,25 @@ const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
 // Polish-only system prompt (see buildPolishSystemPrompt in reasoningEngine.ts) answered on-topic
 // and coherently every time. So Polish now stays on the one default model with a leaner prompt,
 // same as English — no separate model routing.
+//
+// A DIFFERENT kind of model routing was added later and is not the Bielik mistake repeating: a
+// same-family, larger qwen2.5 variant used only as an opt-in escalation, not a blanket swap or a
+// per-language split. Live A/B testing (regressionCheck.ts, run against both models with the same
+// prompts) found qwen2.5:7b meaningfully improves multi-step reasoning — it solved a two-train
+// relative-rate word problem the 3b default got wrong outright — at a real, measured cost: roughly
+// 2.5-3x the latency (e.g. a plain greeting went from ~1.2s to ~12s) and materially higher memory
+// pressure (a live 4-request concurrent burst against 7b left the Mac Mini host with only ~110-150MB
+// of free memory, vs. comfortable headroom on 3b — tight enough to be a real thrashing risk once the
+// Node server, Discord bot process, and Cloudflare tunnel are also running on the same machine, not
+// just "slower"). That's not a "clearly wins, adopt outright" result, so 7b is used selectively via
+// modelForReasoningMode() below — the reasoning modes (fast/thorough/deep-cot) already exist as an
+// effort dial the persona/settings can turn up for a specific query, so escalating the model itself
+// on that same dial reuses existing infrastructure instead of adding a new setting.
+const OLLAMA_MODEL_DEEP = process.env.OLLAMA_MODEL_DEEP || 'qwen2.5:7b';
+
+export function modelForReasoningMode(reasoningMode: 'fast' | 'thorough' | 'deep-cot'): string {
+  return reasoningMode === 'fast' ? OLLAMA_MODEL : OLLAMA_MODEL_DEEP;
+}
 
 // Shared language-signal classifier — used both to decide which model handles a message
 // (looksPolish, called by reasoningEngine.ts before generate()) and, below, to verify the model's
@@ -191,6 +210,10 @@ export interface OllamaGenerateOptions {
   // than widening preferPolish into an enum, so every existing call site (which only ever checks
   // `options.preferPolish`) keeps working unchanged; French-aware call sites set this one instead.
   preferFrench?: boolean;
+  // Overrides OLLAMA_MODEL for this one call — set via modelForReasoningMode() by callers that
+  // want the thorough/deep-cot escalation tier to use the larger model. Left undefined by default
+  // so every existing call site keeps using the fast, default-sized model unchanged.
+  model?: string;
 }
 
 export type LocalLlmResult =
@@ -370,7 +393,7 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        model: OLLAMA_MODEL,
+        model: options.model || OLLAMA_MODEL,
         messages,
         stream: false,
         // Ollama's default keep_alive unloads the model from memory 5 minutes after the last

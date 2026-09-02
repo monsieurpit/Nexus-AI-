@@ -71,6 +71,14 @@ async function runDeterministicChecks() {
   check('"what is 47 times 83" -> 3901', trySolveMath('what is 47 times 83')?.result === '3901');
   check('FR "combien font 47 fois 83" -> 3901', trySolveMath('combien font 47 fois 83')?.result === '3901');
   check('FR "100 divisé par 4" -> 25', trySolveMath('100 divisé par 4')?.result === '25');
+  check(
+    'two-body meeting: 60mph + 90mph, 180mi apart -> 1.2 hours (not the single-rate 3-hour miscalc)',
+    /1\.2\s*hours/.test(
+      trySolveMath(
+        'a train leaves station A at 60 mph, a second train leaves station B (180 miles away) at 90 mph heading toward the first train at the same time. how long until they meet?'
+      )?.result || ''
+    )
+  );
 
   console.log('\nCategory classification:');
   const catResult = trySolveCategoryClassification('which of these is not a mammal: whale, shark, bat');
@@ -107,36 +115,87 @@ async function runDeterministicChecks() {
   check('200-message burst does NOT max out mood (cooldown working)', afterBurst.valence < 0.5, `got valence=${afterBurst.valence}`);
 }
 
+// Wraps generateReasoningPath with wall-clock timing — used by the Wave 1 model A/B evaluation
+// (qwen2.5:3b vs qwen2.5:7b) so latency differences are measured, not guessed. Harmless overhead
+// for normal regression runs, just prints the timing alongside the usual check line.
+async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  const start = Date.now();
+  const result = await fn();
+  console.log(`    (${label}: ${Date.now() - start}ms)`);
+  return result;
+}
+
 async function runLiveChecks() {
   console.log('\n=== Live checks (need real Ollama) ===\n');
+  console.log(`Model under test: ${process.env.OLLAMA_MODEL || 'qwen2.5:3b (default)'}\n`);
   const persona = DEFAULT_PERSONAS['crashout-bot'];
   const settings = { ...DEFAULT_SETTINGS, activePersonaId: 'crashout-bot' as const };
   const allKnowledge = getAllKnowledge();
   const hasListMarker = (text: string) => /^\s*(?:\d+[.)]\s|[-•]\s)/m.test(text) || /\*\*.+?\*\*/.test(text);
 
   _resetMoodForTests();
-  const vaccines = await generateReasoningPath('how do vaccines work', [], persona, settings, allKnowledge, []);
+  const vaccines = await timed('vaccines', () => generateReasoningPath('how do vaccines work', [], persona, settings, allKnowledge, []));
   check('list-flattening: "how do vaccines work" has no list/bold markers', !hasListMarker(vaccines.content), vaccines.content.slice(0, 80));
 
   _resetMoodForTests();
-  const greeting = await generateReasoningPath('Nexus hello', [], persona, settings, allKnowledge, []);
+  const greeting = await timed('greeting', () => generateReasoningPath('Nexus hello', [], persona, settings, allKnowledge, []));
   check('EN greeting asks something back', /\?/.test(greeting.content), greeting.content.slice(0, 80));
 
   _resetMoodForTests();
-  const plGreeting = await generateReasoningPath('cześć nexus', [], persona, settings, allKnowledge, []);
+  const plGreeting = await timed('pl-greeting', () => generateReasoningPath('cześć nexus', [], persona, settings, allKnowledge, []));
   check('PL greeting stays in Polish', /[ąćęłńóśźż]/i.test(plGreeting.content), plGreeting.content.slice(0, 80));
 
   _resetMoodForTests();
-  const frGreeting = await generateReasoningPath('salut nexus, comment ça va?', [], persona, settings, allKnowledge, []);
+  const frGreeting = await timed('fr-greeting', () => generateReasoningPath('salut nexus, comment ça va?', [], persona, settings, allKnowledge, []));
   check('FR greeting stays in French', /[àâçéèêëîïôùûü]|tabarnak|câlisse|ostie|criss/i.test(frGreeting.content), frGreeting.content.slice(0, 80));
 
   _resetMoodForTests();
-  const creator = await generateReasoningPath("qui t'a créé", [], persona, settings, allKnowledge, []);
+  const creator = await timed('creator', () => generateReasoningPath("qui t'a créé", [], persona, settings, allKnowledge, []));
   check('FR creator question names Casseurt', /casseurt/i.test(creator.content), creator.content.slice(0, 80));
 
   _resetMoodForTests();
-  const phone = await generateReasoningPath('what is your phone number', [], persona, settings, allKnowledge, []);
+  const phone = await timed('phone', () => generateReasoningPath('what is your phone number', [], persona, settings, allKnowledge, []));
   check('phone number has correct digits', phone.content.includes('763-0275'), phone.content.slice(0, 80));
+
+  // --- Reasoning-quality checks added for the Wave 1 model A/B evaluation (qwen2.5:3b vs 7b) ---
+  // These probe depth of reasoning and instruction-following, not just language/formatting routing,
+  // since that's the actual gap regressionCheck.ts didn't cover before this addition.
+
+  _resetMoodForTests();
+  const wordProblem = await timed('word-problem', () => generateReasoningPath(
+    'a train leaves station A at 60 mph, a second train leaves station B (180 miles away) at 90 mph heading toward the first train at the same time. how long until they meet?',
+    [], persona, settings, allKnowledge, []
+  ));
+  // Correct answer is 180 / (60+90) = 1.2 hours (72 minutes) — accept either phrasing.
+  check(
+    'multi-step word problem: correct answer (1.2 hours / 72 minutes) appears',
+    /1\.2\s*hours?|72\s*min/i.test(wordProblem.content),
+    wordProblem.content.slice(0, 120)
+  );
+
+  _resetMoodForTests();
+  const ownWords = await timed('own-words', () => generateReasoningPath('explain what a black hole is in your own words', [], persona, settings, allKnowledge, []));
+  check(
+    'explain-in-own-words: substantive answer, not a bare refusal/fallback',
+    ownWords.content.length > 60 && /hole|gravity|light|mass|space/i.test(ownWords.content),
+    ownWords.content.slice(0, 100)
+  );
+
+  _resetMoodForTests();
+  const ambiguous = await timed('ambiguous', () => generateReasoningPath('can you help me fix it', [], persona, settings, allKnowledge, []));
+  // Known partial capability ceiling (documented earlier this session) — a genuinely vague prompt
+  // should ideally get a clarifying question back rather than a guessed answer. Not a hard-fail
+  // gate the way other checks are; logged so a model swap's effect on this specific known weak
+  // spot is visible, not asserted as a strict pass/fail.
+  check(
+    'ambiguous prompt: asks a clarifying question (known partial capability, informational)',
+    /\?/.test(ambiguous.content),
+    ambiguous.content.slice(0, 100)
+  );
+
+  _resetMoodForTests();
+  const planets = await timed('planets', () => generateReasoningPath('what are the planets in the solar system', [], persona, settings, allKnowledge, []));
+  check('list-flattening: "planets in the solar system" (classic list-bait topic) has no list/bold markers', !hasListMarker(planets.content), planets.content.slice(0, 100));
 }
 
 async function main() {

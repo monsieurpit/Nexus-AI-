@@ -818,8 +818,61 @@ function formatMathResult(n: number): string {
   return parseFloat(n.toPrecision(7)).toString();
 }
 
+// Two-body relative-motion problems ("train A leaves at 60mph, train B leaves at 90mph heading
+// toward it, both 180 miles apart — when do they meet?"). Found live: even qwen2.5:7b, escalated
+// to via reasoningMode, correctly set up the right formula in its own reasoning text ("add the two
+// speeds together, then divide the distance by that") but then botched the actual division itself
+// (180 ÷ 150 came out as "1 hour" instead of 1.2) — the exact "compute, don't generate" gap this
+// whole file exists to close, just with a stronger model instead of a weaker one. Two bodies
+// closing a gap between them combine their speeds (relative closing speed = r1 + r2); this is a
+// different formula than trySolveRateTimeDistance below (which only ever handles ONE rate), so a
+// second rate mention or "meet"/"toward"/"approaching" language is a strong signal this is the
+// two-body shape, not the single-rate one.
+function trySolveTwoBodyMeeting(prompt: string): MathSolution | null {
+  const lower = prompt.toLowerCase();
+  if (!/\bmeet(?:s|ing)?\b|\btoward(?:s)?\b|\bapproaching\b/.test(lower)) return null;
+
+  const rateMatches = [...lower.matchAll(/(\d+(?:\.\d+)?)\s*(?:mph|miles per hour|km\/h|kmh|kilometers per hour|kilometres per hour)/g)];
+  if (rateMatches.length !== 2) return null; // not this shape — leave it to trySolveRateTimeDistance's own guard
+
+  const distMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:miles|mi|km|kilometers|kilometres)\b(?!\s*per)/);
+  if (!distMatch) return null;
+
+  const r1 = parseFloat(rateMatches[0][1]);
+  const r2 = parseFloat(rateMatches[1][1]);
+  const distance = parseFloat(distMatch[1]);
+  const unit = /km\/h|kmh|kilometers per hour|kilometres per hour|\bkm\b|kilometers|kilometres/.test(lower) ? 'km' : 'miles';
+  const combinedRate = r1 + r2;
+  if (!(combinedRate > 0) || !(distance > 0)) return null;
+
+  const timeHours = distance / combinedRate;
+  const formattedTime = formatMathResult(timeHours);
+  const formattedMinutes = formatMathResult(timeHours * 60);
+
+  return {
+    isMath: true,
+    expression: `${distance} ${unit} ÷ (${r1} + ${r2} ${unit}/h)`,
+    result: `${formattedTime} hours (${formattedMinutes} minutes)`,
+    steps: [
+      `Combined closing speed (they're covering the gap together): ${r1} + ${r2} = ${combinedRate} ${unit}/h`,
+      `Time to meet: distance ÷ combined speed = ${distance} ÷ ${combinedRate} = ${formattedTime} hours`,
+    ],
+    explanation: `Two bodies moving toward each other close the gap at their COMBINED speed, not either one alone: **${r1} + ${r2} = ${combinedRate} ${unit}/h**. Time to meet = distance ÷ combined speed = **${distance} ÷ ${combinedRate} = ${formattedTime} hours** (about ${formattedMinutes} minutes).`,
+  };
+}
+
 function trySolveRateTimeDistance(prompt: string): MathSolution | null {
   const lower = prompt.toLowerCase();
+
+  // Bail out on the two-body shape handled by trySolveTwoBodyMeeting above instead — this
+  // function only ever captures the FIRST rate mention (via .match without /g), so without this
+  // guard a two-train "how long until they meet" question would silently compute
+  // distance/firstRate (180/60 = 3 hours) and confidently return it as fact, ignoring the second
+  // train's speed entirely.
+  const allRateMatches = lower.match(/\d+(?:\.\d+)?\s*(?:mph|miles per hour|km\/h|kmh|kilometers per hour|kilometres per hour)/g);
+  if ((allRateMatches && allRateMatches.length > 1) || /\bmeet(?:s|ing)?\b|\btoward(?:s)?\b|\bapproaching\b|\bsecond\s+train\b|\banother\s+train\b|\btwo\s+trains\b/.test(lower)) {
+    return null;
+  }
 
   const rateMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:mph|miles per hour|km\/h|kmh|kilometers per hour|kilometres per hour)/);
   const timeMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)\b/);
@@ -1014,7 +1067,13 @@ export function trySolveMath(prompt: string): MathSolution | null {
   const linearRes = trySolveLinearEquation(cleanPrompt);
   if (linearRes) return linearRes;
 
-  // 1c. Distance/rate/time word problems (before the arithmetic parser, which can't make sense
+  // 1c. Two-body relative-motion word problems ("two trains heading toward each other, when do
+  // they meet") — checked before the single-rate solver below, since it needs to claim this shape
+  // first rather than let the single-rate solver's own guard just bail to the LLM.
+  const twoBodyRes = trySolveTwoBodyMeeting(cleanPrompt);
+  if (twoBodyRes) return twoBodyRes;
+
+  // 1c-ii. Distance/rate/time word problems (before the arithmetic parser, which can't make sense
   // of "60mph for 2.5 hours" as an expression at all)
   const rateRes = trySolveRateTimeDistance(cleanPrompt);
   if (rateRes) return rateRes;
