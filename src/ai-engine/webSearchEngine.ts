@@ -769,7 +769,21 @@ export function shouldTriggerLiveWebSearch(
     // adjective rather than half of a proper noun. General on the adjective/verb so it doesn't need
     // a new pattern each time a different one gets reported the same way "are you X" already is.
     /^(?:nexus|you|u)\s+(?:is|are|'s)\s+\w+/i.test(q) ||
-    /^you'?re\s+\w+/i.test(q);
+    /^you'?re\s+\w+/i.test(q) ||
+    // French/Québécois — found in a full French-support review: "tu aimes le football?" (a
+    // personal-preference question about the bot, the exact same shape as the English "do you
+    // like X" case already covered above) had zero coverage and triggered a real
+    // low-confidence-fallback search, the same 429-quota-burning bug already fixed many times
+    // over for English. Covers greetings, personal preference/opinion questions, thanks/bye, and
+    // identity/creator/contact questions — the same categories the English block above covers.
+    /^(?:salut|bonjour|bonsoir|allo|coucou)\b/i.test(q) ||
+    /(?:comment\s+(?:ça|ca)\s+va|comment\s+tu\s+vas|quoi\s+de\s+neuf|ça\s+va\s*\?|ca\s+va\s*\?)/i.test(q) ||
+    /^(?:merci|merci\s+beaucoup|au\s+revoir|bye|salut\s*!?$)/i.test(q) ||
+    /\btu\s+(?:aimes?|penses?|crois|préfères|preferes)\b/i.test(q) ||
+    /\bqui\s+t'?a\s+(?:créé|cree|fait|programmé|programme)\b/i.test(q) ||
+    /\b(?:quel\s+est\s+ton|c'?est\s+quoi\s+ton)\s+num[eé]ro\b/i.test(q) ||
+    /\bcomment\s+tu\s+(?:fonctionnes?|marches?)\b/i.test(q) ||
+    /\bt'?es\s+(?:une?\s+)?(?:ia|intelligence\s+artificielle|robot)\b/i.test(q);
 
   if (isConversational) return false;
 
@@ -869,7 +883,12 @@ export function shouldTriggerLiveWebSearch(
     // Polish patterns this session; verified live that a bare trailing \b here genuinely failed to
     // match "kto jest królową anglii").
     /\bkto\s+jest\s+(?:aktualnym|obecnym)?\s*(?:prezydentem|premierem|królem|królową|papieżem|dyrektorem|prezesem|burmistrzem|liderem)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(q) ||
-    /\bczy\s+.{2,40}\s+(?:nadal|jeszcze)\s+żyje\b/i.test(q);
+    /\bczy\s+.{2,40}\s+(?:nadal|jeszcze)\s+żyje\b/i.test(q) ||
+    // French: same gap as Polish had before its own fix above, found in a full French-support
+    // review — "qui est le président actuel de la France" fell straight through to static corpus
+    // retrieval with no live-verification safety net.
+    /\bqui\s+est\s+le\s+(?:président|president|premier\s+ministre|pape|roi|maire|chef)(?:\s+(?:actuel|actuelle))?\s+(?:de|du|des|d')\b/i.test(q) ||
+    /\best[- ]ce\s+que\s+.{2,40}\s+est\s+(?:encore|toujours)\s+(?:en\s+vie|vivant|vivante)\b/i.test(q);
   if (isCurrentEventOrLiveLookup) return 'current-events';
 
   // 7. FALLBACK: Local corpus has no confident match — reach for the web instead of giving up.

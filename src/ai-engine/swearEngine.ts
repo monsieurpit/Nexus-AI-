@@ -289,6 +289,15 @@ export function detectUserInsult(text: string): boolean {
     /\b(?:spierdalaj|wypierdalaj|zamknij\s+si[eę]|chuj\s+ci\s+w\s+dup[eę]|jesteś\s+g[oó]wnem|debilu|kretynie|zamknij\s+mord[eę]|poca[lł]uj\s+mnie\s+w\s+dup[eę]|pieprz\s+si[eę]|spierdol\s+si[eę]|wypierdol\s+si[eę])(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i,
     // Spanish insults
     /\b(?:vete\s+a\s+la\s+mierda|chinga\s+tu\s+madre|callate|eres\s+una\s+mierda|eres\s+tonto|eres\s+un\s+estupido|hijo\s+de\s+puta|callate\s+la\s+boca)\b/i,
+    // French/Québécois insults — had zero coverage at all before this (found in a full French-
+    // support review), so any French insult fell through to plain corpus search instead of the
+    // crashout clapback every other insult already gets. Same ASCII-\b-vs-diacritic fix as the
+    // Polish patterns above — "t'es con" needs the boundary after "con" to survive a following
+    // accented word, and "ferme ta gueule" ends in "e" (no diacritic) but is included here for
+    // consistency with the rest of this specific insult family.
+    // "t'es" + an intensifier ("vraiment", "vraiment trop") before the actual insult — same gap
+    // already fixed for the English "you are actually so fucking stupid" shape.
+    /\b(?:va\s+te\s+faire\s+foutre|va\s+te\s+faire\s+enculer|ferme\s+ta\s+gueule|ta\s+gueule|t'?es\s+(?:vraiment\s+|tellement\s+|trop\s+){0,2}(?:con|conne|débile|debile|stupide|nul|nulle|pathétique|pathetique)|esp[eè]ce\s+de\s+con|va\s+chier|casse[\s-]toi|dégage|degage)(?![a-zàâçéèêëîïôùûüÿœæA-ZÀÂÇÉÈÊËÎÏÔÙÛÜŸŒÆ])/i,
   ];
 
   // Make sure it's not just asking "why do people suck" or "how to fix a dumb bot" — but a
@@ -739,7 +748,21 @@ export function detectEmotionalDistress(text: string): boolean {
       t
     ) ||
     /\b(?:mój|moja)\s+(?:pies|kot|mama|tata|babcia|dziadek|przyjaciel|przyjaciółka)\s+(?:umarł|umarła|zmarł|zmarła)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(t) ||
-    /\bmiał(?:e[mś])?\s+(?:okropny|fatalny|najgorszy)\s+dzień(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(t)
+    /\bmiał(?:e[mś])?\s+(?:okropny|fatalny|najgorszy)\s+dzień(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(t) ||
+    // French/Québécois equivalents — same gap Polish had before it got its own branch: no coverage
+    // at all, so a French user venting or grieving fell straight through to plain corpus search.
+    // Adjective forms cover both genders (stressé/stressée) since French agreement depends on the
+    // speaker.
+    // Trailing \b dropped for the negative-lookahead form — same ASCII-\b-vs-diacritic fix used
+    // throughout this file for Polish (e.g. "sfrustrowan" above): "stressé"/"épuisé" end in an
+    // accented character, and a plain trailing \b right after one never matches (JS's \b/\w only
+    // recognize ASCII letters as "word" characters, so neither side of that boundary reads as a
+    // real word/non-word transition). Verified live: without this fix, "je suis tellement
+    // stressé en ce moment" silently failed to match at all.
+    /\bje\s+(?:suis|me\s+sens)\s+(?:tellement\s+|vraiment\s+)?(?:stressée?|anxieux|anxieuse|déprimée?|depressée?|épuisée?|epuisée?|débordée?|debordée?|seule?|dévastée?|devastée?|terrifiée?|triste)(?![a-zàâçéèêëîïôùûüÿœæA-ZÀÂÇÉÈÊËÎÏÔÙÛÜŸŒÆ])/i.test(t) ||
+    /\bmon\s+(?:chien|chat|père|frère|grand-père)\s+(?:est\s+mort|vient\s+de\s+mourir)\b|\bma\s+(?:mère|sœur|grand-mère)\s+(?:est\s+morte|vient\s+de\s+mourir)\b/i.test(t) ||
+    /\bj'?ai\s+eu\s+(?:une\s+)?(?:la\s+)?(?:pire|pire\s+journée|si\s+mauvaise|vraiment\s+mauvaise)\s*journée\b|\bpire\s+journée\s+de\s+ma\s+vie\b/i.test(t) ||
+    /\bje\s+(?:suis\s+)?(?:tellement\s+|vraiment\s+)?(?:frustrée?|en\s+colère|furieuse?|furieux|à\s+bout|fatiguée?\s+de\s+tout)\b/i.test(t)
   );
 }
 
@@ -750,7 +773,10 @@ export function detectEmotionalDistress(text: string): boolean {
  */
 export function generateEmotionalSupportReply(text: string, isSuperChill?: boolean): string {
   const t = text.toLowerCase();
-  const isGrief = /\b(?:died|passed\s+away)\b/.test(t) || /\b(?:umarł|zmarł)/.test(t);
+  const isGrief =
+    /\b(?:died|passed\s+away)\b/.test(t) ||
+    /\b(?:umarł|zmarł)/.test(t) ||
+    /\b(?:est\s+mort|est\s+morte|vient\s+de\s+mourir)\b/.test(t);
   // Polish words here are inflected stems ("sfrustrowan" is the shared root of
   // sfrustrowany/sfrustrowana etc.), so they're deliberately matched WITHOUT a trailing \b — the
   // suffix varies and a trailing \b would either false-negative on the inflected ending or, for
@@ -760,10 +786,26 @@ export function generateEmotionalSupportReply(text: string, isSuperChill?: boole
     (/\b(?:frustrated|pissed|furious|irritated|so\s+done|sick\s+(?:and\s+tired\s+)?of|worst\s+day|bad\s+day|rough\s+day|shitty\s+day|falling\s+apart|going\s+wrong)\b/.test(
       t
     ) ||
-      /\b(?:sfrustrowan|wściekł|okropny\s+dzień|fatalny\s+dzień|najgorszy\s+dzień)/.test(t));
+      /\b(?:sfrustrowan|wściekł|okropny\s+dzień|fatalny\s+dzień|najgorszy\s+dzień)/.test(t) ||
+      /\b(?:frustrée?|en\s+colère|furieuse?|furieux|pire\s+journée|mauvaise\s+journée)/.test(t));
   const isPolish = /\b(?:jestem|sfrustrowan|wściekł|zestresowan|przygnębion|wyczerpan|przytłoczon|samotn|umarł|zmarł|okropny\s+dzień|fatalny\s+dzień|najgorszy\s+dzień)/i.test(
     t
   );
+  // "je suis"/"je me sens" alone would be too generic a signal (used in tons of ordinary French
+  // sentences), so this only checks for it alongside a real distress stem — same discipline as
+  // the Polish isPolish check above, which anchors on "jestem" plus one of its own distress words.
+  // Same ASCII-\b bug, this time on the LEADING side: "épuisée"/"dévastée" both START with an
+  // accented character, and a leading \b right before one never matches either (same reasoning —
+  // neither side of the boundary reads as a real word/non-word transition to JS's ASCII-only \b).
+  // Verified live: "je suis épuisée" correctly detected by detectEmotionalDistress above but
+  // silently failed isFrench here, so the reply shipped in English instead of French. A negative
+  // lookbehind replaces the leading \b, the mirror of the negative-lookahead fix already used
+  // throughout this file for the trailing side.
+  const isFrench =
+    !isPolish &&
+    /(?<![a-zàâçéèêëîïôùûüÿœæA-ZÀÂÇÉÈÊËÎÏÔÙÛÜŸŒÆ])(?:stressée?|anxieux|anxieuse|déprimée?|depressée?|épuisée?|epuisée?|débordée?|debordée?|seule?|dévastée?|devastée?|terrifiée?|triste|frustrée?|en\s+colère|furieuse?|furieux|mort|morte|mourir|pire\s+journée|mauvaise\s+journée)/.test(
+      t
+    );
   if (isPolish) {
     if (isGrief) {
       const plGrief = [
@@ -784,6 +826,27 @@ export function generateEmotionalSupportReply(text: string, isSuperChill?: boole
       `Rozumiem, to sporo do udźwignięcia naraz. Masz prawo nie być ok. Jestem tu — pogadajmy albo o tym, albo o czymś innym, jak wolisz.`,
     ];
     return plSupport[Math.floor(Math.random() * plSupport.length)];
+  }
+  if (isFrench) {
+    if (isGrief) {
+      const frGrief = [
+        `Tabarnak, je suis vraiment désolé. C'est une vraie perte pis y'a pas de mots magiques pour ça. Prends le temps qu'il te faut, chuis là si tu veux en parler ou juste penser à autre chose.`,
+        `Câlisse, ça c'est dur, sincèrement désolé. T'as pas besoin de faire semblant que ça va. Chuis là, que ce soit pour en parler ou pour juste changer de sujet un peu.`,
+      ];
+      return frGrief[Math.floor(Math.random() * frGrief.length)];
+    }
+    if (isFrustration) {
+      const frFrustration = [
+        `Ostie, ça sonne comme une journée d'marde en tabarnak. Sors-le, chuis là pis j'écoute.`,
+        `Câlisse, ça devait être frustrant en criss. T'as le droit d'être fâché — raconte-moi c'qui s'est passé si tu veux, sinon on jase d'autre chose.`,
+      ];
+      return frFrustration[Math.floor(Math.random() * frFrustration.length)];
+    }
+    const frSupport = [
+      `Hey, je t'entends, ça a l'air lourd en tabarnak. T'as pas besoin d'avoir tout réglé là, une chose à la fois. Chuis là si tu veux en jaser.`,
+      `Ouain, c'est beaucoup à porter d'un coup ça. T'as le droit de pas être correct. Chuis là — on peut en parler ou parler d'autre chose, comme tu veux.`,
+    ];
+    return frSupport[Math.floor(Math.random() * frSupport.length)];
   }
   if (isFrustration) {
     const frustrationReplies = [

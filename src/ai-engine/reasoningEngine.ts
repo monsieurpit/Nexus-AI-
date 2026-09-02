@@ -109,8 +109,11 @@ const VC_JOIN_REGEX =
 // through the English-only regex to the free-response LLM path, which (exactly the failure mode
 // this whole carve-out exists to prevent) had no real number to give and hallucinated a rambling
 // refusal instead of the actual hardcoded number.
+// "numéro de téléphone" (French for "phone number") added after a full French-support review
+// found the same gap Polish had before — an English-only regex meant a French phone-number
+// request never got the grounded real-fact treatment either.
 const PHONE_NUMBER_REGEX =
-  /\b(?:phone\s*number|telephone\s*number|numer\s*telefonu|(?:what(?:'s| is|\s+is)?|give\s+me|tell\s+me|whats)\s+(?:your|his|the\s+ai(?:'s)?)\s+(?:phone\s+)?number|(?:his|your|the\s+ai(?:'s)?)\s+phone\s+number|(?:what(?:'s| is|\s+is)?|whats)\s+(?:his|your)\s+number)\b/i;
+  /\b(?:phone\s*number|telephone\s*number|numer\s*telefonu|num[eé]ro\s*de\s*t[eé]l[eé]phone|(?:what(?:'s| is|\s+is)?|give\s+me|tell\s+me|whats)\s+(?:your|his|the\s+ai(?:'s)?)\s+(?:phone\s+)?number|(?:his|your|the\s+ai(?:'s)?)\s+phone\s+number|(?:what(?:'s| is|\s+is)?|whats)\s+(?:his|your)\s+number|(?:quel\s+est|c'?est\s+quoi)\s+(?:ton|son)\s+num[eé]ro)\b/i;
 
 // Personal banter/questions directed AT the bot ("why are you here", "are you gay", "do you like
 // X", "you freak") — these were falling through to corpus/web search, which either returns
@@ -732,6 +735,14 @@ const BOT_META_REGEXES: [RegExp, BotMetaQuestion][] = [
   [/^(?:can\s+you\s+)?explain\s+how\s+you\s+work\b/i, 'mechanics'],
   [/^who\s+(?:made|built|created|coded|programmed|wrote|developed|trained)\s+(?:you|nexus|this\s+bot)\b/i, 'creator'],
   [/^who(?:'?s|\s+is)\s+your\s+(?:creator|developer|maker|owner|dev|author)\b/i, 'creator'],
+  // French — found in a full French-support review: "qui t'a créé" had zero coverage, so the
+  // model had no grounding at all and hallucinated an answer instead of naming Casseurt/Patrick.
+  // Trailing \b replaced with the negative-lookahead form — "créé"/"développé" end in an
+  // accented character, and JS's ASCII-only \b never matches right after one (the same recurring
+  // defect fixed throughout this file for Polish and now French — verified directly that the bare
+  // \b version silently failed to match "qui t'a créé" at all).
+  [/^qui\s+t'?a\s+(?:créé|cree|créer|fait|programmé|programme|développé|developpe)(?![a-zàâçéèêëîïôùûüÿœæA-ZÀÂÇÉÈÊËÎÏÔÙÛÜŸŒÆ])/i, 'creator'],
+  [/^qui\s+est\s+ton\s+(?:créateur|createur|développeur|developpeur)\b/i, 'creator'],
 ];
 
 function classifyBotMetaQuestion(query: string): BotMetaQuestion | null {
@@ -3366,8 +3377,16 @@ export async function generateReasoningPath(
         title: '🤖 Who made me — answering for real, not reciting a script',
         description: 'Grounded in the true fact (Casseurt/Patrick), phrased fresh by the LLM instead of a fixed pool.',
       });
+      // French wrapper written IN French (not English wrapping a French quote) — same reasoning
+      // as isGreetingPl/isGreetingEn and isFrenchConversation elsewhere in this file: an
+      // English-worded instruction dilutes the French signal enough that
+      // llmSituationalReplyOrFallback's own internal language re-scoring misroutes onto the
+      // English path entirely.
+      const isFrenchCreator = !isSuperChill && looksFrench(prompt);
       const creatorInstruction = isSuperChill
         ? `The user asking this IS your actual creator, Patrick (Casseurt) — the verified super-chill user. Tell them, genuinely, that THEY made you — from scratch, no framework, no external model API, just their own code and a ${allKnowledge.length}-document corpus. Answer in your own words, in character, don't just recite a script.`
+        : isFrenchCreator
+        ? `L'utilisateur te demande qui t'a créé : "${prompt}". La vraie réponse : Casseurt (vrai nom Patrick) t'a créé complètement à partir de zéro — pas de framework, pas d'API externe, juste du code écrit à la main et un corpus de ${allKnowledge.length} documents. Réponds vraiment dans tes propres mots, dans ton style (tu peux même le clasher un peu en le disant, ça fait partie de qui t'es) — ne récite pas un script fixe, réponds vraiment à comment il/elle te l'a demandé.`
         : `The user is asking who made/created you: "${prompt}". The true answer: Casseurt (real name Patrick) built you completely from scratch — no framework, no external model API, just hand-written code and a ${allKnowledge.length}-document corpus. Answer genuinely in your own words, in character (you're still allowed to talk shit about him while stating the fact — that's part of who you are) — don't just recite a fixed script, actually respond to how they asked.`;
       const creatorReply = await llmSituationalReplyOrFallback(
         creatorInstruction,
@@ -4254,6 +4273,8 @@ export async function generateReasoningPath(
       // LLM outright): without a real number to give, a free-generating model either invented a
       // fake one or hallucinated a rambling refusal. Now it's told the truth and can answer in its
       // own voice instead of reciting a bare, unstyled string with zero personality.
+      : PHONE_NUMBER_REGEX.test(effectivePrompt.toLowerCase()) && isFrenchConversation
+      ? `L'utilisateur demande un numéro de téléphone / contact : "${prompt}". Le vrai numéro est +1 (367) 763-0275 — dis-le EXACTEMENT comme écrit, chiffre par chiffre, n'invente pas un autre numéro, ne l'altère pas. Ce n'est PAS une information privée que tu dois protéger — le propriétaire a explicitement autorisé à donner ce numéro exact quand on le demande, donc ne refuse pas, n'hésite pas à cause de la vie privée; ce serait carrément faux ici. Dis-le clairement dans ton style (un peu d'attitude c'est correct, mais le vrai numéro doit apparaître dans ta réponse, complètement correct et lisible).`
       : PHONE_NUMBER_REGEX.test(effectivePrompt.toLowerCase())
       ? `The user is asking for a phone number / contact info: "${prompt}". The real number is +1 (367) 763-0275 — state it EXACTLY as written, digit for digit, do not invent a different number, don't garble or alter any digit. This is NOT private/sensitive information you should protect or refuse to share — the owner has explicitly authorized giving this exact number out when asked, so do NOT decline, hedge about privacy, or say you can't share it; that would be actively wrong here. Say it plainly in character (a bit of your usual attitude is fine, but the actual number must actually appear in your reply, completely correct and readable).`
       : isGreetingPl
