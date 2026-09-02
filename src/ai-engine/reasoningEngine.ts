@@ -1528,8 +1528,43 @@ function trackEntities(recent: ChatMessage[]): string[] {
   return stack.slice(0, MAX_TRACKED_ENTITIES);
 }
 
-function buildConversationMemory(query: string, history: ChatMessage[]): ConversationMemory {
-  const recent = history.slice(-6);
+// Wave 8: speaker-aware channel "brain". This used to be a flat `history.slice(-6)` regardless of
+// how many different people were actually talking — deliberately NOT widened past 6 for a long
+// time specifically because a busy multi-speaker Discord channel's ambient history (now up to 50
+// messages, see channelHistoryService.js) mixing everyone's chatter together risked scrambling
+// pronoun/entity resolution: "it"/"that" in the current user's follow-up could get resolved against
+// something a COMPLETELY DIFFERENT person said moments earlier, not what the actual asker meant.
+// Now that ChatMessage carries a real authorId (no longer a string-prefix workaround), this filters
+// the window down to just the current asker's own turns plus the assistant replies that directly
+// followed them — the exact (user, assistant) pairing trackEntities() already relies on via
+// `recent[i+1]` — before ever slicing to a window size. That removes the actual risk (another
+// speaker's words leaking into resolution), so the window can safely draw from much more than 6
+// raw messages when authorId is known, without ever mixing in anyone else's conversation thread.
+// Falls back to the exact old behavior (last 6, unfiltered) when currentAuthorId isn't provided —
+// the website's own single-user session history, or any caller that hasn't started sending author
+// info, sees zero change.
+function buildSpeakerAwareWindow(history: ChatMessage[], currentAuthorId?: string): ChatMessage[] {
+  if (!currentAuthorId) return history.slice(-6);
+  // Draw from a much wider raw slice than 6 now that filtering makes it safe — a user's own thread
+  // can otherwise get buried under 10+ other people's messages in an active channel.
+  const rawWindow = history.slice(-40);
+  const filtered: ChatMessage[] = [];
+  for (let i = 0; i < rawWindow.length; i++) {
+    const msg = rawWindow[i];
+    if (msg.role === 'user' && msg.authorId === currentAuthorId) {
+      filtered.push(msg);
+    } else if (msg.role === 'assistant' && rawWindow[i - 1]?.role === 'user' && rawWindow[i - 1]?.authorId === currentAuthorId) {
+      filtered.push(msg);
+    }
+  }
+  // A slightly wider output window than the old flat 6 (now safe since it's filtered to the
+  // current speaker's own thread) — a user's own conversation can span more than 3 exchanges even
+  // when other people are also talking in the same channel between their turns.
+  return filtered.slice(-10);
+}
+
+function buildConversationMemory(query: string, history: ChatMessage[], currentAuthorId?: string): ConversationMemory {
+  const recent = buildSpeakerAwareWindow(history, currentAuthorId);
   const citedDocIds = new Set<string>();
 
   recent
@@ -4877,7 +4912,7 @@ export async function generateReasoningPath(
   // Built from searchPrompt, not the raw prompt: this is what actually gets searched, so it
   // should carry the slang normalization, typo corrections and filler-stripping done above —
   // the raw prompt threw all three away right before the main corpus search.
-  const memory = buildConversationMemory(searchPrompt, history);
+  const memory = buildConversationMemory(searchPrompt, history, settings.discordUserId);
   if (memory.isFollowUp || memory.citedDocIds.size > 0) {
     thoughtSteps.push({
       id: 'step-memory-loaded',

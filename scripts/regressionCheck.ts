@@ -196,6 +196,27 @@ async function runLiveChecks() {
   _resetMoodForTests();
   const planets = await timed('planets', () => generateReasoningPath('what are the planets in the solar system', [], persona, settings, allKnowledge, []));
   check('list-flattening: "planets in the solar system" (classic list-bait topic) has no list/bold markers', !hasListMarker(planets.content), planets.content.slice(0, 100));
+
+  // Wave 8: speaker-aware channel brain. A busy multi-speaker channel history shouldn't let a
+  // DIFFERENT person's unrelated chatter hijack the current asker's own follow-up resolution —
+  // "what about South Korea" should resolve against userA's own prior Japan-capital thread, not
+  // userB's unrelated France chatter sitting in between.
+  _resetMoodForTests();
+  const speakerAwareHistory = [
+    { id: '1', role: 'user' as const, content: "what's the capital of Japan", authorId: 'userA', username: 'Alice', timestamp: Date.now() - 50000 },
+    { id: '2', role: 'assistant' as const, content: 'Tokyo.', sources: ['Japan'], timestamp: Date.now() - 49000 },
+    { id: '3', role: 'user' as const, content: 'have you seen the eiffel tower', authorId: 'userB', username: 'Bob', timestamp: Date.now() - 40000 },
+    { id: '4', role: 'assistant' as const, content: 'nah man never been to France.', sources: ['France'], timestamp: Date.now() - 39000 },
+  ];
+  const speakerAwareSettings = { ...settings, discordUserId: 'userA' };
+  const followUp = await timed('speaker-aware-followup', () =>
+    generateReasoningPath('what about South Korea', speakerAwareHistory, persona, speakerAwareSettings, allKnowledge, [])
+  );
+  check(
+    'speaker-aware follow-up: resolves against the SAME speaker\'s thread, not a different speaker\'s unrelated chatter',
+    /south korea/i.test(followUp.content) && /seoul/i.test(followUp.content),
+    followUp.content.slice(0, 120)
+  );
 }
 
 async function main() {

@@ -108,6 +108,15 @@ export interface ChatMessage {
   sources?: any[];
   webSources?: WebSearchResult[];
   isStreaming?: boolean;
+  // Wave 8: speaker-aware channel "brain". Before this, a multi-speaker Discord channel's history
+  // reached the engine as undifferentiated text — the bot side worked around having no real author
+  // field by string-prefixing "Username: " directly into `content`, which the engine could only
+  // partially pattern-match back out, not reason about structurally. Both optional and additive —
+  // every existing caller/history array that doesn't set these (the website's own single-user
+  // session history, older stored conversations) keeps working exactly as before; only the
+  // Discord bot's channel-history buffer populates them now.
+  authorId?: string;
+  username?: string;
 }
 
 export interface KnowledgeItem {

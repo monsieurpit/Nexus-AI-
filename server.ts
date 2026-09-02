@@ -1158,6 +1158,11 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
   }
 
   // Format message history if supplied
+  // requestedHistory (the field the Discord bot sends, populated by channelHistoryService.js's
+  // getChannelHistory()) is passed through as-is — its {role, content, authorId, username} shape
+  // already matches ChatMessage closely enough, and now that ChatMessage carries real
+  // authorId/username fields (Wave 8), those flow straight through into generateReasoningPath
+  // untouched, no mapping needed here.
   const historyArray = Array.isArray(requestedHistory)
     ? requestedHistory
     : Array.isArray(requestedMessages)
@@ -1168,6 +1173,8 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
         timestamp: m.timestamp || new Date(),
         thoughtProcess: m.thoughtProcess || [],
         sources: m.sources || [],
+        authorId: m.authorId,
+        username: m.username,
       }))
     : [];
 
