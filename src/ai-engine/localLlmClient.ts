@@ -78,6 +78,39 @@ const ENGLISH_SIGNAL_WORDS = new Set([
 ]);
 const POLISH_DIACRITIC_REGEX = /[ąćęłńóśźż]/i;
 
+// Same word-scoring approach as Polish above, for French — added after live-testing found French
+// genuinely broken through the generic English path: "salut nexus, comment ça va?" (a simple
+// greeting) matched a corpus document about French internet slang and got answered in ENGLISH
+// with a glossary entry instead of an actual greeting back, and "c'est quoi un trou noir" (what's
+// a black hole) fell straight through to the generic conversational fallback template. Same
+// exclusion discipline as Polish's own list: "on" (French "we/one", but also a common English
+// word), "car" (French "because", also an English noun), "a"/"an"/"est" and similar short forms
+// that could tie against real signal words are deliberately left out.
+const FRENCH_SIGNAL_WORDS = new Set([
+  'salut', 'bonjour', 'bonsoir', 'merci', 'oui', 'non', 'pourquoi', 'comment', 'combien',
+  'quoi', 'quel', 'quelle', 'quels', 'quelles', 'ça', 'cest', "c'est", 'je', 'tu', 'nous', 'vous',
+  'ils', 'elles', 'avec', 'sans', 'être', 'avoir', 'créé', 'créer', 'peux', 'veux', 'sais',
+  'connais', 'aide', 'expliquer', 'explique', 'dis', 'montre', "s'il", 'plait', 'plaît',
+  'kestufou', 'wesh', 'grave', 'ouf', 'chuis', 'jsuis', 'jsp', 'ptdr', 'mdr',
+]);
+const FRENCH_DIACRITIC_REGEX = /[àâçéèêëîïôùûüÿœæ]/i;
+
+export function scoreFrenchSignal(text: string): { french: number; english: number; wordCount: number } {
+  const words = text.toLowerCase().match(/[a-zàâçéèêëîïôùûüÿœæ]+/gi) || [];
+  let french = 0;
+  let english = 0;
+  for (const w of words) {
+    if (FRENCH_SIGNAL_WORDS.has(w) || FRENCH_DIACRITIC_REGEX.test(w)) french++;
+    if (ENGLISH_SIGNAL_WORDS.has(w)) english++;
+  }
+  return { french, english, wordCount: words.length };
+}
+
+export function looksFrench(text: string): boolean {
+  const { french, english } = scoreFrenchSignal(text);
+  return french > english;
+}
+
 export function scoreLanguageSignal(text: string): { polish: number; english: number; wordCount: number } {
   const words = text.toLowerCase().match(/[a-ząćęłńóśźż]+/gi) || [];
   let polish = 0;
@@ -154,6 +187,10 @@ export interface OllamaGenerateOptions {
   // OLLAMA_MODEL comment above for why), just tells generate() which language to verify the
   // OUTPUT actually landed in (the wrong_language check below).
   preferPolish?: boolean;
+  // Same idea as preferPolish, added alongside it for French support — a separate boolean rather
+  // than widening preferPolish into an enum, so every existing call site (which only ever checks
+  // `options.preferPolish`) keeps working unchanged; French-aware call sites set this one instead.
+  preferFrench?: boolean;
 }
 
 export type LocalLlmResult =
@@ -399,7 +436,11 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     // has no real signal either way and would false-positive on legitimate short slangy text.
     const signal = scoreLanguageSignal(text);
     if (signal.wordCount >= 8) {
-      const density = (options.preferPolish ? signal.polish : signal.english) / signal.wordCount;
+      const density = options.preferPolish
+        ? signal.polish / signal.wordCount
+        : options.preferFrench
+        ? scoreFrenchSignal(text).french / signal.wordCount
+        : signal.english / signal.wordCount;
       if (density < 0.06) {
         return { status: 'unavailable', reason: 'wrong_language', detail: text.slice(0, 100) };
       }
@@ -436,7 +477,11 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     // accented loanwords/names ("café", "Beyoncé") — the threshold here (5+ diacritic characters)
     // is well above what any single legitimate loanword would ever contribute, while a genuine
     // foreign-language sentence mixed in reliably produces far more than that.
-    if (!options.preferPolish && signal.wordCount >= 8) {
+    // Same skip as Polish, extended to French: this guard exists to catch an ENGLISH response
+    // drifting into an unrelated accented language, so it makes no sense applied to a genuinely
+    // French response, which legitimately uses these characters constantly (a real French reply
+    // easily clears the 3-smoking-gun/8-common-accent thresholds below on totally normal text).
+    if (!options.preferPolish && !options.preferFrench && signal.wordCount >= 8) {
       // Split into two tiers rather than one flat count. "Smoking gun" characters (ą ć ę ł ń ś ź
       // ż from Polish, ă â î ș ț from Romanian) never appear in any common English loanword —
       // there's no legitimate reason even ONE of these shows up in a real English reply, so a

@@ -11,7 +11,7 @@
  * 4. Multi-language profanity (English, Polish, Spanish)
  */
 
-import { looksPolish } from './localLlmClient';
+import { looksPolish, looksFrench } from './localLlmClient';
 
 /**
  * Shared detector for any mention of "Casseurt" — the personal roast-rule trigger.
@@ -980,6 +980,18 @@ const SWEAR_COUNT_PATTERNS: RegExp[] = [
   /\bcholer[a-ząćęłńóśźż]*\b/gi,
   /\bzajebis[a-ząćęłńóśźż]*\b/gi,
   /\bspierdalaj[a-ząćęłńóśźż]*\b/gi,
+  // Québécois French sacres (religious-origin swears, the actual dominant profanity register in
+  // Quebec French — distinct from continental French vulgarity like "merde"/"putain") — confirmed
+  // directly by a Québécois user, who also confirmed "fuck"/"fucking" are genuinely used as swears
+  // in Quebec French too (already covered by the English patterns above, no separate pattern
+  // needed for those two).
+  /\btabarnak[a-zàâçéèêëîïôùûüÿœæ]*\b/gi,
+  // Both spellings (câlisse/calisse, câlice/calice) — Quebec French sacre spelling varies with
+  // accent use online.
+  /\bc[aâ]liss?e[a-zàâçéèêëîïôùûüÿœæ]*\b/gi,
+  /\bosti[a-zàâçéèêëîïôùûüÿœæ]*\b/gi,
+  /\bcriss[a-zàâçéèêëîïôùûüÿœæ]*\b/gi,
+  /\bmaudit[a-zàâçéèêëîïôùûüÿœæ]*\b/gi,
 ];
 
 /**
@@ -1146,6 +1158,10 @@ const SWEAR_FLOOR_INTERJECTIONS = ['damn,', 'shit,', 'hell,', 'fuck,', 'goddamn,
 // Polish speaker. getSwearCount already recognizes Polish swears (kurwa, pierdol, chuj,
 // zajebiście) for counting purposes; the floor now picks its interjection pool to match.
 const SWEAR_FLOOR_INTERJECTIONS_PL = ['kurwa,', 'chuj,', 'cholera,', 'pierdolę,'];
+// Same fix, same reasoning, for French — Québécois sacres specifically (confirmed live by a
+// Québécois user), not continental French vulgarity, since that's the actual register this
+// persona's French responses are written in (buildFrenchSystemPrompt, reasoningEngine.ts).
+const SWEAR_FLOOR_INTERJECTIONS_FR = ['tabarnak,', 'câlisse,', 'criss,', 'ostie,'];
 
 // Instruction-only compliance on "swear N times" tops out well under 100% for a small local
 // model (confirmed by direct testing — several instruction rewordings all landed short-response
@@ -1179,7 +1195,8 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
   // Spreads the remaining deficit across later sentence breaks (distinct words, no repeats) so it
   // doesn't stack multiple interjections at the very front either.
   const isAllCaps = detectAllCapsVoice(trimmed);
-  const pool = [...(looksPolish(text) ? SWEAR_FLOOR_INTERJECTIONS_PL : SWEAR_FLOOR_INTERJECTIONS)]
+  const langPool = looksPolish(text) ? SWEAR_FLOOR_INTERJECTIONS_PL : looksFrench(text) ? SWEAR_FLOOR_INTERJECTIONS_FR : SWEAR_FLOOR_INTERJECTIONS;
+  const pool = [...langPool]
     .map((w) => (isAllCaps ? w.toUpperCase() : w))
     .sort(() => Math.random() - 0.5);
 
@@ -1389,6 +1406,12 @@ const CHAOTIC_OVERSHARE_SIGNAL_REGEX_PL =
 const CHAOTIC_OVERSHARE_INJECT_RATE = 0.32;
 
 export function forceChaoticOvershare(text: string): string {
+  // No French overshare pool exists yet (this pass's French support is scoped to the core
+  // system-prompt/swearing/validation path, not every stylistic flourish — see
+  // buildFrenchSystemPrompt's own comment in reasoningEngine.ts) — skip entirely for French
+  // rather than injecting an English-language aside into an otherwise-French reply, which would
+  // read as broken/mixed-language instead of just "missing one feature."
+  if (looksFrench(text)) return text;
   const isPolish = looksPolish(text);
   const signalRegex = isPolish ? CHAOTIC_OVERSHARE_SIGNAL_REGEX_PL : CHAOTIC_OVERSHARE_SIGNAL_REGEX;
   if (signalRegex.test(text)) return text;

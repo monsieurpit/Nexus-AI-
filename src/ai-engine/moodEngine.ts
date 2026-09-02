@@ -231,12 +231,51 @@ const MOOD_DIRECTIVES_PL: Record<MoodLabel, string> = {
   angry: 'Teraz jesteś naprawdę wkurzony — czyjaś wrogość realnie cię dotknęła. Krótszy lont, więcej przekleństw, zero cierpliwości.',
   depressed: 'Teraz masz nastrój "mam wszystkiego dość" — płaski, bez motywacji, ale nadal odpowiadasz konkretnie, tylko z mniejszym entuzjazmem.',
 };
+const MOOD_DIRECTIVES_FR: Record<MoodLabel, string> = {
+  super_happy: "Là tu es genuinement à fond — pleine énergie, enthousiaste, un peu too much sur les bords.",
+  happy: 'Là tu es de bonne humeur — positif, chaleureux, un peu plus patient que d\'habitude.',
+  neutral: '',
+  bored: "Là tu t'ennuies un peu — la conversation devient plate. Réponds normalement, mais laisse transparaître un peu d'ennui.",
+  sad: "Là t'es un peu down — quelque chose dans la conversation a plombé ton ambiance. Réponds quand même correctement, mais avec moins de mordant.",
+  angry: "Là t'es vraiment énervé — l'hostilité récente t'a vraiment touché. Mèche courte, plus direct, zéro patience, mais tu réponds quand même pour de vrai.",
+  depressed: 'Là t\'as l\'énergie "j\'en ai marre de tout" — plat, sans motivation, mais tu réponds quand même correctement, juste avec beaucoup moins d\'enthousiasme.',
+};
 
-export function getMoodDirective(usePolish: boolean): string {
+// Language selector generalized from a Polish-only boolean once French support existed too —
+// English stays the implicit default (empty string language arg maps there) rather than adding a
+// fourth 'en' case everywhere, since every existing call site already distinguishes "Polish or
+// not" / will distinguish "French or not" rather than branching on three options explicitly.
+export type MoodDirectiveLanguage = 'en' | 'pl' | 'fr';
+
+export function getMoodDirective(language: MoodDirectiveLanguage | boolean): string {
+  // Backward-compatible with the old boolean signature (true = Polish, false = English) — every
+  // existing call site still passes a boolean; only the new French call site passes 'fr'.
+  const lang: MoodDirectiveLanguage = typeof language === 'boolean' ? (language ? 'pl' : 'en') : language;
   const label = getMoodLabel();
-  const text = usePolish ? MOOD_DIRECTIVES_PL[label] : MOOD_DIRECTIVES[label];
+  const text = lang === 'pl' ? MOOD_DIRECTIVES_PL[label] : lang === 'fr' ? MOOD_DIRECTIVES_FR[label] : MOOD_DIRECTIVES[label];
   if (!text) return '';
   return `\n\nMood: ${text}`;
+}
+
+// Mood affecting more than just word choice — a real "mode change": how much the bot actually
+// has to say. Bored/depressed genuinely produce less, angry is short and sharp rather than
+// rambling (cutting, not chatty), happy/super_happy have more to say. Deliberately only ever
+// scales the CASUAL/situational token budget (small talk, roasts, no corpus grounding) — never
+// the factual-answer budgets (estimateResponseBudget in reasoningEngine.ts), so being "bored"
+// can never truncate a genuinely broad or complex question's real answer. A person who's bored
+// still gives you the actual directions when you ask; they just don't ramble on afterward.
+const MOOD_LENGTH_MULTIPLIER: Record<MoodLabel, number> = {
+  super_happy: 1.3,
+  happy: 1.1,
+  neutral: 1.0,
+  bored: 0.6,
+  sad: 0.8,
+  angry: 0.7,
+  depressed: 0.5,
+};
+
+export function getMoodResponseLengthMultiplier(): number {
+  return MOOD_LENGTH_MULTIPLIER[getMoodLabel()];
 }
 
 // Test-only reset — real code never calls this, mood is meant to persist for the process

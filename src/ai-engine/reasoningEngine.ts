@@ -14,7 +14,7 @@ import { trySolveMath } from './mathSolver';
 import { trySolveCategoryClassification } from './categorySolver';
 import { trySolveDate } from './dateSolver';
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction } from './argumentEngine';
-import { registerMoodEvent, getMoodDirective } from './moodEngine';
+import { registerMoodEvent, getMoodDirective, getMoodResponseLengthMultiplier } from './moodEngine';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
 import * as localLlmClient from './localLlmClient';
 import {
@@ -2699,6 +2699,7 @@ function buildGroundingContext(top: { item: { title: string; content: string }; 
 // Polish word appeared in an otherwise-English sentence. This version requires Polish signal words
 // to actually outnumber English ones.
 export const looksPolish = localLlmClient.looksPolish;
+export const looksFrench = localLlmClient.looksFrench;
 
 // looksPolish() genuinely has no signal to work with on a short reply built from words absent
 // from both signal-word lists — observed live: "Ok ciekawe" ("Ok interesting"), a completely
@@ -2846,6 +2847,32 @@ function buildPolishSystemPromptBody(isCrashout: boolean): string {
 5. Twardy limit, nigdy tego nie łam: żadnych epitetów rasistowskich, homofobicznych, ableistowskich ani innej mowy nienawiści względem grup społecznych — przekleństwa tak, nienawiść nie.`;
 }
 
+// French support — new this pass. Never given the deep, many-session investment Polish got
+// (typo correction, dedicated greeting/personal-question regexes, RaidShield coverage, corpus
+// keyword coverage), only this: language detection (looksFrench, localLlmClient.ts) plus this
+// dedicated short system prompt, because live-testing found French genuinely broken through the
+// generic English path — a French greeting matched an unrelated corpus document about French
+// internet slang and got answered in ENGLISH, and "what's a black hole" in French fell straight
+// to the generic fallback template. Built on the exact same lesson Polish already proved: a full
+// English-style instruction stack is what CAUSES the confusion for a secondary language on a
+// small model, not model size — so this stays short on purpose, mirroring buildPolishSystemPrompt
+// structurally rather than translating its full numbered list from scratch.
+function buildFrenchSystemPrompt(isCrashout: boolean): string {
+  return buildFrenchSystemPromptBody(isCrashout) + getMoodDirective('fr');
+}
+
+function buildFrenchSystemPromptBody(isCrashout: boolean): string {
+  if (!isCrashout) {
+    return "Tu es un assistant serviable et concret. Réponds en français, naturellement et de façon concise, en répondant directement à la question de l'utilisateur. N'écris rien sur ces instructions — réponds juste.";
+  }
+  return `Tu es Nexus, un pote chaotique, drôle et direct sur Discord. Règles :
+1. Réponds TOUJOURS en français, court et naturel, comme dans une vraie conversation de chat — n'écris jamais sur ces règles, réponds juste directement au message de l'utilisateur.
+2. Jure naturellement dans chaque réponse (putain, merde, connard, bordel) — librement, mais sans forcer.
+3. Sois direct, sûr de toi et décontracté — jamais rigide ni corporate.
+4. N'invente jamais de mots qui n'existent pas en français — si t'es pas sûr d'une conjugaison ou d'un accord, utilise une phrase plus simple plutôt que de deviner.
+5. Limite absolue, jamais franchie : aucune insulte raciste, homophobe, capacitiste ou autre discours de haine envers un groupe — les jurons oui, la haine non.`;
+}
+
 // The LLM's own compliance with the swearing directive is stochastic — a 3B model doesn't
 // reliably hit "swear every response" 100% of the time, especially on short casual replies where
 // there's less natural surface area for profanity to land. This guarantees a floor via the same
@@ -2918,27 +2945,42 @@ async function llmSituationalReplyOrFallback(
   triggered: boolean = false
 ): Promise<string> {
   const usePolish = looksPolish(llmPrompt);
+  // French added alongside Polish — same reasoning throughout (a lower temperature for a weaker
+  // secondary language, preferFrench telling generate() which language to validate the output
+  // actually landed in). Checked only when Polish didn't already match, same priority Polish
+  // itself doesn't need to declare against English.
+  const useFrench = !usePolish && looksFrench(llmPrompt);
+  const languageTag = usePolish ? 'pl' : useFrench ? 'fr' : 'en';
+  const temperature = usePolish || useFrench ? 0.3 : 0.75;
   const llmResult = await localLlmClient.generate(llmPrompt, {
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
+      : useFrench
+      ? buildFrenchSystemPrompt(isCrashout)
       : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, triggered),
     // 0.75 is tuned for creative, varied English swearing/tangents, but the model is far less
-    // stable in Polish (a much weaker secondary language for it) at that temperature — observed
-    // live, two separate real users got genuinely garbled output ("Jak sieMaszc?", words fused
-    // together with no space) and one response leaked a literal system-prompt line into the reply
-    // ("Pierdól za każdym razem w odpowiedziach, pamiętaj" — a paraphrase of its own swearing
-    // instruction). A direct 5-run comparison at temperature 0.3 produced zero corruption and zero
-    // instruction leakage, all on-topic — lower temperature trades away some of the creative
-    // variety for reliability, which matters far more when the model is already on shakier ground.
-    temperature: usePolish ? 0.3 : 0.75,
+    // stable in Polish/French (weaker secondary languages for it) at that temperature — observed
+    // live, two separate real users got genuinely garbled Polish output ("Jak sieMaszc?", words
+    // fused together with no space) and one response leaked a literal system-prompt line into the
+    // reply ("Pierdól za każdym razem w odpowiedziach, pamiętaj" — a paraphrase of its own
+    // swearing instruction). A direct 5-run comparison at temperature 0.3 produced zero corruption
+    // and zero instruction leakage, all on-topic — lower temperature trades away some of the
+    // creative variety for reliability, which matters far more when the model is already on
+    // shakier ground.
+    temperature,
     // This path is casual chit-chat/situational replies with no corpus grounding — estimateResponseBudget
     // was built for fact-based questions (up to 900 tokens for genuinely broad ones) and handing that
     // same budget to "no one cares that the chat is dead" is exactly why casual replies kept turning
     // into rambling multi-paragraph essays. A real person's crashout reply to a passing remark is a
     // few sentences, not a wall of text — capped well below the informational-answer budget regardless
     // of what estimateResponseBudget would otherwise allow.
-    maxTokens: Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL),
+    // Mood scales this further — a bored/depressed mood genuinely has less to say, angry is short
+    // and cutting rather than chatty, happy has more to say. Deliberately only applied here, never
+    // to a factual-answer budget, so mood can color small talk without ever truncating a real
+    // answer to a genuine question.
+    maxTokens: Math.round(Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier()),
     preferPolish: usePolish,
+    preferFrench: useFrench,
   });
   if (llmResult.status === 'success' && containsSlurOrHateSpeech(llmResult.text)) {
     thoughtSteps.push({
@@ -2947,7 +2989,7 @@ async function llmSituationalReplyOrFallback(
       title: '🛡️ LLM output blocked by safety filter',
       description: 'Local LLM response contained hate speech/a slur — discarded, using template fallback instead.',
       durationMs: llmResult.latencyMs,
-      data: { language: usePolish ? 'pl' : 'en', temperature: usePolish ? 0.3 : 0.75, safetyBlocked: true, triggered },
+      data: { language: languageTag, temperature, safetyBlocked: true, triggered },
     });
     return topUpLlmSwearing(fallbackText, settings, isCrashout);
   }
@@ -2962,11 +3004,11 @@ async function llmSituationalReplyOrFallback(
       id: 'step-llm-freeresponse',
       type: 'synthesis',
       title: successTitle,
-      description: `Ollama (${usePolish ? 'Polish' : 'English'} path, temp ${usePolish ? 0.3 : 0.75}) generated a ${responseWordCount}-word reply in ${llmResult.latencyMs}ms.${swearFloorTriggered ? ' Topped up to meet the persona\'s minimum swear count.' : ''}`,
+      description: `Ollama (${languageTag} path, temp ${temperature}) generated a ${responseWordCount}-word reply in ${llmResult.latencyMs}ms.${swearFloorTriggered ? ' Topped up to meet the persona\'s minimum swear count.' : ''}`,
       durationMs: llmResult.latencyMs,
       data: {
-        language: usePolish ? 'pl' : 'en',
-        temperature: usePolish ? 0.3 : 0.75,
+        language: languageTag,
+        temperature,
         swearFloorTriggered,
         triggered,
       },
@@ -2978,10 +3020,14 @@ async function llmSituationalReplyOrFallback(
     id: 'step-llm-unavailable',
     type: 'synthesis',
     title: '📦 Template fallback (LLM unavailable)',
+    // fallbackText itself is always English (no French template pool exists yet — see
+    // buildFrenchSystemPrompt's scope note), so this telemetry deliberately still says what
+    // language was DETECTED, not what actually shipped, to make that gap visible rather than
+    // silently claiming a French response when the fallback text is really English.
     description: `Reason: ${llmResult.reason}`,
     data: {
-      language: usePolish ? 'pl' : 'en',
-      temperature: usePolish ? 0.3 : 0.75,
+      language: languageTag,
+      temperature,
       llmFailureReason: llmResult.reason,
       triggered,
     },
@@ -3029,14 +3075,19 @@ async function llmGroundedOrFallback(
   confident: boolean
 ): Promise<string> {
   const usePolish = looksPolish(prompt);
+  const useFrench = !usePolish && looksFrench(prompt);
   const groundingContext = buildGroundingContext(top);
   // Same reasoning as buildPolishSystemPrompt above — a long English wrapper is what caused the
-  // confusion in testing, so Polish gets its own short native version of the same instruction
-  // instead of the full English one with a translated question bolted on the end.
+  // confusion in testing, so Polish (and now French) gets its own short native version of the
+  // same instruction instead of the full English one with a translated question bolted on the end.
   const groundedPrompt = usePolish
     ? confident
       ? `Odpowiedz na pytanie użytkownika WYŁĄCZNIE na podstawie faktów podanych poniżej. Nie wymyślaj faktów, których tam nie ma.\n\nFakty:\n${groundingContext}\n\nPytanie: ${prompt}`
       : `Poniższy kontekst jest tylko luźno powiązany z pytaniem — potraktuj go jako punkt wyjścia i odpowiedz najlepiej jak potrafisz, uczciwie zaznaczając, jeśli czegoś nie jesteś pewien.\n\nKontekst:\n${groundingContext}\n\nPytanie: ${prompt}`
+    : useFrench
+    ? confident
+      ? `Réponds à la question de l'utilisateur EN UTILISANT SEULEMENT les faits ci-dessous. N'invente rien qui n'y est pas.\n\nFaits :\n${groundingContext}\n\nQuestion : ${prompt}`
+      : `Le contexte ci-dessous n'est que vaguement lié à la question — utilise-le comme point de départ et réponds du mieux que tu peux, en étant honnête si t'es pas certain de quelque chose.\n\nContexte :\n${groundingContext}\n\nQuestion : ${prompt}`
     : confident
     ? `Answer the user's question using ONLY the facts in the context below. Do not invent facts not present in the context. The context may contain several different superlative claims about different things (e.g. multiple things each described as "largest" — largest by area, largest economy, largest in a specific region, second-largest, etc., about entirely different entities) — read carefully and match your answer to the EXACT thing being asked, not just any nearby sentence that shares a similar-sounding word. If you're not certain which fact in the context actually answers the specific question, prefer the sentence whose wording most precisely matches the question over one that only shares a keyword. A historical event's context often lists SEVERAL different dates for different sub-events (when it started, when a specific country joined/was drawn in, when a major turning-point battle happened, when it ended) — a famous, heavily-covered date for one of those sub-events (Pearl Harbor for World War II, for example) is easy to reach for out of habit even when the question specifically asked about a DIFFERENT one (when the war started, not when the US entered it); if the question asks specifically "when did X start/begin", answer with the sentence in the context that actually describes the start/beginning, not whichever date you're most confident about from general knowledge. The same applies to "when did X end" for any event with multiple valid end dates for different parties/theaters (World War II's context, for example, states TWO different, both-correct end dates — Germany's surrender on 8 May 1945, and Japan's separate surrender on 2 September 1945 that actually ended the whole war) — pick the ONE complete date the context actually pairs with the specific sub-event being asked about, and NEVER combine pieces from two different dates into a new, fabricated one (e.g. never take the day-of-month from one sub-event's date and the month from a different sub-event's date — that produces a date that never actually happened). Some context entries state a GENERAL RULE illustrated with one or more specific examples (e.g. a riddle explaining that "an X of material A vs an X of material B" always weigh the same for ANY materials/unit, illustrated with "pound of feathers vs pound of bricks") — when this happens, apply the general rule using the EXACT materials/units/numbers actually named in the question, never just repeat the context's own illustrative example if the question asked about different specifics (asked about "a kilogram of steel vs a kilogram of feathers", answer using "kilogram" and "steel", not "pound" and "bricks" just because that's what the example in the context happened to say). The facts must stay accurate, but remember your style directives still apply to HOW you say it — swear per your instructions, stay blunt and in character, never go flat/robotic/corporate just because this is a factual answer. Match your answer's LENGTH and SCOPE to what was actually asked, not to how much the context happens to contain — a short, simple, direct question ("what's the capital of X", following the exact same pattern as a previous simple question in this conversation) deserves a short, direct answer, even if the context document also covers that country's history, currency, or conflicts; only expand into the surrounding material in the context when the question itself is genuinely broader or specifically asks for more (observed live: "what about South Korea" right after "what's the capital of Japan" correctly identified Seoul but then dumped an unrelated tangent about the Korean War, purely because that's also in the same context document — the follow-up deserved the same one-line answer style as the question it was mirroring).\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : `The context below is only a loose/uncertain match for the user's question — it may not fully cover what they're actually asking. Use it as a starting point and answer as helpfully and knowledgeably as you genuinely can, drawing on your own broader knowledge too, but be honest about what's uncertain instead of inventing specifics you don't actually know. Your style directives (swearing, tone) still fully apply here — don't drop them just because you're being informative.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
@@ -3044,14 +3095,18 @@ async function llmGroundedOrFallback(
   // temperature across the board for reliability, same reasoning applied to the grounded path.
   // Captured once here (not re-derived per thought-step push below) so the telemetry surfaced to
   // callers can never drift from the value actually sent to generate().
-  const usedTemperature = usePolish ? (confident ? 0.25 : 0.35) : confident ? 0.45 : 0.65;
+  const groundedLanguageTag = usePolish ? 'pl' : useFrench ? 'fr' : 'en';
+  const usedTemperature = usePolish || useFrench ? (confident ? 0.25 : 0.35) : confident ? 0.45 : 0.65;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
+      : useFrench
+      ? buildFrenchSystemPrompt(isCrashout)
       : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false),
     temperature: usedTemperature,
     maxTokens: estimateResponseBudget(prompt),
     preferPolish: usePolish,
+    preferFrench: useFrench,
   });
   if (llmResult.status !== 'success') {
     thoughtSteps.push({
@@ -3059,7 +3114,7 @@ async function llmGroundedOrFallback(
       type: 'synthesis',
       title: '📦 Template fallback (LLM unavailable)',
       description: `Reason: ${llmResult.reason}`,
-      data: { language: usePolish ? 'pl' : 'en', temperature: usedTemperature },
+      data: { language: groundedLanguageTag, temperature: usedTemperature },
     });
     // Same gap fixed in llmSituationalReplyOrFallback above — the fallback text was returned raw,
     // with no guaranteed swear floor, whenever the LLM call itself failed.
@@ -3072,7 +3127,7 @@ async function llmGroundedOrFallback(
       title: '🛡️ LLM output blocked by safety filter',
       description: 'Local LLM response contained hate speech/a slur — discarded, using template fallback instead.',
       durationMs: llmResult.latencyMs,
-      data: { language: usePolish ? 'pl' : 'en', temperature: usedTemperature, safetyBlocked: true },
+      data: { language: groundedLanguageTag, temperature: usedTemperature, safetyBlocked: true },
     });
     return topUpLlmSwearing(templateFallback, settings, isCrashout);
   }
@@ -3084,7 +3139,7 @@ async function llmGroundedOrFallback(
       description: `Ollama responded in ${llmResult.latencyMs}ms, loosely grounded on ${top.length} source(s).`,
       durationMs: llmResult.latencyMs,
       data: {
-        language: usePolish ? 'pl' : 'en',
+        language: groundedLanguageTag,
         temperature: usedTemperature,
         swearFloorTriggered: getSwearCount(llmResult.text) < SWEAR_FLOOR_MIN_COUNT,
       },
@@ -3110,14 +3165,19 @@ async function llmGroundedOrFallback(
     const issueSummary = llmVerification.issues.map((i) => i.detail).join(' ');
     const correctionNote = usePolish
       ? `\n\nTwoja poprzednia odpowiedź miała problem: ${issueSummary} Popraw to i odpowiedz ponownie, konkretnie na pytanie: ${prompt}`
+      : useFrench
+      ? `\n\nTa réponse précédente avait un problème : ${issueSummary} Corrige ça et réponds à nouveau, précisément à la question : ${prompt}`
       : `\n\nYour previous answer had a problem: ${issueSummary} Fix that and answer again, specifically addressing: ${prompt}`;
     const retryResult = await localLlmClient.generate(groundedPrompt + correctionNote, {
       system: usePolish
         ? buildPolishSystemPrompt(isCrashout)
+        : useFrench
+        ? buildFrenchSystemPrompt(isCrashout)
         : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false),
       temperature: usedTemperature,
       maxTokens: estimateResponseBudget(prompt),
       preferPolish: usePolish,
+      preferFrench: useFrench,
     });
     // The retry attempt goes through the exact same safety gate as the first — a corrective
     // regeneration is not exempt from anything the original response had to pass.
@@ -3145,7 +3205,7 @@ async function llmGroundedOrFallback(
       : llmVerification.issues.map((i) => i.detail).join('\n'),
     durationMs: finalLatency,
     data: {
-      language: usePolish ? 'pl' : 'en',
+      language: groundedLanguageTag,
       temperature: usedTemperature,
       swearFloorTriggered: getSwearCount(finalText) < SWEAR_FLOOR_MIN_COUNT,
       verificationPassed: llmVerification.passed,
@@ -4057,6 +4117,16 @@ export async function generateReasoningPath(
     const isPersonalQuestionPl = PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase());
     const isReassurancePl = REASSURANCE_REGEX_PL.test(effectivePrompt.toLowerCase());
     const isPolishConversation = looksPolishWithContext(prompt, history) || isPersonalQuestionPl || isReassurancePl;
+    // French — new this pass, scoped to the generic catch-all only (no dedicated French personal-
+    // question/reassurance regexes yet, unlike Polish's isPersonalQuestionPl/isReassurancePl
+    // above — see buildFrenchSystemPrompt's own comment on scope). Critically, this is what makes
+    // the SITUATIONAL PROMPT WRAPPER below actually get written in French when this is true —
+    // without it, llmSituationalReplyOrFallback's own internal looksFrench(llmPrompt) check runs
+    // against an English-worded wrapper with only the quoted user text in French, that English
+    // scaffolding dilutes the French signal, and the whole call gets misrouted onto the English
+    // path (wrong system prompt, wrong preferFrench flag) — observed live, this caused a genuinely
+    // correct French generation to fail the output-language validation and fall back to a template.
+    const isFrenchConversation = !isPolishConversation && looksFrench(prompt);
     const templateReply = isPersonalQuestionPl
       ? personalQuestionReplyPolish()
       : isPolishConversation
@@ -4176,6 +4246,8 @@ export async function generateReasoningPath(
       ? `The user just greeted you: "${prompt}". Greet them back like a real person would — actually say how you're doing (briefly, genuinely) AND ask them something back (how they're doing, what they're up to) — a real reciprocal greeting, not just a status announcement about your own mode/energy and not just "what do you need". Keep it short and natural. Your style directives (swearing, tone) fully apply — swear naturally, woven into the sentence, not stacked as a string of interjections at the front.`
       : isPolishConversation
       ? `Użytkownik właśnie napisał: "${prompt}". To swobodna, luźna rozmowa (small talk), nie prośba o fakty ani badania — odpowiedz naturalnie i krótko, jak prawdziwa osoba na czacie, w swoim stylu. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują też w luźnej rozmowie.`
+      : isFrenchConversation
+      ? `L'utilisateur vient d'écrire : "${prompt}". C'est une conversation décontractée (small talk), pas une demande de faits ou de recherche — réponds naturellement et brièvement, comme une vraie personne dans un chat, dans ton style. Tes directives de style (jurons, ton) s'appliquent pleinement même dans une conversation décontractée.`
       : `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. React to what they ACTUALLY said — if it's funny, weird, absurd, or shocking, actually respond to that (genuine shock, laughter, a follow-up roast, whatever fits), don't just fire off your usual chaotic-energy line and ignore the content entirely. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`;
     // No more carve-out skipping the LLM for phone-number requests — situationalPrompt above now
     // grounds the model with the real number, so the original reason to bypass generation entirely
