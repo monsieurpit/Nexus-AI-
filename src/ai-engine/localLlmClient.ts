@@ -420,16 +420,45 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     }
 
     const data: any = await res.json();
-    // Opt-in diagnostic (off by default, zero cost when unset) — added while chasing a real user
-    // complaint about 12-30s replies. Found live: prefill (reading the prompt) scales with token
-    // count on this hardware, and the system/instruction prompt stack had grown to 4000+ tokens
-    // for a grounded factual answer, directly costing many real seconds regardless of how short
-    // the actual reply was. Set LATENCY_DEBUG=true to see the prefill/decode split per call.
-    if (process.env.LATENCY_DEBUG === 'true') {
-      console.log(
-        `[latencydebug] system_chars=${options.system?.length || 0} user_chars=${prompt.length} prompt_eval_count=${data.prompt_eval_count} prompt_eval_ms=${((data.prompt_eval_duration || 0) / 1e6).toFixed(0)} eval_count=${data.eval_count} eval_ms=${((data.eval_duration || 0) / 1e6).toFixed(0)} load_ms=${((data.load_duration || 0) / 1e6).toFixed(0)} total_ms=${((data.total_duration || 0) / 1e6).toFixed(0)}`
-      );
+    logLatencyDebug(data, options, prompt);
+    return processRawGenerateOutput(data, options, startedAt);
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      return { status: 'unavailable', reason: 'timeout' };
     }
+    return { status: 'unavailable', reason: 'connection_error', detail: String(err?.message || err) };
+  } finally {
+    clearTimeout(timer);
+    release();
+  }
+}
+
+// Opt-in diagnostic (off by default, zero cost when unset) — added while chasing a real user
+// complaint about 12-30s replies. Found live: prefill (reading the prompt) scales with token
+// count on this hardware, and the system/instruction prompt stack had grown to 4000+ tokens
+// for a grounded factual answer, directly costing many real seconds regardless of how short
+// the actual reply was. Set LATENCY_DEBUG=true to see the prefill/decode split per call.
+function logLatencyDebug(data: any, options: OllamaGenerateOptions, prompt: string): void {
+  if (process.env.LATENCY_DEBUG === 'true') {
+    console.log(
+      `[latencydebug] system_chars=${options.system?.length || 0} user_chars=${prompt.length} prompt_eval_count=${data.prompt_eval_count} prompt_eval_ms=${((data.prompt_eval_duration || 0) / 1e6).toFixed(0)} eval_count=${data.eval_count} eval_ms=${((data.eval_duration || 0) / 1e6).toFixed(0)} load_ms=${((data.load_duration || 0) / 1e6).toFixed(0)} total_ms=${((data.total_duration || 0) / 1e6).toFixed(0)}`
+    );
+  }
+}
+
+// Every quality gate generate() runs on a completed Ollama response — degenerate-repetition,
+// unsafe-self-statement, wrong-language drift, Polish grammar validation — extracted out of
+// generate() itself so generateStream() below can run the EXACT same checks on its own
+// fully-assembled text instead of duplicating ~130 lines of gate logic. Streaming only changes
+// HOW the text arrives (progressively, via onToken, for live UI feedback) — it never changes
+// whether the final text is trustworthy enough to ship, which is still decided here, once, on the
+// complete response, exactly as before streaming existed.
+async function processRawGenerateOutput(
+  data: any,
+  options: OllamaGenerateOptions,
+  startedAt: number
+): Promise<LocalLlmResult> {
+  {
     let text = typeof data?.message?.content === 'string' ? data.message.content.trim() : '';
     if (!text) {
       return { status: 'unavailable', reason: 'empty_response' };
@@ -557,6 +586,113 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
     }
 
     return { status: 'success', text, latencyMs: Date.now() - startedAt };
+  }
+}
+
+// Streaming variant of generate(), used only by the casual/situational conversational path
+// (llmSituationalReplyOrFallback) — the grounded/factual path stays on the non-streaming generate()
+// above, since it needs verifyAnswer() + a possible full reflect-and-retry pass on the COMPLETE
+// text before it's trustworthy to show, and streaming a raw answer that then gets silently
+// replaced by a corrected retry is worse UX than the current wait, not better. Calls Ollama's
+// /api/chat with stream: true (newline-delimited JSON chunks, each with a partial
+// message.content), invoking onToken with each new fragment as it arrives for live UI feedback,
+// while still running the EXACT same quality gates (processRawGenerateOutput, shared with
+// generate() above) on the fully-assembled text before resolving — a caller must still treat a
+// non-'success' result as untrustworthy even though partial text was already streamed to the
+// user; see the /api/v1/nexus/stream endpoint in server.ts for how that's handled.
+export async function generateStream(
+  prompt: string,
+  onToken: (chunk: string) => void,
+  options: OllamaGenerateOptions = {}
+): Promise<LocalLlmResult> {
+  if (!OLLAMA_BASE_URL) {
+    return { status: 'unavailable', reason: 'not_configured' };
+  }
+
+  const release = await acquireOllamaSlot();
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? 30000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
+
+  try {
+    const messages = [
+      ...(options.system ? [{ role: 'system', content: options.system }] : []),
+      { role: 'user', content: prompt },
+    ];
+
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: options.model || OLLAMA_MODEL,
+        messages,
+        stream: true,
+        keep_alive: '30m',
+        options: {
+          temperature: options.temperature ?? 0.5,
+          num_predict: options.maxTokens ?? 400,
+          top_p: options.topP,
+          stop: options.stopSequences,
+          repeat_penalty: 1.3,
+          repeat_last_n: 128,
+        },
+      }),
+    });
+
+    if (!res.ok || !res.body) {
+      const detail = await res.text().catch(() => '');
+      return { status: 'unavailable', reason: 'http_error', detail: detail.slice(0, 300) };
+    }
+
+    // Ollama streams newline-delimited JSON objects, each shaped like a partial version of the
+    // non-streaming response ({ message: { content: "..." }, done: false }), with the FINAL line
+    // (done: true) carrying the same prompt_eval_count/eval_count/done_reason/etc. stats fields
+    // the non-streaming response has — accumulated into `finalData` so processRawGenerateOutput
+    // can run its checks exactly as it would on a non-streaming call.
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let assembledContent = '';
+    let finalData: any = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // last (possibly incomplete) line stays in the buffer
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let parsed: any;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue; // a malformed/split line — skip rather than crash the whole stream
+        }
+        const fragment = typeof parsed?.message?.content === 'string' ? parsed.message.content : '';
+        if (fragment) {
+          assembledContent += fragment;
+          onToken(fragment);
+        }
+        if (parsed?.done) {
+          finalData = parsed;
+        }
+      }
+    }
+
+    if (!finalData) {
+      // Stream ended without a final done:true line — treat like any other malformed response
+      // rather than trusting a possibly-truncated assembledContent.
+      return { status: 'unavailable', reason: 'empty_response' };
+    }
+    // processRawGenerateOutput reads message.content off `data` directly (matching the
+    // non-streaming shape) — the streamed final line's own message.content is only the LAST
+    // fragment, not the full text, so it's overwritten here with what was actually accumulated.
+    finalData.message = { content: assembledContent };
+    logLatencyDebug(finalData, options, prompt);
+    return processRawGenerateOutput(finalData, options, startedAt);
   } catch (err: any) {
     if (err?.name === 'AbortError') {
       return { status: 'unavailable', reason: 'timeout' };

@@ -3012,7 +3012,20 @@ async function llmSituationalReplyOrFallback(
   thoughtSteps: ThoughtStep[],
   fallbackText: string,
   successTitle: string = '🧠 Local LLM free-response',
-  triggered: boolean = false
+  triggered: boolean = false,
+  // Wave 7 (real response streaming): only ever set by generateReasoningPath's main casual-chat
+  // call site (greetings/small-talk/phone-number/creator-question — the plain conversational
+  // catch-all, by far this bot's highest-traffic branch and the only one with no post-generation
+  // verification/retry gate that would need the FULL text before it's trustworthy to show). Every
+  // other call site of this function leaves it undefined, which keeps calling the existing
+  // non-streaming generate() below exactly as before — a real chunk callback here is what tells
+  // this function to use generateStream() instead. IMPORTANT: chunks fired via onToken are RAW,
+  // pre-safety-check text — the hate-speech/degenerate-output/wrong-language gates below still run
+  // on the fully-assembled text same as always, and can still discard it for fallbackText even
+  // after chunks were already streamed to the caller. The caller (server.ts's streaming endpoint)
+  // MUST treat this function's own return value as the source of truth for what the message should
+  // finally read, not just append everything it received via onToken.
+  onToken?: (chunk: string) => void
 ): Promise<string> {
   const usePolish = looksPolish(llmPrompt);
   // French added alongside Polish — same reasoning throughout (a lower temperature for a weaker
@@ -3022,7 +3035,7 @@ async function llmSituationalReplyOrFallback(
   const useFrench = !usePolish && looksFrench(llmPrompt);
   const languageTag = usePolish ? 'pl' : useFrench ? 'fr' : 'en';
   const temperature = usePolish || useFrench ? 0.3 : 0.75;
-  const llmResult = await localLlmClient.generate(llmPrompt, {
+  const generateOptions = {
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
       : useFrench
@@ -3052,7 +3065,10 @@ async function llmSituationalReplyOrFallback(
     preferPolish: usePolish,
     preferFrench: useFrench,
     model: localLlmClient.modelForReasoningMode(settings.reasoningMode),
-  });
+  };
+  const llmResult = onToken
+    ? await localLlmClient.generateStream(llmPrompt, onToken, generateOptions)
+    : await localLlmClient.generate(llmPrompt, generateOptions);
   if (llmResult.status === 'success' && containsSlurOrHateSpeech(llmResult.text)) {
     thoughtSteps.push({
       id: 'step-llm-safety-blocked',
@@ -3337,7 +3353,14 @@ export async function generateReasoningPath(
   settings: AISettings,
   allKnowledge: KnowledgeItem[],
   userMemories: UserMemory[],
-  webSearchResults?: WebSearchResult[]
+  webSearchResults?: WebSearchResult[],
+  // Wave 7: real response streaming. Optional and additive — every existing caller that doesn't
+  // pass this keeps today's exact behavior. Only threaded to the plain conversational catch-all
+  // branch further down (greetings/small-talk/phone-number/creator-question), never to a solver,
+  // corpus-grounded, or safety-refusal branch — see llmSituationalReplyOrFallback's own comment on
+  // this same parameter for why those need the complete, verified text before they're trustworthy
+  // to show, not a raw progressive stream.
+  onToken?: (chunk: string) => void
 ): Promise<ReasoningResult> {
   const thoughtSteps: ThoughtStep[] = [];
   const isCrashout =
@@ -4374,7 +4397,9 @@ export async function generateReasoningPath(
       isCrashout,
       thoughtSteps,
       templateReply,
-      '🧠 Local LLM conversational reply'
+      '🧠 Local LLM conversational reply',
+      false,
+      onToken
     );
     // Hard guarantee on top of the instruction above, not instead of it — a 3B model given "state
     // this exact number" sometimes decided to refuse instead, treating it as private information

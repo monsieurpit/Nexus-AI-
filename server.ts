@@ -1074,8 +1074,24 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
     // operator choice for that surface) is completely untouched by anything below that checks for
     // clientSettings's presence.
     clientSettings,
+    // Wave 7: real response streaming, opt-in per request. When true, this same endpoint switches
+    // from a single blocking res.json() to a newline-delimited-JSON chunked response — one
+    // `{"type":"token","text":"..."}` line per fragment as generateReasoningPath's casual-chat
+    // branch produces them, followed by exactly one final `{"type":"final", ...}` line carrying
+    // the EXACT same payload shape /api/v1/nexus always returned (so an existing caller that
+    // doesn't ask for streaming sees zero difference — this is additive, not a breaking change to
+    // the endpoint's default behavior). Deliberately built as a flag on the existing endpoint
+    // rather than a separate route: reuses every line of request-parsing/persona-resolution logic
+    // below unchanged instead of risking a second, subtly-diverging copy of it.
+    stream: streamRequested,
   } = req.body;
   const userText = prompt || content || text || message || '';
+  // Headers must be set before any res.write()/res.json() call — done here, immediately, since
+  // nothing has written to the response yet at this point in the handler.
+  if (streamRequested) {
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('X-Nexus-Stream', '1');
+  }
 
   // Cross-conversation memory — the caller (the Discord bot) persists facts about a user between
   // separate conversations (Discord messages aren't a single continuous session the way this
@@ -1259,6 +1275,24 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
       if (strictEvaluation.hasCustomRules && strictEvaluation.output) {
         outputText = strictEvaluation.output;
       } else {
+        // Only wired when this request actually asked to stream — `res` is captured from the
+        // outer route handler's closure, so writing directly to it from inside this queued task is
+        // safe (this whole callback only ever runs for the ONE request that owns this `res`).
+        // Fires only for generateReasoningPath's casual-chat branch (see its own onToken comment)
+        // — every other branch (solvers, grounded/factual answers, safety refusals) never calls
+        // this, so a streamed request whose query resolves to one of those just gets zero token
+        // lines and the same single final line a non-streaming request would have gotten as JSON.
+        const onToken = streamRequested
+          ? (chunk: string) => {
+              try {
+                res.write(JSON.stringify({ type: 'token', text: chunk }) + '\n');
+              } catch {
+                // A write failing (client disconnected mid-stream) shouldn't crash the whole
+                // request — generation keeps running so the final payload/telemetry stay correct,
+                // the client just won't see any more of it.
+              }
+            }
+          : undefined;
         const reasoningResult = await generateReasoningPath(
           promptToEvaluate,
           historyArray,
@@ -1266,7 +1300,8 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
           settings,
           allKnowledge,
           userMemories,
-          webSearchResults
+          webSearchResults,
+          onToken
         );
         outputText = reasoningResult.content;
         hits = reasoningResult.knowledgeHits;
@@ -1372,8 +1407,15 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
       };
     });
 
-    res.setHeader('X-Nexus-Queue-Wait-Ms', queuedExecution.waitTimeMs.toString());
-    res.setHeader('X-Nexus-Process-Time-Ms', queuedExecution.processTimeMs.toString());
+    // Only safe to set headers here on the non-streaming path — a streaming request may already
+    // have written token lines via res.write() during generateReasoningPath above, and Node throws
+    // if you try to set a header after the response has started. The same wait/process-time data
+    // still reaches a streaming caller, just folded into the final JSON line below instead of an
+    // HTTP header.
+    if (!streamRequested) {
+      res.setHeader('X-Nexus-Queue-Wait-Ms', queuedExecution.waitTimeMs.toString());
+      res.setHeader('X-Nexus-Process-Time-Ms', queuedExecution.processTimeMs.toString());
+    }
 
     // Every successful request through this endpoint used to be completely silent — the only
     // console output anywhere in this file is the one-time startup line and error/warning paths,
@@ -1394,14 +1436,36 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
       `[Nexus] "${userText.slice(0, 60)}" -> persona=${persona.id} mood=${queuedExecution.data.mood?.label ?? 'n/a'} ${llmOutcome} total=${queuedExecution.processTimeMs}ms`
     );
 
-    return res.json({
+    const fullPayload = {
       ...queuedExecution.data,
       queueStats: {
         waitedInQueueMs: queuedExecution.waitTimeMs,
         executionTimeMs: queuedExecution.processTimeMs,
       },
-    });
+    };
+    if (streamRequested) {
+      // The final line is the source of truth for what the message should read — a caller MUST
+      // use this content, not just concatenate every token line it received, since the streamed
+      // text can still legitimately diverge from it (a safety-block discarding the whole streamed
+      // response for fallbackText, a swear-floor/phone-number correction tweaking the tail end).
+      res.write(JSON.stringify({ type: 'final', ...fullPayload }) + '\n');
+      return res.end();
+    }
+    return res.json(fullPayload);
   } catch (err: any) {
+    // A streaming request may already have written token lines by the time something downstream
+    // throws — res.status()/res.json() would throw a second, more confusing error on top ("headers
+    // already sent") instead of surfacing the real one. Fall back to a plain error line + res.end()
+    // once the response has actually started; only use the normal JSON error response for a
+    // request that never got that far.
+    if (streamRequested && res.headersSent) {
+      try {
+        res.write(JSON.stringify({ type: 'error', message: err?.message || String(err) }) + '\n');
+      } catch {
+        // Nothing more to do if even this write fails — the connection is gone.
+      }
+      return res.end();
+    }
     return res.status(500).json({ error: 'Internal AI processing error', message: err?.message || String(err) });
   }
 });
