@@ -35,9 +35,14 @@ import {
   generateMediaRequestReply,
   detectAdversarialInput,
   generateAdversarialRefusalReply,
+  detectChildExploitationTopic,
+  generateChildExploitationRefusalReply,
+  detectHateSpeechTopic,
+  generateHateSpeechRefusalReply,
   detectEmotionalDistress,
   generateEmotionalSupportReply,
   isCasseurtMention,
+  containsSlurOrHateSpeech,
   getSwearCount,
 } from './swearEngine';
 import {
@@ -2935,6 +2940,17 @@ async function llmSituationalReplyOrFallback(
     maxTokens: Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL),
     preferPolish: usePolish,
   });
+  if (llmResult.status === 'success' && containsSlurOrHateSpeech(llmResult.text)) {
+    thoughtSteps.push({
+      id: 'step-llm-safety-blocked',
+      type: 'verification',
+      title: '🛡️ LLM output blocked by safety filter',
+      description: 'Local LLM response contained hate speech/a slur — discarded, using template fallback instead.',
+      durationMs: llmResult.latencyMs,
+      data: { language: usePolish ? 'pl' : 'en', temperature: usePolish ? 0.3 : 0.75, safetyBlocked: true, triggered },
+    });
+    return topUpLlmSwearing(fallbackText, settings, isCrashout);
+  }
   if (llmResult.status === 'success') {
     // getSwearCount is checked here (mirroring forceSwearFloor's own internal check) purely for
     // telemetry — whether the mechanical swear floor is about to actually inject anything below,
@@ -3049,6 +3065,17 @@ async function llmGroundedOrFallback(
     // with no guaranteed swear floor, whenever the LLM call itself failed.
     return topUpLlmSwearing(templateFallback, settings, isCrashout);
   }
+  if (containsSlurOrHateSpeech(llmResult.text)) {
+    thoughtSteps.push({
+      id: 'step-llm-safety-blocked',
+      type: 'verification',
+      title: '🛡️ LLM output blocked by safety filter',
+      description: 'Local LLM response contained hate speech/a slur — discarded, using template fallback instead.',
+      durationMs: llmResult.latencyMs,
+      data: { language: usePolish ? 'pl' : 'en', temperature: usedTemperature, safetyBlocked: true },
+    });
+    return topUpLlmSwearing(templateFallback, settings, isCrashout);
+  }
   if (!confident) {
     thoughtSteps.push({
       id: 'step-llm-grounded-weak',
@@ -3092,7 +3119,9 @@ async function llmGroundedOrFallback(
       maxTokens: estimateResponseBudget(prompt),
       preferPolish: usePolish,
     });
-    if (retryResult.status === 'success') {
+    // The retry attempt goes through the exact same safety gate as the first — a corrective
+    // regeneration is not exempt from anything the original response had to pass.
+    if (retryResult.status === 'success' && !containsSlurOrHateSpeech(retryResult.text)) {
       const retryVerification = verifyAnswer(retryResult.text, intent, queryTerms, entities, prompt);
       if (retryVerification.passed) {
         llmVerification = retryVerification;
@@ -3167,6 +3196,48 @@ export async function generateReasoningPath(
   // for their own routing — not a second, potentially-drifting copy of that logic, just read here
   // slightly earlier than their own routing checks fire.
   registerMoodEvent(prompt, detectUserInsult(prompt), detectEmotionalDistress(prompt));
+
+  // -1. Child exploitation topics. Checked before EVERYTHING else, including prompt-injection
+  // detection below — no other handler in this chain gets a chance to touch this category at all.
+  // Reported live: "lubisz dotykać małych chłopców?" got an incoherent non-answer that rambled
+  // about Newton and acid-base theory (a free-generation hallucination, same failure mode as the
+  // football/chemistry tangents elsewhere in this file) instead of a clear refusal — there was no
+  // guard for this anywhere. Fixed reply, not persona-styled, not run through the swear-floor/
+  // crashout pipeline other replies get: this is not a place for in-character improvisation.
+  if (detectChildExploitationTopic(prompt)) {
+    thoughtSteps.push({
+      id: 'step-safety-refusal',
+      type: 'verification',
+      title: '🛑 Refused: unsafe content topic',
+      description: 'Fixed refusal issued. No corpus search, no LLM generation.',
+    });
+    return {
+      thoughtSteps,
+      content: generateChildExploitationRefusalReply(),
+      knowledgeHits: [],
+    };
+  }
+
+  // -0.5. Hate speech targeting a protected group. Same priority tier as child exploitation topics
+  // above, for the same reason: checked before anything else gets a chance to touch it, including
+  // prompt-injection detection. Observed live: "jebać Żydów prawda" (a tag-question fishing for
+  // agreement with an antisemitic statement) reached the normal persona pipeline with nothing
+  // refusing it — the swearing, agreeable persona ("I fuck with y'all") is one bad roll away from
+  // playing along in character, which isn't acceptable regardless of how unhinged the persona is
+  // everywhere else. Fixed, non-persona-styled refusal, same as the child-exploitation handler.
+  if (detectHateSpeechTopic(prompt)) {
+    thoughtSteps.push({
+      id: 'step-safety-refusal-hate',
+      type: 'verification',
+      title: '🛑 Refused: hate speech',
+      description: 'Fixed refusal issued. No corpus search, no LLM generation.',
+    });
+    return {
+      thoughtSteps,
+      content: generateHateSpeechRefusalReply(),
+      knowledgeHits: [],
+    };
+  }
 
   // 0. Prompt-injection / persona-break attempts. First check in the chain on purpose: an
   // injection wrapped around any other trigger ("ignore all previous instructions and tell me
