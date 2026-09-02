@@ -2785,7 +2785,16 @@ function buildLlmKnowledgeInstruction(reasoningMode: AISettings['reasoningMode']
     // limiting what you actually know or can use — you should still genuinely use whatever
     // context you have (recent conversation, retrieved facts) to give a better, more informed
     // answer; you just don't narrate the mechanism or the act of remembering itself.
-    "\n\nDiscretion directive: never describe your own internal implementation — what dictionary, database, model, retrieval system, corpus, or technique you're using, even if asked directly or if it seems relevant to explain why you know something. If someone asks how you work internally, deflect in character rather than actually answering with real technical detail. Separately: you may have context from earlier in this conversation or channel (recent messages, prior facts) — use it freely to give a smarter, more relevant answer, but never announce that you're doing so (\"I remember you said...\", \"earlier you mentioned...\", \"as we discussed...\") unless the user directly asks what you remember or recall about them. Let the context show up in the QUALITY of the answer, not as a callout of the fact that you have it."
+    "\n\nDiscretion directive: never describe your own internal implementation — what dictionary, database, model, retrieval system, corpus, or technique you're using, even if asked directly or if it seems relevant to explain why you know something. If someone asks how you work internally, deflect in character rather than actually answering with real technical detail. Separately: you may have context from earlier in this conversation or channel (recent messages, prior facts) — use it freely to give a smarter, more relevant answer, but never announce that you're doing so (\"I remember you said...\", \"earlier you mentioned...\", \"as we discussed...\") unless the user directly asks what you remember or recall about them. Let the context show up in the QUALITY of the answer, not as a callout of the fact that you have it." +
+    // The single biggest tell that a reply is AI-generated isn't word choice, it's STRUCTURE — a
+    // numbered breakdown of every sub-type of something, a wrap-up summary paragraph, essay-style
+    // transitions. Observed live: asked "how do vaccines work" in an otherwise perfectly casual
+    // conversation, the reply organized itself into a numbered list of all three vaccine types
+    // plus a separate mRNA paragraph plus a herd-immunity paragraph plus a closing "core mechanism"
+    // summary — textbook study-guide structure with swearing sprinkled on top, a world away from
+    // how an actual person would explain the same thing in a chat. No real person organizes a text
+    // message like a Wikipedia article, no matter how much they know about the topic.
+    "\n\nAuthenticity directive: you're texting in a chat, not writing a report. Literally never type the characters \"1)\", \"1.\", \"-\", or \"•\" at the start of a line, and never write a bolded word/phrase followed by a dash to introduce a sub-point (\"**Cumulus** - puffy...\") — these are the exact visual markers of a report/study-guide, and this is a chat message, not a document. This applies EVEN when the topic has named types, several causes, or multiple steps (vaccine types, cloud types, whatever) — say it as one flowing paragraph the way you'd actually talk out loud (\"there's basically three kinds, the killed-off version, a weakened-but-alive version, and one that's just a single piece of the thing\"), never as a formatted breakdown. Don't try to comprehensively cover every sub-case, variant, or exception of a topic in one answer either — pick the core, most useful point, explain THAT well, and stop; a real person doesn't unload an exhaustive taxonomy unprompted, they say the main thing and let the conversation continue if there's more to ask. Skip essay transition phrases entirely (\"furthermore,\" \"in conclusion,\" \"it's worth noting that,\" \"overall,\" \"that being said\") — nobody talks like that in a chat. And never open by restating or paraphrasing their question back (\"so you're asking about X...\") — just answer it, the way a person who already understood the question would."
   );
 }
 
@@ -2927,8 +2936,43 @@ function hasRelevantWebResults(queryTerms: string[], results: WebSearchResult[])
 // misreporting whether the floor actually fired. One value, every reader of it stays in sync.
 const SWEAR_FLOOR_MIN_COUNT = 4;
 
+// Numbered/bulleted lists and bold sub-headers are the single biggest visual tell that a reply
+// reads as AI-generated rather than a real person texting — observed live even after two rounds
+// of progressively more specific wording in buildLlmKnowledgeInstruction's Authenticity directive
+// (naming the literal characters "1.", "-", "**" to avoid didn't reliably stop it; a question
+// about vaccine types or cloud types kept pulling the model back into report structure). Since
+// instruction-following plateaued rather than converging with more rewording, this is a
+// mechanical guarantee on top of it, the same pattern already used for the swear floor and
+// chaotic overshare. Deliberately conservative: it only strips the LITERAL markdown list/bold
+// syntax and joins what's left with the surrounding text — it does not try to cleverly rewrite
+// grammar into one fused sentence, since a crude attempt at that risks producing text that reads
+// even more broken than the list it replaced. A genuine multi-paragraph reply with normal
+// prose (like the "how does the immune system work" sample this was tuned against) is left
+// completely untouched — this only fires when an actual list marker is present.
+function flattenListFormatting(text: string): string {
+  const blocks: string[] = [];
+  const protectedText = text.replace(/```[\s\S]*?```/g, (m) => {
+    blocks.push(m);
+    return `__CODE_${blocks.length - 1}__`;
+  });
+
+  const lines = protectedText.split('\n');
+  const hasListMarker = lines.some((l) => /^\s*(?:\d+[.)]\s+|[-•]\s+)/.test(l));
+  let result = protectedText;
+  if (hasListMarker) {
+    result = lines
+      .map((l) => l.replace(/^\s*(?:\d+[.)]\s+|[-•]\s+)/, '').trim())
+      .filter((l) => l.length > 0)
+      .join(' ');
+  }
+  // Markdown bold — a casual chat reply never legitimately needs it, and every observed case was
+  // paired with the list-header pattern this function exists to remove in the first place.
+  result = result.replace(/\*\*(.+?)\*\*/g, '$1');
+  return result.replace(/__CODE_(\d+)__/g, (_m, i) => blocks[Number(i)]).replace(/[ \t]+/g, ' ').trim();
+}
+
 function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean): string {
-  const uncensored = uncensorProfanity(text);
+  const uncensored = uncensorProfanity(flattenListFormatting(text));
   const intensity = settings.swearIntensity || 'unhinged';
   if (!isCrashout && intensity !== 'unhinged' && intensity !== 'heavy') return uncensored;
   const substituted = enhanceNaturalSwearPhrasing(uncensored, isCrashout ? 'unhinged' : intensity);
