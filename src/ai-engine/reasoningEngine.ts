@@ -2667,6 +2667,24 @@ const LLM_MAX_TOKENS_CASUAL = 220;
 const BROAD_QUESTION_PATTERN =
   /\b(explain|compare|difference between|pros and cons|walk me through|breakdown|in detail|everything about|all the|list (?:all|every)|how does .+ work|why (?:does|is|do)|what are the)\b/i;
 
+// Picks the reasoning-effort tier for a message BEFORE it's known whether the caller explicitly
+// requested one — used by server.ts to decide the Discord bot's default per-request reasoningMode.
+// Requested directly: the bot used to hardcode every message to 'thorough' (or 'deep-cot' when
+// explicitly asked), meaning the qwen2.5:7b escalation (see modelForReasoningMode,
+// localLlmClient.ts) fired on literally every reply regardless of how simple the question was —
+// real, unnecessary latency cost on ordinary small talk. Defaults to 'fast' and escalates only for
+// signals that genuinely warrant the bigger model: mathematical intent (explicitly requested — a
+// math word problem the deterministic solver can't fully resolve deserves the more careful model,
+// not just whatever's fastest) and the same "genuinely broad/complex question" shape
+// estimateResponseBudget already uses to widen its own token budget below, reused here rather than
+// inventing a second, possibly-diverging definition of "hard."
+export function recommendReasoningMode(prompt: string): 'fast' | 'thorough' {
+  if (detectQueryIntent(prompt) === 'mathematical') return 'thorough';
+  const hasMultipleQuestions = (prompt.match(/\?/g) || []).length > 1 || / and (?:how|why|what|when|where) /i.test(prompt);
+  if (BROAD_QUESTION_PATTERN.test(prompt) || hasMultipleQuestions) return 'thorough';
+  return 'fast';
+}
+
 // groundingDocCount is deliberately NOT used as a broadness signal — callers slice results to a
 // fixed length (top 4-5) before this ever runs regardless of how many of those actually scored as
 // real matches, so a padded-but-mostly-irrelevant list would otherwise always read as "broad" and

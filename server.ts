@@ -10,7 +10,7 @@ import {
   parseSdkRules,
   enforceStrictSdkRules,
 } from './src/ai-engine/ruleEngine';
-import { generateReasoningPath, assessCorpusConfidence, retryTelemetry } from './src/ai-engine/reasoningEngine';
+import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommendReasoningMode } from './src/ai-engine/reasoningEngine';
 import { getMoodDisplay } from './src/ai-engine/moodEngine';
 import { checkAvailability as checkLocalLlmAvailability, generate as generateLlmText, generateVision } from './src/ai-engine/localLlmClient';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
@@ -1201,7 +1201,15 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
         : {
             ...DEFAULT_SETTINGS,
             activePersonaId: (isCrash ? 'crashout-bot' : persona.id) as ModelPersonaId,
-            reasoningMode: isDeep ? ('deep-cot' as ReasoningMode) : ('thorough' as ReasoningMode),
+            // Requested directly: was hardcoded to 'thorough' (or 'deep-cot' when explicitly
+            // asked) for every single message, meaning the qwen2.5:7b reasoning escalation (see
+            // modelForReasoningMode, localLlmClient.ts) fired on every reply regardless of how
+            // simple the question was — real latency cost on ordinary small talk for no benefit.
+            // Now defaults to 'fast' and only escalates for signals that actually warrant it:
+            // math questions (explicit ask) and genuinely broad/hard questions, via
+            // recommendReasoningMode (reasoningEngine.ts) — an explicit deepThink/deep-cot request
+            // still always wins, same as before.
+            reasoningMode: isDeep ? ('deep-cot' as ReasoningMode) : (recommendReasoningMode(userText) as ReasoningMode),
             userName: username || '',
             discordUserId: effectiveAuthorId,
             isSuperChillUser: isSuperChill,
