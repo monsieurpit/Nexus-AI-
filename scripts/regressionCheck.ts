@@ -13,6 +13,7 @@
 //        bun run scripts/regressionCheck.ts --det-only    (skip live generation, fast/offline)
 
 import { generateReasoningPath, getSystemPromptCharCount, buildSpeakerAwareWindow } from '../src/ai-engine/reasoningEngine';
+import { looksFrench } from '../src/ai-engine/localLlmClient';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore';
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/moodEngine';
@@ -52,6 +53,15 @@ async function runDeterministicChecks() {
   check('FR "je suis tellement stressé" (accent-boundary fix)', detectEmotionalDistress('je suis tellement stressé en ce moment'));
   check('FR "je suis épuisée" (leading-accent fix)', detectEmotionalDistress('je suis épuisée'));
   check('control: "je suis content" is NOT distress', !detectEmotionalDistress("je suis content aujourd'hui"));
+
+  console.log('\nFrench language detection (looksFrench):');
+  // A code review found "comment" and "grave" in FRENCH_SIGNAL_WORDS with no corresponding
+  // ENGLISH_SIGNAL_WORDS entry to offset them -- both are ordinary common English words too
+  // ("no comment", "a grave mistake"), so a purely English message containing either one alone got
+  // misdetected as French. Verified live before the fix; these two cases guard the exact bug.
+  check('EN "no comment" is NOT detected as French (comment/grave collision fix)', !looksFrench('no comment'));
+  check('EN "dig a grave" is NOT detected as French (comment/grave collision fix)', !looksFrench('dig a grave'));
+  check('FR "salut nexus, comment ça va?" still correctly detected as French', looksFrench('salut nexus, comment ça va?'));
 
   console.log('\nWeb search 429-guard (should NOT trigger a search):');
   check('EN "do u wana see smth"', shouldTriggerLiveWebSearch('do u wana see smth', undefined, 0) === false);

@@ -105,12 +105,18 @@ const POLISH_DIACRITIC_REGEX = /[ąćęłńóśźż]/i;
 // exclusion discipline as Polish's own list: "on" (French "we/one", but also a common English
 // word), "car" (French "because", also an English noun), "a"/"an"/"est" and similar short forms
 // that could tie against real signal words are deliberately left out.
+// "comment" and "grave" removed here for the same reason — a code review caught they're both
+// ordinary, common English words ("no comment", "leave a comment", "a grave mistake", "dig a
+// grave") with zero corresponding entry in ENGLISH_SIGNAL_WORDS to offset them, so a purely
+// English sentence containing either one alone got misdetected as French. Verified live before
+// this fix: looksFrench("no comment") and looksFrench("dig a grave") both incorrectly returned
+// true.
 const FRENCH_SIGNAL_WORDS = new Set([
-  'salut', 'bonjour', 'bonsoir', 'merci', 'oui', 'non', 'pourquoi', 'comment', 'combien',
+  'salut', 'bonjour', 'bonsoir', 'merci', 'oui', 'non', 'pourquoi', 'combien',
   'quoi', 'quel', 'quelle', 'quels', 'quelles', 'ça', 'cest', "c'est", 'je', 'tu', 'nous', 'vous',
   'ils', 'elles', 'avec', 'sans', 'être', 'avoir', 'créé', 'créer', 'peux', 'veux', 'sais',
   'connais', 'aide', 'expliquer', 'explique', 'dis', 'montre', "s'il", 'plait', 'plaît',
-  'kestufou', 'wesh', 'grave', 'ouf', 'chuis', 'jsuis', 'jsp', 'ptdr', 'mdr',
+  'kestufou', 'wesh', 'ouf', 'chuis', 'jsuis', 'jsp', 'ptdr', 'mdr',
 ]);
 const FRENCH_DIACRITIC_REGEX = /[àâçéèêëîïôùûüÿœæ]/i;
 
@@ -496,12 +502,22 @@ async function processRawGenerateOutput(
     // language's signal words on a long-enough response means it drifted into something else
     // entirely. Only checked on responses with enough words to judge reliably (8+) — a short reply
     // has no real signal either way and would false-positive on legitimate short slangy text.
+    // A code review caught that the French branch used to divide scoreFrenchSignal's french count
+    // by `signal.wordCount` — but `signal` comes from scoreLanguageSignal, whose tokenizer regex
+    // (`[a-ząćęłńóśźż]+`) doesn't include French's own accented characters (è/ê/â/î/ô/û/ü/ç). Any
+    // word containing one of those (très, être, être, français...) gets split into fragments by
+    // that regex, inflating the word count scoreFrenchSignal itself never produced, which
+    // understates true French density and risks rejecting a genuinely correct French response as
+    // "wrong_language". Now uses scoreFrenchSignal's own word count consistently for both sides of
+    // the French density calculation instead of mixing two disagreeing tokenizers.
     const signal = scoreLanguageSignal(text);
-    if (signal.wordCount >= 8) {
+    const frenchSignal = options.preferFrench ? scoreFrenchSignal(text) : null;
+    const languageCheckWordCount = frenchSignal ? frenchSignal.wordCount : signal.wordCount;
+    if (languageCheckWordCount >= 8) {
       const density = options.preferPolish
         ? signal.polish / signal.wordCount
-        : options.preferFrench
-        ? scoreFrenchSignal(text).french / signal.wordCount
+        : frenchSignal
+        ? frenchSignal.french / frenchSignal.wordCount
         : signal.english / signal.wordCount;
       if (density < 0.06) {
         return { status: 'unavailable', reason: 'wrong_language', detail: text.slice(0, 100) };
