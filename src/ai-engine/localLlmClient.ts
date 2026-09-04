@@ -776,7 +776,12 @@ export async function generateVision(
     }
 
     const data: any = await res.json();
-    const text = data?.message?.content?.trim();
+    // A code review caught this was missing the `typeof === 'string'` guard generate() uses for
+    // the identical field — if Ollama's vision model ever returned a non-string message.content
+    // (a malformed response), `.trim()` would throw a TypeError caught by the outer catch and
+    // mislabeled as 'connection_error' instead of the accurate, easier-to-diagnose
+    // 'empty_response'.
+    const text = typeof data?.message?.content === 'string' ? data.message.content.trim() : '';
     if (!text) {
       return { status: 'unavailable', reason: 'empty_response' };
     }
