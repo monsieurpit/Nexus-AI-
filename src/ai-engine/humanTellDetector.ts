@@ -21,18 +21,31 @@ export function hasListFormatting(text: string): boolean {
 // Essay/report transition phrases — nobody says "furthermore" or "in conclusion" in a text
 // message. Word-boundary matched and case-insensitive; deliberately narrow phrases with no
 // legitimate casual-chat use, not words that could appear naturally in ordinary conversation.
+// "overall"/"moreover"/"additionally" specifically only read as this AI-tell when used as a
+// sentence-opening transition (comma-suffixed) — as bare words they have ordinary, legitimate
+// casual use ("we did alright overall", "additionally he brought snacks"), so they're matched with
+// a required trailing comma instead of the shared word-boundary-only pattern the other phrases use.
+// A code review caught that the ORIGINAL version put these three in the same `\b(?:...)\b`
+// alternation with a literal trailing comma baked into each alternative — `\b` requires one side to
+// be a word character and the other not, and a comma followed by whitespace (the near-universal
+// real case, "Overall, vaccines...") is non-word-to-non-word, so that trailing `\b` silently never
+// fired for any of the three. Verified live: "Overall, vaccines are safe." matched nothing before
+// this fix.
 const ESSAY_TRANSITION_PATTERN =
-  /\b(?:furthermore|in conclusion|overall,|to conclude|in summary|it(?:'s| is) worth noting that|that being said|moreover,|additionally,)\b/i;
+  /\b(?:furthermore|in conclusion|to conclude|in summary|it(?:'s| is) worth noting that|that being said)\b|\b(?:overall|moreover|additionally)\s*,/i;
 
 export function hasEssayTransitions(text: string): boolean {
   return ESSAY_TRANSITION_PATTERN.test(text);
 }
 
-// Restating the question back before answering it ("so you're asking about X...", "you want to
-// know how Y works...") — a real person who understood the question just answers it. Checked only
-// at the START of a response (a real answer might legitimately reference the topic mid-reply)
-// since that's specifically where this tell shows up.
-const QUESTION_RESTATING_PATTERN = /^\s*(?:so\s+)?(?:you'?re\s+asking|you\s+want\s+to\s+know|your\s+question\s+is)\b/i;
+// Restating the question back before answering it ("so you're asking about X...", "so, you're
+// asking...", "you want to know how Y works...") — a real person who understood the question just
+// answers it. Checked only at the START of a response (a real answer might legitimately reference
+// the topic mid-reply) since that's specifically where this tell shows up. `so\s*,?\s*` (not the
+// original `so\s+`) so the extremely common comma-after-"So" phrasing isn't missed — a code review
+// found "So, you're asking..." (comma before "you're") didn't match, since `\s+` requires
+// whitespace immediately after "so" and a comma isn't whitespace.
+const QUESTION_RESTATING_PATTERN = /^\s*(?:so\s*,?\s*)?(?:you'?re\s+asking|you\s+want\s+to\s+know|your\s+question\s+is)\b/i;
 
 export function hasQuestionRestating(text: string): boolean {
   return QUESTION_RESTATING_PATTERN.test(text);

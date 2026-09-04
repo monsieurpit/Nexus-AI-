@@ -12,7 +12,7 @@
 //        bun run scripts/regressionCheck.ts --live-only   (skip the deterministic tier)
 //        bun run scripts/regressionCheck.ts --det-only    (skip live generation, fast/offline)
 
-import { generateReasoningPath, getSystemPromptCharCount } from '../src/ai-engine/reasoningEngine';
+import { generateReasoningPath, getSystemPromptCharCount, buildSpeakerAwareWindow } from '../src/ai-engine/reasoningEngine';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore';
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/moodEngine';
@@ -115,6 +115,34 @@ async function runDeterministicChecks() {
   const afterBurst = getMoodDisplay();
   check('200-message burst does NOT max out mood (cooldown working)', afterBurst.valence < 0.5, `got valence=${afterBurst.valence}`);
 
+  console.log('\nSpeaker-aware channel brain (Wave 8, deterministic):');
+  // Fallback-to-old-behavior check: a code review caught that keying the fallback only on
+  // `!currentAuthorId` meant a caller sending a truthy currentAuthorId but history with NO
+  // authorId anywhere (old/cached messages, or a caller that hasn't started sending it) would
+  // filter against zero matches and get an EMPTY window instead of the degraded-but-present old
+  // unfiltered slice(-6) the fallback is supposed to preserve.
+  const historyWithNoAuthorInfo = [
+    { id: '1', role: 'user' as const, content: 'hello', timestamp: Date.now() - 2000 },
+    { id: '2', role: 'assistant' as const, content: 'hey', timestamp: Date.now() - 1000 },
+  ];
+  check(
+    'buildSpeakerAwareWindow falls back to old unfiltered behavior when history has no authorId at all',
+    buildSpeakerAwareWindow(historyWithNoAuthorInfo, 'userA').length === 2
+  );
+  // Interleaving check: replyToAuthorId (not positional adjacency) must correctly attribute a
+  // reply even when another user's whole exchange lands in between.
+  const interleavedHistory = [
+    { id: '1', role: 'user' as const, content: 'q from A', authorId: 'userA', timestamp: 1 },
+    { id: '2', role: 'user' as const, content: 'q from B', authorId: 'userB', timestamp: 2 },
+    { id: '3', role: 'assistant' as const, content: 'reply to B', replyToAuthorId: 'userB', timestamp: 3 },
+    { id: '4', role: 'assistant' as const, content: 'reply to A', replyToAuthorId: 'userA', timestamp: 4 },
+  ];
+  const windowForA = buildSpeakerAwareWindow(interleavedHistory, 'userA');
+  check(
+    'buildSpeakerAwareWindow correctly attributes a reply via replyToAuthorId despite another user\'s exchange interleaved in between',
+    windowForA.length === 2 && windowForA.some((m) => m.content === 'reply to A') && !windowForA.some((m) => m.content === 'reply to B')
+  );
+
   console.log('\nHuman-tell watchdog (Wave 9):');
   // Self-test: the watchdog is only worth anything if it actually fires on the exact bad inputs
   // it exists to catch — asserting it stays quiet on good text alone would never prove that.
@@ -124,8 +152,19 @@ async function runDeterministicChecks() {
   check('watchdog stays quiet on genuinely clean prose', !hasListFormatting(cleanText) && detectHumanTells(cleanText).clean);
   const badEssayText = "Furthermore, this is a great point. In conclusion, vaccines work well.";
   check('watchdog catches essay-transition phrases', detectHumanTells(badEssayText).tells.includes('essay-transition'));
+  // A code review caught these three comma-suffixed alternatives (overall/moreover/additionally)
+  // never actually matched — \b never fires between a comma and the following whitespace, since
+  // both sides are non-word characters. Checked individually since the original bug affected only
+  // these three, not the other essay-transition phrases already covered above.
+  check('watchdog catches "Overall," specifically (comma-boundary regex fix)', detectHumanTells('Overall, vaccines are safe.').tells.includes('essay-transition'));
+  check('watchdog catches "Moreover," specifically (comma-boundary regex fix)', detectHumanTells('Moreover, this helps.').tells.includes('essay-transition'));
+  check('watchdog catches "Additionally," specifically (comma-boundary regex fix)', detectHumanTells('Additionally, he brought snacks.').tells.includes('essay-transition'));
+  check('watchdog does NOT flag "overall" used as an ordinary word (no false positive)', !detectHumanTells('we did alright overall').tells.includes('essay-transition'));
   const badRestateText = "So you're asking about how vaccines work, right? Well, they train your immune system.";
   check('watchdog catches question-restating openers', detectHumanTells(badRestateText).tells.includes('question-restating'));
+  // A code review caught that "so\s+" required whitespace immediately after "so", missing the
+  // extremely common comma-after-"So" phrasing entirely.
+  check('watchdog catches "So, you\'re asking..." (comma-after-so regex fix)', detectHumanTells("So, you're asking about how vaccines work?").tells.includes('question-restating'));
 
   // Real prompt-size budget check — turns the earlier latency-bloat discovery (see
   // localLlmClient.ts's LATENCY_DEBUG comment: a confident-grounded prompt had grown to ~4000
@@ -230,20 +269,28 @@ async function runLiveChecks() {
   // Wave 8: speaker-aware channel brain. A busy multi-speaker channel history shouldn't let a
   // DIFFERENT person's unrelated chatter hijack the current asker's own follow-up resolution —
   // "what about South Korea" should resolve against userA's own prior Japan-capital thread, not
-  // userB's unrelated France chatter sitting in between.
+  // userB's unrelated France chatter sitting in between. Assistant replies carry replyToAuthorId
+  // (not positional adjacency) — a code review caught that this server's shared request queue can
+  // take up to 45s per task, so in a genuinely busy channel, OTHER users' messages routinely land
+  // in the raw history BETWEEN a user's question and the bot's eventual reply to it. This scenario
+  // deliberately interleaves userB's message and reply BEFORE Nexus's reply to userA actually
+  // lands, to prove the fix isn't just "ignores unrelated chatter" but specifically "survives
+  // interleaving that breaks positional adjacency."
   _resetMoodForTests();
   const speakerAwareHistory = [
     { id: '1', role: 'user' as const, content: "what's the capital of Japan", authorId: 'userA', username: 'Alice', timestamp: Date.now() - 50000 },
-    { id: '2', role: 'assistant' as const, content: 'Tokyo.', sources: ['Japan'], timestamp: Date.now() - 49000 },
-    { id: '3', role: 'user' as const, content: 'have you seen the eiffel tower', authorId: 'userB', username: 'Bob', timestamp: Date.now() - 40000 },
-    { id: '4', role: 'assistant' as const, content: 'nah man never been to France.', sources: ['France'], timestamp: Date.now() - 39000 },
+    { id: '2', role: 'user' as const, content: 'have you seen the eiffel tower', authorId: 'userB', username: 'Bob', timestamp: Date.now() - 45000 },
+    { id: '3', role: 'assistant' as const, content: 'nah man never been to France.', sources: ['France'], replyToAuthorId: 'userB', timestamp: Date.now() - 44000 },
+    // Nexus's reply to userA's Japan question lands LAST, after userB's whole exchange already
+    // interleaved in between — the exact "reply arrives late from a busy shared queue" shape.
+    { id: '4', role: 'assistant' as const, content: 'Tokyo.', sources: ['Japan'], replyToAuthorId: 'userA', timestamp: Date.now() - 39000 },
   ];
   const speakerAwareSettings = { ...settings, discordUserId: 'userA' };
   const followUp = await timed('speaker-aware-followup', () =>
     generateReasoningPath('what about South Korea', speakerAwareHistory, persona, speakerAwareSettings, allKnowledge, [])
   );
   check(
-    'speaker-aware follow-up: resolves against the SAME speaker\'s thread, not a different speaker\'s unrelated chatter',
+    'speaker-aware follow-up: resolves against the SAME speaker\'s thread even with another user\'s exchange interleaved in between',
     /south korea/i.test(followUp.content) && /seoul/i.test(followUp.content),
     followUp.content.slice(0, 120)
   );

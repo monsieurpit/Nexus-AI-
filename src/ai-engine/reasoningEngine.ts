@@ -1542,18 +1542,29 @@ function trackEntities(recent: ChatMessage[]): string[] {
 // raw messages when authorId is known, without ever mixing in anyone else's conversation thread.
 // Falls back to the exact old behavior (last 6, unfiltered) when currentAuthorId isn't provided —
 // the website's own single-user session history, or any caller that hasn't started sending author
-// info, sees zero change.
-function buildSpeakerAwareWindow(history: ChatMessage[], currentAuthorId?: string): ChatMessage[] {
-  if (!currentAuthorId) return history.slice(-6);
+// info, sees zero change. Also falls back when NO message in the window carries an authorId at
+// all — a code review caught that keying the fallback only on `!currentAuthorId` meant a caller
+// that sends a truthy currentAuthorId but hasn't (yet, or ever) populated authorId on the actual
+// history entries would filter against zero matches and get an EMPTY window — strictly worse than
+// the degraded-but-present old behavior this fallback exists to preserve.
+export function buildSpeakerAwareWindow(history: ChatMessage[], currentAuthorId?: string): ChatMessage[] {
+  const rawWindow = history.slice(-40);
+  if (!currentAuthorId || !rawWindow.some((m) => m.authorId)) return history.slice(-6);
   // Draw from a much wider raw slice than 6 now that filtering makes it safe — a user's own thread
   // can otherwise get buried under 10+ other people's messages in an active channel.
-  const rawWindow = history.slice(-40);
   const filtered: ChatMessage[] = [];
-  for (let i = 0; i < rawWindow.length; i++) {
-    const msg = rawWindow[i];
+  for (const msg of rawWindow) {
     if (msg.role === 'user' && msg.authorId === currentAuthorId) {
       filtered.push(msg);
-    } else if (msg.role === 'assistant' && rawWindow[i - 1]?.role === 'user' && rawWindow[i - 1]?.authorId === currentAuthorId) {
+    } else if (msg.role === 'assistant' && msg.replyToAuthorId === currentAuthorId) {
+      // replyToAuthorId (not positional adjacency) — a code review caught that this server
+      // processes requests through a shared queue that can take up to 45s per task, so in exactly
+      // the busy multi-speaker scenario this feature targets, other users' messages routinely land
+      // in the channel BETWEEN a user's question and the bot's eventual reply to it. An adjacency
+      // check ("is the message right before this one from the same author") would silently drop
+      // every such reply. The bot now records which user's question it was actually answering
+      // (nexusAiService.js) at the moment it logs its own reply, which is correct regardless of
+      // how much other traffic interleaves in between.
       filtered.push(msg);
     }
   }

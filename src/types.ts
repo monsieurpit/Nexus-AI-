@@ -117,6 +117,13 @@ export interface ChatMessage {
   // Discord bot's channel-history buffer populates them now.
   authorId?: string;
   username?: string;
+  // Set only on the assistant's own recorded reply — which user's question this specific reply
+  // was actually answering. Needed because this server processes requests through a shared queue
+  // (can take up to 45s per task), so in a busy channel other users' messages routinely land
+  // between a user's question and the bot's eventual reply to it — positional adjacency in the
+  // raw history can't reliably tell who a reply was actually for, but the bot always knows at the
+  // moment it logs its own reply (it just answered that exact question).
+  replyToAuthorId?: string;
 }
 
 export interface KnowledgeItem {

@@ -1158,13 +1158,22 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
   }
 
   // Format message history if supplied
-  // requestedHistory (the field the Discord bot sends, populated by channelHistoryService.js's
-  // getChannelHistory()) is passed through as-is — its {role, content, authorId, username} shape
-  // already matches ChatMessage closely enough, and now that ChatMessage carries real
-  // authorId/username fields (Wave 8), those flow straight through into generateReasoningPath
-  // untouched, no mapping needed here.
+  // Coerces authorId/username/replyToAuthorId to a real string or undefined — a code review
+  // caught that these were passed through with no type check, unlike every sibling field in this
+  // same mapping (role, content, timestamp all get defaults/coercion). buildSpeakerAwareWindow's
+  // author matching is a strict `===` comparison, so a non-string value (a malformed payload, not
+  // just a missing one) would previously just silently never match anything instead of surfacing
+  // as an actual error — same risk for requestedHistory (the field the Discord bot actually sends,
+  // via channelHistoryService.js's getChannelHistory()), which used to be passed through with zero
+  // validation at all.
+  const asStringOrUndefined = (v: any): string | undefined => (typeof v === 'string' ? v : undefined);
   const historyArray = Array.isArray(requestedHistory)
-    ? requestedHistory
+    ? requestedHistory.map((m: any) => ({
+        ...m,
+        authorId: asStringOrUndefined(m?.authorId),
+        username: asStringOrUndefined(m?.username),
+        replyToAuthorId: asStringOrUndefined(m?.replyToAuthorId),
+      }))
     : Array.isArray(requestedMessages)
     ? requestedMessages.map((m: any) => ({
         id: m.id || `msg-${Math.random()}`,
@@ -1173,8 +1182,9 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
         timestamp: m.timestamp || new Date(),
         thoughtProcess: m.thoughtProcess || [],
         sources: m.sources || [],
-        authorId: m.authorId,
-        username: m.username,
+        authorId: asStringOrUndefined(m.authorId),
+        username: asStringOrUndefined(m.username),
+        replyToAuthorId: asStringOrUndefined(m.replyToAuthorId),
       }))
     : [];
 
