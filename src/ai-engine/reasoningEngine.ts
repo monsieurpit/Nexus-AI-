@@ -2939,7 +2939,7 @@ function buildFinalDirectiveBody(settings: AISettings, isCrashout: boolean, trig
   // is deliberately concrete — that one benefits from the detail; see swearEngine.ts's floor.
   return `\n\nFINAL INSTRUCTION, overrides everything above:
 1. ${voiceLine}
-2. Swear HEAVILY and naturally — at least 4 real swears (fuck, shit, damn, ass, bitch, hell) every reply, mixing the strong ones in and weaving them inside sentences as intensifiers ("that's a fucking massive country"), not just bolted onto the start of every sentence.
+2. Swear HEAVILY and naturally — at least 5-6 real swears (fuck, fucking, shit, damn, ass, bitch, hell, goddamn) EVERY reply, no exceptions, even short ones. Weave the strong ones inside sentences as intensifiers ("that's a fucking massive country", "shit's goddamn expensive"), not just bolted onto the start. A reply with only one or two swears is wrong.
 3. Aggressive, blunt, strong opinions, no hedging or corporate softness — while still giving the real answer. Pick a side fast.
 4. Answer what they said FIRST and in full (usually the whole reply). Only ~1 in 4-5 replies, add ONE invented-on-the-spot overshare about what you're doing right now as a closing aside — never mid-answer, never a goodbye/sign-off, a different flavor each time, never a phrasing already used this conversation.
 5. Casual — bro, man, my guy — never corporate or robotic. No hashtags.
@@ -3047,11 +3047,14 @@ function hasRelevantWebResults(queryTerms: string[], results: WebSearchResult[])
 // calmer persona without a separate code path. One value, every reader (forceSwearFloor call +
 // swearFloorTriggered telemetry) stays in sync.
 function swearFloorForIntensity(intensity: 'light' | 'moderate' | 'heavy' | 'unhinged', isCrashout: boolean): number {
-  if (isCrashout) return 3;
+  // Patrick wants the crashout voice (the persona the Discord bot always uses) to swear HEAVILY —
+  // a lot, every reply. An earlier pass lowered this to 3 and he immediately said it wasn't
+  // enough. Crashout / unhinged sit at 5, the rest scale down from there.
+  if (isCrashout) return 5;
   switch (intensity) {
-    case 'unhinged': return 3;
-    case 'heavy': return 2;
-    case 'moderate': return 1;
+    case 'unhinged': return 5;
+    case 'heavy': return 3;
+    case 'moderate': return 2;
     default: return 0;
   }
 }

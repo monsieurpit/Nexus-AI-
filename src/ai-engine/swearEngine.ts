@@ -1606,17 +1606,19 @@ export function enhanceNaturalSwearPhrasing(
         // word follows the match, drop those options and pick from the adjectival ones.
         const PREDICATE_ONLY = /^(?:an?\s|flat-out\s)/i;
         const rest = full.slice(offset + match.length);
-        // The model often already made the word vivid on its own ("weird as shit", "big as
-        // hell", "fucking huge"). Swapping in another "... as shit" / "fucking ..." phrase on top
-        // stacks a second intensifier and reads as a stutter ("weird as shit as shit"). Skip the
-        // swap entirely when an intensifier tail already follows the match, or a swear intensifier
-        // already precedes it.
+        // The model often already made the word vivid on its own ("weird as shit", "fucking
+        // huge"). Adding another "... as shit" tail on top stutters ("weird as shit as shit"), so
+        // skip when an intensifier tail already follows the match. NOT skipped merely because a
+        // swear precedes it — Patrick wants heavy swearing and "fucking weird as hell" is fine;
+        // only skip when the SAME leading intensifier the replacement starts with is already right
+        // there (would produce "fucking fucking huge").
         if (/^\s+(?:as\s+(?:hell|shit|fuck|balls|anything)|af\b|than\s+(?:shit|fuck))/i.test(rest)) return match;
-        if (/\b(?:fucking|goddamn|damn|bloody|hella|mad)\s*$/i.test(full.slice(0, offset))) return match;
         const isAttributive = /^\s+[a-z]/i.test(rest) && !/^\s+(?:to|for|because|when|if|so|though|than)\b/i.test(rest);
         const usable = isAttributive ? options.filter((o) => !PREDICATE_ONLY.test(o)) : options;
         if (usable.length === 0) return match;
         const picked = usable[Math.floor(Math.random() * usable.length)];
+        const leadIntensifier = (picked.match(/^(fucking|goddamn|damn)\b/i) || [])[1];
+        if (leadIntensifier && new RegExp(`\\b${leadIntensifier}\\s*$`, 'i').test(full.slice(0, offset))) return match;
         // A replacement ending in a comma is a clause-continuation phrase, so it only works where
         // the original word had a clause after it. When the matched word instead ENDS its sentence
         // ("Same honestly. Pick a topic..."), swapping it in produced a comma immediately before
