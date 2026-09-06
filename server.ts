@@ -1544,6 +1544,11 @@ app.post('/api/v1/roleplay', aiComputeLimiter, async (req, res) => {
   const prompt = buildRoleplayPrompt(history, message, french);
 
   try {
+    // The noemie persona can run on its own fine-tuned model (OLLAMA_MODEL_NOEMIE, e.g.
+    // "noemie-4b") — set that env var on Railway once the LoRA is trained. Everything else,
+    // including the Discord bot, stays on the general OLLAMA_MODEL. Unset = falls back to it.
+    const roleplayModel =
+      personaKey === 'noemie' && process.env.OLLAMA_MODEL_NOEMIE ? process.env.OLLAMA_MODEL_NOEMIE : undefined;
     const queued = await globalRequestQueue.enqueue('roleplay', () =>
       generateLlmText(prompt, {
         system,
@@ -1551,6 +1556,7 @@ app.post('/api/v1/roleplay', aiComputeLimiter, async (req, res) => {
         topP: 0.9,
         maxTokens: personaKey === 'noemie' && !override ? 90 : 220,
         preferFrench: french,
+        model: roleplayModel,
       })
     );
     const out = queued.data;
@@ -1596,7 +1602,7 @@ app.post('/api/v1/roleplay', aiComputeLimiter, async (req, res) => {
       reply: text,
       bubbles: bubbles.length ? bubbles : [text],
       persona: override ? 'custom' : personaKey,
-      model: process.env.OLLAMA_MODEL || 'gemma3:4b',
+      model: roleplayModel || process.env.OLLAMA_MODEL || 'gemma3:4b',
       latencyMs: out.latencyMs,
     });
   } catch (err: any) {
