@@ -1558,8 +1558,9 @@ app.post('/api/v1/roleplay', aiComputeLimiter, async (req, res) => {
       return res.status(503).json({ error: 'local model unavailable', reason: out.reason, detail: (out as any).detail });
     }
     let text = out.text.trim();
-    // Noémie base-model cleanup: gemma3:4b sprays emojis and pulls them from outside her set.
-    // Keep at most ONE, and only from her whitelist. The fine-tuned model won't need this.
+    // Noémie base-model cleanup: gemma3:4b sprays emojis, uses "!"/commas/accents/apostrophes she
+    // shouldn't, and pulls emojis from outside her set. Match the training-data normalisation so
+    // the base model reads like the fine-tuned one will. Only for the built-in noemie persona.
     if (personaKey === 'noemie' && !override) {
       const ALLOWED = ['❤️', '❤', '😭', '💀', '🥺'];
       let kept = false;
@@ -1571,8 +1572,18 @@ app.post('/api/v1/roleplay', aiComputeLimiter, async (req, res) => {
           }
           return '';
         })
+        // no accents / apostrophes / commas / "!" / final periods — her register
+        .replace(/[àâäá]/g, 'a').replace(/[éèêëē]/gi, (c) => (c === c.toUpperCase() ? 'E' : 'e'))
+        .replace(/[îïíì]/gi, (c) => (c === c.toUpperCase() ? 'I' : 'i'))
+        .replace(/[ôöóò]/gi, (c) => (c === c.toUpperCase() ? 'O' : 'o'))
+        .replace(/[ûüùú]/gi, (c) => (c === c.toUpperCase() ? 'U' : 'u'))
+        .replace(/ç/g, 'c').replace(/Ç/g, 'C')
+        .replace(/\bt['’]es\b/gi, 't').replace(/\bc['’]est\b/gi, 'c').replace(/['’]/g, '')
+        .replace(/!+/g, '')
+        .replace(/,/g, ' ')
+        .replace(/([a-z0-9])\.(\s|$)/gi, '$1$2')
         .replace(/\s{2,}/g, ' ')
-        .replace(/\s+([,.!?])/g, '$1')
+        .replace(/\s+([.?])/g, '$1')
         .trim();
     }
     // Split into texting bubbles: explicit newlines first, else keep as one.
