@@ -206,7 +206,7 @@ async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> {
 
 async function runLiveChecks() {
   console.log('\n=== Live checks (need real Ollama) ===\n');
-  console.log(`Model under test: ${process.env.OLLAMA_MODEL || 'qwen2.5:3b (default)'}\n`);
+  console.log(`Model under test: ${process.env.OLLAMA_MODEL || 'gemma3:4b (default)'}\n`);
   const persona = DEFAULT_PERSONAS['crashout-bot'];
   const settings = { ...DEFAULT_SETTINGS, activePersonaId: 'crashout-bot' as const };
   const allKnowledge = getAllKnowledge();

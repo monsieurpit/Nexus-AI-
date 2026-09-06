@@ -6,7 +6,12 @@ import {
 } from './polishSpellCheck';
 
 const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || '').replace(/\/+$/, '');
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
+// Default swapped qwen2.5:3b -> gemma3:4b (Google's open model, same family as
+// Gemini, markedly better multilingual / French, 128k context which also helps
+// RAG). ~4s per short reply and comfortable memory on the M4 Mac Mini host.
+// The historical rationale below (Bielik, model-size vs prompt-complexity) still
+// holds — it's about routing philosophy, not the specific model name.
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
 const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
 // A Polish-specialized model (SpeakLeash/Bielik-1.5b) was tried here and reverted after real-world
 // testing: it had noticeably cleaner Polish GRAMMAR in isolated one-off tests, but embedded in this
@@ -31,7 +36,12 @@ const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
 // modelForReasoningMode() below — the reasoning modes (fast/thorough/deep-cot) already exist as an
 // effort dial the persona/settings can turn up for a specific query, so escalating the model itself
 // on that same dial reuses existing infrastructure instead of adding a new setting.
-const OLLAMA_MODEL_DEEP = process.env.OLLAMA_MODEL_DEEP || 'qwen2.5:7b';
+// Escalation model (thorough / deep-cot only), swapped qwen2.5:7b -> gemma3:12b
+// — same family as the new default, same tradeoff profile the comment above
+// describes (roughly 3-4x the latency, ~8GB resident, tight on a 16GB host once
+// the Node server + tunnel are also running), so still opt-in via
+// modelForReasoningMode(), never a blanket default.
+const OLLAMA_MODEL_DEEP = process.env.OLLAMA_MODEL_DEEP || 'gemma3:12b';
 
 export function modelForReasoningMode(reasoningMode: 'fast' | 'thorough' | 'deep-cot'): string {
   return reasoningMode === 'fast' ? OLLAMA_MODEL : OLLAMA_MODEL_DEEP;
@@ -472,9 +482,13 @@ async function processRawGenerateOutput(
     // The Bielik GGUF (used for preferPolish) was observed leaking raw chat-template/stop tokens
     // into real output — "<|end_id: assistant>" and "<|EOF|>" showed up verbatim in otherwise
     // normal responses during benchmarking, presumably a template mismatch between the GGUF and
-    // Ollama's chat handling. Strips any "<|...|>"-style token, which qwen's own output never
-    // legitimately contains, so this is a no-op for the default model.
-    text = text.replace(/<\|[^|<>]{1,40}\|>/g, '').trim();
+    // Ollama's chat handling. Strips any "<|...|>"-style token plus gemma3's
+    // "<start_of_turn>" / "<end_of_turn>" markers — Ollama's /api/chat normally
+    // strips these, this is a defensive no-op if it does.
+    text = text
+      .replace(/<\|[^|<>]{1,40}\|>/g, '')
+      .replace(/<\/?(?:start|end)_of_turn>/gi, '')
+      .trim();
     if (!text) {
       return { status: 'unavailable', reason: 'empty_response' };
     }
@@ -732,8 +746,8 @@ export type VisionResult =
  * image-handling paths fetched the image bytes and then just returned canned strings like
  * "Optical frame alignment verified" and "Visual Input Received & Inspected" regardless of what
  * was actually in the picture — image content was fetched, base64-encoded, and then thrown away
- * unread. qwen2.5:3b (the main text model) has no vision capability at all, which is why this is
- * a separate model/call rather than an option on generate().
+ * unread. gemma3:4b (the main text model) is used via Ollama's text chat API here with no images,
+ * so vision stays a separate model/call rather than an option on generate().
  */
 export async function generateVision(
   imageBase64: string,

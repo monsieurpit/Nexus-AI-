@@ -490,7 +490,7 @@ app.get('/api/health', async (req, res) => {
     version: '2.0.0',
     llm: {
       configured: Boolean(process.env.OLLAMA_BASE_URL),
-      model: process.env.OLLAMA_MODEL || 'qwen2.5:3b',
+      model: process.env.OLLAMA_MODEL || 'gemma3:4b',
       available: llmAvailable,
     },
     queue: {
