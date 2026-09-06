@@ -13,6 +13,7 @@ import {
 import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommendReasoningMode } from './src/ai-engine/reasoningEngine';
 import { getMoodDisplay } from './src/ai-engine/moodEngine';
 import { checkAvailability as checkLocalLlmAvailability, generate as generateLlmText, generateVision } from './src/ai-engine/localLlmClient';
+import { ROLEPLAY_PERSONAS, buildRoleplayPrompt } from './src/ai-engine/roleplayPersonas';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
 import {
   BUILTIN_KNOWLEDGE,
@@ -1522,6 +1523,55 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
       return res.end();
     }
     return res.status(500).json({ error: 'Internal AI processing error', message: err?.message || String(err) });
+  }
+});
+
+// 4b. Roleplay / persona chat — ONE plain local-model call, no corpus retrieval, no swear engine,
+// no reasoning pipeline. Built for texting-style personas (Noémie for the Message-app fallback,
+// plus a lightweight crashout voice). Accepts a `systemPrompt` override so Message-app can send
+// its own full live prompt; otherwise uses a condensed built-in persona (roleplayPersonas.ts).
+app.post('/api/v1/roleplay', aiComputeLimiter, async (req, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const message = String(body.message || body.prompt || '').slice(0, 4000).trim();
+  if (!message) return res.status(400).json({ error: 'message (or prompt) is required' });
+
+  const history = Array.isArray(body.history) ? body.history : [];
+  const personaKey = String(body.persona || 'noemie').toLowerCase();
+  const override = typeof body.systemPrompt === 'string' && body.systemPrompt.trim() ? body.systemPrompt.trim() : '';
+  const system = override || ROLEPLAY_PERSONAS[personaKey] || ROLEPLAY_PERSONAS.noemie;
+  const french = personaKey === 'noemie' || /[àâçéèêëîïôùûü]/i.test(system.slice(0, 400));
+  const prompt = buildRoleplayPrompt(history, message, french);
+
+  try {
+    const queued = await globalRequestQueue.enqueue('roleplay', () =>
+      generateLlmText(prompt, {
+        system,
+        temperature: typeof body.temperature === 'number' ? body.temperature : 0.75,
+        topP: 0.92,
+        maxTokens: personaKey === 'noemie' && !override ? 90 : 220,
+        preferFrench: french,
+      })
+    );
+    const out = queued.data;
+    if (out.status !== 'success') {
+      return res.status(503).json({ error: 'local model unavailable', reason: out.reason, detail: (out as any).detail });
+    }
+    const text = out.text.trim();
+    // Split into texting bubbles: explicit newlines first, else keep as one.
+    const bubbles = text
+      .split(/\n+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+    return res.json({
+      reply: text,
+      bubbles: bubbles.length ? bubbles : [text],
+      persona: override ? 'custom' : personaKey,
+      model: process.env.OLLAMA_MODEL || 'gemma3:4b',
+      latencyMs: out.latencyMs,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || String(err) });
   }
 });
 
