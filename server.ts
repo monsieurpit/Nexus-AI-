@@ -1307,15 +1307,45 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
         // — every other branch (solvers, grounded/factual answers, safety refusals) never calls
         // this, so a streamed request whose query resolves to one of those just gets zero token
         // lines and the same single final line a non-streaming request would have gotten as JSON.
+        // Raw model fragments are NOT safe to show as-is: gemma emits stray <start_of_turn>-style
+        // control tokens, and a small model at temperature can briefly loop a word/phrase
+        // ("weird as shit as shit") before recovering — streaming those verbatim made the Discord
+        // message visibly flicker through half-formed, repetitive states before settling (reported
+        // live). So the stream is buffered here and only *completed sentences* are emitted, each
+        // lightly scrubbed; the trailing partial sentence is held back until the authoritative
+        // `type:'final'` payload below, which the client uses as the source of truth regardless.
+        let streamRaw = '';
+        let streamEmitted = '';
+        const scrubStreamed = (s: string) =>
+          s
+            .replace(/<\/?(?:start|end)_of_turn>/gi, '')
+            .replace(/<\|[^|]*\|>/g, '')
+            .replace(/\b(\w+(?:\s+\w+){0,2})\s+\1\b/gi, '$1'); // collapse an immediately-repeated 1-3 word run
+        const flushStreamed = (force: boolean) => {
+          if (!streamRequested) return;
+          const clean = scrubStreamed(streamRaw);
+          let cut = clean.length;
+          if (!force) {
+            const ends = [...clean.matchAll(/[.!?…]["')\]]?(?=\s|$)/g)];
+            if (ends.length === 0) return;
+            const last = ends[ends.length - 1];
+            cut = (last.index ?? 0) + last[0].length;
+          }
+          const ready = clean.slice(0, cut);
+          if (ready.length <= streamEmitted.length) return;
+          const delta = ready.slice(streamEmitted.length);
+          streamEmitted = ready;
+          try {
+            res.write(JSON.stringify({ type: 'token', text: delta }) + '\n');
+          } catch {
+            // client disconnected mid-stream — generation keeps running so the final payload and
+            // telemetry stay correct, the client just won't see any more token lines.
+          }
+        };
         const onToken = streamRequested
           ? (chunk: string) => {
-              try {
-                res.write(JSON.stringify({ type: 'token', text: chunk }) + '\n');
-              } catch {
-                // A write failing (client disconnected mid-stream) shouldn't crash the whole
-                // request — generation keeps running so the final payload/telemetry stay correct,
-                // the client just won't see any more of it.
-              }
+              streamRaw += chunk;
+              flushStreamed(false);
             }
           : undefined;
         const reasoningResult = await generateReasoningPath(
