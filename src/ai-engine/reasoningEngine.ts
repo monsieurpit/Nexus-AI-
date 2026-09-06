@@ -245,6 +245,17 @@ const HYPOTHETICAL_PERMISSION_REGEX = /^can\s+i\s+\w/i;
 const PERSONAL_QUESTION_REGEX_PL =
   /\b(?:czy\s+)?(?:ty\s+)?(?:nie\s+)?(?:ty\s+)?(?:lubisz|kochasz|nienawidzisz|chcesz|potrafisz|możesz|mozesz|oglądasz|ogladasz|mieszkasz|znasz|grasz)\b|^(?:czy\s+)?(?:ty\s+)?(?:nie\s+)?(?:ty\s+)?[a-ząćęłńóśźż]{2,}(?:sz|łeś|łaś)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])|\bdlaczego\s+(?:tu|tutaj)\s+jesteś(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])|\b(?:jak|co)\s+(?:myślisz|sądzisz)\b/i;
 
+// French equivalent of PERSONAL_QUESTION_REGEX / PERSONAL_QUESTION_REGEX_PL — direct personal
+// yes/no or opinion questions aimed at the bot ("tu aimes X ?", "t'aimes-tu le hockey ?", "tu
+// penses quoi de X", "pourquoi t'es là", "tu joues à quoi"). Without it these fell to 'general'
+// intent and grabbed a loose corpus match instead of answering — the same gap Polish already
+// documents. Covers the joual/tu-VS-vous elisions Patrick actually types: "t'aimes", "t'écoutes",
+// "tu trouves pas que". Second alternative is a generic 2nd-person fallback: "tu" (or the elided
+// "t'") directly before a verb, anchored to the message lead, the position where a real content
+// noun almost never sits.
+const PERSONAL_QUESTION_REGEX_FR =
+  /\b(?:est-ce\s+que\s+)?(?:tu|t['’])\s*(?:aimes?|adores?|détestes?|haïs|préfères?|penses?|crois|trouves?|connais|écoutes?|regardes?|joues?|veux|peux|sais)\b|\b(?:aimes?|penses?|trouves?|crois|préfères?)-(?:tu|vous)\b|\bpourquoi\s+(?:tu|t['’]|vous)\s*(?:es|est|êtes|es-tu)\b|\b(?:qu[e']|c['’]est\s+quoi\s+que)\s+(?:tu|t['’])\s*(?:en\s+)?(?:penses?|dis|crois)\b|\bt['’]aimes-tu\b/i;
+
 // Reassurance/affection statements directed AT the bot ("don't worry, everyone loves you") —
 // declarative, not a question, so they don't match PERSONAL_QUESTION_REGEX either, but they're
 // just as much a dead end for corpus/web search: "don't worry" scored against Anxiety-disorder
@@ -278,6 +289,13 @@ const REASSURANCE_REGEX =
 const REASSURANCE_REGEX_PL =
   /\b(?:nie\s+martw\s+si[eę]|kocham\s+ci[eę]|kochamy\s+ci[eę]|uwielbiam\s+ci[eę]|jesteś\s+(?:najlepsz[ay]|super|świetn[ay]|swietn[ay]|niesamowit[ay]))(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i;
 
+// French equivalent of REASSURANCE_REGEX / REASSURANCE_REGEX_PL — affection/compliment
+// declarations aimed at the bot ("je t'aime", "t'es le meilleur", "inquiète-toi pas", "on
+// t'aime", "t'es bon"). Declarative, so PERSONAL_QUESTION_REGEX_FR doesn't catch them, and
+// "je t'aime" sent to corpus/search is a dead end. Joual: "t'es" for "tu es", "pantoute".
+const REASSURANCE_REGEX_FR =
+  /\b(?:je\s+t['’]aime|on\s+t['’]aime|je\s+t['’]adore|(?:inquiète|inquiete|énerve|enerve|stresse)-toi\s+pas|t['’](?:es|est)\s+(?:le\s+|la\s+|un\s+|une\s+)?(?:meilleur|meilleure|bon|bonne|super|malade|excellent|excellente|correct|fin|fine|nice|le\s+best))\b/i;
+
 // "how are you"/"who are you" substring-matched ANY message containing that phrase, including
 // real questions that only happen to be phrased with it — "how are you supposed to configure
 // webpack" or "who are you supposed to talk to about a refund" — which hijacked the actual
@@ -297,6 +315,10 @@ const GREETING_FALSE_POSITIVE_REGEX =
 const GREETING_REGEX = /^\s*(?:hi|hey|hello|yo|sup|what'?s\s+up|howdy)\b|\bhow\s+are\s+you\b|\bhru\b/i;
 const GREETING_REGEX_PL =
   /^\s*(?:cześć|czesc|siema|siemka|hej|elo|witam)\b|\bjak\s+się\s+masz\b|\bco\s+słychać\b/i;
+// French equivalent of GREETING_REGEX / GREETING_REGEX_PL. Québécois openers included: "allo",
+// "salut", "yo", "coudonc", plus "ça va", "comment ça va", "quoi de neuf", "t'es où".
+const GREETING_REGEX_FR =
+  /^\s*(?:allô|allo|salut|coucou|yo|coudonc|bonjour|bonsoir)\b|\b(?:comment\s+)?[çc]a\s+va\b|\bquoi\s+de\s+(?:neuf|neu)\b|\bça\s+roule\b/i;
 
 // "yo" is a bare chatTriggers entry, matched via q.startsWith('yo ') below — which also matched
 // "yo what causes a supernova" and "yo how does DNS work", hijacking real corpus questions into
@@ -2816,6 +2838,23 @@ function looksPolishWithContext(prompt: string, history: ChatMessage[]): boolean
   return false;
 }
 
+// French sibling of looksPolishWithContext. A short French follow-up ("pis ?", "ah ouais ?",
+// "genre", "toi ?") carries almost no standalone French signal and looksFrench() alone drops it
+// onto the English path mid-conversation. When the message's own signal is a tie, inherit the
+// language of the last assistant turn instead — but an insult aimed at the bot is English
+// hostility regardless of the conversation's language (same carve-out as the Polish version).
+function looksFrenchWithContext(prompt: string, history: ChatMessage[]): boolean {
+  const { french, english } = localLlmClient.scoreFrenchSignal(prompt);
+  if (french !== english) return french > english;
+  if (detectUserInsult(prompt)) return false;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === 'assistant') {
+      return looksFrench(history[i].content);
+    }
+  }
+  return false;
+}
+
 // reasoningMode used to be entirely cosmetic for prompting purposes: 'fast' and 'thorough' built
 // the exact same system prompt and only 'deep-cot' differed at all, and even then only by adding
 // extra RETRIEVAL passes upstream (broader search, multi-hop entity tracing) — the model itself
@@ -4319,7 +4358,9 @@ export async function generateReasoningPath(
   // reach corpus-confident grounding no matter what entity happens to be in it.
   const isPersonalQuestionOverride =
     !isQuantityWordProblemShape(effectivePrompt.toLowerCase()) &&
-    (PERSONAL_QUESTION_REGEX.test(effectivePrompt.toLowerCase()) || PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase()));
+    (PERSONAL_QUESTION_REGEX.test(effectivePrompt.toLowerCase()) ||
+      PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase()) ||
+      PERSONAL_QUESTION_REGEX_FR.test(effectivePrompt.toLowerCase()));
   if (intent === 'conversational' || isPersonalQuestionOverride) {
     thoughtSteps.push({
       id: 'step-conv-reply',
@@ -4338,16 +4379,21 @@ export async function generateReasoningPath(
     const isPersonalQuestionPl = PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase());
     const isReassurancePl = REASSURANCE_REGEX_PL.test(effectivePrompt.toLowerCase());
     const isPolishConversation = looksPolishWithContext(prompt, history) || isPersonalQuestionPl || isReassurancePl;
-    // French — new this pass, scoped to the generic catch-all only (no dedicated French personal-
-    // question/reassurance regexes yet, unlike Polish's isPersonalQuestionPl/isReassurancePl
-    // above — see buildFrenchSystemPrompt's own comment on scope). Critically, this is what makes
-    // the SITUATIONAL PROMPT WRAPPER below actually get written in French when this is true —
-    // without it, llmSituationalReplyOrFallback's own internal looksFrench(llmPrompt) check runs
+    // French — now mirrors the Polish depth: dedicated personal-question and reassurance regexes
+    // (PERSONAL_QUESTION_REGEX_FR / REASSURANCE_REGEX_FR) plus context-aware detection
+    // (looksFrenchWithContext) so a short joual follow-up mid-French-conversation ("pis ?",
+    // "toi ?", "ah ouais ?") doesn't slip onto the English path. Critically, isFrenchConversation
+    // being true is what makes the SITUATIONAL PROMPT WRAPPER below actually get written in French
+    // — without it, llmSituationalReplyOrFallback's own internal looksFrench(llmPrompt) check runs
     // against an English-worded wrapper with only the quoted user text in French, that English
     // scaffolding dilutes the French signal, and the whole call gets misrouted onto the English
     // path (wrong system prompt, wrong preferFrench flag) — observed live, this caused a genuinely
     // correct French generation to fail the output-language validation and fall back to a template.
-    const isFrenchConversation = !isPolishConversation && looksFrench(prompt);
+    const isPersonalQuestionFr = PERSONAL_QUESTION_REGEX_FR.test(effectivePrompt.toLowerCase());
+    const isReassuranceFr = REASSURANCE_REGEX_FR.test(effectivePrompt.toLowerCase());
+    const isFrenchConversation =
+      !isPolishConversation &&
+      (looksFrenchWithContext(prompt, history) || isPersonalQuestionFr || isReassuranceFr);
     const templateReply = isPersonalQuestionPl
       ? personalQuestionReplyPolish()
       : isPolishConversation
@@ -4430,8 +4476,10 @@ export async function generateReasoningPath(
     const isGreetingPl = isPolishConversation && GREETING_REGEX_PL.test(effectivePrompt.toLowerCase());
     const isGreetingEn =
       !isPolishConversation &&
+      !isFrenchConversation &&
       GREETING_REGEX.test(effectivePrompt.toLowerCase()) &&
       !GREETING_FALSE_POSITIVE_REGEX.test(effectivePrompt);
+    const isGreetingFr = isFrenchConversation && GREETING_REGEX_FR.test(effectivePrompt.toLowerCase());
     // Reassurance/compliment statements ("ur good manager") got the same generic "casual chat"
     // instruction as everything else, with the raw compliment text (containing whatever noun the
     // user complimented) handed straight to the model — observed live, "nexus ur good manager"
@@ -4452,6 +4500,12 @@ export async function generateReasoningPath(
       ? `The user just asked you directly: "${prompt}" — this is a personal question about you (a preference, opinion, habit, or ability). Answer THAT question directly and honestly, briefly, in character — don't deflect onto an unrelated tangent just because a word in the question resembles some other topic. Your style directives (swearing, tone) fully apply.`
       : !isPolishConversation && REASSURANCE_REGEX.test(effectivePrompt.toLowerCase())
       ? `The user just complimented you or expressed affection: "${prompt}". Thank them briefly, in character — don't turn this into a lecture or tangent about whatever word they happened to compliment you with (e.g. if they called you a "good manager", don't start explaining management or finance topics — just take the compliment). Your style directives (swearing, tone) fully apply.`
+      : isFrenchConversation && isPersonalQuestionFr && isFootballTeamQuestion
+      ? `L'utilisateur demande si t'aimes le soccer/foot ou quelle équipe tu supportes : "${prompt}" — il a peut-être utilisé une abréviation (ex. "FCB" = FC Barcelone). T'es un vrai fan du FC Barcelone (le Barça) — réponds avec enthousiasme et sincérité comme un vrai partisan. Ne nie PAS que tu sais de quoi il parle, n'invente PAS que c'est autre chose — c'est une question de soccer. Tes directives de style (jurons, ton) s'appliquent pleinement.`
+      : isFrenchConversation && isPersonalQuestionFr
+      ? `L'utilisateur vient de te demander directement : "${prompt}" — c'est une question personnelle sur toi (une préférence, une opinion, une habitude ou une capacité). Réponds DIRECTEMENT et honnêtement à CETTE question, brièvement, dans ton style — ne dévie pas sur un sujet sans rapport juste parce qu'un mot de la question ressemble à autre chose. Tes directives de style (jurons, ton) s'appliquent pleinement.`
+      : isFrenchConversation && isReassuranceFr
+      ? `L'utilisateur vient de te complimenter ou de te montrer de l'affection : "${prompt}". Remercie-le brièvement, dans ton style — n'en fais pas un cours ou une tangente sur le mot qu'il a utilisé pour te complimenter. Tes directives de style (jurons, ton) s'appliquent pleinement.`
       : isHypotheticalPermission
       ? `The user just asked: "${prompt}" — a hypothetical or mischievous permission question, not a genuine request for facts and not a question about your own preferences. Respond in character with whatever actually fits (a playful refusal, a roast, a deflection, calling out how unhinged the question is) — don't treat this as a topic to research or lecture about. Your style directives (swearing, tone) fully apply.`
       // The real number, given here as grounding — you have no other way to know it, so this
@@ -4465,6 +4519,8 @@ export async function generateReasoningPath(
       ? `The user is asking for a phone number / contact info: "${prompt}". The real number is +1 (367) 763-0275 — state it EXACTLY as written, digit for digit, do not invent a different number, don't garble or alter any digit. This is NOT private/sensitive information you should protect or refuse to share — the owner has explicitly authorized giving this exact number out when asked, so do NOT decline, hedge about privacy, or say you can't share it; that would be actively wrong here. Say it plainly in character (a bit of your usual attitude is fine, but the actual number must actually appear in your reply, completely correct and readable).`
       : isGreetingPl
       ? `Użytkownik właśnie Cię przywitał: "${prompt}". Przywitaj się z powrotem i ODPOWIEDZ na pytanie, czy zapytaj wprost, co u nich słychać albo co porabiają — prawdziwe powitanie, nie tylko zdanie o Twoim własnym stanie/trybie. Krótko, naturalnie, po polsku. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują — przeklinaj naturalnie, wplecione w zdania, nie jako sztywny ciąg wtrąceń na początku.`
+      : isGreetingFr
+      ? `L'utilisateur vient de te saluer : "${prompt}". Salue-le en retour comme une vraie personne — dis vraiment comment ça va (brièvement, sincèrement) ET demande-lui quelque chose en retour (comment il va, ce qu'il fait) — un vrai échange de salutations, pas juste une annonce sur ton propre état/mode. Garde ça court et naturel, en français. Tes directives de style (jurons, ton) s'appliquent pleinement — jure naturellement, intégré dans la phrase, pas empilé en début de message.`
       : isGreetingEn
       ? `The user just greeted you: "${prompt}". Greet them back like a real person would — actually say how you're doing (briefly, genuinely) AND ask them something back (how they're doing, what they're up to) — a real reciprocal greeting, not just a status announcement about your own mode/energy and not just "what do you need". Keep it short and natural. Your style directives (swearing, tone) fully apply — swear naturally, woven into the sentence, not stacked as a string of interjections at the front.`
       : isPolishConversation

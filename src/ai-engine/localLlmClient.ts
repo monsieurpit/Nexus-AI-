@@ -127,6 +127,17 @@ const FRENCH_SIGNAL_WORDS = new Set([
   'ils', 'elles', 'avec', 'sans', 'être', 'avoir', 'créé', 'créer', 'peux', 'veux', 'sais',
   'connais', 'aide', 'expliquer', 'explique', 'dis', 'montre', "s'il", 'plait', 'plaît',
   'kestufou', 'wesh', 'ouf', 'chuis', 'jsuis', 'jsp', 'ptdr', 'mdr',
+  // Québécois / joual markers — Patrick texts the bot mostly in joual and these carry no
+  // English or Polish collision (none of them is a word in either signal list), so adding
+  // them only ever strengthens a correct French detection, never causes an English->French
+  // misfire.
+  'toi', 'moi', 'pis', 'ici', 'aime', 'aimes', 'fais', 'fait', 'vais', 'très', 'trop', 'bien',
+  'faire', 'alors', 'donc', 'aussi', 'encore', 'jamais', 'toujours', 'rien', 'quelque',
+  'faque', 'tsé', 'tse', 'pantoute', 'icitte', 'astheure', 'asteure',
+  'chu', 'moé', 'toé', 'ouais', 'ouin', 'checke', 'mettons', 'tiguidou',
+  'tabarnak', 'câlisse', 'calisse', 'ostie', 'crisse', 'criss', 'tabarnouche',
+  'voyons', 'coudonc', 'enweille', 'correc', 'niaiseux',
+  'quétaine', 'ketaine', 'dépanneur', 'magané', 'jaser', 'achaler', 'niaiser',
 ]);
 const FRENCH_DIACRITIC_REGEX = /[àâçéèêëîïôùûüÿœæ]/i;
 
