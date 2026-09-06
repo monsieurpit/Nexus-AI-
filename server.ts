@@ -14,6 +14,7 @@ import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommen
 import { getMoodDisplay } from './src/ai-engine/moodEngine';
 import { checkAvailability as checkLocalLlmAvailability, generate as generateLlmText, generateVision } from './src/ai-engine/localLlmClient';
 import { ROLEPLAY_PERSONAS, buildRoleplayPrompt } from './src/ai-engine/roleplayPersonas';
+import { BANC_HTML } from './src/bancHtml';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
 import {
   BUILTIN_KNOWLEDGE,
@@ -2183,6 +2184,12 @@ app.post('/api/v1/swear', (req, res) => {
     intensity: intensity || 'heavy',
     language: language || 'english',
   });
+});
+
+// Test bench for /api/v1/roleplay — served here (not as a Claude Artifact) so the browser calls
+// the endpoint same-origin. Plain HTML string, see src/bancHtml.ts.
+app.get('/banc', (_req, res) => {
+  res.type('html').send(BANC_HTML);
 });
 
 app.get('/api/v1/corpus', (req, res) => {
