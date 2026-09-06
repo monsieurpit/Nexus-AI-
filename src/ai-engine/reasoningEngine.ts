@@ -2999,12 +2999,23 @@ function hasRelevantWebResults(queryTerms: string[], results: WebSearchResult[])
   });
 }
 
-// Matches buildFinalDirective's own stated minimum ("at least 4 real swear words... mandatory,
-// every single time"). Shared constant instead of a literal 4 at each call site — a code review
-// caught that raising this number here once already left three separate telemetry comparisons
-// elsewhere in this file silently pointing at the OLD value (3), so swearFloorTriggered was
-// misreporting whether the floor actually fired. One value, every reader of it stays in sync.
-const SWEAR_FLOOR_MIN_COUNT = 4;
+// The MECHANICAL floor forceSwearFloor() enforces. Distinct from the prompt's stated target
+// ("at least 4" in buildFinalDirectiveBody, which stays — it's aspirational and gemma3 usually
+// clears it on its own). This is the backstop for the rare reply where the model genuinely
+// under-swears: pitched one below the prompt target so it only fires on a real miss, not on a
+// reply that landed at 3 organically — stapling the 4th swear was exactly where the count started
+// reading mechanical rather than heavy. Scales with swearIntensity so the same machinery serves a
+// calmer persona without a separate code path. One value, every reader (forceSwearFloor call +
+// swearFloorTriggered telemetry) stays in sync.
+function swearFloorForIntensity(intensity: 'light' | 'moderate' | 'heavy' | 'unhinged', isCrashout: boolean): number {
+  if (isCrashout) return 3;
+  switch (intensity) {
+    case 'unhinged': return 3;
+    case 'heavy': return 2;
+    case 'moderate': return 1;
+    default: return 0;
+  }
+}
 
 // Numbered/bulleted lists and bold sub-headers are the single biggest visual tell that a reply
 // reads as AI-generated rather than a real person texting — observed live even after two rounds
@@ -3047,7 +3058,7 @@ function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolea
   if (!isCrashout && intensity !== 'unhinged' && intensity !== 'heavy') return uncensored;
   const substituted = enhanceNaturalSwearPhrasing(uncensored, isCrashout ? 'unhinged' : intensity);
   if (!(isCrashout || intensity === 'unhinged')) return substituted;
-  const swornUp = forceSwearFloor(substituted, SWEAR_FLOOR_MIN_COUNT);
+  const swornUp = forceSwearFloor(substituted, swearFloorForIntensity(intensity, isCrashout));
   // forceChaoticOvershare now has its own Polish pool and picks it based on the text's own
   // language, so this applies to both languages symmetrically — Polish never got the LLM
   // INSTRUCTION for this bit (buildPolishSystemPrompt's own comment explains why: the fuller
@@ -3160,7 +3171,7 @@ async function llmSituationalReplyOrFallback(
     // telemetry — whether the mechanical swear floor is about to actually inject anything below,
     // surfaced to callers (server.ts's API response, and from there the bot's #bot-logs /
     // #jailbreak-stress-test channels) via this ThoughtStep's data field.
-    const swearFloorTriggered = getSwearCount(llmResult.text) < SWEAR_FLOOR_MIN_COUNT;
+    const swearFloorTriggered = getSwearCount(llmResult.text) < swearFloorForIntensity(settings.swearIntensity || 'unhinged', isCrashout);
     const responseWordCount = llmResult.text.trim().split(/\s+/).filter(Boolean).length;
     thoughtSteps.push({
       id: 'step-llm-freeresponse',
@@ -3332,7 +3343,7 @@ async function llmGroundedOrFallback(
       data: {
         language: groundedLanguageTag,
         temperature: usedTemperature,
-        swearFloorTriggered: getSwearCount(llmResult.text) < SWEAR_FLOOR_MIN_COUNT,
+        swearFloorTriggered: getSwearCount(llmResult.text) < swearFloorForIntensity(settings.swearIntensity || 'unhinged', isCrashout),
       },
     });
     return topUpLlmSwearing(llmResult.text, settings, isCrashout);
@@ -3402,7 +3413,7 @@ async function llmGroundedOrFallback(
     data: {
       language: groundedLanguageTag,
       temperature: usedTemperature,
-      swearFloorTriggered: getSwearCount(finalText) < SWEAR_FLOOR_MIN_COUNT,
+      swearFloorTriggered: getSwearCount(finalText) < swearFloorForIntensity(settings.swearIntensity || 'unhinged', isCrashout),
       verificationPassed: llmVerification.passed,
       retryAttempted,
       retryFixed,

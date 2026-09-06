@@ -1538,6 +1538,19 @@ export function enhanceNaturalSwearPhrasing(
     // drop-in adverb ("definitely muted" -> "100% no bullshit muted" reads broken) — every other
     // option here substitutes as a mid-sentence adverb, so this needs to as well.
     [/\b(definitely|certainly)\b/gi, ['fucking definitely', 'for damn sure']],
+    // More coverage so heavy swearing lands as natural word-swaps here rather than as
+    // interjections stapled on by forceSwearFloor downstream (which is what read mechanical).
+    // All get the same proper-noun / code / hyphen / part-of-speech guards below.
+    [/\b(really|incredibly|extremely|super)\b/gi, ['fucking', 'goddamn', 'stupidly']],
+    [/\b(big|huge|massive|enormous)\b/gi, ['fucking huge', 'goddamn massive', 'huge as hell']],
+    [/\b(important|significant|crucial)\b/gi, ['fucking important', 'a big damn deal']],
+    [/\b(great|fantastic|wonderful)\b/gi, ['fucking great', 'badass', 'damn near perfect']],
+    [/\b(weird|strange)\b/gi, ['weird as hell', 'weird as shit']],
+    [/\b(boring|tedious)\b/gi, ['boring as shit', 'boring as hell', 'dull as fuck']],
+    [/\b(stupid|idiotic)\b/gi, ['dumb as shit', 'braindead', 'stupid as hell']],
+    [/\b(clever|brilliant)\b/gi, ['smart as hell', 'sharp as fuck', 'damn clever']],
+    [/\b(scared|terrified)\b/gi, ['scared shitless', 'shit-scared', 'terrified as hell']],
+    [/\b(exhausted|worn out)\b/gi, ['dead tired', 'fucking exhausted', 'wiped as hell']],
   ];
 
   let substitutionsCount = 0;
