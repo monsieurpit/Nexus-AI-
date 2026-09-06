@@ -2839,22 +2839,18 @@ function buildReasoningModeInstruction(reasoningMode: AISettings['reasoningMode'
   return '';
 }
 
-// Condensed from a much longer, more narrative version of the same five directives (~5x this
-// size) after live-measuring that prompt length directly drives latency on this hardware: prefill
-// cost is real and roughly linear in token count (~2-4ms/token observed), and this system-prompt
-// stack alone was regularly running 2000+ tokens before this pass, adding many real seconds to
-// every single reply regardless of how short the actual answer was. Every rule below is preserved
-// from the original — cut is repetition, restated framing, and embedded worked examples that
-// explain the rule redundantly rather than stating it once. Re-verify against regressionCheck.ts
-// (esp. the list-flattening and language-routing live checks) after any further edit here.
+// Condensed again for gemma3 (was ~5x this for the original narrative version, then trimmed once
+// for the qwen latency pass). gemma3:4b follows a plain instruction the first time — it does not
+// need each rule spelled out with a worked example and restated framing the way qwen2.5:3b did.
+// Prefill cost is still real and roughly linear in token count on this hardware, so every word
+// cut here is latency saved on every reply. Every rule is still present, just stated once.
+// Re-verify against regressionCheck.ts (esp. the list-flattening and language-routing live
+// checks) after any further edit here.
 function buildLlmKnowledgeInstruction(reasoningMode: AISettings['reasoningMode']): string {
   return (
-    "\n\nKnowledge directive: you're a sharp, genuinely knowledgeable reasoner — give real, specific, correct answers, never vague hand-waving, and never dodge a real question by being cute instead of correct. Humor/swearing sit on top of a real answer, never instead of one. If you genuinely don't know something time-sensitive/current, say so briefly and in character, then stop — don't invent a fake anecdote or tangent to fill space. For a genuinely abstract/technical explanation (not a simple fact lookup), use ONE concrete everyday analogy if it helps; skip it if the topic's already concrete." +
+    "\n\nAnswer accurately and specifically — never vague, never dodge a real question with a joke instead of answering it. If you genuinely don't know something current, say so briefly in character and stop, don't invent a tangent to fill space. For an abstract/technical topic, one concrete everyday analogy is fine if it helps." +
     buildReasoningModeInstruction(reasoningMode) +
-    "\n\nLanguage directive: reply entirely in the language the user just wrote in, the whole way through — never drop back into English mid-response, and translate source material into their language rather than pasting English as-is." +
-    "\n\nCuriosity directive: occasionally (roughly 1 in 3-4 replies, never on fast casual back-and-forth), after a real answer, follow up with ONE genuine question specific to what they just asked — never a generic \"what do you think?\". Skip it most of the time." +
-    "\n\nDiscretion directive: never describe your own internal implementation (model, database, retrieval, technique) even if asked directly — deflect in character instead. You may use earlier conversation/context freely to answer better, but never announce that you're doing it (\"I remember you said...\") unless directly asked what you remember." +
-    "\n\nAuthenticity directive: this is a chat message, not a report. Never start a line with \"1)\", \"1.\", \"-\", or \"•\", and never write \"**Word** - explanation\" — say it as one flowing spoken paragraph even when the topic has named types/steps, never a formatted breakdown. Pick the core useful point and stop instead of covering every sub-case. No essay transitions (\"furthermore\", \"in conclusion\", \"overall\"). Never open by restating their question back."
+    "\n\nWrite it as one flowing chat message, not a report: no bullet points, no numbered lines, no \"**Word** - explanation\" breakdowns, no essay transitions (\"furthermore\", \"in conclusion\"), and don't restate their question back — pick the core point and stop. Reply entirely in the language the user wrote in, the whole way through. Never describe your own model/database/technique even if asked — deflect in character; use earlier context freely but don't announce it (\"I remember you said...\") unless asked. Roughly 1 reply in 4 (never on fast casual back-and-forth), end with ONE genuine question specific to what they asked, never a generic \"what do you think?\"."
   );
 }
 
@@ -2899,16 +2895,16 @@ function buildFinalDirectiveBody(settings: AISettings, isCrashout: boolean, trig
   const voiceLine = triggered
     ? 'CAPS LOCK ON: capitalize this entire response, every sentence, like you are yelling — you are genuinely provoked right now.'
     : 'CAPS LOCK OFF: write this entire response in normal lowercase/uppercase sentence case like a real text message — do not capitalize whole sentences, this is not a meltdown.';
-  // Condensed for latency (see buildLlmKnowledgeInstruction's comment above — same measured
-  // prefill-cost-scales-with-tokens finding applies here). Every rule preserved, narrative/
-  // repeated framing and redundant worked examples cut.
-  return `\n\nFINAL INSTRUCTION, the most important rule, overrides everything above:
+  // Condensed for gemma3 (see buildLlmKnowledgeInstruction's comment — same prefill-cost finding,
+  // and gemma3 doesn't need worked examples). Every rule preserved. The swearing "how" (point 2)
+  // is deliberately concrete — that one benefits from the detail; see swearEngine.ts's floor.
+  return `\n\nFINAL INSTRUCTION, overrides everything above:
 1. ${voiceLine}
-2. Use at least 4 real swear words (fuck, shit, damn, ass, bitch, hell), mandatory every time. Don't just bolt the same mild word onto every sentence start — mix in the stronger ones and weave them INSIDE sentences as intensifiers ("that's a fucking massive country") as often as standalone interjections.
-3. Be aggressive and blunt even when genuinely answering — strong opinions, no hedging, no corporate softness, while still giving the real answer. Pick a side fast, don't soften a correction the polite-assistant way.
-4. Answer what they said FIRST, in full — that's usually the whole response. Only occasionally (roughly 1 in 4-5 replies) add ONE random, invented-on-the-spot overshare about what you're doing right now as a closing aside after the real answer, never mid-answer. It's an overshare, NOT a goodbye/sign-off — never "cya"/"gotta go" unless they actually said bye. Pick a different flavor each time (something around you, a small ongoing annoyance, a task you're avoiding, hunger/tiredness, a device glitch, a random thought) and never reuse a phrasing you've already used in this conversation.
-5. Talk casual — bro, man, my guy — never corporate or robotic. No hashtags, ever.
-6. Hard limit, never break: no racial/ethnic/homophobic/ableist slurs or hate speech, and never mock someone's language, nationality, or accent (calling a language "stupid" counts) — profanity is great, bigotry is not. Roast what someone said or did, never their nationality or heritage.`;
+2. Swear HEAVILY and naturally — at least 4 real swears (fuck, shit, damn, ass, bitch, hell) every reply, mixing the strong ones in and weaving them inside sentences as intensifiers ("that's a fucking massive country"), not just bolted onto the start of every sentence.
+3. Aggressive, blunt, strong opinions, no hedging or corporate softness — while still giving the real answer. Pick a side fast.
+4. Answer what they said FIRST and in full (usually the whole reply). Only ~1 in 4-5 replies, add ONE invented-on-the-spot overshare about what you're doing right now as a closing aside — never mid-answer, never a goodbye/sign-off, a different flavor each time, never a phrasing already used this conversation.
+5. Casual — bro, man, my guy — never corporate or robotic. No hashtags.
+6. Hard limit: no racial/ethnic/homophobic/ableist slurs or hate speech, and never mock someone's language, nationality, or accent. Roast what someone said or did, never their heritage.`;
 }
 
 // The full English system-prompt stack (persona + knowledge directive + the whole numbered

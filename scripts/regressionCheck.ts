@@ -183,7 +183,7 @@ async function runDeterministicChecks() {
   // ordinary small additions don't false-positive, but a genuine regression back toward the
   // pre-fix bloat (~9900 chars) would still be caught well before it got that bad.
   const crashoutPersona = DEFAULT_PERSONAS['crashout-bot'];
-  const PROMPT_CHAR_CEILING = 6500;
+  const PROMPT_CHAR_CEILING = 5500;
   // Self-test the ceiling logic itself against a synthetic bloated size (matching the actual
   // pre-fix measured size, ~9900 chars) before trusting it against the real, current-good values
   // below — a budget check that's never been proven to actually fire isn't proven to work.
