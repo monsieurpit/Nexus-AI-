@@ -1606,6 +1606,13 @@ export function enhanceNaturalSwearPhrasing(
         // word follows the match, drop those options and pick from the adjectival ones.
         const PREDICATE_ONLY = /^(?:an?\s|flat-out\s)/i;
         const rest = full.slice(offset + match.length);
+        // The model often already made the word vivid on its own ("weird as shit", "big as
+        // hell", "fucking huge"). Swapping in another "... as shit" / "fucking ..." phrase on top
+        // stacks a second intensifier and reads as a stutter ("weird as shit as shit"). Skip the
+        // swap entirely when an intensifier tail already follows the match, or a swear intensifier
+        // already precedes it.
+        if (/^\s+(?:as\s+(?:hell|shit|fuck|balls|anything)|af\b|than\s+(?:shit|fuck))/i.test(rest)) return match;
+        if (/\b(?:fucking|goddamn|damn|bloody|hella|mad)\s*$/i.test(full.slice(0, offset))) return match;
         const isAttributive = /^\s+[a-z]/i.test(rest) && !/^\s+(?:to|for|because|when|if|so|though|than)\b/i.test(rest);
         const usable = isAttributive ? options.filter((o) => !PREDICATE_ONLY.test(o)) : options;
         if (usable.length === 0) return match;
