@@ -44,7 +44,14 @@ const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
 const OLLAMA_MODEL_DEEP = process.env.OLLAMA_MODEL_DEEP || 'gemma3:12b';
 
 export function modelForReasoningMode(reasoningMode: 'fast' | 'thorough' | 'deep-cot'): string {
-  return reasoningMode === 'fast' ? OLLAMA_MODEL : OLLAMA_MODEL_DEEP;
+  // Only an EXPLICIT deep-cot request escalates to the ~8GB model now. 'thorough' used to escalate
+  // too, but recommendReasoningMode() returns 'thorough' for any broad or multi-part question —
+  // i.e. a large share of ordinary Discord traffic — so in practice the 12B ran constantly on a
+  // 16GB Mac Mini that also hosts the server, the bot and the tunnel: ~4x the latency ("l'IA
+  // prend des années") and sustained memory thrashing that lagged the whole machine. 'thorough'
+  // still adds its step-by-step prompt directive (buildReasoningModeInstruction), just on the fast
+  // model. The big model stays one explicit "deep think" away.
+  return reasoningMode === 'deep-cot' ? OLLAMA_MODEL_DEEP : OLLAMA_MODEL;
 }
 
 // How long Ollama keeps a model resident after a response. The host is a 16GB M4 Mac Mini also
