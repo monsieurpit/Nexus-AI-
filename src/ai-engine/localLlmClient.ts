@@ -47,6 +47,17 @@ export function modelForReasoningMode(reasoningMode: 'fast' | 'thorough' | 'deep
   return reasoningMode === 'fast' ? OLLAMA_MODEL : OLLAMA_MODEL_DEEP;
 }
 
+// How long Ollama keeps a model resident after a response. The host is a 16GB M4 Mac Mini also
+// running the Node server, the Discord bot process and a Cloudflare tunnel, so a large model
+// sitting in memory for a long idle stretch is exactly what makes the whole machine lag long
+// after a reply finished (reported live). The small default model fits comfortably and stays
+// warm for realistic chat gaps; the ~8GB escalation model and the vision model are opt-in and
+// rare, so they unload almost immediately instead of thrashing memory for half an hour.
+function keepAliveFor(model: string | undefined): string {
+  if (model && (model === OLLAMA_MODEL_DEEP || model === OLLAMA_VISION_MODEL)) return '90s';
+  return '10m';
+}
+
 // Shared language-signal classifier — used both to decide which model handles a message
 // (looksPolish, called by reasoningEngine.ts before generate()) and, below, to verify the model's
 // OUTPUT actually landed in the language the caller expected. Deliberately word-COUNT/density
@@ -424,13 +435,11 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
         model: options.model || OLLAMA_MODEL,
         messages,
         stream: false,
-        // Ollama's default keep_alive unloads the model from memory 5 minutes after the last
-        // request, which meant any gap in traffic re-paid a real, measured cold-load cost on the
-        // next message (~550ms observed live on this host, vs. ~1ms once warm) — pure wasted
-        // latency on top of actual generation time, for a model that comfortably fits in RAM
-        // continuously. 30 minutes keeps it resident through realistic chat gaps without pinning
-        // it forever if the server sits genuinely idle overnight.
-        keep_alive: '30m',
+        // See keepAliveFor(): the small default model stays warm ~10m for realistic chat gaps;
+        // the large escalation / vision models unload within ~90s so an 8GB model doesn't pin
+        // memory on a 16GB host long after the reply finished (the source of the "Mac lags for
+        // ages after a response" report).
+        keep_alive: keepAliveFor(options.model),
         // Sampling tuned for gemma3 (Google's published recommendation is
         // temperature 1.0 / top_k 64 / top_p 0.95 / repeat_penalty ~1.0).
         // repeat_penalty was 1.3 here for qwen2.5:3b, which had a real repetition
@@ -679,7 +688,7 @@ export async function generateStream(
         model: options.model || OLLAMA_MODEL,
         messages,
         stream: true,
-        keep_alive: '30m',
+        keep_alive: keepAliveFor(options.model),
         // Sampling tuned for gemma3 (Google's published recommendation is
         // temperature 1.0 / top_k 64 / top_p 0.95 / repeat_penalty ~1.0).
         // repeat_penalty was 1.3 here for qwen2.5:3b, which had a real repetition
@@ -808,7 +817,7 @@ export async function generateVision(
         model: OLLAMA_VISION_MODEL,
         messages: [{ role: 'user', content: prompt, images: [imageBase64] }],
         stream: false,
-        keep_alive: '30m',
+        keep_alive: keepAliveFor(OLLAMA_VISION_MODEL),
         options: { temperature: 0.3, num_predict: 300 },
       }),
     });
