@@ -1547,8 +1547,8 @@ app.post('/api/v1/roleplay', aiComputeLimiter, async (req, res) => {
     const queued = await globalRequestQueue.enqueue('roleplay', () =>
       generateLlmText(prompt, {
         system,
-        temperature: typeof body.temperature === 'number' ? body.temperature : 0.75,
-        topP: 0.92,
+        temperature: typeof body.temperature === 'number' ? body.temperature : 0.62,
+        topP: 0.9,
         maxTokens: personaKey === 'noemie' && !override ? 90 : 220,
         preferFrench: french,
       })
@@ -1557,7 +1557,24 @@ app.post('/api/v1/roleplay', aiComputeLimiter, async (req, res) => {
     if (out.status !== 'success') {
       return res.status(503).json({ error: 'local model unavailable', reason: out.reason, detail: (out as any).detail });
     }
-    const text = out.text.trim();
+    let text = out.text.trim();
+    // Noémie base-model cleanup: gemma3:4b sprays emojis and pulls them from outside her set.
+    // Keep at most ONE, and only from her whitelist. The fine-tuned model won't need this.
+    if (personaKey === 'noemie' && !override) {
+      const ALLOWED = ['❤️', '❤', '😭', '💀', '🥺'];
+      let kept = false;
+      text = text
+        .replace(/\p{Extended_Pictographic}(️|‍\p{Extended_Pictographic})*/gu, (m) => {
+          if (!kept && ALLOWED.some((a) => m.startsWith(a))) {
+            kept = true;
+            return m;
+          }
+          return '';
+        })
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\s+([,.!?])/g, '$1')
+        .trim();
+    }
     // Split into texting bubbles: explicit newlines first, else keep as one.
     const bubbles = text
       .split(/\n+/)
