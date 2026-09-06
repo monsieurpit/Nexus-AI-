@@ -216,6 +216,7 @@ export interface OllamaGenerateOptions {
   timeoutMs?: number;
   system?: string;
   topP?: number;
+  topK?: number;
   stopSequences?: string[];
   // Set by callers that have already detected the user's message is Polish (see
   // reasoningEngine.ts's looksPolish()) — no longer routes to a different model (see the
@@ -419,13 +420,21 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
         // continuously. 30 minutes keeps it resident through realistic chat gaps without pinning
         // it forever if the server sits genuinely idle overnight.
         keep_alive: '30m',
+        // Sampling tuned for gemma3 (Google's published recommendation is
+        // temperature 1.0 / top_k 64 / top_p 0.95 / repeat_penalty ~1.0).
+        // repeat_penalty was 1.3 here for qwen2.5:3b, which had a real repetition
+        // tendency — gemma3 handles repetition natively and 1.3 pushed it away
+        // from ordinary word reuse into stilted phrasing and rarer/worse tokens.
+        // Callers still override temperature per task; top_k/top_p now carry
+        // gemma3 defaults instead of Ollama's generic ones.
         options: {
-          temperature: options.temperature ?? 0.5,
+          temperature: options.temperature ?? 0.7,
           num_predict: options.maxTokens ?? 400,
-          top_p: options.topP,
+          top_p: options.topP ?? 0.95,
+          top_k: options.topK ?? 64,
           stop: options.stopSequences,
-          repeat_penalty: 1.3,
-          repeat_last_n: 128,
+          repeat_penalty: 1.1,
+          repeat_last_n: 64,
         },
       }),
     });
@@ -660,13 +669,21 @@ export async function generateStream(
         messages,
         stream: true,
         keep_alive: '30m',
+        // Sampling tuned for gemma3 (Google's published recommendation is
+        // temperature 1.0 / top_k 64 / top_p 0.95 / repeat_penalty ~1.0).
+        // repeat_penalty was 1.3 here for qwen2.5:3b, which had a real repetition
+        // tendency — gemma3 handles repetition natively and 1.3 pushed it away
+        // from ordinary word reuse into stilted phrasing and rarer/worse tokens.
+        // Callers still override temperature per task; top_k/top_p now carry
+        // gemma3 defaults instead of Ollama's generic ones.
         options: {
-          temperature: options.temperature ?? 0.5,
+          temperature: options.temperature ?? 0.7,
           num_predict: options.maxTokens ?? 400,
-          top_p: options.topP,
+          top_p: options.topP ?? 0.95,
+          top_k: options.topK ?? 64,
           stop: options.stopSequences,
-          repeat_penalty: 1.3,
-          repeat_last_n: 128,
+          repeat_penalty: 1.1,
+          repeat_last_n: 64,
         },
       }),
     });

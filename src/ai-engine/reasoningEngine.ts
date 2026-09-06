@@ -3109,7 +3109,11 @@ async function llmSituationalReplyOrFallback(
   // itself doesn't need to declare against English.
   const useFrench = !usePolish && looksFrench(llmPrompt);
   const languageTag = usePolish ? 'pl' : useFrench ? 'fr' : 'en';
-  const temperature = usePolish || useFrench ? 0.3 : 0.75;
+  // The 0.3 for PL/FR was a qwen2.5:3b fix (it garbled its weaker languages
+  // above ~0.3 — fused words, leaked instructions). gemma3 is genuinely stable
+  // multilingually, so raised toward the English value; re-check FR/PL output
+  // if it starts drifting.
+  const temperature = usePolish || useFrench ? 0.55 : 0.8;
   const generateOptions = {
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
@@ -3280,12 +3284,13 @@ async function llmGroundedOrFallback(
       // unclear not just a missing detail, style directives still apply), narrative framing and
       // the full worked "better at what, exactly?" example trimmed to one short model.
       `The context below is only a loose/uncertain match — use it as a starting point and answer as well as you genuinely can, honest about what's uncertain rather than inventing specifics. If the topic itself is genuinely unclear (not just an uncertain detail — you'd have to GUESS what they even mean), ask a real direct question back ("better at what, exactly?") instead of guessing a topic and running with it. Style directives still fully apply.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`;
-  // See the temperature comment in llmSituationalReplyOrFallback above — Polish needs a lower
-  // temperature across the board for reliability, same reasoning applied to the grounded path.
-  // Captured once here (not re-derived per thought-step push below) so the telemetry surfaced to
-  // callers can never drift from the value actually sent to generate().
+  // See the temperature comment in llmSituationalReplyOrFallback above — the PL/FR values were a
+  // qwen2.5:3b reliability fix and are raised for gemma3, keeping the grounded path a notch below
+  // the casual path (a factual answer wants less creative drift). Captured once here (not
+  // re-derived per thought-step push below) so the telemetry surfaced to callers can never drift
+  // from the value actually sent to generate().
   const groundedLanguageTag = usePolish ? 'pl' : useFrench ? 'fr' : 'en';
-  const usedTemperature = usePolish || useFrench ? (confident ? 0.25 : 0.35) : confident ? 0.45 : 0.65;
+  const usedTemperature = usePolish || useFrench ? (confident ? 0.4 : 0.5) : confident ? 0.5 : 0.7;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
