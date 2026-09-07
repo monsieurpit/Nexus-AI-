@@ -153,6 +153,10 @@ const FRENCH_SIGNAL_WORDS = new Set([
   'faire', 'alors', 'donc', 'aussi', 'encore', 'jamais', 'toujours', 'rien', 'quelque',
   'faque', 'tsé', 'tse', 'pantoute', 'icitte', 'astheure', 'asteure',
   'chu', 'moé', 'toé', 'ouais', 'ouin', 'checke', 'mettons', 'tiguidou',
+  // Joual drops accents when typed — the accented forms above ('créé', 'ça') miss the way
+  // Patrick actually types ("qui ta cree", "comment ca va"). None of these collide with English.
+  'qui', 'ca', 'cree', 'creer', 'creee', 'va', 'cava', 'taime', 'gai', 'sais-tu',
+  'raison', 'affaire', 'pogne', 'niaise', 'capote',
   'tabarnak', 'câlisse', 'calisse', 'ostie', 'crisse', 'criss', 'tabarnouche',
   'voyons', 'coudonc', 'enweille', 'correc', 'niaiseux',
   'quétaine', 'ketaine', 'dépanneur', 'magané', 'jaser', 'achaler', 'niaiser',
@@ -191,9 +195,14 @@ export function scoreLanguageSignal(text: string): { polish: number; english: nu
  * present. See scoreLanguageSignal's comment for why a raw "contains any Polish word" check is
  * wrong.
  */
-export function looksPolish(text: string): boolean {
-  const { polish, english } = scoreLanguageSignal(text);
-  return polish > english;
+export function looksPolish(_text: string): boolean {
+  // POLISH SUBSYSTEM DISABLED (Sept 2026) — Patrick asked to strip Polish entirely
+  // ("on va le refaire plus tard"). It was bleeding Polish swears/fallbacks into the
+  // French path. Rather than surgically unpick Polish from ~15 files, we hard-disable
+  // the single detection chokepoint everything routes off. Polish input now gets an
+  // English (or French, if French-marked) reply. Restore by deleting these two lines
+  // when rebuilding Polish support.
+  return false;
 }
 
 // server.ts's request queue allows up to 5 requests to run truly concurrently, but a single Mac

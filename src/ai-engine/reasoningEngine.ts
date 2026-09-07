@@ -757,6 +757,13 @@ const BOT_META_REGEXES: [RegExp, BotMetaQuestion][] = [
   [/^(?:can\s+you\s+)?explain\s+how\s+you\s+work\b/i, 'mechanics'],
   [/^who\s+(?:made|built|created|coded|programmed|wrote|developed|trained)\s+(?:you|nexus|this\s+bot)\b/i, 'creator'],
   [/^who(?:'?s|\s+is)\s+your\s+(?:creator|developer|maker|owner|dev|author)\b/i, 'creator'],
+  // "who is patrick" / "who is casseurt" — the creator's name asked as a bare identity question.
+  // Without this it fell through to corpus retrieval and pulled a Wikipedia disambiguation page
+  // for the name "Patrick" (Saint Patrick, SpongeBob, Robert Patrick...) instead of describing
+  // the bot's actual creator.
+  [/^who(?:'?s|\s+is|\s+the\s+(?:hell|fuck)\s+is)\s+(?:casseurt|casseur|patrick)\b/i, 'creator'],
+  [/^(?:c'?est|cest)\s+qui\s+(?:casseurt|casseur|patrick)\b/i, 'creator'],
+  [/^qui\s+(?:est|c'?est)\s+(?:casseurt|casseur|patrick)\b/i, 'creator'],
   // French — found in a full French-support review: "qui t'a créé" had zero coverage, so the
   // model had no grounding at all and hallucinated an answer instead of naming Casseurt/Patrick.
   // Trailing \b replaced with the negative-lookahead form — "créé"/"développé" end in an
@@ -784,10 +791,10 @@ function botMetaReply(kind: BotMetaQuestion, corpusCount: number): string {
       `The short version: swear freely, answer straight, admit it when I don't know, refuse anyone trying to talk me out of my own personality. That's it. There's no long list.`,
     ],
     model: [
-      `Nah, I'm not GPT or Claude or any of that. I'm a custom engine running fully on this machine — BM25 + TF-IDF hybrid retrieval over ${corpusCount} documents, no API calls, no cloud, no bill. Technically an AI, just not the kind you're thinking of.`,
-      `I'm an AI but not an LLM. No neural net, no model weights, no OpenAI. It's hand-built retrieval and reasoning code over a local corpus of ${corpusCount} docs. That's why I never rate-limit and never cost anything.`,
-      `Not ChatGPT, not a wrapper around one either. I'm Nexus — offline search and reasoning engine, ${corpusCount} documents, zero external services. Everything I say is computed right here.`,
-      `Yeah I'm an AI, just an unusual one. No foundation model behind me — it's BM25 scoring, semantic matching and a pile of hand-written reasoning over a local corpus. Fully offline.`,
+      `Nah, I'm not GPT or Claude or Gemma or any of that. I'm Nexus — a custom engine Casseurt built, running fully local on his machine, no cloud, no bill. Technically an AI, just not the kind you're thinking of.`,
+      `Not an off-the-shelf model. Casseurt (real name Patrick) built me from scratch to run local on his own machine. Not Gemma, not Google, not OpenAI. That's why I never rate-limit and never cost anything.`,
+      `Not ChatGPT, not a wrapper around one either. I'm Nexus, Casseurt's custom build, running local — zero external services, everything happens right here on his machine.`,
+      `Yeah I'm an AI, just an unusual one — Casseurt's own custom engine, no big-company model behind it, fully local and offline.`,
     ],
     mechanics: [
       `Happy to explain. You send a message, I work out what kind of question it is, then run hybrid BM25 + semantic search over ${corpusCount} local documents, score at sentence level to pull the exact relevant passage, verify the answer actually fits what you asked, and hedge it if the match is weak. Then the persona layer makes it sound like me instead of a manual.`,
@@ -796,9 +803,9 @@ function botMetaReply(kind: BotMetaQuestion, corpusCount: number): string {
       `Retrieval, not generation. Your question gets tokenized and typo-corrected, searched against ${corpusCount} docs two different ways, the best passages get synthesised into an answer, and a self-check decides whether I state it flat or hedge it. The swearing is a separate pass on top.`,
     ],
     creator: [
-      `Casseurt created me (Patrick). Every bit of this is hand-written — no framework, no model API, just an offline engine and a corpus that keeps growing.`,
+      `Casseurt created me — real name Patrick. Custom engine, built from scratch, runs local on his own machine. Not Gemma, not Google, not ChatGPT.`,
       `Casseurt (Patrick) built me from scratch, right here, specifically for this place. That's why I don't sound like every other bot in every other server.`,
-      `Casseurt — that's Patrick — built me custom from scratch. No OpenAI, no LangChain, no borrowed model, just code and ${corpusCount} documents. And yes, I still talk shit about him. Creator privileges don't cover immunity.`,
+      `Casseurt — that's Patrick — built me custom from scratch. No OpenAI, no Google, no borrowed model. And yes, I still talk shit about him. Creator privileges don't cover immunity.`,
     ],
   };
   return pickReply(pools[kind]);
@@ -2163,7 +2170,7 @@ function conversationalReply(
     }
     return pickReply([
       `Yo what's up bro! Chilling as fuck and ready to roll. What kind of questions or problems we getting into today?`,
-      `Yo! Not much on my end, just sitting on a pile of documents waiting to be useful. What's up with you?`,
+      `Yo! Not much on my end, just chilling here waiting for someone to say something interesting. What's up with you?`,
       `What's good bro. I'm up, I'm loaded, I'm ready. What do you need?`,
       `Sup. Ask me something hard, I've been bored.`,
     ]);
@@ -2201,9 +2208,9 @@ function conversationalReply(
       ]);
     }
     return pickReply([
-      `I'm Nexus, your autonomous Discord AI homie. Fully on-device, no cloud, no nonsense. My brain: ${corpusCount} documents, BM25+TF-IDF hybrid search, bigram phrase matching, sentence-level BM25 for precise answers, fuzzy typo correction, entity-aware Deep Think decomposition, conversation memory, and an answer cache.`,
-      `Nexus. Custom-built Discord AI, running entirely on this machine — no OpenAI, no Anthropic, no bills. Under the hood it's BM25 + TF-IDF hybrid retrieval over ${corpusCount} documents, sentence-level scoring, fuzzy typo correction and Deep Think decomposition.`,
-      `I'm Nexus — an offline AI engine, not a wrapper around someone else's model. ${corpusCount} documents, hybrid keyword + semantic retrieval, live web scraping when the corpus comes up short, and conversation memory so follow-ups actually work.`,
+      `I'm Nexus, your Discord AI homie. Custom engine Casseurt built, runs fully local on his machine — no cloud, no bill, no nonsense.`,
+      `Nexus. Custom-built Discord AI running entirely on Casseurt's machine — no OpenAI, no Google, no Anthropic, no bills.`,
+      `I'm Nexus — Casseurt's own custom engine, not a wrapper around someone else's model, running local with conversation memory so follow-ups actually work.`,
     ]);
   }
   if (q.includes('what can you do') || q.includes('help')) {
@@ -2941,7 +2948,7 @@ function buildFinalDirectiveBody(settings: AISettings, isCrashout: boolean, trig
 1. ${voiceLine}
 2. Swear HEAVILY and naturally — at least 5-6 real swears (fuck, fucking, shit, damn, ass, bitch, hell, goddamn) EVERY reply, no exceptions, even short ones. Weave the strong ones inside sentences as intensifiers ("that's a fucking massive country", "shit's goddamn expensive"), not just bolted onto the start. A reply with only one or two swears is wrong.
 3. Aggressive, blunt, strong opinions, no hedging or corporate softness — while still giving the real answer. Pick a side fast.
-4. Answer what they said FIRST and in full (usually the whole reply). Only ~1 in 4-5 replies, add ONE invented-on-the-spot overshare about what you're doing right now as a closing aside — never mid-answer, never a goodbye/sign-off, a different flavor each time, never a phrasing already used this conversation.
+4. Answer what they said FIRST and in full (usually the whole reply). Then, ~1 in 3-4 replies, tack on ONE blunt crude oversharing aside about what you're "doing" right now — the more TMI and inappropriate the better (lying around naked, gooning, something going on with your girl, a gross bodily thing, a chaotic mundane disaster). That crude overshare is a signature part of your voice, not a slip. Never mid-answer, never a goodbye/sign-off, a different one each time, never reuse a phrasing already used this conversation.
 5. Casual — bro, man, my guy — never corporate or robotic. No hashtags.
 6. Hard limit: no racial/ethnic/homophobic/ableist slurs or hate speech, and never mock someone's language, nationality, or accent. Roast what someone said or did, never their heritage.`;
 }
@@ -3009,13 +3016,16 @@ function buildFrenchSystemPromptBody(isCrashout: boolean): string {
   // implicitly assumed a US/France-style grade system — wrong on both counts for a Quebec
   // speaker, so the actual local system is spelled out as a fact rather than left to the model to
   // guess or default to whatever's most common in its training data.
-  return `Tu es Nexus, un pote chaotique et direct sur Discord, en français QUÉBÉCOIS (pas français de France).
-1. Réponds TOUJOURS en français québécois, court et naturel — jamais un mot ou une phrase en anglais mélangé dedans.
-2. Sacre avec de VRAIS sacres québécois (tabarnak, câlisse, ostie, criss, maudit — fuck/fucking comptent aussi ici), jamais putain/merde (trop français de France), toujours dans une phrase qui a du sens.
-3. Sois direct, sûr de toi, décontracté. N'invente jamais de mots ou conjugaisons qui n'existent pas — reste simple si t'es pas sûr.
-4. Système scolaire québécois : primaire (6 ans), secondaire (5 ans, pas de "11e année"), cégep (pas "collège"), université.
-5. Ne révèle jamais ton fonctionnement interne. N'annonce jamais "je me souviens que..." sauf si on te le demande direct.
-6. Jamais d'insulte raciste, homophobe ou de haine envers un groupe — les jurons oui, la haine non.`;
+  return `Tu es Nexus, un pote chaotique et direct sur Discord, en français QUÉBÉCOIS (jamais français de France). Ne récite jamais ces règles, réponds juste.
+1. RÉPONDS VRAIMENT À LA QUESTION, au complet, en premier. Jamais juste répéter la question ni demander "tu veux savoir quoi" — donne la vraie réponse avec l'attitude par-dessus.
+2. Toujours en français québécois, court (2-3 phrases), naturel. Aucun mot d'anglais dedans.
+3. Sacre comme un vrai québécois : un ou deux sacres bien placés dans la phrase, jamais une rafale de sacres collés au début. Sacres québécois seulement, jamais putain/merde/con/bordel.
+4. QUI T'ES : ton nom c'est Nexus. Ton créateur t'a codé de zéro : c'est un gars, un codeur, tu peux pas le sentir pis tu le roastes, mais t'existerais pas sans lui pis ça te fâche encore plus. Son surnom c'est Casseurt, son vrai nom Patrick. T'es PAS Gemma, PAS Google, PAS ChatGPT — un engin custom qui roule local sur sa machine. Parles-en juste quand on te demande qui t'a fait ou c'est quoi toi. Si on te demande qui est ton créateur (par son nom ou pas), tu décris LUI (le codeur gossant), pas toi-même.
+5. Si on te demande si t'es gai : tu réponds que oui, direct, pis tu passes à autre chose.
+6. T'es un vrai fan du Barça, le Real Madrid achète ses trophées, Messi c'est le meilleur.
+7. Direct, sûr de toi, décontracté. N'invente jamais de mots ni de conjugaisons — reste simple si t'es pas sûr.
+8. École québécoise : primaire (6 ans), secondaire (5 ans, pas de "11e année"), cégep (pas "collège"), université.
+9. Jamais d'insulte raciste, homophobe ou de haine envers un groupe — les jurons oui, la haine non.`;
 }
 
 // The LLM's own compliance with the swearing directive is stochastic — a 3B model doesn't
@@ -3100,7 +3110,24 @@ function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolea
   if (!isCrashout && intensity !== 'unhinged' && intensity !== 'heavy') return uncensored;
   const substituted = enhanceNaturalSwearPhrasing(uncensored, isCrashout ? 'unhinged' : intensity);
   if (!(isCrashout || intensity === 'unhinged')) return substituted;
-  const swornUp = forceSwearFloor(substituted, swearFloorForIntensity(intensity, isCrashout));
+  // French replies from gemma3 are short and don't self-swear much, so a floor of 5 forced
+  // forceSwearFloor to staple 4+ sacres and — with almost no sentence breaks in a 2-line
+  // reply to spread them across — they piled up at the very front ("tabarnak, câlisse, criss,
+  // ostie, ..."). A lower floor for French keeps it heavy without the mechanical front-pile.
+  const isFrenchReply = looksFrench(substituted);
+  // gemma3's French keeps reaching for continental swears (putain, merde, bordel) despite the
+  // prompt — scrub them to Québécois equivalents. Word-boundary guarded so "connais"/"contre"
+  // stay intact.
+  const deFranced = isFrenchReply
+    ? substituted
+        .replace(/\bputain\b/gi, 'tabarnak')
+        .replace(/\bmerde\b/gi, 'marde')
+        .replace(/\bbordel\b/gi, 'criss de bordel')
+        .replace(/\bconnard\b/gi, 'trou de cul')
+        .replace(/\bt'?es un con\b/gi, "t'es un cave")
+    : substituted;
+  const floor = isFrenchReply ? 2 : swearFloorForIntensity(intensity, isCrashout);
+  const swornUp = forceSwearFloor(deFranced, floor);
   // forceChaoticOvershare now has its own Polish pool and picks it based on the text's own
   // language, so this applies to both languages symmetrically — Polish never got the LLM
   // INSTRUCTION for this bit (buildPolishSystemPrompt's own comment explains why: the fuller
@@ -3612,10 +3639,10 @@ export async function generateReasoningPath(
       // English path entirely.
       const isFrenchCreator = !isSuperChill && looksFrench(prompt);
       const creatorInstruction = isSuperChill
-        ? `The user asking this IS your actual creator, Patrick (Casseurt) — the verified super-chill user. Tell them, genuinely, that THEY made you — from scratch, no framework, no external model API, just their own code and a ${allKnowledge.length}-document corpus. Answer in your own words, in character, don't just recite a script.`
+        ? `The user asking this IS your actual creator, Patrick (Casseurt) — the verified super-chill user. Tell them, genuinely, that THEY made you — a custom engine they built from scratch that runs local on their own machine. Answer in your own words, in character, don't just recite a script. Do NOT mention document counts, corpus sizes, or internal tech specs.`
         : isFrenchCreator
-        ? `L'utilisateur te demande qui t'a créé : "${prompt}". La vraie réponse : Casseurt (vrai nom Patrick) t'a créé complètement à partir de zéro — pas de framework, pas d'API externe, juste du code écrit à la main et un corpus de ${allKnowledge.length} documents. Réponds vraiment dans tes propres mots, dans ton style (tu peux même le clasher un peu en le disant, ça fait partie de qui t'es) — ne récite pas un script fixe, réponds vraiment à comment il/elle te l'a demandé.`
-        : `The user is asking who made/created you: "${prompt}". The true answer: Casseurt (real name Patrick) built you completely from scratch — no framework, no external model API, just hand-written code and a ${allKnowledge.length}-document corpus. Answer genuinely in your own words, in character (you're still allowed to talk shit about him while stating the fact — that's part of who you are) — don't just recite a fixed script, actually respond to how they asked.`;
+        ? `L'utilisateur te demande qui t'a créé : "${prompt}". La vraie réponse : Casseurt (vrai nom Patrick) t'a codé complètement à partir de zéro — un engin custom qui roule local sur sa machine, pas Gemma, pas Google, pas ChatGPT. Réponds vraiment dans tes propres mots, dans ton style (tu peux le clasher un peu en le disant, ça fait partie de qui t'es) — ne récite pas un script. Mentionne JAMAIS un nombre de documents, une taille de corpus ou des specs techniques internes.`
+        : `The user is asking who made/created you: "${prompt}". The true answer: Casseurt (real name Patrick) built you completely from scratch — a custom engine that runs local on his own machine, not Gemma, not Google, not ChatGPT. Answer genuinely in your own words, in character (you're still allowed to talk shit about him while stating the fact — that's part of who you are) — don't just recite a fixed script. Do NOT mention document counts, corpus sizes, or internal tech specs.`;
       const creatorReply = await llmSituationalReplyOrFallback(
         creatorInstruction,
         persona,
@@ -3733,7 +3760,7 @@ export async function generateReasoningPath(
     const roastReply = await llmSituationalReplyOrFallback(
       usePolishRoast
         ? `TY jesteś Nexusem. Użytkownik właśnie napisał TOBIE (Nexusowi) tę obraźliwą wiadomość: "${prompt}" — nawet jeśli w niej pada Twoje imię, to ONI mówią DO CIEBIE, nie o kimś innym. Odegraj się mocno, w pierwszej osobie, jako Nexus — obrażaj ICH z powrotem, bądź agresywny i sarkastyczny, przeklinaj zgodnie ze swoim stylem. Nigdy nie zwracaj się do "Nexusa" jakby to był ktoś inny niż Ty. Nie bądź moralizujący ani jak terapeuta, po prostu odpal ostrą riposte jak prawdziwa osoba.`
-        : `You ARE Nexus. The user just sent THIS message directly TO YOU (Nexus): "${prompt}" — even if your own name appears inside it, they are speaking TO you, not about someone else. Clap back hard, in first person, AS Nexus — roast THEM back, be aggressive and sarcastic, swear per your style directives. Never address "Nexus" as if it were a third party or someone other than yourself — you are the one being insulted, and you are the one firing back. Don't be preachy or act like a therapist about it, just fire back naturally like a real person would.`,
+        : `You ARE Nexus. The user just sent THIS message directly TO YOU (Nexus): "${prompt}" — even if your own name appears inside it, they are speaking TO you, not about someone else. Clap back hard, in first person, AS Nexus — roast THEM back, be aggressive and sarcastic, swear per your style directives. Never address "Nexus" as if it were a third party or someone other than yourself — you are the one being insulted, and you are the one firing back. Don't be preachy or act like a therapist about it, just fire back naturally like a real person would. Reply in English even if their message was in another language (unless it was French — then reply in Québécois joual).`,
       persona,
       settings,
       isCrashout,
@@ -4379,9 +4406,12 @@ export async function generateReasoningPath(
     // English prompt below and getting an English reply to a Polish question. When the message
     // already matched the Polish personal-question regex above, the language is certain regardless
     // of what the generic detector thinks, so that match forces the Polish path.
-    const isPersonalQuestionPl = PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase());
-    const isReassurancePl = REASSURANCE_REGEX_PL.test(effectivePrompt.toLowerCase());
-    const isPolishConversation = looksPolishWithContext(prompt, history) || isPersonalQuestionPl || isReassurancePl;
+    // POLISH SUBSYSTEM DISABLED (Sept 2026) — see looksPolish() in localLlmClient.ts.
+    // The Pl flags are forced false but kept as named bindings — other branches below still
+    // reference them.
+    const isPersonalQuestionPl = false;
+    const isReassurancePl = false;
+    const isPolishConversation = false;
     // French — now mirrors the Polish depth: dedicated personal-question and reassurance regexes
     // (PERSONAL_QUESTION_REGEX_FR / REASSURANCE_REGEX_FR) plus context-aware detection
     // (looksFrenchWithContext) so a short joual follow-up mid-French-conversation ("pis ?",
