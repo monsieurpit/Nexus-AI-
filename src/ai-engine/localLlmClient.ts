@@ -12,7 +12,58 @@ const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || '').replace(/\/+$/, '');
 // The historical rationale below (Bielik, model-size vs prompt-complexity) still
 // holds — it's about routing philosophy, not the specific model name.
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
+// If OLLAMA_MODEL isn't actually pulled on the Ollama host (e.g. the custom `nexus-4b`
+// Modelfile got wiped by a Mac reboot / `ollama` cleanup), fall back to this instead of
+// failing every request. Set OLLAMA_MODEL_FALLBACK=gemma3:4b on Railway.
+const OLLAMA_MODEL_FALLBACK = process.env.OLLAMA_MODEL_FALLBACK || 'gemma3:4b';
 const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
+
+// Cache the set of pulled model names for a minute so resolveModel() doesn't hit /api/tags
+// on every generate call.
+let _tagCache: { names: Set<string>; at: number } | null = null;
+let _fallbackWarned = false;
+async function pulledModelNames(timeoutMs = 2500): Promise<Set<string>> {
+  if (_tagCache && Date.now() - _tagCache.at < 60_000) return _tagCache.names;
+  if (!OLLAMA_BASE_URL) return new Set();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: controller.signal });
+    const data: any = res.ok ? await res.json().catch(() => null) : null;
+    const names = new Set<string>(
+      Array.isArray(data?.models) ? data.models.map((m: any) => m?.name).filter(Boolean) : []
+    );
+    _tagCache = { names, at: Date.now() };
+    return names;
+  } catch {
+    return _tagCache?.names ?? new Set();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Given the model a caller wants, return it if it's actually pulled on the host, otherwise
+ * OLLAMA_MODEL_FALLBACK (if THAT's pulled), otherwise the original request unchanged (let the
+ * generate call fail loudly rather than silently swapping to something that also isn't there).
+ * A tags-fetch failure returns the requested model untouched — don't downgrade on a transient
+ * network blip.
+ */
+async function resolveModel(requested: string): Promise<string> {
+  const names = await pulledModelNames();
+  if (names.size === 0) return requested; // couldn't check — don't second-guess
+  if (names.has(requested)) return requested;
+  if (names.has(OLLAMA_MODEL_FALLBACK)) {
+    if (!_fallbackWarned) {
+      console.warn(
+        `[localLlm] "${requested}" not pulled on Ollama host — falling back to OLLAMA_MODEL_FALLBACK "${OLLAMA_MODEL_FALLBACK}"`
+      );
+      _fallbackWarned = true;
+    }
+    return OLLAMA_MODEL_FALLBACK;
+  }
+  return requested;
+}
 // A Polish-specialized model (SpeakLeash/Bielik-1.5b) was tried here and reverted after real-world
 // testing: it had noticeably cleaner Polish GRAMMAR in isolated one-off tests, but embedded in this
 // pipeline's actual instruction-following load it was unreliable — it repeatedly echoed/paraphrased
@@ -413,7 +464,9 @@ export async function checkAvailability(timeoutMs = 2000): Promise<boolean> {
     if (!res.ok) return false;
     const data: any = await res.json().catch(() => null);
     const models: string[] = Array.isArray(data?.models) ? data.models.map((m: any) => m?.name).filter(Boolean) : [];
-    return models.includes(OLLAMA_MODEL);
+    // Healthy if the configured model OR the fallback is pulled — resolveModel() will use
+    // whichever is actually there at generate time.
+    return models.includes(OLLAMA_MODEL) || models.includes(OLLAMA_MODEL_FALLBACK);
   } catch {
     return false;
   } finally {
@@ -442,20 +495,21 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
       ...(options.system ? [{ role: 'system', content: options.system }] : []),
       { role: 'user', content: prompt },
     ];
+    const model = await resolveModel(options.model || OLLAMA_MODEL);
 
     const res = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        model: options.model || OLLAMA_MODEL,
+        model,
         messages,
         stream: false,
         // See keepAliveFor(): the small default model stays warm ~10m for realistic chat gaps;
         // the large escalation / vision models unload within ~90s so an 8GB model doesn't pin
         // memory on a 16GB host long after the reply finished (the source of the "Mac lags for
         // ages after a response" report).
-        keep_alive: keepAliveFor(options.model),
+        keep_alive: keepAliveFor(model),
         // Sampling tuned for gemma3 (Google's published recommendation is
         // temperature 1.0 / top_k 64 / top_p 0.95 / repeat_penalty ~1.0).
         // repeat_penalty was 1.3 here for qwen2.5:3b, which had a real repetition
@@ -695,16 +749,17 @@ export async function generateStream(
       ...(options.system ? [{ role: 'system', content: options.system }] : []),
       { role: 'user', content: prompt },
     ];
+    const model = await resolveModel(options.model || OLLAMA_MODEL);
 
     const res = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        model: options.model || OLLAMA_MODEL,
+        model,
         messages,
         stream: true,
-        keep_alive: keepAliveFor(options.model),
+        keep_alive: keepAliveFor(model),
         // Sampling tuned for gemma3 (Google's published recommendation is
         // temperature 1.0 / top_k 64 / top_p 0.95 / repeat_penalty ~1.0).
         // repeat_penalty was 1.3 here for qwen2.5:3b, which had a real repetition
