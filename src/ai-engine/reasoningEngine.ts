@@ -2764,16 +2764,23 @@ export function recommendReasoningMode(prompt: string): 'fast' | 'thorough' {
 // fixed length (top 4-5) before this ever runs regardless of how many of those actually scored as
 // real matches, so a padded-but-mostly-irrelevant list would otherwise always read as "broad" and
 // every query would get the expensive budget. The query's own shape is the only honest signal here.
-function estimateResponseBudget(prompt: string): number {
+function estimateResponseBudget(prompt: string, reasoningMode?: AISettings['reasoningMode']): number {
   const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
   const hasMultipleQuestions = (prompt.match(/\?/g) || []).length > 1 || / and (?:how|why|what|when|where) /i.test(prompt);
+  let budget: number;
   if (BROAD_QUESTION_PATTERN.test(prompt) || hasMultipleQuestions) {
-    return LLM_MAX_TOKENS_BROAD;
+    budget = LLM_MAX_TOKENS_BROAD;
+  } else if (wordCount <= 6) {
+    budget = LLM_MAX_TOKENS_NARROW;
+  } else {
+    budget = LLM_MAX_TOKENS_DEFAULT;
   }
-  if (wordCount <= 6) {
-    return LLM_MAX_TOKENS_NARROW;
-  }
-  return LLM_MAX_TOKENS_DEFAULT;
+  // 'thorough'/'deep-cot' spend part of their tokens on an internal reasoning pass before the
+  // actual answer (see buildReasoningModeInstruction), so give them headroom or the answer gets
+  // cut off mid-sentence right after the thinking.
+  if (reasoningMode === 'thorough') budget = Math.round(budget * 1.5);
+  else if (reasoningMode === 'deep-cot') budget = Math.round(budget * 1.9);
+  return Math.min(budget, 1600);
 }
 
 // Dumping every matched document's FULL content into the prompt (observed live: ~7,100 chars for
@@ -2890,7 +2897,7 @@ function buildReasoningModeInstruction(reasoningMode: AISettings['reasoningMode'
     return "\n\nReasoning directive: before answering, briefly work through this from a couple of different angles in your head — what's actually being asked, what could be easy to get wrong or overlook, whether there's a more complete way to answer than the first thing that comes to mind — then give ONE clear final answer that reflects that. Don't show this thinking process or number it out loud, just let the final answer be better for having done it.";
   }
   if (reasoningMode === 'thorough') {
-    return "\n\nReasoning directive: before answering, briefly think through the key steps or facts needed to get this right, then give your final answer. Don't show this thinking process out loud, just answer like someone who actually worked it out instead of guessing.";
+    return "\n\nReasoning directive: think this through properly before you answer. In your head, work through the actual steps or facts it takes to get this right, check whether the obvious first answer is actually correct or is missing something, and consider whether two similar-looking facts are being confused. THEN give one clear, correct final answer. Don't show or number the thinking out loud — just make the answer genuinely better for having done the work, not a guess.";
   }
   return '';
 }
@@ -3380,9 +3387,15 @@ async function llmGroundedOrFallback(
   // fact at 0.5 — gemma3 grabbed "1918" from a co-retrieved WORLD WAR I entry for a WW2 date. A
   // low temp on temporal/mathematical intents keeps it pinned to the exact grounded sentence.
   const factualPin = confident && (intent === 'temporal' || intent === 'mathematical');
-  const usedTemperature = usePolish || useFrench
-    ? (confident ? 0.4 : 0.5)
-    : factualPin ? 0.25 : confident ? 0.5 : 0.7;
+  // 'thorough'/'deep-cot' want focused step-by-step reasoning, not creative drift — pull the temp
+  // down a notch on top of the normal grounded values.
+  const reasoningDrop = settings.reasoningMode === 'deep-cot' ? 0.2 : settings.reasoningMode === 'thorough' ? 0.12 : 0;
+  const usedTemperature = Math.max(
+    0.2,
+    (usePolish || useFrench
+      ? (confident ? 0.4 : 0.5)
+      : factualPin ? 0.25 : confident ? 0.5 : 0.7) - reasoningDrop
+  );
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
@@ -3390,7 +3403,7 @@ async function llmGroundedOrFallback(
       ? buildFrenchSystemPrompt(isCrashout)
       : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false),
     temperature: usedTemperature,
-    maxTokens: estimateResponseBudget(prompt),
+    maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
     preferPolish: usePolish,
     preferFrench: useFrench,
     model: localLlmClient.modelForReasoningMode(settings.reasoningMode),
@@ -3464,7 +3477,7 @@ async function llmGroundedOrFallback(
         ? buildFrenchSystemPrompt(isCrashout)
         : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false),
       temperature: usedTemperature,
-      maxTokens: estimateResponseBudget(prompt),
+      maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
       preferPolish: usePolish,
       preferFrench: useFrench,
       model: localLlmClient.modelForReasoningMode(settings.reasoningMode),

@@ -30,9 +30,19 @@ async function pulledModelNames(timeoutMs = 2500): Promise<Set<string>> {
   try {
     const res = await fetch(`${OLLAMA_BASE_URL}/api/tags`, { signal: controller.signal });
     const data: any = res.ok ? await res.json().catch(() => null) : null;
-    const names = new Set<string>(
-      Array.isArray(data?.models) ? data.models.map((m: any) => m?.name).filter(Boolean) : []
-    );
+    // Ollama's /api/tags reports "nexus-4b:latest" but the model is equally addressable as
+    // "nexus-4b" — register both forms so resolveModel()'s names.has() check doesn't wrongly
+    // decide a pulled model is missing and fall back.
+    const names = new Set<string>();
+    if (Array.isArray(data?.models)) {
+      for (const m of data.models) {
+        const n = m?.name;
+        if (!n) continue;
+        names.add(n);
+        if (n.endsWith(':latest')) names.add(n.slice(0, -':latest'.length));
+        else if (!n.includes(':')) names.add(`${n}:latest`);
+      }
+    }
     _tagCache = { names, at: Date.now() };
     return names;
   } catch {
@@ -52,17 +62,28 @@ async function pulledModelNames(timeoutMs = 2500): Promise<Set<string>> {
 async function resolveModel(requested: string): Promise<string> {
   const names = await pulledModelNames();
   if (names.size === 0) return requested; // couldn't check — don't second-guess
-  if (names.has(requested)) return requested;
-  if (names.has(OLLAMA_MODEL_FALLBACK)) {
-    if (!_fallbackWarned) {
-      console.warn(
-        `[localLlm] "${requested}" not pulled on Ollama host — falling back to OLLAMA_MODEL_FALLBACK "${OLLAMA_MODEL_FALLBACK}"`
-      );
-      _fallbackWarned = true;
+
+  // Deep-cot has a graceful degradation chain (Patrick's spec):
+  //   OLLAMA_MODEL_DEEP (e.g. nexus-12b) -> gemma3:12b -> OLLAMA_MODEL (nexus-4b) -> OLLAMA_MODEL_FALLBACK (gemma3:4b)
+  // Any other request just falls back to OLLAMA_MODEL_FALLBACK.
+  const isDeepRequest = requested === OLLAMA_MODEL_DEEP || requested === 'gemma3:12b';
+  const chain = isDeepRequest
+    ? [OLLAMA_MODEL_DEEP, 'gemma3:12b', OLLAMA_MODEL, OLLAMA_MODEL_FALLBACK]
+    : [requested, OLLAMA_MODEL_FALLBACK];
+
+  const seen = new Set<string>();
+  for (const candidate of chain) {
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+    if (names.has(candidate)) {
+      if (candidate !== requested && !_fallbackWarned) {
+        console.warn(`[localLlm] "${requested}" not pulled on Ollama host — using "${candidate}" instead`);
+        _fallbackWarned = true;
+      }
+      return candidate;
     }
-    return OLLAMA_MODEL_FALLBACK;
   }
-  return requested;
+  return requested; // nothing in the chain is pulled — let generate() fail loudly
 }
 // A Polish-specialized model (SpeakLeash/Bielik-1.5b) was tried here and reverted after real-world
 // testing: it had noticeably cleaner Polish GRAMMAR in isolated one-off tests, but embedded in this
