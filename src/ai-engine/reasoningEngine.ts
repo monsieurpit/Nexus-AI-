@@ -2786,13 +2786,23 @@ function estimateResponseBudget(prompt: string): number {
 // carry relevantSentences (e.g. a vector-only RRF discovery, which only carries a score).
 const GROUNDING_CONTENT_FALLBACK_CHARS = 500;
 
+// Per-doc hard char cap on what reaches the model. relevantSentences.slice(0,4) still let
+// paragraph-length "sentences" through — a list-style doc (e.g. the famous-scientists entry, one
+// long sentence per person) fed the model ~1500 chars for one hit, and "who discovered penicillin"
+// came back as a transcription of the whole scientist list. Capping by chars, not just sentence
+// count, keeps the grounding to the bit that answers THIS question.
+const GROUNDING_CONTENT_MAX_CHARS = 650;
+
 function buildGroundingContext(top: { item: { title: string; content: string }; relevantSentences?: string[] }[]): string {
   return top
     .map((t, i) => {
-      const body =
+      let body =
         t.relevantSentences && t.relevantSentences.length > 0
           ? t.relevantSentences.slice(0, 4).join(' ')
           : t.item.content.slice(0, GROUNDING_CONTENT_FALLBACK_CHARS);
+      if (body.length > GROUNDING_CONTENT_MAX_CHARS) {
+        body = body.slice(0, GROUNDING_CONTENT_MAX_CHARS).replace(/\s+\S*$/, '') + '…';
+      }
       return `[${i + 1}] ${t.item.title}: ${body}`;
     })
     .join('\n\n');
@@ -3366,7 +3376,13 @@ async function llmGroundedOrFallback(
   // re-derived per thought-step push below) so the telemetry surfaced to callers can never drift
   // from the value actually sent to generate().
   const groundedLanguageTag = usePolish ? 'pl' : useFrench ? 'fr' : 'en';
-  const usedTemperature = usePolish || useFrench ? (confident ? 0.4 : 0.5) : confident ? 0.5 : 0.7;
+  // Date/number questions ("when did WW2 end", "how many bones") drift onto a wrong-but-adjacent
+  // fact at 0.5 — gemma3 grabbed "1918" from a co-retrieved WORLD WAR I entry for a WW2 date. A
+  // low temp on temporal/mathematical intents keeps it pinned to the exact grounded sentence.
+  const factualPin = confident && (intent === 'temporal' || intent === 'mathematical');
+  const usedTemperature = usePolish || useFrench
+    ? (confident ? 0.4 : 0.5)
+    : factualPin ? 0.25 : confident ? 0.5 : 0.7;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: usePolish
       ? buildPolishSystemPrompt(isCrashout)
@@ -6246,22 +6262,25 @@ function synthesiseCrashout(
   intent: QueryIntent,
   results: { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }[]
 ): string {
-  const primary = results[0];
-  const sents = variedSentences(results, 0, 4);
+  // Fallback-only path (real LLM call failed). Keep it SHORT — 2 sentences, no markdown title,
+  // no secondary-doc dump. An earlier version pasted 4 full sentences + a "**Title**" header +
+  // 2 more from a second doc, which on a list-style doc (famous scientists) came out as a wall
+  // of transcribed bios instead of an answer.
+  const sents = variedSentences(results, 0, 2)
+    .join(' ')
+    .replace(/\*\*/g, '')
+    .slice(0, 480)
+    .replace(/\s+\S*$/, '');
 
   const crashOpeners = [
-    "Okay FINE, let me tell you about this because apparently we're doing this right now.",
-    "Alright bro, you want to know? I'll tell you. Here's the deal:",
-    "Oh you wanna go there? Let's GO. Here's what I know:",
-    'Not gonna lie this topic is actually wild. Listen up:',
-    'Bro. BRÖTHER. Okay. Let me break this down for you properly:',
+    "Okay FINE, quick version:",
+    "Alright bro, here's the deal:",
+    "Oh you wanna go there? Fine.",
+    'Short answer, since you asked:',
+    'Bro. Okay. Here it is:',
   ];
   const opener = crashOpeners[Math.floor(Math.random() * crashOpeners.length)];
-  let text = `${opener}\n\n**${primary.item.title}**\n\n${sents.join(' ')}`;
-
-  if (hasRelevantSecondary(results)) {
-    text += `\n\nAnd honestly? ${results[1].relevantSentences.slice(0, 2).join(' ')}`;
-  }
+  let text = `${opener} ${sents}`;
 
   const outros = [
     "\n\nThat's the shit. Take it or leave it.",
