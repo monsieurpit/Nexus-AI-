@@ -484,13 +484,35 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             Internal Neural Thought Stream
                           </div>
                           {message.thoughtProcess.map((step) => (
-                            <div key={step.id} className="space-y-0.5 border-l-2 border-[var(--nx-accent)]/50 pl-2.5">
-                              <div className="font-semibold text-[var(--nx-text)] text-[12px] flex items-center gap-1.5">
+                            <div key={step.id} className="space-y-1 border-l-2 border-[var(--nx-accent)]/50 pl-2.5">
+                              <div className="font-semibold text-[var(--nx-text)] text-[12px] flex items-center gap-1.5 flex-wrap">
+                                <span className="px-1 py-px rounded bg-[var(--nx-accent)]/15 text-[var(--nx-accent-hover)] text-[9px] font-bold uppercase tracking-wide">
+                                  {step.type}
+                                </span>
                                 <span>{step.title}</span>
+                                {typeof step.durationMs === 'number' && (
+                                  <span className="text-[10px] font-normal text-[var(--nx-text-faint)]">
+                                    {step.durationMs >= 1000
+                                      ? `${(step.durationMs / 1000).toFixed(2)}s`
+                                      : `${step.durationMs}ms`}
+                                  </span>
+                                )}
                               </div>
-                              <p className="text-[11.5px] text-[var(--nx-text-muted)] leading-relaxed">
+                              <p className="text-[11.5px] text-[var(--nx-text-muted)] leading-relaxed whitespace-pre-wrap">
                                 {step.description}
                               </p>
+                              {step.data && Object.keys(step.data).length > 0 && (
+                                <div className="mt-1 rounded-md bg-[var(--nx-bg)]/60 border border-[var(--nx-border)] p-2 font-mono text-[10.5px] text-[var(--nx-text-faint)] space-y-0.5 overflow-x-auto">
+                                  {Object.entries(step.data).map(([k, v]) => (
+                                    <div key={k} className="flex gap-2">
+                                      <span className="text-[var(--nx-accent-hover)] shrink-0">{k}:</span>
+                                      <span className="text-[var(--nx-text-muted)] break-all">
+                                        {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
