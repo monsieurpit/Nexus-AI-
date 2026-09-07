@@ -43,16 +43,32 @@ export default function App() {
   const [knowledgeList, setKnowledgeList] = useState<KnowledgeItem[]>(loadKnowledge);
   const [memories, setMemories] = useState<UserMemory[]>(loadMemories);
 
-  const [conversations, setConversations] = useState<Conversation[]>(initConversations);
+  // initConversations() must run exactly ONCE — it calls createConversation() when storage is
+  // empty, and a second call produces a DIFFERENT fresh conversation with a different id. When
+  // that happened, activeConversationId pointed at a conversation that wasn't in the list, so
+  // every send went to commitConversation() with an id that matched nothing and the message was
+  // silently dropped ("I wrote hello, it replied, then the conversation disappeared").
+  const initialConversationsRef = useRef<Conversation[] | null>(null);
+  if (initialConversationsRef.current === null) initialConversationsRef.current = initConversations();
+  const [conversations, setConversations] = useState<Conversation[]>(initialConversationsRef.current);
   const [activeConversationId, setActiveConversationId] = useState<string>(() => {
     const saved = loadActiveConversationId();
-    const initial = initConversations();
+    const initial = initialConversationsRef.current!;
     return saved && initial.some((c) => c.id === saved) ? saved : initial[0].id;
   });
 
   const activeConversation =
     conversations.find((c) => c.id === activeConversationId) || conversations[0];
   const messages = activeConversation?.messages || [];
+
+  // Self-heal: if activeConversationId ever points at a conversation that isn't in the list
+  // (a stale id from storage, a race), snap it back to whatever's actually on screen so sends
+  // don't get committed to a non-existent id and vanish.
+  useEffect(() => {
+    if (activeConversation && activeConversation.id !== activeConversationId) {
+      setActiveConversationId(activeConversation.id);
+    }
+  }, [activeConversation, activeConversationId]);
 
   // Persists a full replacement of the conversation list plus whichever fields changed on the
   // active one (messages/title/updatedAt) — every mutation in this file goes through this so
