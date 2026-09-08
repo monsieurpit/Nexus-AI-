@@ -87,6 +87,7 @@ import { LANGUAGE_FACTS_GAPS } from './corpus/languageFactsGaps';
 import { LAW_GOVERNMENT_GAPS } from './corpus/lawGovernmentGaps';
 import { ART_FACTS_GAPS } from './corpus/artFactsGaps';
 import { FOOD_SCIENCE_GAPS } from './corpus/foodScienceGaps';
+import { RELIGION_FACTS_GAPS } from './corpus/religionFactsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -796,6 +797,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...LAW_GOVERNMENT_GAPS,
   ...ART_FACTS_GAPS,
   ...FOOD_SCIENCE_GAPS,
+  ...RELIGION_FACTS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
