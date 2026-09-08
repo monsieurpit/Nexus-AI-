@@ -178,6 +178,7 @@ import { NETWORKING_GAPS } from './corpus/networkingGaps';
 import { OBSERVATIONAL_ASTRONOMY_GAPS } from './corpus/observationalAstronomyGaps';
 import { FIRST_AID_EMERGENCY_GAPS } from './corpus/firstAidEmergencyGaps';
 import { POLITICS_IR_GAPS } from './corpus/politicsIRGaps';
+import { NUTRITION_GAPS } from './corpus/nutritionGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -978,6 +979,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...OBSERVATIONAL_ASTRONOMY_GAPS,
   ...FIRST_AID_EMERGENCY_GAPS,
   ...POLITICS_IR_GAPS,
+  ...NUTRITION_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
