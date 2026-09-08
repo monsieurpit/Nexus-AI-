@@ -167,6 +167,7 @@ import { COOKING_CHEMISTRY_GAPS } from './corpus/cookingChemistryGaps';
 import { PERSONAL_FINANCE_DEEP_GAPS } from './corpus/personalFinanceDeepGaps';
 import { LOGIC_ARGUMENTATION_GAPS } from './corpus/logicArgumentationGaps';
 import { DATABASES_GAPS } from './corpus/databasesGaps';
+import { VACCINES_EPIDEMIOLOGY_GAPS } from './corpus/vaccinesEpidemiologyGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -956,6 +957,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...PERSONAL_FINANCE_DEEP_GAPS,
   ...LOGIC_ARGUMENTATION_GAPS,
   ...DATABASES_GAPS,
+  ...VACCINES_EPIDEMIOLOGY_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
