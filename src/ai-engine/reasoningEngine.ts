@@ -4846,16 +4846,28 @@ export async function generateReasoningPath(
       const isPolishMath = localLlmClient.looksPolish(prompt);
       // Same fix, extended to French — found in a full French-support review.
       const isFrenchMath = !isPolishMath && localLlmClient.looksFrench(prompt);
+      // Rotate the opener — a single fixed line was stamped on literally every math answer and
+      // read as a canned tic. No markdown (persona bans it).
+      const mathOpeners = isFrenchMath
+        ? [
+            "ok tabarnak, je fais le calcul, les chiffres s'en câlissent de mes émotions.",
+            "bon, deux secondes, je calcule cette marde.",
+            "correct, laisse-moi faire le criss de calcul.",
+          ]
+        : isPolishMath
+        ? ['No dobra, zaraz to policzę.', 'Chwila, robię ten pieprzony rachunek.']
+        : [
+            "okay fine, let me crunch this real quick.",
+            "alright, doing the math because numbers don't give a shit about my mood.",
+            "give me a sec, running the numbers.",
+            "fine, math it is.",
+          ];
       const mathPrefix = isCrashout
-        ? isPolishMath
-          ? 'No dobra, zaraz to policzę, bo liczby nie obchodzą moje emocje.\n\n'
-          : isFrenchMath
-          ? "Ok tabarnak, je fais le calcul vite fait parce que les chiffres s'en câlissent de mes émotions.\n\n"
-          : "Okay fine, let me do this math real quick because numbers don't give a shit about my emotional state.\n\n"
+        ? mathOpeners[Math.floor(Math.random() * mathOpeners.length)] + '\n\n'
         : '';
       const resultLabel = isPolishMath ? 'Wynik' : isFrenchMath ? 'Résultat' : 'Result';
       const stepsLabel = isPolishMath ? 'Jak do tego doszedłem' : isFrenchMath ? "Comment j'y suis arrivé" : 'How I got there';
-      const formattedMath = `${mathPrefix}**${resultLabel}:** ${mathResult.result}\n\n**${stepsLabel}:**\n${mathResult.steps.map((s) => `  ${s}`).join('\n')}`;
+      const formattedMath = `${mathPrefix}${resultLabel}: ${mathResult.result}\n\n${stepsLabel}:\n${mathResult.steps.map((s) => `  ${s}`).join('\n')}`;
       return {
         thoughtSteps,
         content: enforceStrictSdkRules(formattedMath, prompt, settings.userCustomDirectives, {

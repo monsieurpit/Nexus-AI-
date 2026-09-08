@@ -49,4 +49,16 @@ export const CORPUS_GAPS_2: KnowledgeItem[] = [
     content: `Python was created by Guido van Rossum, a Dutch programmer, who began working on it in December 1989 and released the first version in 1991. He led the project for decades as its "Benevolent Dictator For Life" (BDFL) until stepping back from that role in 2018. The language is named after the British comedy group Monty Python's Flying Circus, not the snake. Python is now one of the most widely used programming languages in the world, especially for data science, machine learning, scripting, automation, and web backends, known for readable, indentation-based syntax.`,
     createdAt: Date.now(),
   },
+  {
+    id: 'kb-gap-dice-probability',
+    title: 'Common Dice and Coin Probabilities',
+    category: 'Mathematics',
+    keywords: [
+      'probability of rolling a 7', 'chance of rolling a 7 with two dice', 'two dice probability',
+      'odds of rolling doubles', 'probability rolling a 7', 'dice odds', 'coin flip probability',
+      'chance of rolling snake eyes', 'most likely dice roll',
+    ],
+    content: `With two standard six-sided dice there are 36 equally likely outcomes. The probability of rolling a total of 7 is 6/36 = 1/6 (about 16.7%) — 7 is the MOST likely total, because there are 6 ways to make it: 1+6, 6+1, 2+5, 5+2, 3+4, 4+3 (both orders count). Other totals: rolling a 2 ("snake eyes") or a 12 is 1/36 each; rolling doubles (any matching pair) is 6/36 = 1/6; rolling a total of 6 or 8 is 5/36 each. For coins: the chance of getting all heads on n fair flips is (1/2)^n — so 3 heads in a row is 1/8 (12.5%), 4 in a row is 1/16. Each flip is independent; a run of tails does NOT make heads "due" (that is the gambler's fallacy).`,
+    createdAt: Date.now(),
+  },
 ];
