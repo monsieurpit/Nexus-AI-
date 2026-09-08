@@ -13,7 +13,7 @@ export const SPORTS_RECORDS_GAPS: KnowledgeItem[] = [
       'how many ballon dor does messi have', 'how many ballon dor does ronaldo have', 'golden ball award',
       "most ballon d'or", "who has the most ballon d'or", 'record ballon dor', 'ballon dor winners',
     ],
-    content: `Lionel Messi has won the most Ballon d'Or (Ballon dOr / golden ball) awards, with 8: 2009, 2010, 2011, 2012, 2015, 2019, 2021, and 2023. That is more than any player in the award's history. Cristiano Ronaldo is second with 5 (2008, 2013, 2014, 2016, 2017). No one else has won more than 3 (Michel Platini, Johan Cruyff and Marco van Basten each won 3). The Ballon d'Or is awarded every year by France Football magazine to the best footballer of the year. Recent winners include Rodri (2024) and Karim Benzema (2022).`,
+    content: `Lionel Messi has won the most Ballon d'Or (Ballon dOr / golden ball) awards, with 8: 2009, 2010, 2011, 2012, 2015, 2019, 2021, and 2023. That is more than any player in the award's history. Cristiano Ronaldo is second with 5 (2008, 2013, 2014, 2016, 2017). No one else has won more than 3 (Michel Platini, Johan Cruyff and Marco van Basten each won 3). The Ballon d'Or is awarded every year by France Football magazine to the best footballer of the year. Recent winners: Ousmane Dembélé (2025, after PSG's first Champions League title), Rodri (2024), Lionel Messi (2023), and Karim Benzema (2022).`,
     createdAt: Date.now(),
   },
   {
@@ -47,7 +47,7 @@ export const SPORTS_RECORDS_GAPS: KnowledgeItem[] = [
       'who has won the most champions league', 'record champions league titles',
       'how many champions leagues has real madrid won', 'most european cups',
     ],
-    content: `Real Madrid have won the most Champions League / European Cup titles, with 15 — far more than any other club. Their haul includes the first five editions in a row (1956–1960) and a modern run of three straight (2016, 2017, 2018) under Zinedine Zidane, plus wins in 2022 and 2024. After Real Madrid: AC Milan have 7, Liverpool have 6, Bayern Munich have 6, and Barcelona have 5. The competition began as the European Cup in the 1955–56 season and was rebranded the UEFA Champions League in 1992–93.`,
+    content: `Real Madrid have won the most Champions League / European Cup titles, with 15 — far more than any other club. Their haul includes the first five editions in a row (1956–1960) and a modern run of three straight (2016, 2017, 2018) under Zinedine Zidane, plus wins in 2022 and 2024. After Real Madrid: AC Milan have 7, Liverpool have 6, Bayern Munich have 6, and Barcelona have 5. Paris Saint-Germain won their first title in 2025 (thrashing Inter Milan 5–0 in the final). The competition began as the European Cup in the 1955–56 season and was rebranded the UEFA Champions League in 1992–93.`,
     createdAt: Date.now(),
   },
   {
