@@ -118,6 +118,7 @@ import { MONEY_BANKING_GAPS } from './corpus/moneyBankingGaps';
 import { CELL_BIOLOGY_GAPS } from './corpus/cellBiologyGaps';
 import { ANCIENT_GREECE_GAPS } from './corpus/ancientGreeceGaps';
 import { ANCIENT_EGYPT_GAPS } from './corpus/ancientEgyptGaps';
+import { QUANTUM_PHYSICS_GAPS } from './corpus/quantumPhysicsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -858,6 +859,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...CELL_BIOLOGY_GAPS,
   ...ANCIENT_GREECE_GAPS,
   ...ANCIENT_EGYPT_GAPS,
+  ...QUANTUM_PHYSICS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
