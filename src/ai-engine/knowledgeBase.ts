@@ -154,6 +154,7 @@ import { ECOLOGY_ENVIRONMENT_GAPS } from './corpus/ecologyEnvironmentGaps';
 import { GOVERNMENT_CIVICS_GAPS } from './corpus/governmentCivicsGaps';
 import { CHEMISTRY_CORE_GAPS } from './corpus/chemistryCoreGaps';
 import { CLASSICAL_MUSIC_GAPS } from './corpus/classicalMusicGaps';
+import { PHYSICAL_GEOGRAPHY_GAPS } from './corpus/physicalGeographyGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -930,6 +931,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...GOVERNMENT_CIVICS_GAPS,
   ...CHEMISTRY_CORE_GAPS,
   ...CLASSICAL_MUSIC_GAPS,
+  ...PHYSICAL_GEOGRAPHY_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
