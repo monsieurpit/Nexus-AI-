@@ -3386,7 +3386,12 @@ async function llmGroundedOrFallback(
   // Date/number questions ("when did WW2 end", "how many bones") drift onto a wrong-but-adjacent
   // fact at 0.5 — gemma3 grabbed "1918" from a co-retrieved WORLD WAR I entry for a WW2 date. A
   // low temp on temporal/mathematical intents keeps it pinned to the exact grounded sentence.
-  const factualPin = confident && (intent === 'temporal' || intent === 'mathematical');
+  // Low temp for fact-shaped intents ("when/how many" but also "who is X" / "what is X" /
+  // "where is X") — gemma3:4b tends to override a correct grounded sentence with a stronger,
+  // wrong association from its own training (Anubis -> the Osiris death myth, Thor -> Odin's
+  // horse Sleipnir). Pinning the temp keeps it closer to the retrieved text.
+  const factualPin =
+    confident && (intent === 'temporal' || intent === 'mathematical' || intent === 'person' || intent === 'location' || intent === 'definition');
   // 'thorough'/'deep-cot' want focused step-by-step reasoning, not creative drift — pull the temp
   // down a notch on top of the normal grounded values.
   const reasoningDrop = settings.reasoningMode === 'deep-cot' ? 0.2 : settings.reasoningMode === 'thorough' ? 0.12 : 0;

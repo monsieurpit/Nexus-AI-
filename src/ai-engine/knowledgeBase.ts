@@ -77,6 +77,7 @@ import { HUMAN_ANATOMY_EXTRA_CORPUS } from './corpus/humanAnatomyExtra';
 import { COMMON_ACRONYMS_CORPUS } from './corpus/commonAcronyms';
 import { COMMON_ACRONYMS_2_CORPUS } from './corpus/commonAcronyms2';
 import { BASIC_SCIENCE_FACTS_CORPUS } from './corpus/basicScienceFacts';
+import { CORPUS_GAPS_1 } from './corpus/corpusGaps1';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
 import { COMMON_MIXUPS_CORPUS } from './corpus/commonMixups';
@@ -775,6 +776,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...COMMON_ACRONYMS_CORPUS,
   ...COMMON_ACRONYMS_2_CORPUS,
   ...BASIC_SCIENCE_FACTS_CORPUS,
+  ...CORPUS_GAPS_1,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
   ...COMMON_MIXUPS_CORPUS,
