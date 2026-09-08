@@ -142,6 +142,7 @@ import { FINANCE_MARKETS_GAPS } from './corpus/financeMarketsGaps';
 import { MATH_CONCEPTS_GAPS } from './corpus/mathConceptsGaps';
 import { GEOLOGY_DEEP_GAPS } from './corpus/geologyDeepGaps';
 import { RELIGIONS_DEEP_GAPS } from './corpus/religionsDeepGaps';
+import { AI_ML_CONCEPTS_GAPS } from './corpus/aiMlConceptsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -906,6 +907,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...MATH_CONCEPTS_GAPS,
   ...GEOLOGY_DEEP_GAPS,
   ...RELIGIONS_DEEP_GAPS,
+  ...AI_ML_CONCEPTS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
