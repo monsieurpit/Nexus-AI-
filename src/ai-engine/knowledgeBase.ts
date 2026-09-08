@@ -165,6 +165,7 @@ import { NORSE_MYTHOLOGY_GAPS } from './corpus/norseMythologyGaps';
 import { PHOTOGRAPHY_GAPS } from './corpus/photographyGaps';
 import { COOKING_CHEMISTRY_GAPS } from './corpus/cookingChemistryGaps';
 import { PERSONAL_FINANCE_DEEP_GAPS } from './corpus/personalFinanceDeepGaps';
+import { LOGIC_ARGUMENTATION_GAPS } from './corpus/logicArgumentationGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -952,6 +953,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...PHOTOGRAPHY_GAPS,
   ...COOKING_CHEMISTRY_GAPS,
   ...PERSONAL_FINANCE_DEEP_GAPS,
+  ...LOGIC_ARGUMENTATION_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
