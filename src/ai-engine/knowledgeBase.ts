@@ -195,6 +195,7 @@ import { JAPANESE_FOLKLORE_GAPS } from './corpus/japaneseFolkloreGaps';
 import { INVENTIONS_HISTORY_GAPS } from './corpus/inventionsHistoryGaps';
 import { BOARD_GAMES_GAPS } from './corpus/boardGamesGaps';
 import { KNOTS_GAPS } from './corpus/knotsGaps';
+import { TYPOGRAPHY_GAPS } from './corpus/typographyGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -1012,6 +1013,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...INVENTIONS_HISTORY_GAPS,
   ...BOARD_GAMES_GAPS,
   ...KNOTS_GAPS,
+  ...TYPOGRAPHY_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
