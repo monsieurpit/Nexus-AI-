@@ -82,6 +82,7 @@ import { SPORTS_RECORDS_GAPS } from './corpus/sportsRecordsGaps';
 import { CORPUS_GAPS_2 } from './corpus/corpusGaps2';
 import { BODY_QUESTIONS_GAPS } from './corpus/bodyQuestionsGaps';
 import { ANIMAL_FACTS_GAPS } from './corpus/animalFactsGaps';
+import { SPACE_FACTS_GAPS } from './corpus/spaceFactsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -786,6 +787,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...CORPUS_GAPS_2,
   ...BODY_QUESTIONS_GAPS,
   ...ANIMAL_FACTS_GAPS,
+  ...SPACE_FACTS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
