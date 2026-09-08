@@ -171,6 +171,7 @@ import { VACCINES_EPIDEMIOLOGY_GAPS } from './corpus/vaccinesEpidemiologyGaps';
 import { OPERATING_SYSTEMS_GAPS } from './corpus/operatingSystemsGaps';
 import { CRYPTOGRAPHY_GAPS } from './corpus/cryptographyGaps';
 import { MUSIC_PRODUCTION_GAPS } from './corpus/musicProductionGaps';
+import { STATISTICS_GAPS } from './corpus/statisticsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -964,6 +965,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...OPERATING_SYSTEMS_GAPS,
   ...CRYPTOGRAPHY_GAPS,
   ...MUSIC_PRODUCTION_GAPS,
+  ...STATISTICS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
