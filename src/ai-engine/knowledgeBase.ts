@@ -181,6 +181,7 @@ import { POLITICS_IR_GAPS } from './corpus/politicsIRGaps';
 import { NUTRITION_GAPS } from './corpus/nutritionGaps';
 import { OCEANOGRAPHY_DEEP_GAPS } from './corpus/oceanographyDeepGaps';
 import { SLEEP_CIRCADIAN_GAPS } from './corpus/sleepCircadianGaps';
+import { ENTOMOLOGY_GAPS } from './corpus/entomologyGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -984,6 +985,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...NUTRITION_GAPS,
   ...OCEANOGRAPHY_DEEP_GAPS,
   ...SLEEP_CIRCADIAN_GAPS,
+  ...ENTOMOLOGY_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
