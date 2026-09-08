@@ -184,6 +184,7 @@ import { SLEEP_CIRCADIAN_GAPS } from './corpus/sleepCircadianGaps';
 import { ENTOMOLOGY_GAPS } from './corpus/entomologyGaps';
 import { CRYPTOCURRENCY_GAPS } from './corpus/cryptocurrencyGaps';
 import { ORNITHOLOGY_GAPS } from './corpus/ornithologyGaps';
+import { EGYPTIAN_MYTHOLOGY_GAPS } from './corpus/egyptianMythologyGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -990,6 +991,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...ENTOMOLOGY_GAPS,
   ...CRYPTOCURRENCY_GAPS,
   ...ORNITHOLOGY_GAPS,
+  ...EGYPTIAN_MYTHOLOGY_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
