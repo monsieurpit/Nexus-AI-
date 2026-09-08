@@ -112,6 +112,7 @@ import { INVENTIONS_FACTS_GAPS } from './corpus/inventionsFactsGaps';
 import { OCEAN_FACTS_GAPS } from './corpus/oceanFactsGaps';
 import { SOLAR_SYSTEM_GAPS } from './corpus/solarSystemGaps';
 import { MISCONCEPTIONS_GAPS } from './corpus/misconceptionsGaps';
+import { ETYMOLOGY_GAPS } from './corpus/etymologyGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -846,6 +847,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...OCEAN_FACTS_GAPS,
   ...SOLAR_SYSTEM_GAPS,
   ...MISCONCEPTIONS_GAPS,
+  ...ETYMOLOGY_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
