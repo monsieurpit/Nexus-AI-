@@ -113,4 +113,20 @@ export const BASIC_SCIENCE_FACTS_CORPUS: KnowledgeItem[] = [
     content: `Ice floats because it's actually *less dense* than liquid water — an unusual property, since most substances become denser (and sink relative to their own liquid form) when they freeze solid. This happens because of the specific shape of the water molecule (H2O) and hydrogen bonding: when water freezes, its molecules arrange into a rigid, open hexagonal crystal lattice structure that actually takes up more space than the same molecules do when jostling around more tightly and randomly as a liquid. This roughly 9% expansion in volume when freezing is why ice takes up more room than the water it came from (and why a sealed glass bottle of water can crack in the freezer, or why frozen pipes burst). This property is actually crucial for life on Earth: because ice floats and forms an insulating layer on top of lakes and oceans in cold weather, rather than sinking to the bottom, the water underneath stays liquid and insulated, allowing aquatic life to survive winter — if ice sank instead, bodies of water would freeze from the bottom up, likely killing most life within them.`,
     createdAt: Date.now(),
   },
+  {
+    id: 'kb-sci-element-symbols-constants',
+    title: 'Common Element Symbols and Chemistry Constants',
+    category: 'chemistry',
+    keywords: [
+      'chemical symbol for gold', 'symbol for gold', 'chemical symbol', 'element symbol', 'symbol for iron',
+      'symbol for silver', 'symbol for sodium', 'symbol for potassium', 'symbol for lead', 'symbol for tin',
+      'symbol for oxygen', 'symbol for hydrogen', 'symbol for carbon', 'symbol for helium', 'symbol for nitrogen',
+      "avogadro's number", 'avogadro number', 'avogadros number', 'how many atoms in a mole', 'what is a mole chemistry',
+      'atomic mass unit', 'molar mass', "planck's constant", 'speed of light value', 'elementary charge',
+    ],
+    content: `Common chemical element symbols: Gold is Au (from Latin "aurum"). Silver is Ag ("argentum"). Iron is Fe ("ferrum"). Lead is Pb ("plumbum"). Tin is Sn ("stannum"). Sodium is Na ("natrium"). Potassium is K ("kalium"). Mercury is Hg ("hydrargyrum"). Copper is Cu ("cuprum"). Tungsten is W ("wolfram"). Antimony is Sb ("stibium"). Hydrogen is H, Helium is He, Carbon is C, Nitrogen is N, Oxygen is O, Fluorine is F, Neon is Ne, Magnesium is Mg, Aluminium is Al, Silicon is Si, Phosphorus is P, Sulfur is S, Chlorine is Cl, Calcium is Ca, Zinc is Zn, Uranium is U. Symbols are one or two letters, first letter always capitalised.
+
+Key chemistry constants: Avogadro's number (the Avogadro constant) is approximately 6.022 × 10^23 — it is the number of elementary particles (atoms, molecules, ions) in one mole of a substance. So one mole of any substance contains about 6.022 × 10^23 units of it, and one mole of a substance weighs its atomic/molecular mass in grams (e.g. one mole of carbon-12 is exactly 12 grams). The speed of light in a vacuum is exactly 299,792,458 metres per second. The elementary charge (charge of a proton) is about 1.602 × 10^-19 coulombs. Planck's constant is about 6.626 × 10^-34 joule-seconds.`,
+    createdAt: Date.now(),
+  },
 ];

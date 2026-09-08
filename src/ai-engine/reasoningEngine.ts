@@ -6134,11 +6134,10 @@ export function synthesiseWebSearchResults(
   // on every response — the Discord bot uses that to build its own embed. Repeating it inline as
   // plain-text markdown links just duplicated what Discord already shows in the embed.
 
-  // Suggest a follow-up — kept, since it's dynamic per-topic content rather than a repeated
-  // template line, unlike the intro/punchline that used to bookend this response.
-  const followUpQueries = `*Want to know more about **${top[0]?.title.slice(0, 40) || query}**? Just ask!*`;
-
-  return intro ? `${intro}\n${body}\n\n${followUpQueries}` : `${body}\n\n${followUpQueries}`;
+  // The "*Want to know more about X? Just ask!*" footer read as a canned chatbot line and, on a
+  // web-search miss, it also stamped a wrong article title ("Chemical symbol" for a "symbol for
+  // gold" query) as if it were the topic. Dropped — the answer stands on its own.
+  return intro ? `${intro}\n${body}` : body;
 }
 
 function synthesiseStandard(
