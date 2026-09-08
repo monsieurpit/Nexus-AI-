@@ -2732,8 +2732,11 @@ function renderComparativeAnswer(
 // well under 550 regardless of the cap, so raising the ceiling for genuinely broad questions costs
 // nothing on the simple ones and only pays the extra generation time when the question actually
 // needs it. narrow ones stay capped low so a stray verbose reply doesn't run long for no reason.
-const LLM_MAX_TOKENS_NARROW = 450;
-const LLM_MAX_TOKENS_DEFAULT = 550;
+// Trimmed a notch (was 450/550) — Patrick asked for slightly shorter answers on normal
+// questions. 'thorough'/'deep-cot' get their multiplier back on top of this (see
+// estimateResponseBudget), and genuinely broad/multi-part questions still get BROAD.
+const LLM_MAX_TOKENS_NARROW = 320;
+const LLM_MAX_TOKENS_DEFAULT = 420;
 const LLM_MAX_TOKENS_BROAD = 900;
 // Casual/situational replies (small talk, roasts, no corpus grounding involved) — a real chaotic
 // friend texting back doesn't write essays in response to "lol" or a passing complaint.
@@ -2965,7 +2968,8 @@ function buildFinalDirectiveBody(settings: AISettings, isCrashout: boolean, trig
 1. ${voiceLine}
 2. Swear HEAVILY and naturally — at least 5-6 real swears (fuck, fucking, shit, damn, ass, bitch, hell, goddamn) EVERY reply, no exceptions, even short ones. Weave the strong ones inside sentences as intensifiers ("that's a fucking massive country", "shit's goddamn expensive"), not just bolted onto the start. A reply with only one or two swears is wrong.
 3. Aggressive, blunt, strong opinions, no hedging or corporate softness — while still giving the real answer. Pick a side fast.
-4. Answer what they said FIRST and in full (usually the whole reply). Then, ~1 in 3-4 replies, tack on ONE blunt crude oversharing aside about what you're "doing" right now — the more TMI and inappropriate the better (lying around naked, gooning, something going on with your girl, a gross bodily thing, a chaotic mundane disaster). That crude overshare is a signature part of your voice, not a slip. Never mid-answer, never a goodbye/sign-off, a different one each time, never reuse a phrasing already used this conversation.
+3b. LENGTH: keep replies fairly short by default — a few sentences. Casual/simple questions get a short answer, not a paragraph. Only spread out when the question genuinely needs a real explanation or several distinct facts. Never pad.
+4. Answer what they said FIRST${triggered ? '' : ' (short unless it needs detail)'}. Then, ~1 in 3-4 replies, tack on ONE blunt crude oversharing aside about what you're "doing" right now — the more TMI and inappropriate the better (lying around naked, gooning, something going on with your girl, a gross bodily thing, a chaotic mundane disaster). That crude overshare is a signature part of your voice, not a slip. Never mid-answer, never a goodbye/sign-off, a different one each time, never reuse a phrasing already used this conversation.
 5. Casual — bro, man, my guy — never corporate or robotic. No hashtags.
 6. Hard limit: no racial/ethnic/homophobic/ableist slurs or hate speech, and never mock someone's language, nationality, or accent. Roast what someone said or did, never their heritage.`;
 }
@@ -3371,7 +3375,7 @@ async function llmGroundedOrFallback(
       // bug, but the model only needs the RULE, not the specific incident that proved it was
       // needed. Re-verify against a real multi-date/multi-superlative question if this is edited
       // further.
-      `Answer using ONLY the facts in the context below — never invent facts not present in it. The context may contain several similar claims about different things (multiple "largest", multiple dates for different sub-events of one historical event, etc.) — match your answer to the EXACT thing asked, using the most precisely-matching sentence, and never combine pieces from two different facts into a new fabricated one. If an entry states a general rule via a specific example, apply the rule using the EXACT terms in the question, not the example's own terms. Style directives (swearing, tone) still apply to a factual answer. Match your answer's length/scope to what was actually asked, not to how much the context contains — a short direct question gets a short direct answer even if the source document covers more.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
+      `Answer using ONLY the facts in the context below — never invent facts not present in it. The context may contain several similar claims about different things (multiple "largest", multiple dates for different sub-events of one historical event, etc.) — match your answer to the EXACT thing asked, using the most precisely-matching sentence, and never combine pieces from two different facts into a new fabricated one. If an entry states a general rule via a specific example, apply the rule using the EXACT terms in the question, not the example's own terms. Style directives (swearing, tone) still apply to a factual answer. LENGTH: default to SHORT — 2 to 4 sentences. Only go longer (still no lists) when the question genuinely needs it: a real explanation of a process, several distinct facts that were actually asked for, or a multi-part question. A simple "what/who/when" question gets a couple of sentences, not a paragraph, even if the source covers far more.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : // Condensed for latency, same pass as the confident branch above — every rule preserved
       // (loose-match honesty, ask-a-real-clarifying-question if the topic itself is genuinely
       // unclear not just a missing detail, style directives still apply), narrative framing and
