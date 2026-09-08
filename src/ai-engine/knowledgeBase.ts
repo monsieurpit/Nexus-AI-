@@ -131,6 +131,7 @@ import { GENETICS_GAPS } from './corpus/geneticsGaps';
 import { EXPLORERS_GAPS } from './corpus/explorersGaps';
 import { ECONOMICS_CONCEPTS_GAPS } from './corpus/economicsConceptsGaps';
 import { CLASSIC_LITERATURE_GAPS } from './corpus/classicLiteratureGaps';
+import { ENGLISH_GRAMMAR_GAPS } from './corpus/englishGrammarGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -884,6 +885,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...EXPLORERS_GAPS,
   ...ECONOMICS_CONCEPTS_GAPS,
   ...CLASSIC_LITERATURE_GAPS,
+  ...ENGLISH_GRAMMAR_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
