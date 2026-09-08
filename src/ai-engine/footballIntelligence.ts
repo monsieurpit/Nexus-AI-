@@ -766,17 +766,17 @@ VAR can only intervene in 4 match-changing situations (under the **"Clear and Ob
       confidence: 0.99,
       response: `The **Ballon d'Or** (created by *France Football* in 1956) is the most prestigious individual award in global football.
 
-### 🆕 Most Recent Winner (2025): Ousmane Dembélé
-Dembélé won the **2025 Ballon d'Or**, the driving attacking force behind Paris Saint-Germain's historic treble (Ligue 1, Coupe de France, and their first-ever Champions League title — a 5-0 demolition of Inter Milan in the Munich final). After years of being written off as an injury-prone talent who never fully delivered on his early Barcelona/Dortmund hype, his 2024-25 season under Luis Enrique — repositioned as a false-9 focal point of PSG's pressing system — finally translated raw ability into a genuine Ballon d'Or-winning campaign. *(Note: as an offline knowledge base, this is the most recent winner I have solid detail on — worth double-checking if a newer one has since been awarded.)*
-
-### 🏅 Top All-Time Winners:
-- 🇦🇷 **Lionel Messi**: 8 (2009, 2010, 2011, 2012, 2015, 2019, 2021, 2023)
-- 🇵🇹 **Cristiano Ronaldo**: 5 (2008, 2013, 2014, 2016, 2017)
+### 🏅 Who has won the MOST Ballon d'Or — All-Time Winners:
+- 🇦🇷 **Lionel Messi**: **8** — the record (2009, 2010, 2011, 2012, 2015, 2019, 2021, 2023). Messi has won the most Ballon d'Or of any player.
+- 🇵🇹 **Cristiano Ronaldo**: 5 (2008, 2013, 2014, 2016, 2017) — second-most.
 - 🇫🇷 **Michel Platini**: 3 (1983, 1984, 1985)
 - 🇳🇱 **Johan Cruyff**: 3 (1971, 1973, 1974)
 - 🇳🇱 **Marco van Basten**: 3 (1988, 1989, 1992)
 - 🇧🇷 **Ronaldo Nazário (R9)**: 2 (1997, 2002)
 - 🇩🇪 **Franz Beckenbauer**: 2 (1972, 1976 - one of only 3 defenders to ever win it, alongside Sammer and Cannavaro).
+
+### 🆕 Recent Winners
+Rodri won the 2024 Ballon d'Or (Manchester City & Spain midfielder). Ousmane Dembélé is reported as the 2025 winner (driving PSG's first Champions League title). *(Offline knowledge base — a newer winner may exist; the all-time record above is what's stable.)*
 
 ### 🔥 The Most Heated Ballon d'Or Controversies in History:
 1. **2020 (The Robert Lewandowski Robbery)**:
@@ -1307,9 +1307,18 @@ Note: as an offline knowledge base, treat anything beyond this as the most recen
       confidence: 0.98,
       response: `The UEFA European Championship (Euros) has produced some of international football's most stunning underdog stories.
 
+### 🗓️ Winners by year (recent):
+- **Euro 2024**: 🇪🇸 Spain (beat England 2–1 in Berlin).
+- **Euro 2020** (played in 2021): 🇮🇹 Italy (beat England on penalties at Wembley). NOT Spain, NOT Portugal.
+- **Euro 2016**: 🇵🇹 Portugal (beat host France 1–0 AET; Ronaldo injured early in the final).
+- **Euro 2012**: 🇪🇸 Spain (beat Italy 4–0).
+- **Euro 2008**: 🇪🇸 Spain.
+- **Euro 2004**: 🇬🇷 Greece (150-1 outsiders — the biggest upset in international football history).
+
 ### 🏆 All-Time Winners:
-- 🇩🇪 **Germany & 🇪🇸 Spain (3 titles each)**: The most successful nations in Euro history.
-- 🇫🇷 **France (2 titles)**, 🇮🇹 **Italy (2 titles)**.
+- 🇪🇸 **Spain** has won the most, with **4** (1964, 2008, 2012, 2024).
+- 🇩🇪 **Germany/West Germany (3)**.
+- 🇫🇷 **France (2)**, 🇮🇹 **Italy (2)**.
 
 ### 🇩🇰 Denmark 1992: The Greatest Underdog Story in Euro History
 - Denmark didn't even qualify for the tournament — they were called up as a **late replacement for war-torn Yugoslavia just 10 days before the tournament started**, players literally coming back from vacation, and somehow went on to beat reigning World Champions Germany 2-0 in the final.
