@@ -126,6 +126,7 @@ import { MEDICATIONS_GAPS } from './corpus/medicationsGaps';
 import { PHILOSOPHY_GAPS } from './corpus/philosophyGaps';
 import { EVERYDAY_CHEMISTRY_GAPS } from './corpus/everydayChemistryGaps';
 import { EVERYDAY_PHYSICS_GAPS } from './corpus/everydayPhysicsGaps';
+import { MUSIC_INSTRUMENTS_GAPS } from './corpus/musicInstrumentsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -874,6 +875,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...PHILOSOPHY_GAPS,
   ...EVERYDAY_CHEMISTRY_GAPS,
   ...EVERYDAY_PHYSICS_GAPS,
+  ...MUSIC_INSTRUMENTS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
