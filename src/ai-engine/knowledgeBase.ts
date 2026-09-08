@@ -115,6 +115,7 @@ import { MISCONCEPTIONS_GAPS } from './corpus/misconceptionsGaps';
 import { ETYMOLOGY_GAPS } from './corpus/etymologyGaps';
 import { ANCIENT_ROME_GAPS } from './corpus/ancientRomeGaps';
 import { MONEY_BANKING_GAPS } from './corpus/moneyBankingGaps';
+import { CELL_BIOLOGY_GAPS } from './corpus/cellBiologyGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -852,6 +853,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...ETYMOLOGY_GAPS,
   ...ANCIENT_ROME_GAPS,
   ...MONEY_BANKING_GAPS,
+  ...CELL_BIOLOGY_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
