@@ -8,11 +8,12 @@ export const SPORTS_RECORDS_GAPS: KnowledgeItem[] = [
     title: "Ballon d'Or: Who Has Won the Most",
     category: 'Football',
     keywords: [
-      "who has won the most ballon d'or", "most ballon d'or", "who has the most ballon d'or",
-      "record ballon d'or", "how many ballon d'or does messi have", "how many ballon d'or does ronaldo have",
-      "ballon d'or winners", "ballon d'or record",
+      "who has won the most ballon d'or", 'who has won the most ballon dor', 'most ballon dor',
+      'who has the most ballon dor', 'ballon dor record', 'ballondor', 'balon dor', 'ballon dor winner',
+      'how many ballon dor does messi have', 'how many ballon dor does ronaldo have', 'golden ball award',
+      "most ballon d'or", "who has the most ballon d'or", 'record ballon dor', 'ballon dor winners',
     ],
-    content: `Lionel Messi has won the most Ballon d'Or awards, with 8 (2009, 2010, 2011, 2012, 2015, 2019, 2021, 2023) — more than anyone in the award's history. Cristiano Ronaldo is second with 5 (2008, 2013, 2014, 2016, 2017). No other player has won more than 3. Among women, Aitana Bonmatí has won the Ballon d'Or Féminin multiple times in the 2020s. The Ballon d'Or is awarded annually by France Football to the best footballer of the year.`,
+    content: `Lionel Messi has won the most Ballon d'Or (Ballon dOr / golden ball) awards, with 8: 2009, 2010, 2011, 2012, 2015, 2019, 2021, and 2023. That is more than any player in the award's history. Cristiano Ronaldo is second with 5 (2008, 2013, 2014, 2016, 2017). No one else has won more than 3 (Michel Platini, Johan Cruyff and Marco van Basten each won 3). The Ballon d'Or is awarded every year by France Football magazine to the best footballer of the year. Recent winners include Rodri (2024) and Karim Benzema (2022).`,
     createdAt: Date.now(),
   },
   {
@@ -34,7 +35,7 @@ export const SPORTS_RECORDS_GAPS: KnowledgeItem[] = [
       'who won euro 2020', 'who won euro 2024', 'who won euro 2016', 'who won euro 2012', 'who won euro 2008',
       'european championship winners', 'euros winner', 'who won the euros',
     ],
-    content: `UEFA European Championship winners: Euro 2024 — Spain (beat England 2–1 in the final). Euro 2020 (played in 2021 due to the pandemic) — Italy, who beat England on penalties at Wembley. Euro 2016 — Portugal, who beat host France 1–0 after extra time (Cristiano Ronaldo went off injured early in the final). Euro 2012 — Spain (beat Italy 4–0). Euro 2008 — Spain. Euro 2004 — Greece (a huge upset, beating host Portugal). Germany and Spain have won the most Euros, with 3 each (Spain: 1964, 2008, 2012 — and also 2024, making 4; Germany/West Germany: 1972, 1980, 1996).`,
+    content: `Euro 2020 was won by ITALY. (The tournament was played in the summer of 2021 because of the COVID pandemic but kept the name "Euro 2020". Italy beat England on penalties in the final at Wembley in London.) Euro 2016 was won by Portugal (Cristiano Ronaldo's team, beating host France 1–0 after extra time). Euro 2024 was won by Spain (beat England 2–1). Euro 2012 — Spain. Euro 2008 — Spain. Euro 2004 — Greece (a shock, beating host Portugal). So: Euro 2020 = Italy, Euro 2016 = Portugal, Euro 2024 = Spain. Spain has won the most European Championships (4: 1964, 2008, 2012, 2024), with Germany next (3).`,
     createdAt: Date.now(),
   },
   {
