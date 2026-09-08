@@ -189,6 +189,7 @@ import { HERPETOLOGY_GAPS } from './corpus/herpetologyGaps';
 import { HUMAN_REPRODUCTION_GAPS } from './corpus/humanReproductionGaps';
 import { COLOR_THEORY_GAPS } from './corpus/colorTheoryGaps';
 import { CELTIC_MYTHOLOGY_GAPS } from './corpus/celticMythologyGaps';
+import { DESIGN_PATTERNS_GAPS } from './corpus/designPatternsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -1000,6 +1001,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...HUMAN_REPRODUCTION_GAPS,
   ...COLOR_THEORY_GAPS,
   ...CELTIC_MYTHOLOGY_GAPS,
+  ...DESIGN_PATTERNS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
