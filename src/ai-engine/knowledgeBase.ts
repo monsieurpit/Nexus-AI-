@@ -163,6 +163,7 @@ import { ENDOCRINE_SYSTEM_GAPS } from './corpus/endocrineSystemGaps';
 import { CS_ALGORITHMS_GAPS } from './corpus/csAlgorithmsGaps';
 import { NORSE_MYTHOLOGY_GAPS } from './corpus/norseMythologyGaps';
 import { PHOTOGRAPHY_GAPS } from './corpus/photographyGaps';
+import { COOKING_CHEMISTRY_GAPS } from './corpus/cookingChemistryGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -948,6 +949,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...CS_ALGORITHMS_GAPS,
   ...NORSE_MYTHOLOGY_GAPS,
   ...PHOTOGRAPHY_GAPS,
+  ...COOKING_CHEMISTRY_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
