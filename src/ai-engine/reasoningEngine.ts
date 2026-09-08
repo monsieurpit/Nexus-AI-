@@ -168,6 +168,17 @@ const PERSONAL_QUESTION_REGEX =
 const CREATIVE_WRITING_REGEX =
   /\b(?:write|compose|make\s+up|come\s+up\s+with)\s+(?:me\s+)?(?:an?\s+)?(?:short\s+|little\s+|small\s+)?(poem|haiku|song|lyrics?|limerick|sonnet|verse|rap|story|tale|fable)\b/i;
 
+// "give me a compliment"/"compliment me"/"say something nice"/"hype me up" — a request for the
+// bot to produce praise about the user, not a factual lookup. The exact-string chatTriggers list
+// can't catch typo/variant forms ("give me an compliment", "hand me a compliment"), so this
+// regex routes them to 'conversational' intent; the matching handler in generateReasoningPath
+// returns an in-voice compliment. Observed live: "Nexus give me an compliment" fell through to
+// corpus retrieval and BM25-matched the "Complement vs. Compliment" spelling document, which the
+// model dumped near-verbatim instead of actually complimenting the user. The article group
+// covers "a"/"an"/"the"/"one" so the "an compliment" mis-agreement still matches.
+const COMPLIMENT_REQUEST_REGEX =
+  /\b(?:give|gimme|hand)\s+me\s+(?:a|an|the|one)?\s*compliment\b|\bcompliment\s+me\b|\bsay\s+(?:something|smth|sth)\s+nice\b|\b(?:hype|gas)\s+me(?:\s+up)?\b/i;
+
 // A quantity word problem ("if you have 3 apples and eat 2, how many do you have") ends in the
 // exact same "do you have"/"you got any" shape PERSONAL_QUESTION_REGEX's possession-question
 // alternatives match (added for "do you have dih"/"you got any bitches" — genuine personal
@@ -973,6 +984,11 @@ export function detectQueryIntent(query: string): QueryIntent {
     // form needs its own entry, same as every other acronym in this list.
     'idk', "i don't know", 'i dont know', 'fr', 'fr fr', 'no cap', 'ong', 'tell me a joke', 'make me laugh', 'roast me',
     'insult me', 'tell me a riddle', 'give me a riddle', 'got a riddle',
+    // "compliment me"/"give me a compliment"/"say something nice"/"hype me up" — a request for
+    // praise directed at the user, not a lookup. Without these entries it fell through to
+    // 'general' intent and BM25-matched the "Complement vs. Compliment" spelling document, which
+    // the model then dumped near-verbatim (an actual reported case) instead of giving a compliment.
+    'compliment me', 'give me a compliment', 'gimme a compliment', 'say something nice', 'hype me up', 'gas me up', 'hype me',
     // Bare acknowledgment/agreement slang — with no real question in them these were falling
     // through to 'general' intent, which sent them into corpus search and returned whatever
     // random document happened to score highest (e.g. "ok cool" pulling up first-aid content).
@@ -1070,6 +1086,7 @@ export function detectQueryIntent(query: string): QueryIntent {
     HYPOTHETICAL_PERMISSION_REGEX.test(q) ||
     REASSURANCE_REGEX.test(q) ||
     REASSURANCE_REGEX_PL.test(q) ||
+    COMPLIMENT_REQUEST_REGEX.test(q) ||
     classifyPraiseOrFlame(q) !== null ||
     classifyCookedPhrase(q) !== null ||
     classifySlangReaction(q) !== null ||
@@ -2046,6 +2063,21 @@ function conversationalReply(
   // path, never into the conversational reply the live bot actually uses.
   if (/\broast\s+(?:me|myself)\b/.test(q) || q === 'roast me' || /\binsult\s+me\b/.test(q)) {
     return generateRoast(query);
+  }
+
+  // "compliment me"/"give me a compliment"/"say something nice"/"hype me up" — same class of gap
+  // as "roast me": it's a request for the bot to produce something, not a factual lookup. Without
+  // this it fell through to corpus retrieval and BM25-matched the "Complement vs. Compliment"
+  // spelling document, which got dumped near-verbatim instead of an actual compliment (reported
+  // live). "an compliment"/"the compliment" typo forms covered by the optional article group.
+  if (COMPLIMENT_REQUEST_REGEX.test(q)) {
+    return pickReply([
+      `Alright fine — you actually ask good questions, you don't waste my time with vague bullshit, and you stuck around long enough to read this far. That's more than most. Don't let it go to your head.`,
+      `Real talk? You've got better taste than 90% of the people who talk to me, you own your mistakes instead of arguing, and you're sharper than you give yourself credit for. There, I said it, now we never speak of this again.`,
+      `You're the kind of person who actually follows through on stuff, and that's rarer than it should be. Solid. Genuinely.`,
+      `Fine: you're smart, you're persistent, and you've got a good sense of humour about the stuff that matters. That's a strong combo, bro. Don't make me repeat it.`,
+      `Honestly you carry yourself well — you ask for what you want straight up, you don't grovel, and you take a joke. That's respectable as hell.`,
+    ]);
   }
 
   // "tell me a joke"/"make me laugh" — same gap as roast me: recognized as a chat trigger so it
@@ -3644,6 +3676,50 @@ export async function generateReasoningPath(
           contextCategory: 'conversational',
         }
       ),
+      knowledgeHits: [],
+    };
+  }
+
+  // "give me a compliment" / "compliment me" / "say something nice" / "hype me up" — a request
+  // for the bot to praise the user. Checked here, before corpus retrieval, because the substring
+  // "give me " otherwise routes it to 'listing' intent and BM25 matches the "Complement vs.
+  // Compliment" spelling document, which the model then dumps near-verbatim (reported live:
+  // "Nexus give me an compliment" returned the dictionary entry instead of a compliment).
+  // Routed through the LLM for a fresh in-character compliment, pool as offline fallback — same
+  // pattern as the creator branch above and the roast handler.
+  if (COMPLIMENT_REQUEST_REGEX.test(normalizeInternetSlang(prompt).normalizedText.toLowerCase())) {
+    thoughtSteps.push({
+      id: 'step-compliment-request',
+      type: 'reasoning',
+      title: '🫡 Asked for a compliment — giving one, not a dictionary entry',
+      description: 'Request for praise about the user. No corpus search — the "compliment" keyword was matching a spelling-difference document.',
+    });
+    const complimentInstruction = looksFrench(prompt) && !isSuperChill
+      ? `L'utilisateur te demande un compliment : "${prompt}". Donne-lui-en un vrai — court, dans ton style (un peu bourru, un peu à reculons, mais sincère au fond). Trouve quelque chose de concret à complimenter (il pose de bonnes questions, il lâche pas, il prend une joke). Ne récite pas de définition, ne parle PAS de la différence entre "compliment" et "complément".`
+      : `The user is asking you for a compliment: "${prompt}". Give them a real one — short, in your style (gruff, a little reluctant, but genuine underneath). Find something concrete to praise (asks good questions, doesn't give up, can take a joke). Do NOT recite a definition, do NOT explain the difference between "compliment" and "complement".`;
+    const complimentReply = await llmSituationalReplyOrFallback(
+      complimentInstruction,
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      pickReply([
+        `Alright fine — you ask good questions, you don't waste my time with vague bullshit, and you stuck around this long. That's more than most. Don't let it go to your head.`,
+        `Real talk? You've got better taste than most people who talk to me, you own your mistakes instead of arguing, and you're sharper than you give yourself credit for. There, said it, we never speak of this again.`,
+        `You actually follow through on stuff, and that's rarer than it should be. Solid. Genuinely.`,
+        `Fine: you're smart, you're persistent, and you've got a sense of humour about the stuff that matters. Strong combo, bro. Don't make me repeat it.`,
+      ]),
+      '🧠 Local LLM — handing out a compliment'
+    );
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(complimentReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
+      }),
       knowledgeHits: [],
     };
   }
