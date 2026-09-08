@@ -8,3 +8,4 @@ coverage/
 !.env.example
 /data/apiKeys.json
 .claude/worktrees/
+CORPUS_NIGHT_LOG.md

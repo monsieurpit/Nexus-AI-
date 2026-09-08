@@ -5,7 +5,7 @@ export const BASIC_BODY_REFERENCE_FACTS_CORPUS: KnowledgeItem[] = [
     id: 'kb-body-bone-count',
     title: 'How Many Bones Are in the Human Body?',
     category: 'human-biology',
-    keywords: ['how many bones in the human body', 'human bone count', 'how many bones in a hand', 'how many bones in the skull', 'babies bones vs adults'],
+    keywords: ['how many bones in the human body', 'human bone count', 'how many bones in a hand', 'how many bones in the skull', 'babies bones vs adults', 'how many bones does a baby have', 'how many bones is a baby born with', 'how many bones are in a newborn'],
     content: `An adult human body has **206 bones**. Interestingly, babies are actually born with more — around **270 bones** — many of which are made of soft, flexible cartilage rather than hard bone at birth. As a baby grows, many of these separate bones and cartilage pieces gradually fuse together into single, larger bones by adulthood (for example, the skull starts as several separate plates connected by soft, flexible joints called fontanelles or "soft spots," which close and fuse over the first couple of years of life; parts of the spine and pelvis fuse similarly over childhood and adolescence). Distribution in an adult: the hands alone contain 27 bones each (54 total for both hands, roughly a quarter of all bones in the body), the feet contain 26 bones each, and the skull has 22 bones (8 cranial + 14 facial). The smallest bone in the human body is the stapes, located in the middle ear, roughly the size of a grain of rice — the largest is the femur (thigh bone).`,
     createdAt: Date.now(),
   },
