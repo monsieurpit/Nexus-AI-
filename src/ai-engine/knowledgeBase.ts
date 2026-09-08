@@ -122,6 +122,7 @@ import { QUANTUM_PHYSICS_GAPS } from './corpus/quantumPhysicsGaps';
 import { MODERN_HISTORY_GAPS } from './corpus/modernHistoryGaps';
 import { COSMOLOGY_FACTS_GAPS } from './corpus/cosmologyFactsGaps';
 import { WORLD_WAR_2_GAPS } from './corpus/worldWar2Gaps';
+import { MEDICATIONS_GAPS } from './corpus/medicationsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -866,6 +867,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...MODERN_HISTORY_GAPS,
   ...COSMOLOGY_FACTS_GAPS,
   ...WORLD_WAR_2_GAPS,
+  ...MEDICATIONS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
