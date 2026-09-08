@@ -146,6 +146,7 @@ import { AI_ML_CONCEPTS_GAPS } from './corpus/aiMlConceptsGaps';
 import { GREEK_MYTHOLOGY_GAPS } from './corpus/greekMythologyGaps';
 import { INTERNET_INFRA_GAPS } from './corpus/internetInfraGaps';
 import { US_HISTORY_GAPS } from './corpus/usHistoryGaps';
+import { NEUROSCIENCE_GAPS } from './corpus/neuroscienceGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -914,6 +915,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...GREEK_MYTHOLOGY_GAPS,
   ...INTERNET_INFRA_GAPS,
   ...US_HISTORY_GAPS,
+  ...NEUROSCIENCE_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
