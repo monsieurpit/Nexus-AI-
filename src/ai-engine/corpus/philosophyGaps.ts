@@ -118,4 +118,77 @@ export const PHILOSOPHY_GAPS: KnowledgeItem[] = [
     content: `Existentialism is a mostly 19th–20th-century movement holding that there is no pre-given human nature, essence or cosmic purpose that tells you how to live — "existence precedes essence" (Sartre): you exist first, and then, through your choices and actions, you make yourself who you are. Its central claims and moods: radical FREEDOM and responsibility — you're "condemned to be free," fully responsible for what you become, with no excuses ("bad faith" is lying to yourself that you had no choice); ANGST/anguish at that freedom; the search for AUTHENTICITY, living by your own chosen values rather than the herd's or society's roles; and confronting death, meaninglessness and the "absurd" without flinching. Forerunners: Søren Kierkegaard (the individual's leap of faith) and Friedrich Nietzsche. Key figures: Jean-Paul Sartre, Simone de Beauvoir (who applied it to women's situation in "The Second Sex"), Martin Heidegger, Karl Jaspers, and, loosely, Albert Camus — though Camus rejected the label and is usually classed with "absurdism," the closely related idea that we crave meaning in a universe that offers none.`,
     createdAt: Date.now(),
   },
+  // --- Batch 110 additions ---
+  {
+    id: 'kb-gap-necessary-vs-sufficient-condition',
+    title: 'Necessary vs Sufficient Condition',
+    category: 'Philosophy',
+    keywords: [
+      'what is a necessary versus a sufficient condition', 'necessary condition must be present for something to be the case but might not be enough on its own oxygen for fire',
+      'sufficient condition if present guarantees the thing but might not be the only way being a dog is sufficient for being a mammal', 'p is necessary for q means if q then p p is sufficient for q means if p then q',
+      'necessary and sufficient means if and only if biconditional',
+    ],
+    content: `A NECESSARY condition for something is one that must hold for that thing to be true or to happen — without it, the thing is impossible — but its presence alone may not be enough. Oxygen is necessary for fire; being at least 35 years old is necessary to be US President; having a ticket is necessary to board the plane. A SUFFICIENT condition is one whose presence guarantees the thing, though it may not be the only route to it. Being a dog is sufficient for being a mammal; scoring 100% is sufficient for passing the exam. In terms of conditionals: "P is necessary for Q" means "if Q then P" (Q can't be true without P); "P is sufficient for Q" means "if P then Q" (P brings Q with it). A condition can be one, the other, both, or neither. When it is both necessary and sufficient, the two things are equivalent — "P if and only if Q" — as in "a triangle is equilateral if and only if all three angles are equal."`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-gap-category-error',
+    title: 'What a Category Error (Category Mistake) Is',
+    category: 'Philosophy',
+    keywords: [
+      'what is a category error', 'category mistake attributing to something a property it cannot possibly have because it belongs to the wrong logical category', 'gilbert ryle the concept of mind',
+      'the number seven is green what does justice smell like', 'ryle university example shown the colleges and libraries then asking where is the university', 'ryle used it against cartesian dualism ghost in the machine',
+      'category error is not a statistics concept',
+    ],
+    content: `A category error (or category mistake) is treating something as if it belonged to a logical category it does not belong to — asking of it a question, or ascribing to it a property, that simply cannot apply. "The number seven is green," "what does the colour blue weigh," and "what does justice smell like" are category errors: numbers aren't the sort of thing that has a colour, colours aren't the sort of thing that has weight. The term was made famous by the British philosopher Gilbert Ryle in The Concept of Mind (1949). His illustration: a visitor is shown all the colleges, libraries, laboratories and offices of Oxford, then asks, "But where is the University?" — mistakenly expecting the University to be one more building of the same kind, when in fact it is the organised whole those things constitute. Ryle used the idea to attack Descartes' mind-body dualism (which he mocked as "the ghost in the machine"): he argued that talking about "the mind" as a second, non-physical thing existing alongside the body is itself a category mistake, because mental terms describe patterns and dispositions of behaviour, not the workings of a hidden inner substance. (This is a concept in logic and philosophy of language, not a statistical concept.)`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-gap-deductive-vs-inductive-reasoning',
+    title: 'Deductive vs Inductive Reasoning',
+    category: 'Philosophy',
+    keywords: [
+      'what is the difference between deductive and inductive reasoning', 'deductive reasoning from general premises to a conclusion that must be true if the premises are truth preserving certainty math proofs syllogisms valid or invalid',
+      'inductive reasoning from specific observations to a general or probabilistic conclusion likely but not guaranteed scientific generalisation strong or weak', 'abductive reasoning inference to the best explanation',
+      'the sun has risen every day so it will rise tomorrow is inductive', 'all men are mortal socrates is a man therefore socrates is mortal is deductive',
+    ],
+    content: `DEDUCTIVE reasoning moves from premises to a conclusion that is guaranteed if the premises are true — the conclusion contains no more than what the premises already imply, so it is "truth-preserving." "All men are mortal; Socrates is a man; therefore Socrates is mortal" is deductive: if the premises hold, the conclusion cannot be false. Mathematics and formal logic run on it. Deductive arguments are judged as valid or invalid (does the conclusion follow?), and a valid argument with true premises is called sound. INDUCTIVE reasoning moves from specific observations to a broader generalisation or prediction that is probable but not certain — the conclusion goes beyond the evidence. "Every swan I've seen is white, so all swans are white" and "the sun has risen every day so far, so it will rise tomorrow" are inductive; more evidence raises confidence but never gives proof (as the discovery of black swans showed). Inductive arguments are judged as strong or weak rather than valid or invalid. Most scientific reasoning is inductive. A third mode, ABDUCTIVE reasoning, is "inference to the best explanation" — picking the hypothesis that would, if true, best account for the observations (how a detective or a diagnosing doctor works).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-gap-ethics-vs-morality',
+    title: 'Ethics vs Morality',
+    category: 'Philosophy',
+    keywords: [
+      'what is the difference between ethics and morality', 'often used interchangeably when distinguished morality is the actual norms and beliefs about right and wrong held by a person or society first order practice',
+      'ethics is the systematic philosophical study and justification of morality second order reflection metaethics normative ethics applied ethics', 'ethics also used for professional codes medical ethics legal ethics',
+      'morality is the practice ethics is the theory about the practice',
+    ],
+    content: `In everyday use "ethics" and "morality" are near-synonyms, and many philosophers use them interchangeably. When a distinction is drawn, it usually runs like this: MORALITY is the first-order thing — the actual set of norms, values, rules and judgements about right and wrong, good and bad, that a person or a society holds and lives by ("stealing is wrong," "you should keep promises"). ETHICS is the second-order, reflective activity — the systematic study of morality: asking what makes actions right or wrong, whether moral claims can be true, and which moral principles withstand scrutiny. Philosophical ethics is usually divided into metaethics (the nature and status of moral claims), normative ethics (which general theory — consequentialism, deontology, virtue ethics — is correct), and applied ethics (specific issues like euthanasia or AI). Separately, "ethics" is also the ordinary word for the codes of conduct of a profession — medical ethics, legal ethics, research ethics. The short version: morality is the practice; ethics is the theory and examination of that practice.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-gap-knowledge-vs-belief-gettier',
+    title: 'Knowledge vs Belief (and the Gettier Problem)',
+    category: 'Philosophy',
+    keywords: [
+      'what is the difference between knowledge and belief', 'belief is holding something to be true knowledge is traditionally justified true belief plato theaetetus',
+      'you can believe something false but you cannot know something false knowledge requires truth plus a good reason', 'gettier problem 1963 justified true belief is not always knowledge lucky guesses that happen to be right',
+      'responses add a no false lemmas condition or a reliabilist condition',
+    ],
+    content: `A belief is simply something you hold to be true. Knowledge is more demanding. The classic analysis, going back to Plato's Theaetetus, is that knowledge is JUSTIFIED TRUE BELIEF: to know that P, (1) you must believe P, (2) P must actually be true, and (3) you must have adequate justification — a good reason — for believing it. So you can believe a falsehood, but you cannot know a falsehood; and a true belief you hold for no good reason (a lucky guess) isn't knowledge either. In 1963 Edmund Gettier published short counterexamples showing that all three conditions can be met and it still isn't knowledge — cases where your justification points at the truth only by luck. This launched decades of attempts to fix the definition — adding that the justification must involve "no false steps," or that the belief must be produced by a reliable process, or that it must not be true by luck — with no single fix universally accepted.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-gap-trolley-problem-footbridge',
+    title: 'The Trolley Problem (Both Versions)',
+    category: 'Philosophy',
+    keywords: [
+      'what is the trolley problem', 'runaway trolley heading toward five people you can pull a lever to divert it onto a side track killing one instead', 'footbridge variant push a large stranger off a bridge to stop the trolley and save five',
+      'most people pull the lever but refuse to push revealing intuitions killing is worse than letting die using a person as a means is worse', 'introduced by philippa foot developed by judith jarvis thomson',
+      'doctrine of double effect trolley problem in autonomous vehicle ethics',
+    ],
+    content: `The trolley problem is a family of ethics thought experiments introduced by Philippa Foot (1967) and developed by Judith Jarvis Thomson. In the basic "switch" version, a runaway trolley will kill five people on the track ahead; you can pull a lever to divert it onto a side track where it will kill one person instead. Most people say you should pull the lever — the consequentialist answer, five deaths versus one. In the "footbridge" version, the only way to stop the trolley and save the five is to push a large stranger off a bridge into its path, killing him. The numbers are identical, but now most people refuse. The puzzle is why the two cases feel so different. Proposed explanations include: killing someone is worse than merely letting someone die; actively using a person as a means to an end (the footbridge) is worse than harming them as a foreseen side effect (the switch), which is the "doctrine of double effect"; and physically pushing engages a stronger emotional response than flipping a switch. The problem is now a standard reference point in discussions of self-driving-car ethics, though many philosophers argue those real cases are quite different.`,
+    createdAt: Date.now(),
+  },
 ];
