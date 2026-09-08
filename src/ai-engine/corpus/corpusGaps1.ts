@@ -22,9 +22,10 @@ export const CORPUS_GAPS_1: KnowledgeItem[] = [
     keywords: [
       'best picture', 'oscar best picture', 'academy award best picture', 'what won best picture',
       'best picture winner', 'best picture 2019', 'best picture 2020', 'best picture 2021',
-      'best picture 2022', 'best picture 2023', 'best picture 2024', 'oscar winner best picture',
+      'best picture 2022', 'best picture 2023', 'best picture 2024', 'best picture 2025', 'oscar winner best picture',
     ],
     content: `Academy Award for Best Picture — recent winners (the ceremony year honours films released the previous calendar year):
+- 2025 ceremony (2024 films): Anora, directed by Sean Baker (which also won him Best Director, Best Original Screenplay and Best Film Editing).
 - 2024 ceremony (2023 films): Oppenheimer, directed by Christopher Nolan.
 - 2023 ceremony (2022 films): Everything Everywhere All at Once.
 - 2022 ceremony (2021 films): CODA.
