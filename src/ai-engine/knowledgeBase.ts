@@ -107,6 +107,7 @@ import { NUTRITION_FACTS_GAPS } from './corpus/nutritionFactsGaps';
 import { MYTHOLOGY_DEEP_GAPS } from './corpus/mythologyDeepGaps';
 import { COMPUTER_SCIENCE_GAPS } from './corpus/computerScienceGaps';
 import { FIRST_AID_GAPS } from './corpus/firstAidGaps';
+import { STATISTICS_FACTS_GAPS } from './corpus/statisticsFactsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -836,6 +837,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...MYTHOLOGY_DEEP_GAPS,
   ...COMPUTER_SCIENCE_GAPS,
   ...FIRST_AID_GAPS,
+  ...STATISTICS_FACTS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
