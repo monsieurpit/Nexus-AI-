@@ -159,6 +159,7 @@ import { LITERARY_DEVICES_GAPS } from './corpus/literaryDevicesGaps';
 import { METEOROLOGY_DEEP_GAPS } from './corpus/meteorologyDeepGaps';
 import { ECONOMICS_DEEP_GAPS } from './corpus/economicsDeepGaps';
 import { MATERIALS_SCIENCE_GAPS } from './corpus/materialsScienceGaps';
+import { ENDOCRINE_SYSTEM_GAPS } from './corpus/endocrineSystemGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -940,6 +941,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...METEOROLOGY_DEEP_GAPS,
   ...ECONOMICS_DEEP_GAPS,
   ...MATERIALS_SCIENCE_GAPS,
+  ...ENDOCRINE_SYSTEM_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
