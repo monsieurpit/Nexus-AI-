@@ -95,6 +95,7 @@ import { BOTANY_FACTS_GAPS } from './corpus/botanyFactsGaps';
 import { MUSIC_FACTS_GAPS } from './corpus/musicFactsGaps';
 import { INTERNET_CULTURE_GAPS } from './corpus/internetCultureGaps';
 import { GEOLOGY_FACTS_GAPS } from './corpus/geologyFactsGaps';
+import { FINANCE_FACTS_GAPS } from './corpus/financeFactsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -812,6 +813,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...MUSIC_FACTS_GAPS,
   ...INTERNET_CULTURE_GAPS,
   ...GEOLOGY_FACTS_GAPS,
+  ...FINANCE_FACTS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
