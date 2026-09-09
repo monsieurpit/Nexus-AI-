@@ -147,6 +147,7 @@ import { GREEK_MYTHOLOGY_GAPS } from './corpus/greekMythologyGaps';
 import { INTERNET_INFRA_GAPS } from './corpus/internetInfraGaps';
 import { US_HISTORY_GAPS } from './corpus/usHistoryGaps';
 import { NEUROSCIENCE_GAPS } from './corpus/neuroscienceGaps';
+import { DIGESTIVE_SYSTEM_GAPS } from './corpus/digestiveSystemGaps';
 import { SOCCER_KNOWLEDGE_GAPS } from './corpus/soccerKnowledgeGaps';
 import { CELL_BIOLOGY_CORE_GAPS } from './corpus/cellBiologyCoreGaps';
 import { PSYCHOLOGY_DEEP_GAPS } from './corpus/psychologyDeepGaps';
@@ -987,6 +988,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...INTERNET_INFRA_GAPS,
   ...US_HISTORY_GAPS,
   ...NEUROSCIENCE_GAPS,
+  ...DIGESTIVE_SYSTEM_GAPS,
   ...SOCCER_KNOWLEDGE_GAPS,
   ...CELL_BIOLOGY_CORE_GAPS,
   ...PSYCHOLOGY_DEEP_GAPS,
