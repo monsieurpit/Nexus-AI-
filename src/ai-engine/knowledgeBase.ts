@@ -203,6 +203,7 @@ import { FORENSICS_GAPS } from './corpus/forensicsGaps';
 import { MATERIALS_FAILURE_GAPS } from './corpus/materialsFailureGaps';
 import { AERODYNAMICS_GAPS } from './corpus/aerodynamicsGaps';
 import { GEMOLOGY_GAPS } from './corpus/gemologyGaps';
+import { SAILING_GAPS } from './corpus/sailingGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -1028,6 +1029,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...MATERIALS_FAILURE_GAPS,
   ...AERODYNAMICS_GAPS,
   ...GEMOLOGY_GAPS,
+  ...SAILING_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
