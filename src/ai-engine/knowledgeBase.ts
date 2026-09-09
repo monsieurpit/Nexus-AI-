@@ -159,6 +159,7 @@ import { ECONOMICS_CORE_CONCEPTS_GAPS } from './corpus/economicsCoreConceptsGaps
 import { GRAMMAR_LITERARY_CONCEPTS_GAPS } from './corpus/grammarLiteraryConceptsGaps';
 import { FOOD_SCIENCE_CONCEPTS_GAPS } from './corpus/foodScienceConceptsGaps';
 import { PSYCHOLOGY_CONCEPTS_GAPS } from './corpus/psychologyConceptsGaps';
+import { CONSUMER_TECH_CONCEPTS_GAPS } from './corpus/consumerTechConceptsGaps';
 import { SOCCER_KNOWLEDGE_GAPS } from './corpus/soccerKnowledgeGaps';
 import { CELL_BIOLOGY_CORE_GAPS } from './corpus/cellBiologyCoreGaps';
 import { PSYCHOLOGY_DEEP_GAPS } from './corpus/psychologyDeepGaps';
@@ -1011,6 +1012,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...GRAMMAR_LITERARY_CONCEPTS_GAPS,
   ...FOOD_SCIENCE_CONCEPTS_GAPS,
   ...PSYCHOLOGY_CONCEPTS_GAPS,
+  ...CONSUMER_TECH_CONCEPTS_GAPS,
   ...SOCCER_KNOWLEDGE_GAPS,
   ...CELL_BIOLOGY_CORE_GAPS,
   ...PSYCHOLOGY_DEEP_GAPS,
