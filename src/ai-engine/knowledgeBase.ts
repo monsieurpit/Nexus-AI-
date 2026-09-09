@@ -171,6 +171,7 @@ import { SCIENTIFIC_METHOD_CONCEPTS_GAPS } from './corpus/scientificMethodConcep
 import { LITERATURE_CONCEPTS_GAPS } from './corpus/literatureConceptsGaps';
 import { EPIDEMIOLOGY_CONCEPTS_GAPS } from './corpus/epidemiologyConceptsGaps';
 import { MACROECONOMICS_CONCEPTS_GAPS } from './corpus/macroeconomicsConceptsGaps';
+import { ZOOLOGY_CONCEPTS_GAPS } from './corpus/zoologyConceptsGaps';
 import { SOCCER_KNOWLEDGE_GAPS } from './corpus/soccerKnowledgeGaps';
 import { CELL_BIOLOGY_CORE_GAPS } from './corpus/cellBiologyCoreGaps';
 import { PSYCHOLOGY_DEEP_GAPS } from './corpus/psychologyDeepGaps';
@@ -1035,6 +1036,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...LITERATURE_CONCEPTS_GAPS,
   ...EPIDEMIOLOGY_CONCEPTS_GAPS,
   ...MACROECONOMICS_CONCEPTS_GAPS,
+  ...ZOOLOGY_CONCEPTS_GAPS,
   ...SOCCER_KNOWLEDGE_GAPS,
   ...CELL_BIOLOGY_CORE_GAPS,
   ...PSYCHOLOGY_DEEP_GAPS,
