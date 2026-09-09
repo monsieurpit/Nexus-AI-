@@ -2932,8 +2932,27 @@ const BROAD_QUESTION_PATTERN =
 // inventing a second, possibly-diverging definition of "hard."
 export function recommendReasoningMode(prompt: string): 'fast' | 'thorough' {
   if (detectQueryIntent(prompt) === 'mathematical') return 'thorough';
-  const hasMultipleQuestions = (prompt.match(/\?/g) || []).length > 1 || / and (?:how|why|what|when|where) /i.test(prompt);
-  if (BROAD_QUESTION_PATTERN.test(prompt) || hasMultipleQuestions) return 'thorough';
+
+  // 'thorough' adds a full internal reasoning pass before the answer — on gemma3:4b on the Mac
+  // Mini that roughly DOUBLES generation latency (a grounded "why is the sky blue" measured 17 s
+  // vs ~10 s in fast mode). It's worth that cost for genuinely hard/multi-part questions, but the
+  // old BROAD_QUESTION_PATTERN fired 'thorough' on every bare "why is X", "how does X work",
+  // "explain X", "difference between X and Y" — the exact single-fact questions a 4B model + one
+  // good grounding doc answers fine in one pass. So escalate only on real complexity signals:
+  const words = prompt.trim().split(/\s+/).filter(Boolean).length;
+  const hasMultipleQuestions =
+    (prompt.match(/\?/g) || []).length > 1 ||
+    / and (?:how|why|what|when|where|which) /i.test(prompt) ||
+    /\b(?:also|plus|and then|as well as)\b.{0,40}\?/i.test(prompt);
+  // Explicit "do the extra work" asks, or "compare … and recommend / which is better".
+  const explicitDepth =
+    /\b(pros and cons|in detail|walk me through|step by step|break (?:it|this) down|deep dive|comprehensive|thoroughly|everything (?:about|there is)|weigh(?:ing)? (?:the )?(?:options|tradeoffs)|which (?:one )?(?:is|should|would) )\b/i.test(
+      prompt
+    );
+  // A long AND broad question (the short broad ones stay fast).
+  const longAndBroad = words >= 22 && BROAD_QUESTION_PATTERN.test(prompt);
+
+  if (hasMultipleQuestions || explicitDepth || longAndBroad) return 'thorough';
   return 'fast';
 }
 
