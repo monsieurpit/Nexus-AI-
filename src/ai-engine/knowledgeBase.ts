@@ -198,6 +198,7 @@ import { KNOTS_GAPS } from './corpus/knotsGaps';
 import { TYPOGRAPHY_GAPS } from './corpus/typographyGaps';
 import { COFFEE_TEA_WINE_GAPS } from './corpus/coffeeTeaWineGaps';
 import { TRANSPORTATION_HISTORY_GAPS } from './corpus/transportationHistoryGaps';
+import { GARDENING_GAPS } from './corpus/gardeningGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -1018,6 +1019,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...TYPOGRAPHY_GAPS,
   ...COFFEE_TEA_WINE_GAPS,
   ...TRANSPORTATION_HISTORY_GAPS,
+  ...GARDENING_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
