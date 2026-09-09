@@ -1105,7 +1105,12 @@ export function detectQueryIntent(query: string): QueryIntent {
 
   // Math trigger
   if (
-    /\d+\s*[+\-*/÷×^%]\s*\d+/.test(q) ||
+    // A few unspaced number-slash strings are common idioms/dates, not division: "9/11",
+    // "24/7", "50/50", "60/40", "80/20", "4/20". Stripped out before the symbolic-operator
+    // test so "what is 9/11" reads as a factual question, not "9 ÷ 11 = 0.818".
+    (/\d+\s*[+\-*/÷×^%]\s*\d+/.test(
+      q.replace(/\b(?:9\/11|24\/7|50\/50|60\/40|80\/20|4\/20|9-11)\b/g, ' ')
+    )) ||
     // Word-form arithmetic ("128 divided by 8", "5 times 3", "9 plus 4") — mathSolver.ts's own
     // preprocessor already rewrites these phrases into real operators, but that solver only ever
     // runs when detectQueryIntent returns 'mathematical' first, and this class of phrasing had no
@@ -1138,8 +1143,18 @@ export function detectQueryIntent(query: string): QueryIntent {
     // "computing", so ANY message mentioning a computer was classified as arithmetic and shipped
     // to the math solver — which is most of the CS corpus, and every rambling "how does the
     // computer know where to go" question. Same for "solve" inside "resolve"/"dissolve".
-    /\bcomput(?:e|es|ed)\b/.test(q) ||
-    /\bsolve\b/.test(q) ||
+    //
+    // Further gated on an actual arithmetic context (a digit, an operator, an "= …" or "for x"
+    // equation shape, or the literal word "equation"). An intent-distribution sweep found the bare
+    // word triggers were misrouting ~55% of a CS/biology bait set — "how does a computer compute
+    // a hash", "what problem does blockchain solve", "how does natural selection solve for
+    // fitness", "how do you solve a rubik's cube" all classified 'mathematical', which then forces
+    // recommendReasoningMode to 'thorough' (the slow 7B escalation) for nothing, since
+    // trySolveMath just bails with isMath:undefined. The genuine cases ("solve 3x + 7 = 25",
+    // "compute the area of a circle radius 5", "solve for x") all still carry a digit, an "=", or
+    // "for <var>".
+    ((/\bcomput(?:e|es|ed)\b/.test(q) || /\bsolve\b/.test(q)) &&
+      (/\d/.test(q) || /[+\-*/÷×^%=]/.test(q) || /\bfor\s+[a-z]\b/.test(q) || /\bequations?\b/.test(q))) ||
     q.includes('convert ') ||
     // Named math operations phrased as "what is the X of N" ("what is the square root of 81")
     // need their own explicit check — the generic "what is X" math heuristic below deliberately
@@ -1206,8 +1221,25 @@ export function detectQueryIntent(query: string): QueryIntent {
     // "what is"/"what's" both need this check — "what's 128 divided by 8" was falling through
     // because only the "what is" spelling was ever checked, so the contraction (the far more
     // common way people actually type this) never routed to the math solver.
+    //
+    // The digit must sit in an actual arithmetic position — next to an operator, next to a math
+    // word (plus/minus/times/of/percent/mod/sqrt…), or with a SECOND number present. A bare lone
+    // digit anywhere in the string used to be enough, which an intent sweep caught misrouting
+    // every "what is <name-with-a-number>" to the math solver: "what is 2FA", "what is 3D", "what
+    // is 5G", "what is Web3", "what is Catch-22", "what is 9/11", "what is GPT-4". "9/11" in
+    // particular looks exactly like "9 ÷ 11", so date/name slashes are excluded too.
     (/\bwhat'?s\b|\bwhat\s+is\b/.test(q) &&
-      /\d/.test(q) &&
+      // "/" only counts as division when it is spaced ("9 / 11") — an unspaced "9/11", "24/7",
+      // "4/20", "3/5" is a date/idiom/ratio, not an arithmetic request.
+      (/\d\s*[+\-*÷×^%=]\s*\d/.test(q) ||
+        /\d\s+\/\s+\d/.test(q) ||
+        /\d\s*(?:st|nd|rd|th)?\s*(?:%|percent|plus|minus|times|divided|multiplied|mod|factorial|squared|cubed|to\s+the\s+power)/.test(
+          q
+        ) ||
+        /(?:plus|minus|times|divided|multiplied|percent|sum|product|average|mean|sqrt|square\s+root|cube\s+root|remainder)\b.{0,15}\d/.test(
+          q
+        ) ||
+        /\d[^/]*\s+(?:and|of|by)\s+[^/]*\d/.test(q)) &&
       !/\bwhat'?s\s+a\b|\bwhat\s+is\s+a\b|\bwhat'?s\s+the\b|\bwhat\s+is\s+the\b|\bwhat'?s\s+an\b|\bwhat\s+is\s+an\b/.test(q)) ||
     // Named mathematical constants have no digit in the question itself ("what is pi") — the
     // digit-presence check above never catches these on its own, so this fell through to
