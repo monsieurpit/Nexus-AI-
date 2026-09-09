@@ -39,6 +39,38 @@ interface ChatViewProps {
   onOpenApiIntegration?: () => void;
 }
 
+const SAMPLE_PROMPTS: { title: string; prompt: string }[] = [
+  {
+    title: '🌐 Live web search + swearing',
+    prompt:
+      'Who won the 2024 UEFA Champions League, and what the hell happened in the final match?',
+  },
+  {
+    title: '🤖 Nexus Discord homie',
+    prompt:
+      'Yo Nexus, how do I center a div in CSS and make sure my bot does not get rate limited on Discord?',
+  },
+  {
+    title: '💀 Casseurt question (expect a roast)',
+    prompt: 'Hey Nexus, do you like Casseurt? What do you think about him?',
+  },
+  {
+    title: '🌟 Super-chill homie mode',
+    prompt:
+      'Yo Nexus, it is user 1394001641899954368, what is good bro? How is my favorite bot doing today?',
+  },
+  {
+    title: '🛡️ RaidShield classification',
+    prompt:
+      'Classify this message with RaidShield rules: "FREE NITRO GIVEAWAY! Claim your steam nitro gift here: http://dlscord.gift/nitro-drop @everyone @everyone"',
+  },
+  {
+    title: '🔍 Real-time Python + web search',
+    prompt:
+      'Search the web for the latest Python version features and break it down with some funny commentary.',
+  },
+];
+
 export const ChatView: React.FC<ChatViewProps> = ({
   messages,
   isGenerating,
@@ -70,7 +102,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto scroll to bottom
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -79,39 +110,40 @@ export const ChatView: React.FC<ChatViewProps> = ({
     scrollToBottom();
   }, [messages, streamingChunk, isGenerating]);
 
-  // Generation is a single opaque server round-trip once it reaches the real "Thinking..." stage
-  // (see generator.ts's module comment) — there's no live signal for how long that wait will
-  // actually be, especially under real concurrent load where requests queue behind Ollama's
-  // single-slot semaphore. Silence past a few seconds reads as broken/frozen rather than busy.
-  // This is honest, elapsed-time-based reassurance (not a fabricated queue position, which this
-  // client genuinely has no way to know) — only ever shown once streaming content hasn't started
-  // yet and the real progressStage has had time to settle.
+  // Honest, elapsed-time-based reassurance while the single opaque server
+  // round-trip is in flight (see generator.ts) — only shown before any
+  // streamed content has arrived and after the real progressStage has settled.
   useEffect(() => {
     if (!isGenerating || streamingChunk) {
       setWaitEscalation(null);
       return;
     }
     const timers = [
-      setTimeout(() => setWaitEscalation('Still working on it...'), 6000),
-      setTimeout(() => setWaitEscalation('Taking a bit longer than usual — could be a busier moment.'), 15000),
-      setTimeout(() => setWaitEscalation("Still here, still working — thanks for hanging in there."), 30000),
+      setTimeout(() => setWaitEscalation('Still working on it…'), 6000),
+      setTimeout(
+        () => setWaitEscalation('Taking a bit longer than usual — could be a busier moment.'),
+        15000
+      ),
+      setTimeout(
+        () => setWaitEscalation('Still here, still working — thanks for hanging in there.'),
+        30000
+      ),
     ];
     return () => timers.forEach(clearTimeout);
   }, [isGenerating, streamingChunk]);
 
-  // Auto resize textarea
+  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${Math.min(
-        160,
+        180,
         Math.max(48, textareaRef.current.scrollHeight)
       )}px`;
     }
   }, [inputText]);
 
-  // Image file handler
-  const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // base64 inflates ~4/3x; server caps the JSON body at 25MB total
+  const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 
   const processImageFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -119,7 +151,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      alert(`Image is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Please use an image under 15 MB.`);
+      alert(
+        `Image is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Please use an image under 15 MB.`
+      );
       return;
     }
     const reader = new FileReader();
@@ -137,62 +171,50 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      processImageFile(file);
-    }
-    if (e.target) {
-      e.target.value = '';
-    }
+    if (file) processImageFile(file);
+    if (e.target) e.target.value = '';
   };
 
-  // Clipboard paste support (screenshots / image data)
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
-    if (items) {
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.startsWith('image/')) {
-          const file = items[i].getAsFile();
-          if (file) {
-            e.preventDefault();
-            processImageFile(file);
-            return;
-          }
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) {
+          e.preventDefault();
+          processImageFile(file);
+          return;
         }
       }
     }
   };
 
-  // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingOver(true);
   };
-
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingOver(false);
   };
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDraggingOver(false);
     const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      processImageFile(file);
-    }
+    if (file && file.type.startsWith('image/')) processImageFile(file);
   };
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if ((!inputText.trim() && !attachedImage) || isGenerating) return;
     const text = inputText;
-    const img = attachedImage ? { dataUrl: attachedImage.dataUrl, name: attachedImage.name } : undefined;
-
+    const img = attachedImage
+      ? { dataUrl: attachedImage.dataUrl, name: attachedImage.name }
+      : undefined;
     setInputText('');
     setAttachedImage(null);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = '48px';
-    }
+    if (textareaRef.current) textareaRef.current.style.height = '48px';
     onSendMessage(text, img);
   };
 
@@ -209,70 +231,37 @@ export const ChatView: React.FC<ChatViewProps> = ({
         setCopiedMsgId(id);
         setTimeout(() => setCopiedMsgId(null), 2000);
       },
-      () => {
-        alert('Could not copy to clipboard — your browser may have blocked clipboard access.');
-      }
+      () => alert('Could not copy to clipboard — your browser may have blocked clipboard access.')
     );
   };
 
   const toggleThought = (msgId: string) => {
-    setExpandedThoughts((prev) => ({
-      ...prev,
-      [msgId]: !prev[msgId],
-    }));
+    setExpandedThoughts((prev) => ({ ...prev, [msgId]: !prev[msgId] }));
   };
 
   const inputTokenCount = countTokens(inputText);
 
-  const samplePrompts = [
-    {
-      title: '🌐 Live Web Search & Swearing (Infinite Quota)',
-      prompt: 'Who won the 2024 UEFA Champions League, and what the hell happened in the final match?',
-    },
-    {
-      title: '🤖 Nexus Discord Homie (Accurate & Swearing)',
-      prompt: 'Yo Nexus, how do I center a div in CSS and make sure my bot does not get rate limited on Discord?',
-    },
-    {
-      title: '💀 Casseurt Question (Fuck no! Roast)',
-      prompt: 'Hey Nexus, do you like Casseurt? What do you think about him?',
-    },
-    {
-      title: '🌟 Super Chill Homie (User ID 1394001641899954368)',
-      prompt: 'Yo Nexus, it is user 1394001641899954368, what is good bro? How is my favorite bot doing today?',
-    },
-    {
-      title: '🛡️ RaidShield AI (21 Hard Rules JSON)',
-      prompt: 'Classify this message with RaidShield rules: "FREE NITRO GIVEAWAY! Claim your steam nitro gift here: http://dlscord.gift/nitro-drop @everyone @everyone"',
-    },
-    {
-      title: '🔍 Real-Time Python & Web Search Test',
-      prompt: 'Search the web for the latest Python version features and break it down with some funny commentary.',
-    },
-  ];
-
-  const AVATAR = (isUser: boolean) => (
+  const Avatar = ({ isUser }: { isUser: boolean }) => (
     <div
-      className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
         isUser
           ? 'bg-[var(--nx-elevated-hover)] text-[var(--nx-text)]'
-          : 'bg-gradient-to-br from-[var(--nx-accent)] to-indigo-700 text-white'
+          : 'bg-gradient-to-br from-[var(--nx-accent)] to-[#4f46b5] text-white'
       }`}
     >
-      {isUser ? (settings.userName?.[0]?.toUpperCase() || 'U') : <Sparkles className="w-4 h-4" />}
+      {isUser ? settings.userName?.[0]?.toUpperCase() || 'U' : <Sparkles className="h-4 w-4" />}
     </div>
   );
 
   return (
     <div
-      className={`flex-1 flex flex-col h-screen bg-[var(--nx-surface)] overflow-hidden relative ${
-        isDraggingOver ? 'ring-4 ring-[var(--nx-accent)]/40' : ''
+      className={`relative z-10 flex h-screen flex-1 flex-col overflow-hidden bg-[var(--nx-surface)] ${
+        isDraggingOver ? 'ring-4 ring-[var(--nx-accent-ring)]' : ''
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Hidden file input */}
       <input
         type="file"
         ref={fileInputRef}
@@ -281,135 +270,129 @@ export const ChatView: React.FC<ChatViewProps> = ({
         className="hidden"
       />
 
-      {/* Channel-style top bar */}
-      <div className="shrink-0 flex items-center gap-3 px-5 py-3 border-b border-[var(--nx-border-subtle)] bg-[var(--nx-surface)]/95 backdrop-blur">
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[var(--nx-accent)] to-indigo-700 text-white flex items-center justify-center shrink-0">
-          <Sparkles className="w-4 h-4" />
+      {/* Top bar */}
+      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--nx-border-subtle)] bg-[var(--nx-surface)]/90 px-5 py-3 backdrop-blur">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-[var(--nx-accent)] to-[#4f46b5] text-white">
+          <Sparkles className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <div className="font-bold text-sm text-[var(--nx-text)] truncate">{activePersona.name}</div>
-          <div className="text-xs text-[var(--nx-text-faint)] truncate">{activePersona.tagline}</div>
+          <div className="truncate text-sm font-bold text-[var(--nx-text)]">
+            {activePersona.name}
+          </div>
+          <div className="truncate text-xs text-[var(--nx-text-faint)]">
+            {activePersona.tagline}
+          </div>
         </div>
-        <div className="ml-auto flex items-center gap-1.5 text-[11px] font-medium text-emerald-400">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="hidden sm:inline">Zero Quota • Local Inference</span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="nx-badge nx-badge-success">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--nx-success)]" />
+            <span className="hidden sm:inline">Zero quota · local inference</span>
+            <span className="sm:hidden">Live</span>
+          </span>
         </div>
-      </div>
+      </header>
 
-      {/* Drag Overlay Banner */}
+      {/* Drag overlay */}
       {isDraggingOver && (
-        <div className="absolute inset-0 z-50 bg-[var(--nx-accent)]/10 backdrop-blur-xs flex items-center justify-center pointer-events-none">
-          <div className="bg-[var(--nx-elevated)] px-6 py-4 rounded-2xl shadow-xl border border-[var(--nx-accent)]/40 text-[var(--nx-text)] font-semibold flex items-center gap-3 animate-bounce">
-            <ImageIcon className="w-6 h-6 text-[var(--nx-accent-hover)]" />
-            <span>Drop image here for Nexus AI Vision & RaidShield Scan</span>
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-[var(--nx-accent-soft)] backdrop-blur-[2px]">
+          <div className="nx-card flex items-center gap-3 px-6 py-4 font-semibold text-[var(--nx-text)] shadow-[var(--nx-shadow-lg)]">
+            <ImageIcon className="h-6 w-6 text-[var(--nx-accent-hover)]" />
+            <span>Drop image for Nexus Vision &amp; RaidShield scan</span>
           </div>
         </div>
       )}
 
-      {/* Image Zoom Modal */}
+      {/* Image zoom modal */}
       {previewModalImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-[2px]"
           onClick={() => setPreviewModalImage(null)}
         >
-          <div className="relative max-w-4xl max-h-[90vh] bg-[var(--nx-surface)] rounded-2xl overflow-hidden shadow-2xl p-2">
+          <div className="relative max-h-[90vh] max-w-4xl overflow-hidden rounded-[var(--nx-r-xl)] bg-[var(--nx-surface)] p-2 shadow-[var(--nx-shadow-lg)]">
             <button
               onClick={() => setPreviewModalImage(null)}
-              className="absolute top-4 right-4 p-2 bg-black/60 hover:bg-black text-white rounded-full transition cursor-pointer"
+              className="absolute right-4 top-4 rounded-full bg-black/60 p-2 text-white transition hover:bg-black"
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" />
             </button>
             <img
               src={previewModalImage}
               alt="Expanded preview"
-              className="max-h-[85vh] w-auto object-contain rounded-xl"
+              className="max-h-[85vh] w-auto rounded-[var(--nx-r-lg)] object-contain"
               referrerPolicy="no-referrer"
             />
           </div>
         </div>
       )}
-      {/* Messages Scroll Area */}
+
+      {/* Transcript */}
       <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:px-8">
-        <div className="max-w-3xl mx-auto space-y-1">
-          {/* Empty State / Welcome Screen */}
+        <div className="mx-auto max-w-[var(--nx-content-max)] space-y-1">
           {messages.length === 0 && (
-            <div className="py-8 sm:py-12 space-y-8 animate-in fade-in duration-300">
-              <div className="text-center space-y-3">
-                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--nx-accent)] to-indigo-700 text-white shadow-md mb-2">
-                  <Sparkles className="w-7 h-7" />
+            <div className="nx-animate-in space-y-8 py-8 sm:py-12">
+              <div className="space-y-3 text-center">
+                <div className="mb-1 inline-flex h-14 w-14 items-center justify-center rounded-[var(--nx-r-lg)] bg-gradient-to-br from-[var(--nx-accent)] to-[#4f46b5] text-white shadow-[var(--nx-shadow-glow)]">
+                  <Sparkles className="h-7 w-7" />
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--nx-text)] tracking-tight">
-                  Welcome to {activePersona.name}
+                <h1 className="text-2xl font-extrabold tracking-tight text-[var(--nx-text)] sm:text-3xl">
+                  {activePersona.name}
                 </h1>
-                <p className="text-sm text-[var(--nx-text-muted)] max-w-lg mx-auto leading-relaxed">
-                  A standalone, custom-built AI engine running completely client-side with <strong className="text-[var(--nx-text)]">zero quota limits</strong>. Equipped with dedicated math, algorithmic code, formal logic solvers, multi-head self-attention, and real-time model customization.
+                <p className="mx-auto max-w-lg text-sm leading-relaxed text-[var(--nx-text-muted)]">
+                  A standalone, custom-built AI engine running client-side with{' '}
+                  <strong className="text-[var(--nx-text)]">zero quota limits</strong>. Dedicated
+                  math, code, and formal-logic solvers, multi-head self-attention, live web
+                  grounding, and real-time model customization.
                 </p>
-                <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-xs font-medium text-[var(--nx-text-faint)]">
-                  <span className="flex items-center gap-1 text-emerald-400 font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse" />
-                    Zero Quota Limits • Infinite Local Inference
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                  <span className="nx-badge nx-badge-success">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--nx-success)]" />
+                    Infinite local inference
                   </span>
-                  <span>•</span>
-                  <span>{settings.reasoningMode} reasoning</span>
-                  <span>•</span>
-                  <span>{settings.attentionHeads} Attention Heads</span>
+                  <span className="nx-badge capitalize">{settings.reasoningMode} reasoning</span>
+                  <span className="nx-badge">{settings.attentionHeads} attention heads</span>
                 </div>
               </div>
 
-              {/* Sample Prompt Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4">
-                {samplePrompts.map((sample, idx) => (
+              <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
+                {SAMPLE_PROMPTS.map((sample, idx) => (
                   <button
                     key={idx}
                     onClick={() => {
                       setInputText(sample.prompt);
                       textareaRef.current?.focus();
                     }}
-                    className="p-4 rounded-xl border border-[var(--nx-border)] bg-[var(--nx-elevated)] hover:border-[var(--nx-accent)] hover:bg-[var(--nx-elevated-hover)] transition text-left flex flex-col justify-between group cursor-pointer"
+                    className="nx-card nx-card-interactive group flex flex-col p-4 text-left"
                   >
-                    <div>
-                      <div className="font-bold text-[var(--nx-text)] text-xs flex items-center justify-between mb-1 group-hover:text-[var(--nx-accent-hover)] transition">
-                        <span>{sample.title}</span>
-                        <ArrowRight className="w-3.5 h-3.5 text-[var(--nx-text-faint)] group-hover:text-[var(--nx-accent-hover)] group-hover:translate-x-0.5 transition" />
-                      </div>
-                      <p className="text-xs text-[var(--nx-text-muted)] line-clamp-2 leading-relaxed">
-                        {sample.prompt}
-                      </p>
+                    <div className="mb-1 flex items-center justify-between text-xs font-bold text-[var(--nx-text)] transition group-hover:text-[var(--nx-accent-hover)]">
+                      <span>{sample.title}</span>
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[var(--nx-text-faint)] transition group-hover:translate-x-0.5 group-hover:text-[var(--nx-accent-hover)]" />
                     </div>
+                    <p className="line-clamp-2 text-xs leading-relaxed text-[var(--nx-text-muted)]">
+                      {sample.prompt}
+                    </p>
                   </button>
                 ))}
               </div>
 
-              {/* Quick Actions Footer */}
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 {onOpenApiIntegration && (
-                  <button
-                    onClick={onOpenApiIntegration}
-                    className="px-3 py-1.5 rounded-lg bg-[var(--nx-accent-soft)] hover:bg-[var(--nx-accent)]/25 text-[var(--nx-accent-hover)] border border-[var(--nx-accent)]/30 text-xs font-semibold flex items-center gap-1.5 transition"
-                  >
-                    <Code2 className="w-3.5 h-3.5" />
-                    <span>Bot API & JavaScript SDK</span>
+                  <button onClick={onOpenApiIntegration} className="nx-btn nx-btn-ghost">
+                    <Code2 className="h-3.5 w-3.5" />
+                    Bot API &amp; SDK
                   </button>
                 )}
-                <button
-                  onClick={onOpenCustomizer}
-                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated-hover)] text-[var(--nx-text-muted)] text-xs font-medium flex items-center gap-1.5 transition border border-[var(--nx-border)]"
-                >
-                  <Sliders className="w-3.5 h-3.5" />
-                  <span>Customize Persona & Sliders</span>
+                <button onClick={onOpenCustomizer} className="nx-btn nx-btn-ghost">
+                  <Sliders className="h-3.5 w-3.5" />
+                  Customize persona
                 </button>
-                <button
-                  onClick={onOpenKnowledge}
-                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated-hover)] text-[var(--nx-text-muted)] text-xs font-medium flex items-center gap-1.5 transition border border-[var(--nx-border)]"
-                >
-                  <Database className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Teach AI Custom Knowledge</span>
+                <button onClick={onOpenKnowledge} className="nx-btn nx-btn-ghost">
+                  <Database className="h-3.5 w-3.5 text-[var(--nx-success)]" />
+                  Teach custom knowledge
                 </button>
               </div>
             </div>
           )}
 
-          {/* Message List — Discord-flat row style: avatar + name/time header, full-width content below */}
           {messages.map((message) => {
             const isUser = message.role === 'user';
             const isExpanded = expandedThoughts[message.id];
@@ -417,14 +400,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
             return (
               <div
                 key={message.id}
-                className="group flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-white/[0.02] transition"
+                className="group flex items-start gap-3 rounded-[var(--nx-r-md)] px-2 py-2 transition hover:bg-white/[0.02]"
               >
-                {AVATAR(isUser)}
+                <Avatar isUser={isUser} />
                 <div className="min-w-0 flex-1">
-                  {/* Role Header */}
                   <div className="flex items-baseline gap-2">
-                    <span className={`text-sm font-semibold ${isUser ? 'text-[var(--nx-text)]' : 'text-[var(--nx-accent-hover)]'}`}>
-                      {isUser ? (settings.userName || 'You') : activePersona.name}
+                    <span
+                      className={`text-sm font-semibold ${
+                        isUser ? 'text-[var(--nx-text)]' : 'text-[var(--nx-accent-hover)]'
+                      }`}
+                    >
+                      {isUser ? settings.userName || 'You' : activePersona.name}
                     </span>
                     <span className="text-[11px] text-[var(--nx-text-faint)]">
                       {new Date(message.timestamp).toLocaleTimeString([], {
@@ -434,23 +420,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </span>
                   </div>
 
-                  {/* User Uploaded Image Preview */}
                   {message.imageUrl && (
-                    <div className="mt-2 mb-1">
-                      <div className="relative group/img max-w-sm rounded-xl overflow-hidden border border-[var(--nx-border)] bg-black/40">
+                    <div className="mb-1 mt-2">
+                      <div className="group/img relative max-w-sm overflow-hidden rounded-[var(--nx-r-md)] border border-[var(--nx-border)] bg-black/40">
                         <img
                           src={message.imageUrl}
                           alt={message.imageName || 'Attached preview'}
-                          className="w-full max-h-64 object-cover cursor-pointer hover:opacity-95 transition"
+                          className="max-h-64 w-full cursor-pointer object-cover transition hover:opacity-95"
                           onClick={() => setPreviewModalImage(message.imageUrl!)}
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/img:opacity-100 transition bg-black/60 backdrop-blur-xs px-2 py-1 rounded-md text-[10px] text-white font-mono pointer-events-none">
-                          <Eye className="w-3 h-3" />
-                          <span>Click to Zoom</span>
+                        <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-[10px] font-mono text-white opacity-0 backdrop-blur-[2px] transition group-hover/img:opacity-100">
+                          <Eye className="h-3 w-3" />
+                          <span>Click to zoom</span>
                         </div>
                         {message.imageName && (
-                          <div className="px-3 py-1.5 bg-black/80 text-[11px] font-mono text-[var(--nx-text-muted)] truncate">
+                          <div className="truncate bg-black/80 px-3 py-1.5 text-[11px] font-mono text-[var(--nx-text-muted)]">
                             🖼️ {message.imageName}
                           </div>
                         )}
@@ -458,35 +443,39 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                   )}
 
-                  {/* Chain of Thought Collapsible for Assistant (Collapsed by default, expands on click) */}
                   {!isUser && message.thoughtProcess && message.thoughtProcess.length > 0 && (
-                    <div className="mt-1.5 mb-1.5">
+                    <div className="my-1.5">
                       <button
                         onClick={() => toggleThought(message.id)}
-                        className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated-hover)] text-[var(--nx-text-muted)] text-xs font-medium transition cursor-pointer"
-                        title="Click to toggle reasoning thoughts"
+                        className="inline-flex items-center gap-2 rounded-md bg-[var(--nx-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--nx-text-muted)] transition hover:bg-[var(--nx-elevated-hover)]"
+                        title="Toggle reasoning trace"
                       >
-                        <BrainCircuit className="w-3.5 h-3.5 text-[var(--nx-accent-hover)]" />
+                        <BrainCircuit className="h-3.5 w-3.5 text-[var(--nx-accent-hover)]" />
                         <span>
-                          {isExpanded ? 'Hide thinking process' : `View thinking process (${message.thoughtProcess.length} steps)`}
+                          {isExpanded
+                            ? 'Hide thinking process'
+                            : `View thinking process (${message.thoughtProcess.length} steps)`}
                         </span>
                         {isExpanded ? (
-                          <ChevronUp className="w-3 h-3 text-[var(--nx-text-faint)] ml-0.5" />
+                          <ChevronUp className="ml-0.5 h-3 w-3 text-[var(--nx-text-faint)]" />
                         ) : (
-                          <ChevronDown className="w-3 h-3 text-[var(--nx-text-faint)] ml-0.5" />
+                          <ChevronDown className="ml-0.5 h-3 w-3 text-[var(--nx-text-faint)]" />
                         )}
                       </button>
 
                       {isExpanded && (
-                        <div className="mt-2 space-y-2.5 p-3 rounded-xl bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-xs text-[var(--nx-text-muted)] animate-in fade-in duration-150">
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--nx-text-faint)] mb-1 flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] inline-block" />
-                            Internal Neural Thought Stream
+                        <div className="nx-fade-in mt-2 space-y-2.5 rounded-[var(--nx-r-md)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] p-3 text-xs text-[var(--nx-text-muted)]">
+                          <div className="mb-1 flex items-center gap-1.5">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[var(--nx-accent)]" />
+                            <span className="nx-eyebrow">Internal neural thought stream</span>
                           </div>
                           {message.thoughtProcess.map((step) => (
-                            <div key={step.id} className="space-y-1 border-l-2 border-[var(--nx-accent)]/50 pl-2.5">
-                              <div className="font-semibold text-[var(--nx-text)] text-[12px] flex items-center gap-1.5 flex-wrap">
-                                <span className="px-1 py-px rounded bg-[var(--nx-accent)]/15 text-[var(--nx-accent-hover)] text-[9px] font-bold uppercase tracking-wide">
+                            <div
+                              key={step.id}
+                              className="space-y-1 border-l-2 border-[var(--nx-accent)]/50 pl-2.5"
+                            >
+                              <div className="flex flex-wrap items-center gap-1.5 text-[12px] font-semibold text-[var(--nx-text)]">
+                                <span className="rounded bg-[var(--nx-accent-soft)] px-1 py-px text-[9px] font-bold uppercase tracking-wide text-[var(--nx-accent-hover)]">
                                   {step.type}
                                 </span>
                                 <span>{step.title}</span>
@@ -498,15 +487,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[11.5px] text-[var(--nx-text-muted)] leading-relaxed whitespace-pre-wrap">
+                              <p className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-[var(--nx-text-muted)]">
                                 {step.description}
                               </p>
                               {step.data && Object.keys(step.data).length > 0 && (
-                                <div className="mt-1 rounded-md bg-[var(--nx-bg)]/60 border border-[var(--nx-border)] p-2 font-mono text-[10.5px] text-[var(--nx-text-faint)] space-y-0.5 overflow-x-auto">
+                                <div className="mt-1 space-y-0.5 overflow-x-auto rounded-md border border-[var(--nx-border)] bg-[var(--nx-bg)]/60 p-2 font-mono text-[10.5px] text-[var(--nx-text-faint)]">
                                   {Object.entries(step.data).map(([k, v]) => (
                                     <div key={k} className="flex gap-2">
-                                      <span className="text-[var(--nx-accent-hover)] shrink-0">{k}:</span>
-                                      <span className="text-[var(--nx-text-muted)] break-all">
+                                      <span className="shrink-0 text-[var(--nx-accent-hover)]">
+                                        {k}:
+                                      </span>
+                                      <span className="break-all text-[var(--nx-text-muted)]">
                                         {typeof v === 'object' ? JSON.stringify(v) : String(v)}
                                       </span>
                                     </div>
@@ -520,45 +511,44 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                   )}
 
-                  {/* Message Content Rendered */}
-                  <div className="markdown-content text-sm text-[var(--nx-text)]/90 mt-0.5">
+                  <div className="markdown-content mt-0.5">
                     <ReactMarkdown
                       components={{
                         code({ className, children, ...props }) {
-                          const isInline = !className && typeof children === 'string' && !children.includes('\n');
+                          const isInline =
+                            !className &&
+                            typeof children === 'string' &&
+                            !children.includes('\n');
                           if (isInline) {
                             return (
-                              <code
-                                className="px-1.5 py-0.5 rounded bg-[var(--nx-elevated)] text-[var(--nx-accent-hover)] font-mono text-xs font-medium"
-                                {...props}
-                              >
-                                {children}
-                              </code>
+                              <code {...props}>{children}</code>
                             );
                           }
                           const codeString = String(children).replace(/\n$/, '');
                           return (
-                            <div className="relative group/code my-3 rounded-xl overflow-hidden border border-[var(--nx-border)]">
-                              <div className="bg-black/40 px-3.5 py-1.5 flex items-center justify-between text-[11px] font-mono text-[var(--nx-text-faint)] border-b border-[var(--nx-border)]">
-                                <span>Code Block</span>
+                            <div className="group/code my-3 overflow-hidden rounded-[var(--nx-r-md)] border border-[var(--nx-border)]">
+                              <div className="flex items-center justify-between border-b border-[var(--nx-border)] bg-black/40 px-3.5 py-1.5 text-[11px] font-mono text-[var(--nx-text-faint)]">
+                                <span>{className?.replace('language-', '') || 'code'}</span>
                                 <button
-                                  onClick={() => copyToClipboard(codeString, `${message.id}-code`)}
-                                  className="flex items-center gap-1 text-[var(--nx-text-faint)] hover:text-white transition"
+                                  onClick={() =>
+                                    copyToClipboard(codeString, `${message.id}-code`)
+                                  }
+                                  className="flex items-center gap-1 transition hover:text-white"
                                 >
                                   {copiedMsgId === `${message.id}-code` ? (
                                     <>
-                                      <Check className="w-3 h-3 text-emerald-400" />
-                                      <span className="text-emerald-400">Copied!</span>
+                                      <Check className="h-3 w-3 text-[var(--nx-success)]" />
+                                      <span className="text-[var(--nx-success)]">Copied</span>
                                     </>
                                   ) : (
                                     <>
-                                      <Copy className="w-3 h-3" />
+                                      <Copy className="h-3 w-3" />
                                       <span>Copy</span>
                                     </>
                                   )}
                                 </button>
                               </div>
-                              <pre className="p-4 bg-black/30 text-[var(--nx-text)] font-mono text-xs overflow-x-auto">
+                              <pre className="overflow-x-auto bg-black/30 p-4 font-mono text-xs text-[var(--nx-text)]">
                                 <code>{children}</code>
                               </pre>
                             </div>
@@ -570,37 +560,38 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </ReactMarkdown>
                   </div>
 
-                  {/* Grounded Web Sources Citation Pills */}
                   {!isUser && message.webSources && message.webSources.length > 0 && (
-                    <div className="mt-3 pt-2.5 border-t border-[var(--nx-border-subtle)]">
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-[var(--nx-text-faint)] uppercase tracking-wider mb-2">
-                        <Globe className="w-3.5 h-3.5 text-blue-400" />
-                        <span>Live Web Grounding Sources ({message.webSources.length})</span>
-                        <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 text-[9px] font-mono lowercase">infinite quota</span>
+                    <div className="mt-3 border-t border-[var(--nx-border-subtle)] pt-2.5">
+                      <div className="mb-2 flex items-center gap-1.5">
+                        <Globe className="h-3.5 w-3.5 text-[var(--nx-info)]" />
+                        <span className="nx-eyebrow">
+                          Live web grounding · {message.webSources.length}
+                        </span>
+                        <span className="nx-badge nx-badge-success text-[9px]">infinite quota</span>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {message.webSources.map((source, sIdx) => (
                           <a
                             key={sIdx}
                             href={source.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2.5 rounded-xl border border-[var(--nx-border)] bg-[var(--nx-elevated)] hover:bg-blue-500/10 hover:border-blue-400/50 transition text-left group/src flex flex-col justify-between"
+                            className="group/src flex flex-col justify-between rounded-[var(--nx-r-md)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] p-2.5 text-left transition hover:border-[var(--nx-info)]/50 hover:bg-[var(--nx-info-soft)]"
                           >
                             <div>
-                              <div className="flex items-start justify-between gap-1 mb-1">
-                                <span className="font-semibold text-[var(--nx-text)] text-xs line-clamp-1 group-hover/src:text-blue-400 transition">
+                              <div className="mb-1 flex items-start justify-between gap-1">
+                                <span className="line-clamp-1 text-xs font-semibold text-[var(--nx-text)] transition group-hover/src:text-[var(--nx-info)]">
                                   {source.title}
                                 </span>
-                                <ExternalLink className="w-3 h-3 text-[var(--nx-text-faint)] group-hover/src:text-blue-400 shrink-0 mt-0.5" />
+                                <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 text-[var(--nx-text-faint)] group-hover/src:text-[var(--nx-info)]" />
                               </div>
-                              <p className="text-[11px] text-[var(--nx-text-muted)] line-clamp-2 leading-tight">
+                              <p className="line-clamp-2 text-[11px] leading-tight text-[var(--nx-text-muted)]">
                                 {source.snippet}
                               </p>
                             </div>
                             <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono text-[var(--nx-text-faint)]">
-                              <span className="truncate max-w-[150px]">{source.domain}</span>
-                              <span className="capitalize px-1 rounded bg-[var(--nx-elevated-hover)] text-[var(--nx-text-muted)] text-[9px]">
+                              <span className="max-w-[150px] truncate">{source.domain}</span>
+                              <span className="rounded bg-[var(--nx-elevated-hover)] px-1 capitalize text-[var(--nx-text-muted)]">
                                 {source.engine}
                               </span>
                             </div>
@@ -610,9 +601,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                   )}
 
-                  {/* Interactive Quick-Reply Suggestion Pills */}
                   {!isUser && message.content.includes('*Keep exploring:*') && (
-                    <div className="mt-2.5 flex flex-wrap gap-1.5 items-center">
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                       {message.content
                         .split('*Keep exploring:*')[1]
                         ?.split('\n')
@@ -623,46 +613,44 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             key={idx}
                             onClick={() => onSendMessage(q)}
                             disabled={isGenerating}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--nx-accent-soft)] hover:bg-[var(--nx-accent)]/25 text-[var(--nx-accent-hover)] border border-[var(--nx-accent)]/30 text-xs font-medium transition cursor-pointer disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-[var(--nx-r-full)] border border-[var(--nx-accent)]/30 bg-[var(--nx-accent-soft)] px-3 py-1.5 text-xs font-medium text-[var(--nx-accent-hover)] transition hover:bg-[var(--nx-accent)]/25 disabled:opacity-50"
                           >
-                            <Sparkles className="w-3 h-3" />
-                            <span className="truncate max-w-xs">{q}</span>
-                            <ArrowRight className="w-3 h-3" />
+                            <Sparkles className="h-3 w-3" />
+                            <span className="max-w-xs truncate">{q}</span>
+                            <ArrowRight className="h-3 w-3" />
                           </button>
                         ))}
                     </div>
                   )}
 
-                  {/* Telemetry & Action Footer for Assistant */}
                   {!isUser && (
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--nx-text-faint)] opacity-0 group-hover:opacity-100 transition">
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--nx-text-faint)] opacity-0 transition group-hover:opacity-100">
                       {message.telemetry && (
                         <div className="flex items-center gap-2 font-mono text-[11px]">
-                          <span>{message.telemetry.tokensGenerated} tokens</span>
-                          <span>•</span>
+                          <span>{message.telemetry.tokensGenerated} tok</span>
+                          <span>·</span>
                           <span>{message.telemetry.tokensPerSec} t/s</span>
-                          <span>•</span>
+                          <span>·</span>
                           <span>{message.telemetry.generationTimeMs}ms</span>
                         </div>
                       )}
-
-                      <div className="flex items-center gap-1 ml-auto">
+                      <div className="ml-auto flex items-center gap-1">
                         <button
                           onClick={() => onOpenAttentionForMessage(message)}
-                          className="p-1 text-[var(--nx-text-faint)] hover:text-[var(--nx-accent-hover)] hover:bg-[var(--nx-elevated)] rounded transition"
-                          title="Inspect Attention Matrix for this response"
+                          className="rounded p-1 text-[var(--nx-text-faint)] transition hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-accent-hover)]"
+                          title="Inspect attention matrix"
                         >
-                          <BrainCircuit className="w-3.5 h-3.5" />
+                          <BrainCircuit className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => copyToClipboard(message.content, message.id)}
-                          className="p-1 text-[var(--nx-text-faint)] hover:text-[var(--nx-text)] hover:bg-[var(--nx-elevated)] rounded transition"
+                          className="rounded p-1 text-[var(--nx-text-faint)] transition hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-text)]"
                           title="Copy message"
                         >
                           {copiedMsgId === message.id ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <Check className="h-3.5 w-3.5 text-[var(--nx-success)]" />
                           ) : (
-                            <Copy className="w-3.5 h-3.5" />
+                            <Copy className="h-3.5 w-3.5" />
                           )}
                         </button>
                       </div>
@@ -673,40 +661,38 @@ export const ChatView: React.FC<ChatViewProps> = ({
             );
           })}
 
-          {/* Streaming Ongoing Assistant Message */}
           {isGenerating && (
-            <div className="flex items-start gap-3 px-2 py-2 animate-in fade-in duration-100">
-              {AVATAR(false)}
+            <div className="nx-fade-in flex items-start gap-3 px-2 py-2">
+              <Avatar isUser={false} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-sm font-semibold text-[var(--nx-accent-hover)]">{activePersona.name}</span>
-                  <span className="text-[11px] text-emerald-400 font-medium">
-                    {streamingChunk ? 'Reasoning & Streaming...' : progressStage || 'Thinking...'}
+                  <span className="text-sm font-semibold text-[var(--nx-accent-hover)]">
+                    {activePersona.name}
+                  </span>
+                  <span className="text-[11px] font-medium text-[var(--nx-success)]">
+                    {streamingChunk
+                      ? 'Reasoning & streaming…'
+                      : progressStage || 'Thinking…'}
                   </span>
                 </div>
                 {streamingChunk ? (
-                  <div className="markdown-content text-sm text-[var(--nx-text)]/90 mt-0.5">
+                  <div className="markdown-content mt-0.5">
                     <ReactMarkdown>{streamingChunk}</ReactMarkdown>
+                    <span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-[var(--nx-accent)] align-middle" />
                   </div>
                 ) : (
-                  // Real content isn't ready yet — the label above already shows honest,
-                  // real-time progress (progressStage). This is just a visual "something is
-                  // happening" cue underneath it, not a placeholder pretending to be content.
                   <div className="mt-2 space-y-1.5" aria-hidden="true">
-                    <div className="flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce [animation-delay:-0.3s]" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce [animation-delay:-0.15s]" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--nx-accent)] animate-bounce" />
+                    <div className="nx-typing">
+                      <span />
+                      <span />
+                      <span />
                     </div>
                     {waitEscalation && (
-                      <p className="text-xs text-[var(--nx-text-faint)] animate-in fade-in duration-300">
+                      <p className="nx-fade-in text-xs text-[var(--nx-text-faint)]">
                         {waitEscalation}
                       </p>
                     )}
                   </div>
-                )}
-                {streamingChunk && (
-                  <span className="inline-block w-2 h-4 bg-[var(--nx-accent)] ml-0.5 animate-pulse" />
                 )}
               </div>
             </div>
@@ -716,71 +702,67 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
       </div>
 
-      {/* Input Bar */}
+      {/* Composer */}
       <div className="shrink-0 bg-[var(--nx-surface)] px-4 py-3 sm:px-6">
-        <div className="max-w-3xl mx-auto space-y-2">
-          {/* Controls Bar Above Input */}
-          <div className="flex items-center justify-between text-xs text-[var(--nx-text-faint)] px-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-semibold text-[var(--nx-text-muted)]">{activePersona.name}</span>
-              <span className="px-2 py-0.5 rounded-full bg-[var(--nx-elevated)] text-[10px] font-mono font-medium">
-                Temp: {settings.temperature}
+        <div className="mx-auto max-w-[var(--nx-content-max)] space-y-2">
+          <div className="flex items-center justify-between px-1 text-xs text-[var(--nx-text-faint)]">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-semibold text-[var(--nx-text-muted)]">
+                {activePersona.name}
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-[var(--nx-elevated)] text-[10px] font-mono font-medium capitalize">
+              <span className="nx-badge font-mono text-[10px]">temp {settings.temperature}</span>
+              <span className="nx-badge font-mono text-[10px] capitalize">
                 {settings.reasoningMode}
               </span>
               {settings.webSearchEnabled && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-medium border border-blue-500/30">
-                  <Globe className="w-2.5 h-2.5" />
-                  <span>Web Search: {settings.webSearchMode || 'auto'}</span>
+                <span className="nx-badge nx-badge-info text-[10px]">
+                  <Globe className="h-2.5 w-2.5" />
+                  web {settings.webSearchMode || 'auto'}
                 </span>
               )}
             </div>
-
-            <div className="flex items-center gap-2 text-[11px] font-mono">
-              {inputTokenCount > 0 && <span>{inputTokenCount} tokens</span>}
+            <div className="flex items-center gap-2 font-mono text-[11px]">
+              {inputTokenCount > 0 && <span>{inputTokenCount} tok</span>}
               {messages.length > 0 && !isGenerating && (
                 <button
                   onClick={onRegenerate}
-                  className="flex items-center gap-1 text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] transition"
+                  className="flex items-center gap-1 text-[var(--nx-text-muted)] transition hover:text-[var(--nx-text)]"
                   title="Regenerate last response"
                 >
-                  <RotateCw className="w-3 h-3" />
+                  <RotateCw className="h-3 w-3" />
                   <span>Regenerate</span>
                 </button>
               )}
             </div>
           </div>
 
-          {/* Attached Image Thumbnail Preview Card */}
           {attachedImage && (
-            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--nx-accent-soft)] border border-[var(--nx-accent)]/30 text-xs text-[var(--nx-text)] animate-in fade-in slide-in-from-bottom-2">
+            <div className="nx-fade-in flex items-center gap-3 rounded-[var(--nx-r-md)] border border-[var(--nx-accent)]/30 bg-[var(--nx-accent-soft)] p-2.5 text-xs text-[var(--nx-text)]">
               <img
                 src={attachedImage.dataUrl}
                 alt="Upload preview"
-                className="w-12 h-12 object-cover rounded-lg border border-[var(--nx-accent)]/40"
+                className="h-12 w-12 rounded-[var(--nx-r-sm)] border border-[var(--nx-accent)]/40 object-cover"
                 referrerPolicy="no-referrer"
               />
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold truncate">{attachedImage.name}</p>
-                <p className="text-[11px] text-[var(--nx-accent-hover)] font-mono">
-                  {attachedImage.size} • Vision Scanner Ready
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{attachedImage.name}</p>
+                <p className="font-mono text-[11px] text-[var(--nx-accent-hover)]">
+                  {attachedImage.size} · vision scanner ready
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setAttachedImage(null)}
-                className="p-1 text-[var(--nx-text-faint)] hover:text-rose-400 rounded-lg hover:bg-white/5 transition cursor-pointer"
+                className="rounded-[var(--nx-r-sm)] p-1 text-[var(--nx-text-faint)] transition hover:bg-white/5 hover:text-[var(--nx-danger)]"
                 title="Remove attached image"
               >
-                <X className="w-4 h-4" />
+                <X className="h-4 w-4" />
               </button>
             </div>
           )}
 
-          {/* Form & Textarea */}
           <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
-            <div className="relative flex-1 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-2xl focus-within:border-[var(--nx-accent)] focus-within:ring-2 focus-within:ring-[var(--nx-accent)]/20 transition overflow-hidden">
+            <div className="relative flex-1 overflow-hidden rounded-[var(--nx-r-lg)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] transition focus-within:border-[var(--nx-accent)] focus-within:ring-2 focus-within:ring-[var(--nx-accent-soft)]">
               <textarea
                 ref={textareaRef}
                 rows={1}
@@ -788,38 +770,37 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
-                placeholder={`Message ${activePersona.name} or drop an image/screenshot (Enter to send, Shift+Enter for newline)...`}
-                className="w-full resize-none bg-transparent px-4 py-3 text-sm text-[var(--nx-text)] placeholder:text-[var(--nx-text-faint)] focus:outline-none max-h-40"
+                placeholder={`Message ${activePersona.name}…  (Enter to send · Shift+Enter for newline · paste or drop an image)`}
+                className="max-h-44 w-full resize-none bg-transparent px-4 py-3 text-sm text-[var(--nx-text)] placeholder:text-[var(--nx-text-faint)] focus:outline-none"
               />
             </div>
 
-            {/* Attach Image Button */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="h-12 w-12 rounded-2xl bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated-hover)] text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-hover)] flex items-center justify-center shrink-0 transition border border-[var(--nx-border)] cursor-pointer"
-              title="Upload image or screenshot for vision scanning"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--nx-r-lg)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] text-[var(--nx-text-muted)] transition hover:bg-[var(--nx-elevated-hover)] hover:text-[var(--nx-accent-hover)]"
+              title="Upload image or screenshot"
             >
-              <ImageIcon className="w-4 h-4" />
+              <ImageIcon className="h-4 w-4" />
             </button>
 
             {isGenerating ? (
               <button
                 type="button"
                 onClick={onStopGeneration}
-                className="h-12 w-12 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center shadow-sm shrink-0 transition cursor-pointer"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--nx-r-lg)] bg-[var(--nx-danger)] text-white transition hover:brightness-110"
                 title="Stop generation"
               >
-                <Square className="w-4 h-4 fill-current" />
+                <Square className="h-4 w-4 fill-current" />
               </button>
             ) : (
               <button
                 type="submit"
                 disabled={!inputText.trim() && !attachedImage}
-                className="h-12 w-12 rounded-2xl bg-[var(--nx-accent)] hover:bg-[var(--nx-accent-hover)] disabled:opacity-30 disabled:hover:bg-[var(--nx-accent)] text-white flex items-center justify-center shadow-sm shrink-0 transition cursor-pointer"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--nx-r-lg)] bg-[var(--nx-accent)] text-white transition hover:bg-[var(--nx-accent-hover)] disabled:opacity-30 disabled:hover:bg-[var(--nx-accent)]"
                 title="Send message"
               >
-                <Send className="w-4 h-4" />
+                <Send className="h-4 w-4" />
               </button>
             )}
           </form>
