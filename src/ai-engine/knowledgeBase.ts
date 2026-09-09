@@ -217,6 +217,7 @@ import { ACOUSTICS_GAPS } from './corpus/acousticsGaps';
 import { CARDIOLOGY_GAPS } from './corpus/cardiologyGaps';
 import { RESPIRATORY_GAPS } from './corpus/respiratoryGaps';
 import { KIDNEY_GAPS } from './corpus/kidneyGaps';
+import { ENDOCRINOLOGY_GAPS } from './corpus/endocrinologyGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -1056,6 +1057,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...CARDIOLOGY_GAPS,
   ...RESPIRATORY_GAPS,
   ...KIDNEY_GAPS,
+  ...ENDOCRINOLOGY_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
