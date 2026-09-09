@@ -213,6 +213,7 @@ import { PRINTMAKING_GAPS } from './corpus/printmakingGaps';
 import { BEEKEEPING_GAPS } from './corpus/beekeepingGaps';
 import { MICROBIOLOGY_IMMUNOLOGY_GAPS } from './corpus/microbiologyImmunologyGaps';
 import { DENTISTRY_GAPS } from './corpus/dentistryGaps';
+import { ACOUSTICS_GAPS } from './corpus/acousticsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -1048,6 +1049,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...BEEKEEPING_GAPS,
   ...MICROBIOLOGY_IMMUNOLOGY_GAPS,
   ...DENTISTRY_GAPS,
+  ...ACOUSTICS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
