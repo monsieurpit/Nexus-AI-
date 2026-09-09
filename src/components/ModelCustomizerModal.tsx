@@ -309,7 +309,7 @@ Tone guidelines:
                       onClick={() => handlePersonaChange(persona.id)}
                       className={`cursor-pointer p-4 rounded-xl border transition flex flex-col justify-between ${
                         isSelected
-                          ? 'border-[var(--nx-accent)] bg-[var(--nx-accent-soft)]/50 ring-1 ring-indigo-600'
+                          ? 'border-[var(--nx-accent)] bg-[var(--nx-accent-soft)]/50 ring-1 ring-[var(--nx-accent-hover)]'
                           : 'border-[var(--nx-border)] bg-[var(--nx-surface)]/40 hover:bg-[var(--nx-elevated)]/60'
                       }`}
                     >
@@ -389,7 +389,7 @@ Tone guidelines:
                   onChange={(e) =>
                     setLocalSettings((prev) => ({ ...prev, temperature: parseFloat(e.target.value) }))
                   }
-                  className="w-full accent-indigo-600 cursor-pointer"
+                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
                 />
                 <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
                   <span>0.0 (Deterministic & Logical)</span>
@@ -415,7 +415,7 @@ Tone guidelines:
                   onChange={(e) =>
                     setLocalSettings((prev) => ({ ...prev, topP: parseFloat(e.target.value) }))
                   }
-                  className="w-full accent-indigo-600 cursor-pointer"
+                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
                 />
                 <p className="text-[11px] text-[var(--nx-text-faint)]">
                   Cumulative probability threshold for candidate token selection during decoding.
@@ -474,7 +474,7 @@ Tone guidelines:
                   onChange={(e) =>
                     setLocalSettings((prev) => ({ ...prev, attentionHeads: parseInt(e.target.value, 10) }))
                   }
-                  className="w-full accent-indigo-600 cursor-pointer"
+                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
                 />
               </div>
 
@@ -513,7 +513,7 @@ Tone guidelines:
               </div>
 
               {/* 🌐 Autonomous Web Search & Google Grounding */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-br from-blue-500/10 via-sky-500/10 to-indigo-500/10 border border-[var(--nx-info)]/30 space-y-3">
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-[var(--nx-info)]/10 via-[var(--nx-info)]/10 to-[var(--nx-accent-hover)]/10 border border-[var(--nx-info)]/30 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-md bg-[var(--nx-info)] text-white flex items-center justify-center">
@@ -636,7 +636,7 @@ Tone guidelines:
                   max="100"
                   value={currentPersona.toneSettings.warmth}
                   onChange={(e) => handleToneUpdate({ warmth: parseInt(e.target.value, 10) })}
-                  className="w-full accent-indigo-600 cursor-pointer"
+                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
                 />
                 <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
                   <span>Clinical & Direct</span>
@@ -656,7 +656,7 @@ Tone guidelines:
                   max="100"
                   value={currentPersona.toneSettings.technicality}
                   onChange={(e) => handleToneUpdate({ technicality: parseInt(e.target.value, 10) })}
-                  className="w-full accent-indigo-600 cursor-pointer"
+                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
                 />
                 <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
                   <span>Plain Language</span>
@@ -676,7 +676,7 @@ Tone guidelines:
                   max="100"
                   value={currentPersona.toneSettings.verbosity}
                   onChange={(e) => handleToneUpdate({ verbosity: parseInt(e.target.value, 10) })}
-                  className="w-full accent-indigo-600 cursor-pointer"
+                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
                 />
                 <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
                   <span>Ultra-Concise</span>
@@ -696,7 +696,7 @@ Tone guidelines:
                   max="100"
                   value={currentPersona.toneSettings.creativity}
                   onChange={(e) => handleToneUpdate({ creativity: parseInt(e.target.value, 10) })}
-                  className="w-full accent-indigo-600 cursor-pointer"
+                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
                 />
                 <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
                   <span>Strictly Factual</span>
@@ -722,7 +722,7 @@ Tone guidelines:
                     const val = parseInt(e.target.value, 10);
                     setLocalSettings((prev) => ({ ...prev, roastIntensity: val }));
                   }}
-                  className="w-full accent-amber-500 cursor-pointer"
+                  className="w-full accent-[var(--nx-warn)] cursor-pointer"
                 />
                 <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
                   <span>Gentle & Polite</span>
@@ -731,7 +731,7 @@ Tone guidelines:
               </div>
 
               {/* Swear Engine & Expressive Profanity Pipeline */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-br from-rose-500/10 via-amber-500/10 to-orange-500/10 border border-[var(--nx-danger)]/30 space-y-3">
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-[var(--nx-danger)]/10 via-[var(--nx-warn)]/10 to-orange-500/10 border border-[var(--nx-danger)]/30 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-md bg-[var(--nx-danger)] text-white flex items-center justify-center text-xs font-black">
@@ -806,7 +806,7 @@ Tone guidelines:
           {activeTab === 'system' && (
             <div className="space-y-5">
               {/* Discord Bot Quick Presets */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-[var(--nx-accent)]/20 space-y-2.5">
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-[var(--nx-accent-hover)]/10 to-[var(--nx-accent-hover)]/10 border border-[var(--nx-accent)]/20 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--nx-accent-hover)]">
                     <Bot className="w-4 h-4 text-[var(--nx-accent-hover)]" />

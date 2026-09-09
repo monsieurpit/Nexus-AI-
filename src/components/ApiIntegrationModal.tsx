@@ -778,7 +778,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             </button>
             <button
               onClick={() => handleGenerateNewKey()}
-              className="px-3 py-1.5 rounded-lg bg-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-hover)] text-white font-medium text-xs flex items-center gap-1.5 transition shadow-2xs"
+              className="px-3 py-1.5 rounded-lg bg-[var(--nx-accent)] hover:bg-[var(--nx-accent-hover)] text-white font-medium text-xs flex items-center gap-1.5 transition shadow-2xs"
             >
               <RotateCw className="w-3.5 h-3.5" />
               <span>Generate New</span>
@@ -913,8 +913,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </div>
               </div>
 
-              <div className="relative rounded-xl overflow-hidden border border-stone-800 bg-black/40 text-stone-200">
-                <div className="px-4 py-2 bg-[var(--nx-elevated-hover)] border-b border-stone-800 flex items-center justify-between text-[11px] font-mono text-[var(--nx-text-faint)]">
+              <div className="relative rounded-xl overflow-hidden border border-[var(--nx-border-subtle)] bg-black/40 text-[var(--nx-text-muted)]">
+                <div className="px-4 py-2 bg-[var(--nx-elevated-hover)] border-b border-[var(--nx-border-subtle)] flex items-center justify-between text-[11px] font-mono text-[var(--nx-text-faint)]">
                   <span>bot.js (JavaScript / ES Module)</span>
                   <span>discord.js v14+</span>
                 </div>
@@ -956,8 +956,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </button>
               </div>
 
-              <div className="relative rounded-xl overflow-hidden border border-stone-800 bg-black/40 text-stone-200">
-                <div className="px-4 py-2 bg-[var(--nx-elevated-hover)] border-b border-stone-800 flex items-center justify-between text-[11px] font-mono text-[var(--nx-text-faint)]">
+              <div className="relative rounded-xl overflow-hidden border border-[var(--nx-border-subtle)] bg-black/40 text-[var(--nx-text-muted)]">
+                <div className="px-4 py-2 bg-[var(--nx-elevated-hover)] border-b border-[var(--nx-border-subtle)] flex items-center justify-between text-[11px] font-mono text-[var(--nx-text-faint)]">
                   <span>nexus-ai.js</span>
                   <span>Pure JS / Node 18+ Fetch</span>
                 </div>
@@ -984,7 +984,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 <button
                   onClick={fetchKeys}
                   disabled={keysLoading}
-                  className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-white text-xs font-medium flex items-center gap-1.5 transition"
+                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated-hover)] text-white text-xs font-medium flex items-center gap-1.5 transition"
                 >
                   <RotateCw className={`w-3.5 h-3.5 ${keysLoading ? 'animate-spin' : ''}`} />
                   <span>Refresh Keys</span>
@@ -992,30 +992,27 @@ client.login(process.env.DISCORD_BOT_TOKEN);
               </div>
 
               {/* Feature Matrix Badges */}
-              <div className="p-4 bg-[var(--nx-accent-hover)] text-white rounded-xl space-y-2">
+              <div className="rounded-[var(--nx-r-md)] border border-[var(--nx-accent)]/25 bg-[var(--nx-accent-soft)] p-4 space-y-2">
                 <div className="flex items-center gap-2 text-xs font-bold text-[var(--nx-accent-hover)]">
                   <Sparkles className="w-4 h-4 text-[var(--nx-warn)]" />
-                  <span>Newest Capabilities Auto-Synced to All Keys</span>
+                  <span>Newest capabilities auto-synced to all keys</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
-                    ⚡ internal_autonomous_vision_scanner
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
-                    🛡️ raidshield_21_hard_security_rules
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
-                    🔥 swear_engine_polish_english
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
-                    📜 strict_sdk_rule_enforcement
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
-                    👑 super_chill_vip_mode
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
-                    🚦 fifo_waitlist_request_queue
-                  </span>
+                  {[
+                    '⚡ internal_autonomous_vision_scanner',
+                    '🛡️ raidshield_21_hard_security_rules',
+                    '🔥 swear_engine_polish_english',
+                    '📜 strict_sdk_rule_enforcement',
+                    '👑 super_chill_vip_mode',
+                    '🚦 fifo_waitlist_request_queue',
+                  ].map((cap) => (
+                    <span
+                      key={cap}
+                      className="rounded-md border border-[var(--nx-border)] bg-[var(--nx-elevated)] px-2 py-0.5 text-[10px] font-mono text-[var(--nx-text-muted)]"
+                    >
+                      {cap}
+                    </span>
+                  ))}
                 </div>
               </div>
 
@@ -1032,7 +1029,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                   />
                   <button
                     onClick={() => handleGenerateNewKey()}
-                    className="px-4 py-2 rounded-lg bg-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-hover)] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs"
+                    className="px-4 py-2 rounded-lg bg-[var(--nx-accent)] hover:bg-[var(--nx-accent-hover)] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Create Key</span>
@@ -1159,7 +1156,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
               </div>
 
               {/* Live Waitlist Queue Monitor & Stress Test */}
-              <div className="p-4 bg-[var(--nx-elevated-hover)] border border-stone-800 rounded-xl text-white space-y-4">
+              <div className="p-4 bg-[var(--nx-elevated-hover)] border border-[var(--nx-border-subtle)] rounded-xl text-white space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Layers className="w-4 h-4 text-[var(--nx-warn)]" />
@@ -1169,7 +1166,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                     <button
                       onClick={fetchQueueStatus}
                       disabled={queueLoading}
-                      className="px-2.5 py-1 text-[10px] rounded-lg bg-stone-800 hover:bg-stone-700 text-[var(--nx-text-faint)] flex items-center gap-1 font-mono transition"
+                      className="px-2.5 py-1 text-[10px] rounded-lg bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated-hover)] text-[var(--nx-text-faint)] flex items-center gap-1 font-mono transition"
                     >
                       <RotateCw className={`w-3 h-3 ${queueLoading ? 'animate-spin' : ''}`} />
                       <span>Refresh</span>
@@ -1187,26 +1184,26 @@ client.login(process.env.DISCORD_BOT_TOKEN);
 
                 {/* Metrics Badges */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
-                  <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
+                  <div className="p-2 bg-[var(--nx-elevated)]/80 rounded-lg border border-[var(--nx-border)]/50">
                     <div className="text-[10px] text-[var(--nx-text-faint)]">Waiting in Line</div>
                     <div className="text-base font-bold text-[var(--nx-warn)]">{queueStats?.pendingInWaitlist ?? 0}</div>
                   </div>
-                  <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
+                  <div className="p-2 bg-[var(--nx-elevated)]/80 rounded-lg border border-[var(--nx-border)]/50">
                     <div className="text-[10px] text-[var(--nx-text-faint)]">Total Processed</div>
                     <div className="text-base font-bold text-[var(--nx-success)]">{queueStats?.totalProcessed ?? 0}</div>
                   </div>
-                  <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
+                  <div className="p-2 bg-[var(--nx-elevated)]/80 rounded-lg border border-[var(--nx-border)]/50">
                     <div className="text-[10px] text-[var(--nx-text-faint)]">Peak Queue Length</div>
                     <div className="text-base font-bold text-[var(--nx-info)]">{queueStats?.peakQueueLength ?? 0}</div>
                   </div>
-                  <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
+                  <div className="p-2 bg-[var(--nx-elevated)]/80 rounded-lg border border-[var(--nx-border)]/50">
                     <div className="text-[10px] text-[var(--nx-text-faint)]">Avg Wait Time</div>
                     <div className="text-base font-bold text-[var(--nx-accent-hover)]">{Math.round(queueStats?.avgWaitTimeMs ?? 0)} ms</div>
                   </div>
                 </div>
 
                 {burstResults && (
-                  <div className="p-3 bg-black/40 border border-stone-800 rounded-lg font-mono text-[10px] text-[var(--nx-success)] max-h-48 overflow-y-auto">
+                  <div className="p-3 bg-black/40 border border-[var(--nx-border-subtle)] rounded-lg font-mono text-[10px] text-[var(--nx-success)] max-h-48 overflow-y-auto">
                     <div className="text-[var(--nx-text-faint)] font-bold mb-1">Burst Test Completed:</div>
                     <pre>{JSON.stringify(burstResults, null, 2)}</pre>
                   </div>
@@ -1246,8 +1243,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </button>
               </div>
 
-              <div className="relative rounded-xl overflow-hidden border border-stone-800 bg-black/40 text-stone-200">
-                <div className="px-4 py-2 bg-[var(--nx-elevated-hover)] border-b border-stone-800 flex items-center justify-between text-[11px] font-mono text-[var(--nx-text-faint)]">
+              <div className="relative rounded-xl overflow-hidden border border-[var(--nx-border-subtle)] bg-black/40 text-[var(--nx-text-muted)]">
+                <div className="px-4 py-2 bg-[var(--nx-elevated-hover)] border-b border-[var(--nx-border-subtle)] flex items-center justify-between text-[11px] font-mono text-[var(--nx-text-faint)]">
                   <span>.env</span>
                   <span>Configuration</span>
                 </div>
@@ -1301,7 +1298,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                   <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Generates casual, expressive swearing, accurate answers, Casseurt roasts, and Super Chill VIP responses.
                   </p>
-                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
+                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-[var(--nx-text-muted)] rounded-lg font-mono text-[10px] overflow-x-auto">
 {`// Request Body
 {
   "prompt": "How do I center a div in CSS?",
@@ -1333,7 +1330,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                   <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Evaluates Discord messages against all 21 hard security rules, outputs structured JSON with classification and confidence.
                   </p>
-                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
+                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-[var(--nx-text-muted)] rounded-lg font-mono text-[10px] overflow-x-auto">
 {`// Request Body
 {
   "messageText": "FREE NITRO: http://dlscord.gift/drop @everyone",
@@ -1364,7 +1361,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                   <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Directly analyzes screenshots, images, QR codes, or attachments via Nexus autonomous vision and threat inspection.
                   </p>
-                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
+                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-[var(--nx-text-muted)] rounded-lg font-mono text-[10px] overflow-x-auto">
 {`// Request Body
 {
   "imageUrl": "https://example.com/nitro-scam-screenshot.png", // or base64 data URL
@@ -1409,7 +1406,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                   <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Search Google, DuckDuckGo & Wikipedia live with infinite requests per day and zero external API dependencies.
                   </p>
-                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-stone-200 rounded-lg font-mono text-[10px] overflow-x-auto">
+                  <pre className="p-3 bg-[var(--nx-elevated-hover)] text-[var(--nx-text-muted)] rounded-lg font-mono text-[10px] overflow-x-auto">
 {`// Request Body
 {
   "query": "Who won the 2024 UEFA Champions League?",
@@ -1651,7 +1648,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                     <button
                       onClick={handleRunTester}
                       disabled={testerLoading}
-                      className="w-full py-2.5 rounded-xl bg-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-hover)] text-white font-bold text-xs flex items-center justify-center gap-2 transition disabled:opacity-50 shadow-sm"
+                      className="w-full py-2.5 rounded-xl bg-[var(--nx-accent)] hover:bg-[var(--nx-accent-hover)] text-white font-bold text-xs flex items-center justify-center gap-2 transition disabled:opacity-50 shadow-sm"
                     >
                       {testerLoading ? (
                         <>
@@ -1669,13 +1666,13 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </div>
 
                 {/* Response Output */}
-                <div className="p-4 bg-[var(--nx-elevated-hover)] border border-stone-800 rounded-xl flex flex-col">
-                  <div className="flex items-center justify-between pb-2 border-b border-stone-800 text-[11px] font-mono text-[var(--nx-text-faint)]">
+                <div className="p-4 bg-[var(--nx-elevated-hover)] border border-[var(--nx-border-subtle)] rounded-xl flex flex-col">
+                  <div className="flex items-center justify-between pb-2 border-b border-[var(--nx-border-subtle)] text-[11px] font-mono text-[var(--nx-text-faint)]">
                     <span>Live JSON Response</span>
                     {testerResult && (
                       <button
                         onClick={() => handleCopy(testerResult, 'testerRes')}
-                        className="hover:text-stone-200 flex items-center gap-1"
+                        className="hover:text-[var(--nx-text-muted)] flex items-center gap-1"
                       >
                         <Copy className="w-3 h-3" />
                         <span>Copy</span>
