@@ -391,6 +391,13 @@ const SLANG_REACTION_WORDS: Record<string, SlangReaction> = {
   ate: 'hype', snapped: 'hype', bars: 'hype', spitting: 'hype', preach: 'hype', facts: 'hype',
   carried: 'hype', hard: 'hype', crazy: 'hype', insane: 'hype', wild: 'hype', tuff: 'hype',
   goes: 'hype', godlike: 'hype', legendary: 'hype', immaculate: 'hype', cold: 'hype',
+  // 2026 hype: "so good it's criminal" register + gooning/cook adjacent
+  gas: 'hype', heat: 'hype', saucy: 'hype', sauce: 'hype', buttery: 'hype', silky: 'hype',
+  nutty: 'hype', demonic: 'hype', evil: 'hype', feral: 'hype', savage: 'hype', vicious: 'hype',
+  lethal: 'hype', deadly: 'hype', clinical: 'hype', surgical: 'hype', ruthless: 'hype',
+  bonkers: 'hype', obscene: 'hype', filth: 'hype', unreal: 'hype', disgusting: 'hype',
+  sickening: 'hype', gnarly: 'hype', slick: 'hype', locked: 'hype', dialed: 'hype',
+  cooking: 'hype', eating: 'hype', chefs: 'hype',
   mid: 'disapproval', cringe: 'disapproval', cringey: 'disapproval', ratio: 'disapproval',
   trash: 'disapproval', flop: 'disapproval', washed: 'disapproval', yikes: 'disapproval',
   // more disapproval slang
@@ -398,17 +405,26 @@ const SLANG_REACTION_WORDS: Record<string, SlangReaction> = {
   weak: 'disapproval', wack: 'disapproval', whack: 'disapproval', corny: 'disapproval',
   lame: 'disapproval', aired: 'disapproval', foul: 'disapproval', bum: 'disapproval',
   booty: 'disapproval', nerf: 'disapproval', womp: 'disapproval', ass: 'disapproval',
+  nothingburger: 'disapproval', bricked: 'disapproval', choked: 'disapproval', fumbled: 'disapproval',
+  fumble: 'disapproval', airball: 'disapproval', airballed: 'disapproval', clowned: 'disapproval',
+  buns: 'disapproval', donkey: 'disapproval', clanker: 'disapproval', tweaking: 'disapproval',
+  bugging: 'disapproval', embarrassing: 'disapproval',
   cap: 'doubt', sus: 'doubt', sussy: 'doubt', delulu: 'doubt', cope: 'doubt',
   allegedly: 'doubt', seethe: 'doubt', mald: 'doubt',
   glazing: 'doubt', glaze: 'doubt', yapping: 'doubt', yap: 'doubt', capping: 'doubt',
+  copium: 'doubt', hopium: 'doubt', malding: 'doubt', glazer: 'doubt', yapper: 'doubt',
   '💀': 'dead', '😭': 'dead', '☠': 'dead',
   crying: 'dead', sobbing: 'dead', screaming: 'dead', bawling: 'dead', deceased: 'dead',
   hollering: 'dead', wheezing: 'dead', dyin: 'dead', dying: 'dead',
+  howling: 'dead', cackling: 'dead', weeping: 'dead', ded: 'dead', wailing: 'dead',
+  gagged: 'dead', gagging: 'dead', sped: 'dead', crashingout: 'dead',
   cooked: 'cooked', doomed: 'cooked',
   huh: 'confusion', erm: 'confusion', wut: 'confusion', '?': 'confusion', hwat: 'confusion',
   bro: 'filler', bruh: 'filler', dawg: 'filler', gang: 'filler',
   twin: 'filler', unc: 'filler', blud: 'filler', fam: 'filler', king: 'filler',
   chief: 'filler', slime: 'filler', cuz: 'filler', chat: 'filler', g: 'filler',
+  bruv: 'filler', shorty: 'filler', shordy: 'filler', bestie: 'filler', folks: 'filler',
+  homes: 'filler', ceo: 'filler', twinnem: 'filler', gng: 'filler', vro: 'filler',
 };
 
 // Words that can pad a reaction without changing what it is. Deliberately excludes "no" and any
@@ -429,6 +445,11 @@ const SLANG_REACTION_FILLER = new Set([
   'hes', 'shes', 'theyre', 'were', 'thats', 'whats', 'dont', 'cant', 'wont', 'aint',
   'take', 'said', 'says', 'be', 'being', 'got', 'went', 'just', 'still', 'even', 'about',
   'like', 'all', 'gonna', 'wanna', 'tryna', 'finna', 'bouta',
+  // 2026 filler / address / intensifier padding
+  'bruv', 'shorty', 'shordy', 'bestie', 'folks', 'homes', 'ceo', 'twinnem', 'vro',
+  'icl', 'sm', 'pmo', 'ts', 'nchalant', 'nonchalant', 'sybau', 'yn', 'crodie', 'chatgpt',
+  'goofy', 'diabolically', 'insanely', 'sooo', 'soo', 'lwk', 'hwk', 'dead', 'deada',
+  'on', 'god', 'sybau', 'buddy', 'boss', 'champ', 'bang', 'sksksk',
 ]);
 
 const MAX_SLANG_REACTION_WORDS = 6;
@@ -558,13 +579,79 @@ const STANDALONE_SLANG_MEANINGS: Record<string, string> = {
   oomf: 'one of my followers / mutuals — a vague "someone I know online"',
   ragebait: 'content posted specifically to make people angry enough to engage',
   parasocial: 'a one-sided attachment to a creator or celebrity who doesn’t know you exist',
+  // 2026 brainrot wave — Italian-brainrot, "6 7", aura economy, dating-app verbs
+  '6 7': 'a viral nonsense catchphrase off the Skrilla song "Doot Doot (6 7)" — said at random, out of context, meaning basically nothing',
+  'six seven': 'the spelled-out version of "6 7" — a meaningless viral interjection kids drop just to be annoying',
+  clanker: 'a derogatory slur for a robot or AI, revived from Star Wars: The Clone Wars',
+  'tralalero tralala': 'a character from the AI-generated "Italian brainrot" meme universe — a shark in Nike sneakers; pure absurdist nonsense',
+  'tung tung tung sahur': 'an Italian-brainrot meme creature shaped like a wooden club; surreal nonsense humour',
+  'italian brainrot': 'the genre of AI-generated meme creatures with fake-Italian names (Tralalero, Bombardino Crocodilo, Tung Tung Tung Sahur)',
+  aura: 'intangible coolness or presence — you gain or lose "aura points" depending on how you handle a moment',
+  'aura points': 'an imaginary running score for how cool or cringe your actions are',
+  'negative aura': 'losing coolness points by doing something embarrassing',
+  mogged: 'got visibly outshined by someone standing right next to you',
+  mogging: 'outshining the people around you, usually in looks',
+  gyat: 'an exclamation at a large backside, shortened from "goddamn"',
+  gyatt: 'an exclamation at a large backside, shortened from "goddamn"',
+  goon: 'to compulsively edge to porn for hours — coom brainrot',
+  gooning: 'compulsively edging to porn for hours; being hopelessly horny online',
+  'nonchalant dreadhead': 'the meme of a guy acting studiously unbothered and aloof to seem attractive',
+  chalant: 'jokey back-formation from "nonchalant" meaning actually bothered / trying hard',
+  baddie: 'an attractive, confident, put-together woman',
+  'pick me': 'someone who puts others down to seem like the special, low-maintenance exception',
+  'canon event': 'an unavoidable bad experience you have to go through to become who you are, from Spider-Verse',
+  lore: 'someone’s accumulated backstory and personal history',
+  'lore drop': 'suddenly revealing a big chunk of your backstory',
+  ick: 'a small thing someone does that instantly kills your attraction to them',
+  'the ick': 'a sudden turnoff that ends any attraction',
+  'glow up': 'a dramatic improvement in looks, style, or life',
+  'menty b': 'a mental breakdown',
+  'mental breakdown era': 'jokingly framing a rough patch as a dramatic phase',
+  'rent free': 'something you can’t stop thinking about — it "lives rent free in your head"',
+  gatekeep: 'refusing to share info about something so it stays exclusive',
+  'rizz up': 'to successfully flirt with and charm someone',
+  'unspoken rizz': 'charm so strong you pull someone without needing to say anything',
+  rizzless: 'having zero game — actively repelling people',
+  'negative rizz': 'charm so bad you make things worse just by talking',
+  clocked: 'noticed something someone was trying to hide',
+  peeped: 'noticed, or "check this out"',
+  tweaking: 'acting irrationally, overreacting, or seeing things wrong — "nah you tweaking"',
+  bugging: 'acting crazy or overreacting, same as tweaking',
+  doomscrolling: 'compulsively scrolling through bad news you can’t look away from',
+  'goblin mode': 'deliberately slobby, lazy, feral behaviour with zero shame',
+  'bed rotting': 'spending a whole day lying in bed on purpose as self-care',
+  benching: 'keeping a romantic prospect on hold as a backup option',
+  breadcrumbing: 'giving someone just enough attention to keep them interested with no intent to commit',
+  'love bombing': 'flooding someone with affection early on to gain control over them',
+  orbiting: 'staying in an ex’s social-media orbit — watching their stories — without any contact',
+  zombieing: 'an ex who ghosted you suddenly reappearing like nothing happened',
+  'cuffing season': 'autumn and winter, when people pair up for warmth and company',
+  'roman empire': 'a topic someone thinks about far more often than anyone would expect',
+  nothingburger: 'something hyped up that turns out to be trivial or empty',
+  'what the sigma': 'a confused, absurdist Gen Alpha exclamation — means nothing literally',
+  'what the helly': 'a censored "what the hell", from a meme',
+  'caught in 4k': 'caught doing something on clear undeniable video evidence',
+  'in 4k': 'on clear, undeniable recorded evidence',
+  pmo: 'short for "piss me off" — "it pmo" means it annoys me',
+  icl: 'short for "I can’t lie", used like "ngl"',
+  sybau: 'aggressive "shut yo bitch ass up"',
+  'lock in': 'stop messing around and focus up',
+  'locked in': 'fully focused and performing at your best',
+  'dialed in': 'completely focused and precise',
+  demure: 'the "very demure, very mindful" meme — being modest and considerate, usually said ironically',
+  brat: 'confident, messy, party-girl energy that doesn’t apologise, from the Charli XCX album',
+  gagged: 'left speechless — shocked, stunned, or floored by something',
+  yn: 'a generic anonymous young guy — "some yn said..."',
+  huzz: 'ironic bro-slang for "women" / "hoes", part of the "we love huzz" meme',
+  bruzz: 'ironic bro-slang for "the bros", paired with "huzz"',
 };
 
 function classifyStandaloneSlangTerm(query: string): { term: string; meaning: string } | null {
   const stripped = query
     .toLowerCase()
     .replace(/['’`]/g, '')
-    .replace(/[^a-z\s]/g, ' ')
+    // keep digits: several brainrot keys are numeric ("6 7", "in 4k", "caught in 4k")
+    .replace(/[^a-z0-9\s]/g, ' ')
     .trim()
     .replace(/\s+/g, ' ');
   if (!stripped) return null;
