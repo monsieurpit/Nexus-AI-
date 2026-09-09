@@ -39,9 +39,15 @@ export function stripHtmlTags(html: string): string {
 export function extractSearchQuery(prompt: string): string {
   let cleaned = prompt.trim();
 
-  // Remove common conversational query prefixes & fillers
-  const prefixesToRemove = [
-    /^(?:can you|can u|could you|could u|please|hey|yo|bro|nexus|dude)\s+/i,
+  // Leading punctuation left behind by the Discord bot stripping its own mention/wake token
+  // ("Nexus, what is he on about" arrives here as ", what is he on about" or "what is he on
+  // about"). Drop it so the prefix patterns below can anchor.
+  cleaned = cleaned.replace(/^[\s,;:–—-]+/, '').trim();
+
+  // ALWAYS-SAFE prefixes — pure conversational scaffolding / explicit search commands whose
+  // removal can never destroy the meaning of the query. Stripped unconditionally.
+  const safePrefixes = [
+    /^(?:can you|can u|could you|could u|please|hey|yo|bro|nexus|dude)[\s,]+/i,
     // "can u send me Donald Tusk?" left "send me Donald Tusk" — filler verbs like this dilute a
     // short entity-name query with noise words that outweigh the actual name in a keyword search,
     // which is exactly the kind of query that most needs its real subject isolated cleanly.
@@ -52,14 +58,30 @@ export function extractSearchQuery(prompt: string): string {
     // leaving "search on google" stuck on the front of the query sent to the search engines.
     /^(?:search on google for|search on google|search google for|google search for|search google|search for|look up on google|look up|google)\s+/i,
     /^(?:tell me about|tell me who|tell me what|tell me when|tell me where|tell me how|tell me why)\s+/i,
-    /^(?:what is the latest on|what's the latest on|what do you know about|what is|whats|what's)\s+/i,
-    /^(?:who\s+is|who\s+was|whos|who's)\s+/i,
+    /^(?:what is the latest on|what's the latest on|what do you know about)\s+/i,
     /^(?:do you know|can you find|find out|give me info on|give me information about)\s+/i,
     /^(?:i told him|i asked|someone asked|tell me)\s+/i,
   ];
 
-  for (const prefix of prefixesToRemove) {
+  for (const prefix of safePrefixes) {
     cleaned = cleaned.replace(prefix, '').trim();
+  }
+
+  // INTERROGATIVE prefixes ("what is", "who is") — only worth stripping when what's left is a
+  // real entity/topic ("what is the boiling point of mercury" -> "boiling point of mercury").
+  // For an idiom or a pronoun-subject question ("what is he on about", "what's up with that")
+  // stripping it leaves a meaningless fragment that Google 429s on (reported live:
+  // "Nexus, what is he on about" -> searched as "he on about"). So only strip when the
+  // remainder still has 3+ words AND doesn't start with a pronoun/preposition — otherwise keep
+  // the whole question, exactly as Patrick asked ("je veux que tout au complet soit envoyé").
+  const interrogativePrefix = /^(?:what is|whats|what's|who\s+is|who\s+was|whos|who's)\s+/i;
+  const withoutInterrogative = cleaned.replace(interrogativePrefix, '').trim();
+  const remWords = withoutInterrogative.split(/\s+/);
+  const startsWeak = /^(?:he|she|it|they|them|him|her|that|this|those|these|on|about|up|with|of|for|to|in)\b/i.test(
+    withoutInterrogative
+  );
+  if (withoutInterrogative !== cleaned && remWords.length >= 3 && !startsWeak) {
+    cleaned = withoutInterrogative;
   }
 
   // Clean conversational profanities/fillers embedded inside search questions
