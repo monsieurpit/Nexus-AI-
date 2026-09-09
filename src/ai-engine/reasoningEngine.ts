@@ -385,13 +385,30 @@ const SLANG_REACTION_WORDS: Record<string, SlangReaction> = {
   bussin: 'hype', based: 'hype', lit: 'hype', slaps: 'hype', cracked: 'hype',
   banger: 'hype', fire: 'hype', lfg: 'hype', elite: 'hype', peak: 'hype',
   valid: 'hype', '🔥': 'hype', '🐐': 'hype', '🗣': 'hype',
+  // more approval/hype slang Patrick actually uses at replies
+  w: 'hype', dub: 'hype', chad: 'hype', gigachad: 'hype', sigma: 'hype', sigmas: 'hype',
+  clean: 'hype', nasty: 'hype', filthy: 'hype', menace: 'hype', diabolical: 'hype',
+  ate: 'hype', snapped: 'hype', bars: 'hype', spitting: 'hype', preach: 'hype', facts: 'hype',
+  carried: 'hype', hard: 'hype', crazy: 'hype', insane: 'hype', wild: 'hype', tuff: 'hype',
+  goes: 'hype', godlike: 'hype', legendary: 'hype', immaculate: 'hype', cold: 'hype',
   mid: 'disapproval', cringe: 'disapproval', cringey: 'disapproval', ratio: 'disapproval',
   trash: 'disapproval', flop: 'disapproval', washed: 'disapproval', yikes: 'disapproval',
+  // more disapproval slang
+  l: 'disapproval', chopped: 'disapproval', dogwater: 'disapproval', dogshit: 'disapproval',
+  weak: 'disapproval', wack: 'disapproval', whack: 'disapproval', corny: 'disapproval',
+  lame: 'disapproval', aired: 'disapproval', foul: 'disapproval', bum: 'disapproval',
+  booty: 'disapproval', nerf: 'disapproval', womp: 'disapproval', ass: 'disapproval',
   cap: 'doubt', sus: 'doubt', sussy: 'doubt', delulu: 'doubt', cope: 'doubt',
+  allegedly: 'doubt', seethe: 'doubt', mald: 'doubt',
+  glazing: 'doubt', glaze: 'doubt', yapping: 'doubt', yap: 'doubt', capping: 'doubt',
   '💀': 'dead', '😭': 'dead', '☠': 'dead',
+  crying: 'dead', sobbing: 'dead', screaming: 'dead', bawling: 'dead', deceased: 'dead',
+  hollering: 'dead', wheezing: 'dead', dyin: 'dead', dying: 'dead',
   cooked: 'cooked', doomed: 'cooked',
-  huh: 'confusion', erm: 'confusion', wut: 'confusion', '?': 'confusion',
+  huh: 'confusion', erm: 'confusion', wut: 'confusion', '?': 'confusion', hwat: 'confusion',
   bro: 'filler', bruh: 'filler', dawg: 'filler', gang: 'filler',
+  twin: 'filler', unc: 'filler', blud: 'filler', fam: 'filler', king: 'filler',
+  chief: 'filler', slime: 'filler', cuz: 'filler', chat: 'filler', g: 'filler',
 };
 
 // Words that can pad a reaction without changing what it is. Deliberately excludes "no" and any
@@ -404,6 +421,14 @@ const SLANG_REACTION_FILLER = new Set([
   'nah', 'yeah', 'yep', 'ok', 'okay', 'oh', 'ay', 'ayo', 'big', 'absolute', 'absolutely',
   'genuinely', 'literally', 'legit', 'kinda', 'sorta', 'pretty', 'really', 'very', 'honestly',
   'the', 'a', 'an', 'my',
+  // intensifiers / address terms that pad a slang reaction without changing it
+  'such', 'mad', 'hella', 'mega', 'stupid', 'crazy', 'wildly', 'goofy', 'diabolically',
+  'twin', 'unc', 'blud', 'fam', 'g', 'king', 'chief', 'slime', 'cuz', 'chat', 'gng',
+  'type', 'shi', 'shid', 'ash', 'asl', 'lil', 'vro', 'gng', 'buddy', 'pal', 'chap',
+  'he', 'she', 'they', 'we', 'him', 'her', 'them', 'us', 'bros', 'mans', 'homies',
+  'hes', 'shes', 'theyre', 'were', 'thats', 'whats', 'dont', 'cant', 'wont', 'aint',
+  'take', 'said', 'says', 'be', 'being', 'got', 'went', 'just', 'still', 'even', 'about',
+  'like', 'all', 'gonna', 'wanna', 'tryna', 'finna', 'bouta',
 ]);
 
 const MAX_SLANG_REACTION_WORDS = 6;
@@ -420,6 +445,10 @@ function classifySlangReaction(query: string): SlangReaction | null {
   // The /u flag is mandatory here: without it a character class of astral-plane emoji is read as
   // a class of lone surrogate halves and matches garbage.
   const tokens = raw
+    // Strip apostrophes by JOINING, not spacing — "that's mid" / "you're such a sigma" / "he's
+    // glazing" otherwise split into "that s" / "you re" / "he s", and the stray "s"/"re" fragment
+    // isn't a known reaction or filler token, so the whole message bailed to 'general'.
+    .replace(/['’`]/g, '')
     .replace(REACTION_EMOJI_REGEX, (e) => ` ${e} `)
     .replace(/[^a-z\s💀😭🔥🐐☠🗣]/gu, ' ')
     .trim()
@@ -457,20 +486,14 @@ function classifySlangReaction(query: string): SlangReaction | null {
 const STANDALONE_SLANG_MEANINGS: Record<string, string> = {
   rizz: 'charisma — the ability to pull someone with pure conversational skill',
   rizzler: 'someone with god-tier rizz',
-  gyat: 'a shouted reaction to someone having a huge ass, straight off Twitch streams',
-  gyatt: 'a shouted reaction to someone having a huge ass, straight off Twitch streams',
   npc: 'someone running on autopilot with no original thoughts, like a background character in a game',
   ghosted: 'someone cutting all contact out of nowhere with zero explanation',
   corecore: 'the TikTok trend of stitching random melancholy clips together into a vague statement about modern life',
   fein: 'craving something so badly you look strung out over it, from the Travis Scott track',
-  huzz: 'the newest sanitized reskin of "hoes", born on Twitch to dodge bans',
-  glazing: 'hyping someone up so hard it gets embarrassing',
   yapping: 'talking endlessly without ever getting to a point',
   yap: 'talking endlessly without ever getting to a point',
   opps: 'your enemies, rivals, or whoever you have beef with',
-  aura: 'the intangible coolness points you gain or lose based on how you handle a moment',
   drip: 'genuinely good outfit and style',
-  mogging: 'standing next to someone and making them look worse by comparison',
   clout: 'online fame and influence, usually chased shamelessly',
   bop: 'a genuinely great song you cannot stop replaying',
   deadass: 'completely serious, no exaggeration',
@@ -478,11 +501,69 @@ const STANDALONE_SLANG_MEANINGS: Record<string, string> = {
   'boy math': 'the joke inverse of girl math, aimed at whatever nonsense men rationalize',
   'main character': 'acting like the whole world is a movie you are starring in',
   'touch grass': 'go outside, you have been online too long',
+  // gen-z / gen-alpha "brainrot" terms Patrick throws around
+  sigma: 'a lone-wolf, self-reliant guy who does his own thing — memeified off Patrick Bateman edits',
+  gigachad: 'the peak-masculine, hyper-confident ideal, from the jawline meme',
+  mewing: 'pressing your tongue to the roof of your mouth, supposedly to sharpen your jawline',
+  looksmaxxing: 'trying to max out your physical attractiveness by any means',
+  mog: 'to outshine someone standing right next to you',
+  delulu: 'delusional — refusing to accept reality, usually about a crush',
+  'fanum tax': 'stealing a bit of your friend’s food, named after the streamer Fanum',
+  skibidi: 'nonsense intensifier from the Skibidi Toilet meme — means basically nothing on its own',
+  ohio: 'used to mean cursed, weird, or chaotically wrong, from the "only in Ohio" meme',
+  'let him cook': 'leave them alone and let them keep going, they’re onto something',
+  'he cooked': 'they absolutely nailed it',
+  'we cooked': 'we messed up badly',
+  'im cooked': 'I’m done for, exhausted or in trouble',
+  'its giving': 'it has the vibe / energy of — "it’s giving desperate"',
+  ate: 'did something flawlessly, with total confidence',
+  'ate that up': 'did something flawlessly',
+  slay: 'did great, killed it',
+  serve: 'showed up looking or performing exceptionally',
+  iykyk: 'if you know, you know — an inside reference not everyone will get',
+  'type shi': 'agreement filler, roughly "yeah, that kind of thing" (from "type shit")',
+  cope: 'refusing to accept a loss and rationalizing it instead',
+  seethe: 'being visibly, uselessly angry about something',
+  mald: 'being so mad you’re losing it (mad + bald, from streamer rage)',
+  ratio: 'when the replies outperform the original post — a public L',
+  'aura farming': 'doing something purely to look cool and rack up aura',
+  chopped: 'ugly, low quality, or badly done',
+  crashout: 'completely losing your temper and acting irrationally',
+  'crash out': 'to completely lose your temper and act irrationally',
+  menace: 'someone who is chaotically, entertainingly out of pocket',
+  diabolical: 'wild, unhinged, and kind of impressive for how bad it is',
+  'no shot': 'no way, I don’t believe it',
+  brainrot: 'low-quality internet content that melts your attention span',
+  'terminally online': 'so deep in internet culture you’ve lost touch with real life',
+  'chronically online': 'so deep in internet culture you’ve lost touch with real life',
+  opp: 'an enemy, rival, or whoever you have beef with',
+  unc: 'affectionately calling someone an old head / uncle for being out of touch',
+  twin: 'calling a friend "twin" — close-friend address term, not literal',
+  'chat is this real': 'streamer catchphrase for "is this actually happening right now"',
+  simp: 'someone who does way too much for a person who isn’t interested',
+  'red flag': 'a warning sign about someone’s character or behaviour',
+  'green flag': 'a good sign about someone — the opposite of a red flag',
+  'beige flag': 'a quirk that’s neither good nor bad, just mildly odd',
+  situationship: 'a relationship that never got defined as an actual relationship',
+  'soft launch': 'hinting at a new partner online without showing their face',
+  'hard launch': 'openly posting your relationship for the first time',
+  'villain arc': 'deciding to stop being nice and start acting in your own interest',
+  'final boss': 'the hardest, most important version of a challenge or person',
+  'side quest': 'an unplanned detour or minor adventure off the main goal',
+  'plot armor': 'surviving situations you realistically shouldn’t have',
+  'w': 'a win',
+  'l': 'a loss',
+  'dub': 'a win',
+  zesty: 'flamboyant or overly animated in a way people tease as camp',
+  oomf: 'one of my followers / mutuals — a vague "someone I know online"',
+  ragebait: 'content posted specifically to make people angry enough to engage',
+  parasocial: 'a one-sided attachment to a creator or celebrity who doesn’t know you exist',
 };
 
 function classifyStandaloneSlangTerm(query: string): { term: string; meaning: string } | null {
   const stripped = query
     .toLowerCase()
+    .replace(/['’`]/g, '')
     .replace(/[^a-z\s]/g, ' ')
     .trim()
     .replace(/\s+/g, ' ');
