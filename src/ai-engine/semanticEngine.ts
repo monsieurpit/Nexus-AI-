@@ -180,7 +180,13 @@ export function computeEmbedding(text: string): number[] {
   // ("5 + 3") — checking bare '+'/'-'/'*'/'/'/'^' via plain substring match (as this list
   // used to) false-positives on any hyphenated word ("self-attention", "state-of-the-art")
   // or markdown emphasis, none of which have anything to do with math.
-  const hasArithmeticExpression = /\d+\s*[+\-*/^%]\s*\d+/.test(lower);
+  // The 'x'/'X'/'×'/'·'/'÷' multiplication and division signs need a digit on BOTH sides
+  // (with optional spaces) — how Patrick and most people actually type multiplication
+  // ("5x0", "3 x 4", "12×12"). Without this the whole semantic vector came back all-zeros
+  // for "What is 5x0" (reported live via the attention-visualizer inspector), and the math
+  // dimension never lit up. Requiring digits on both sides keeps it off ordinary words.
+  const hasArithmeticExpression =
+    /\d+\s*[+\-*/^%]\s*\d+/.test(lower) || /\d\s*[x×·÷]\s*\d/i.test(lower);
   // 'pi' and 'mean' need word boundaries — plain substring matching false-positives on
   // "pizza" (contains "pi") and "meaning"/"meantime" (contain "mean").
   const hasStandalonePiOrMean = /\b(pi|mean)\b/.test(lower);

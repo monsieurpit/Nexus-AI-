@@ -203,6 +203,11 @@ export class RecursiveDescentParser {
       .replace(/\s+divisé par\s+/g, '/')
       .replace(/×/g, '*')
       .replace(/÷/g, '/')
+      // 'x' / 'X' as a multiplication sign, but ONLY when it sits directly between two digits
+      // ("5x0", "12 x 12", "3X4") — how Patrick and most people type multiplication by hand.
+      // Requiring a digit on BOTH sides keeps it away from 'x' used as an algebraic variable
+      // ("2x + 3", "solve for x"), where the 'x' is not followed by another digit.
+      .replace(/(\d)\s*[xX]\s*(\d)/g, '$1*$2')
       .replace(/²/g, '^2')
       .replace(/³/g, '^3');
 
