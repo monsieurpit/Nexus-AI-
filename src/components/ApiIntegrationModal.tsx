@@ -18,6 +18,7 @@ import {
   Sparkles,
   Plus,
 } from 'lucide-react';
+import { Modal } from './Modal';
 
 interface ApiIntegrationModalProps {
   isOpen: boolean;
@@ -727,68 +728,57 @@ client.login(process.env.DISCORD_BOT_TOKEN);
 `;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
-      <div
-        className="bg-[var(--nx-elevated)] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-[var(--nx-border)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-[var(--nx-border)] flex items-center justify-between bg-[var(--nx-surface)]/70">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center text-white shadow-sm">
-              <Code2 className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-[var(--nx-text)]">
-                  Nexus AI & Discord Bot Integration Hub
-                </h2>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/40">
-                  REST API v1 Live
-                </span>
-              </div>
-              <p className="text-xs text-[var(--nx-text-faint)]">
-                Plug Nexus AI directly into your Discord bot with JavaScript & environment variables
-              </p>
-            </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      icon={<Code2 className="h-4 w-4" />}
+      title="Nexus AI & Discord Bot Integration Hub"
+      subtitle="Plug Nexus into your Discord bot with JavaScript & environment variables"
+      maxWidth="max-w-4xl"
+      padBody={false}
+      headerAside={<span className="nx-badge nx-badge-success">REST API v1 · live</span>}
+      footer={
+        <div className="flex w-full items-center justify-between text-xs">
+          <div className="flex items-center gap-2 text-[var(--nx-text-faint)]">
+            <Server className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Server on port 3000 · ready for bot connections</span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-[var(--nx-text-faint)] hover:text-[var(--nx-text-muted)] rounded-lg hover:bg-[var(--nx-elevated)] transition"
-          >
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="nx-btn nx-btn-secondary">
+            Done
           </button>
         </div>
-
+      }
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
         {/* API Key Bar */}
-        <div className="px-6 py-3 bg-violet-500/10 border-b border-violet-500/20 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="px-6 py-3 bg-[var(--nx-accent-hover)]/10 border-b border-[var(--nx-accent-hover)]/20 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 flex-1 min-w-[280px]">
-            <Key className="w-4 h-4 text-violet-400 shrink-0" />
+            <Key className="w-4 h-4 text-[var(--nx-accent-hover)] shrink-0" />
             <span className="font-semibold text-[var(--nx-text-muted)]">Your Bot API Key:</span>
-            <code className="px-2.5 py-1 rounded-md bg-[var(--nx-elevated)] border border-violet-500/30 font-mono text-violet-300 font-semibold truncate max-w-xs sm:max-w-md">
+            <code className="px-2.5 py-1 rounded-md bg-[var(--nx-elevated)] border border-[var(--nx-accent-hover)]/30 font-mono text-[var(--nx-accent-hover)] font-semibold truncate max-w-xs sm:max-w-md">
               {apiKey}
             </code>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => handleCopy(apiKey, 'key')}
-              className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated)] border border-violet-500/40 hover:bg-violet-500/20 text-violet-300 font-medium text-xs flex items-center gap-1.5 transition shadow-2xs"
+              className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-accent-hover)]/40 hover:bg-[var(--nx-accent-hover)]/20 text-[var(--nx-accent-hover)] font-medium text-xs flex items-center gap-1.5 transition shadow-2xs"
             >
               {copiedSection === 'key' ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400">Copied!</span>
+                  <Check className="w-3.5 h-3.5 text-[var(--nx-success)]" />
+                  <span className="text-[var(--nx-success)]">Copied!</span>
                 </>
               ) : (
                 <>
-                  <Copy className="w-3.5 h-3.5 text-violet-400" />
+                  <Copy className="w-3.5 h-3.5 text-[var(--nx-accent-hover)]" />
                   <span>Copy Key</span>
                 </>
               )}
             </button>
             <button
               onClick={() => handleGenerateNewKey()}
-              className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-medium text-xs flex items-center gap-1.5 transition shadow-2xs"
+              className="px-3 py-1.5 rounded-lg bg-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-hover)] text-white font-medium text-xs flex items-center gap-1.5 transition shadow-2xs"
             >
               <RotateCw className="w-3.5 h-3.5" />
               <span>Generate New</span>
@@ -802,7 +792,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             onClick={() => setActiveTab('discord_bot')}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'discord_bot'
-                ? 'border-violet-600 text-violet-300'
+                ? 'border-[var(--nx-accent-hover)] text-[var(--nx-accent-hover)]'
                 : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
@@ -813,7 +803,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             onClick={() => setActiveTab('nexus_sdk')}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'nexus_sdk'
-                ? 'border-violet-600 text-violet-300'
+                ? 'border-[var(--nx-accent-hover)] text-[var(--nx-accent-hover)]'
                 : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
@@ -827,11 +817,11 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             }}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'keys_manager'
-                ? 'border-violet-600 text-violet-300'
+                ? 'border-[var(--nx-accent-hover)] text-[var(--nx-accent-hover)]'
                 : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
-            <Key className="w-4 h-4 text-violet-400" />
+            <Key className="w-4 h-4 text-[var(--nx-accent-hover)]" />
             <span>API Keys & Capabilities</span>
           </button>
           <button
@@ -841,18 +831,18 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             }}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'railway_queue'
-                ? 'border-violet-600 text-violet-300'
+                ? 'border-[var(--nx-accent-hover)] text-[var(--nx-accent-hover)]'
                 : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
-            <Zap className="w-4 h-4 text-amber-400" />
+            <Zap className="w-4 h-4 text-[var(--nx-warn)]" />
             <span>Railway Deploy & Waitlist Queue</span>
           </button>
           <button
             onClick={() => setActiveTab('env_setup')}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'env_setup'
-                ? 'border-violet-600 text-violet-300'
+                ? 'border-[var(--nx-accent-hover)] text-[var(--nx-accent-hover)]'
                 : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
@@ -863,7 +853,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             onClick={() => setActiveTab('endpoints')}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'endpoints'
-                ? 'border-violet-600 text-violet-300'
+                ? 'border-[var(--nx-accent-hover)] text-[var(--nx-accent-hover)]'
                 : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
@@ -874,25 +864,25 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             onClick={() => setActiveTab('tester')}
             className={`py-3 px-3.5 font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'tester'
-                ? 'border-emerald-600 text-emerald-400'
+                ? 'border-[var(--nx-success)] text-[var(--nx-success)]'
                 : 'border-transparent text-[var(--nx-text-faint)] hover:text-[var(--nx-text)]'
             }`}
           >
-            <Play className="w-4 h-4 text-emerald-400" />
+            <Play className="w-4 h-4 text-[var(--nx-success)]" />
             <span>Live API Tester</span>
           </button>
         </div>
 
         {/* Content Area */}
-        <div className="p-6 overflow-y-auto flex-1 text-xs space-y-4 bg-[var(--nx-surface)]/40">
+        <div className="p-5 overflow-y-auto flex-1 text-xs space-y-4 bg-[var(--nx-surface)]/40">
           {/* TAB 1: DISCORD BOT JAVASCRIPT */}
           {activeTab === 'discord_bot' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
-                    <Bot className="w-4 h-4 text-violet-400" />
-                    Complete Discord.js v14 Bot Script (<code className="text-violet-300 font-mono">bot.js</code>)
+                    <Bot className="w-4 h-4 text-[var(--nx-accent-hover)]" />
+                    Complete Discord.js v14 Bot Script (<code className="text-[var(--nx-accent-hover)] font-mono">bot.js</code>)
                   </h3>
                   <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
                     Supports Nexus conversational AI, expressive natural swearing, Casseurt roast, Super Chill VIP mode, and RaidShield 21-rule automod protection.
@@ -900,11 +890,11 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </div>
                 <button
                   onClick={() => handleCopy(botJsCode, 'botjs')}
-                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated-hover)] text-white font-medium text-xs flex items-center gap-1.5 hover:bg-stone-800 transition"
+                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated-hover)] text-white font-medium text-xs flex items-center gap-1.5 hover:brightness-110 transition"
                 >
                   {copiedSection === 'botjs' ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <Check className="w-3.5 h-3.5 text-[var(--nx-success)]" />
                       <span>Copied Script!</span>
                     </>
                   ) : (
@@ -916,10 +906,10 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </button>
               </div>
 
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300 text-[11px] flex items-start gap-2">
-                <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="p-3 bg-[var(--nx-warn)]/10 border border-[var(--nx-warn)]/30 rounded-xl text-[var(--nx-warn)] text-[11px] flex items-start gap-2">
+                <Zap className="w-4 h-4 text-[var(--nx-warn)] shrink-0 mt-0.5" />
                 <div>
-                  <strong>Quick Install:</strong> Run <code className="px-1.5 py-0.5 bg-amber-500/15 rounded font-mono font-bold">npm install discord.js dotenv</code> in your bot folder, create <code className="px-1.5 py-0.5 bg-amber-500/15 rounded font-mono font-bold">.env</code> and <code className="px-1.5 py-0.5 bg-amber-500/15 rounded font-mono font-bold">nexus-ai.js</code>, then run <code className="px-1.5 py-0.5 bg-amber-500/15 rounded font-mono font-bold">node bot.js</code>!
+                  <strong>Quick Install:</strong> Run <code className="px-1.5 py-0.5 bg-[var(--nx-warn)]/15 rounded font-mono font-bold">npm install discord.js dotenv</code> in your bot folder, create <code className="px-1.5 py-0.5 bg-[var(--nx-warn)]/15 rounded font-mono font-bold">.env</code> and <code className="px-1.5 py-0.5 bg-[var(--nx-warn)]/15 rounded font-mono font-bold">nexus-ai.js</code>, then run <code className="px-1.5 py-0.5 bg-[var(--nx-warn)]/15 rounded font-mono font-bold">node bot.js</code>!
                 </div>
               </div>
 
@@ -941,8 +931,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
-                    <FileCode className="w-4 h-4 text-violet-400" />
-                    Nexus AI Client Helper (<code className="text-violet-300 font-mono">nexus-ai.js</code>)
+                    <FileCode className="w-4 h-4 text-[var(--nx-accent-hover)]" />
+                    Nexus AI Client Helper (<code className="text-[var(--nx-accent-hover)] font-mono">nexus-ai.js</code>)
                   </h3>
                   <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
                     A clean, reusable JavaScript class that handles all HTTP requests to your Nexus engine and RaidShield automod.
@@ -950,11 +940,11 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </div>
                 <button
                   onClick={() => handleCopy(sdkHelperCode, 'sdk')}
-                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated-hover)] text-white font-medium text-xs flex items-center gap-1.5 hover:bg-stone-800 transition"
+                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated-hover)] text-white font-medium text-xs flex items-center gap-1.5 hover:brightness-110 transition"
                 >
                   {copiedSection === 'sdk' ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <Check className="w-3.5 h-3.5 text-[var(--nx-success)]" />
                       <span>Copied Helper!</span>
                     </>
                   ) : (
@@ -984,7 +974,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
-                    <Key className="w-4 h-4 text-violet-400" />
+                    <Key className="w-4 h-4 text-[var(--nx-accent-hover)]" />
                     Registered API Keys & Feature Capabilities
                   </h3>
                   <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
@@ -1002,28 +992,28 @@ client.login(process.env.DISCORD_BOT_TOKEN);
               </div>
 
               {/* Feature Matrix Badges */}
-              <div className="p-4 bg-violet-900 text-white rounded-xl space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-violet-200">
-                  <Sparkles className="w-4 h-4 text-amber-300" />
+              <div className="p-4 bg-[var(--nx-accent-hover)] text-white rounded-xl space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-[var(--nx-accent-hover)]">
+                  <Sparkles className="w-4 h-4 text-[var(--nx-warn)]" />
                   <span>Newest Capabilities Auto-Synced to All Keys</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="px-2 py-0.5 rounded-md bg-violet-800/80 text-violet-100 text-[10px] font-mono border border-violet-700/60">
+                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
                     ⚡ internal_autonomous_vision_scanner
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-violet-800/80 text-violet-100 text-[10px] font-mono border border-violet-700/60">
+                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
                     🛡️ raidshield_21_hard_security_rules
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-violet-800/80 text-violet-100 text-[10px] font-mono border border-violet-700/60">
+                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
                     🔥 swear_engine_polish_english
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-violet-800/80 text-violet-100 text-[10px] font-mono border border-violet-700/60">
+                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
                     📜 strict_sdk_rule_enforcement
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-violet-800/80 text-violet-100 text-[10px] font-mono border border-violet-700/60">
+                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
                     👑 super_chill_vip_mode
                   </span>
-                  <span className="px-2 py-0.5 rounded-md bg-violet-800/80 text-violet-100 text-[10px] font-mono border border-violet-700/60">
+                  <span className="px-2 py-0.5 rounded-md bg-[var(--nx-accent-hover)]/80 text-[var(--nx-accent-hover)] text-[10px] font-mono border border-[var(--nx-accent-hover)]/60">
                     🚦 fifo_waitlist_request_queue
                   </span>
                 </div>
@@ -1042,7 +1032,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                   />
                   <button
                     onClick={() => handleGenerateNewKey()}
-                    className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs"
+                    className="px-4 py-2 rounded-lg bg-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-hover)] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Create Key</span>
@@ -1061,10 +1051,10 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                     <div key={k.key || idx} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-[var(--nx-surface)]/60 transition">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <code className="px-2 py-0.5 rounded bg-[var(--nx-elevated)] border border-[var(--nx-border)] font-mono font-bold text-violet-300 text-xs">
+                          <code className="px-2 py-0.5 rounded bg-[var(--nx-elevated)] border border-[var(--nx-border)] font-mono font-bold text-[var(--nx-accent-hover)] text-xs">
                             {k.key}
                           </code>
-                          <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 text-[9px] font-bold uppercase">
+                          <span className="px-1.5 py-0.2 rounded bg-[var(--nx-success)]/15 text-[var(--nx-success)] text-[9px] font-bold uppercase">
                             {k.status || 'Active'}
                           </span>
                         </div>
@@ -1082,7 +1072,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           }}
                           className="px-2.5 py-1 rounded bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated-hover)] text-[var(--nx-text-muted)] text-[11px] font-medium flex items-center gap-1 transition"
                         >
-                          {copiedSection === `table_${idx}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-[var(--nx-text-faint)]" />}
+                          {copiedSection === `table_${idx}` ? <Check className="w-3 h-3 text-[var(--nx-success)]" /> : <Copy className="w-3 h-3 text-[var(--nx-text-faint)]" />}
                           <span>{apiKey === k.key ? 'Selected & Copied' : 'Select Key'}</span>
                         </button>
                       </div>
@@ -1098,7 +1088,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-amber-400" />
+                  <Zap className="w-4 h-4 text-[var(--nx-warn)]" />
                   Railway Deployment & Concurrency Waitlist Engine
                 </h3>
                 <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
@@ -1110,10 +1100,10 @@ client.login(process.env.DISCORD_BOT_TOKEN);
               <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-[var(--nx-text)] text-xs flex items-center gap-2">
-                    <Server className="w-3.5 h-3.5 text-violet-400" />
+                    <Server className="w-3.5 h-3.5 text-[var(--nx-accent-hover)]" />
                     Railway Dashboard Environment Variables
                   </h4>
-                  <span className="text-[10px] bg-violet-500/10 text-violet-300 px-2 py-0.5 rounded-full font-mono font-medium">
+                  <span className="text-[10px] bg-[var(--nx-accent-hover)]/10 text-[var(--nx-accent-hover)] px-2 py-0.5 rounded-full font-mono font-medium">
                     Railway &gt; Your Project &gt; Variables
                   </span>
                 </div>
@@ -1139,7 +1129,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                       onClick={() => handleCopy(apiKey, 'rw_key')}
                       className="px-2 py-1 text-[10px] bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded text-[var(--nx-text-muted)] flex items-center gap-1"
                     >
-                      {copiedSection === 'rw_key' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      {copiedSection === 'rw_key' ? <Check className="w-3 h-3 text-[var(--nx-success)]" /> : <Copy className="w-3 h-3" />}
                       <span>Copy</span>
                     </button>
                   </div>
@@ -1153,7 +1143,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                       onClick={() => handleCopy(apiBaseUrl, 'rw_url')}
                       className="px-2 py-1 text-[10px] bg-[var(--nx-elevated)] hover:bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded text-[var(--nx-text-muted)] flex items-center gap-1"
                     >
-                      {copiedSection === 'rw_url' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      {copiedSection === 'rw_url' ? <Check className="w-3 h-3 text-[var(--nx-success)]" /> : <Copy className="w-3 h-3" />}
                       <span>Copy</span>
                     </button>
                   </div>
@@ -1172,7 +1162,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
               <div className="p-4 bg-[var(--nx-elevated-hover)] border border-stone-800 rounded-xl text-white space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-amber-400" />
+                    <Layers className="w-4 h-4 text-[var(--nx-warn)]" />
                     <span className="font-bold text-xs">Live Waitlist Queue Telemetry</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1187,7 +1177,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                     <button
                       onClick={handleRunBurstTest}
                       disabled={burstTesting}
-                      className="px-3 py-1 text-[10px] rounded-lg bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 font-bold transition shadow-xs disabled:opacity-50"
+                      className="px-3 py-1 text-[10px] rounded-lg bg-[var(--nx-warn)] hover:bg-[var(--nx-warn)] text-white flex items-center gap-1.5 font-bold transition shadow-xs disabled:opacity-50"
                     >
                       {burstTesting ? <RotateCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                       <span>Simulate 10 Burst Requests</span>
@@ -1199,24 +1189,24 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
                   <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
                     <div className="text-[10px] text-[var(--nx-text-faint)]">Waiting in Line</div>
-                    <div className="text-base font-bold text-amber-400">{queueStats?.pendingInWaitlist ?? 0}</div>
+                    <div className="text-base font-bold text-[var(--nx-warn)]">{queueStats?.pendingInWaitlist ?? 0}</div>
                   </div>
                   <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
                     <div className="text-[10px] text-[var(--nx-text-faint)]">Total Processed</div>
-                    <div className="text-base font-bold text-emerald-400">{queueStats?.totalProcessed ?? 0}</div>
+                    <div className="text-base font-bold text-[var(--nx-success)]">{queueStats?.totalProcessed ?? 0}</div>
                   </div>
                   <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
                     <div className="text-[10px] text-[var(--nx-text-faint)]">Peak Queue Length</div>
-                    <div className="text-base font-bold text-sky-400">{queueStats?.peakQueueLength ?? 0}</div>
+                    <div className="text-base font-bold text-[var(--nx-info)]">{queueStats?.peakQueueLength ?? 0}</div>
                   </div>
                   <div className="p-2 bg-stone-800/80 rounded-lg border border-stone-700/50">
                     <div className="text-[10px] text-[var(--nx-text-faint)]">Avg Wait Time</div>
-                    <div className="text-base font-bold text-violet-400">{Math.round(queueStats?.avgWaitTimeMs ?? 0)} ms</div>
+                    <div className="text-base font-bold text-[var(--nx-accent-hover)]">{Math.round(queueStats?.avgWaitTimeMs ?? 0)} ms</div>
                   </div>
                 </div>
 
                 {burstResults && (
-                  <div className="p-3 bg-black/40 border border-stone-800 rounded-lg font-mono text-[10px] text-emerald-400 max-h-48 overflow-y-auto">
+                  <div className="p-3 bg-black/40 border border-stone-800 rounded-lg font-mono text-[10px] text-[var(--nx-success)] max-h-48 overflow-y-auto">
                     <div className="text-[var(--nx-text-faint)] font-bold mb-1">Burst Test Completed:</div>
                     <pre>{JSON.stringify(burstResults, null, 2)}</pre>
                   </div>
@@ -1231,8 +1221,8 @@ client.login(process.env.DISCORD_BOT_TOKEN);
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
-                    <Terminal className="w-4 h-4 text-violet-400" />
-                    Bot Environment Variables (<code className="text-violet-300 font-mono">.env</code>)
+                    <Terminal className="w-4 h-4 text-[var(--nx-accent-hover)]" />
+                    Bot Environment Variables (<code className="text-[var(--nx-accent-hover)] font-mono">.env</code>)
                   </h3>
                   <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
                     Save this as a <code className="font-mono text-[var(--nx-text)]">.env</code> file in your Discord bot project directory.
@@ -1240,11 +1230,11 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 </div>
                 <button
                   onClick={() => handleCopy(envFileCode, 'env')}
-                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated-hover)] text-white font-medium text-xs flex items-center gap-1.5 hover:bg-stone-800 transition"
+                  className="px-3 py-1.5 rounded-lg bg-[var(--nx-elevated-hover)] text-white font-medium text-xs flex items-center gap-1.5 hover:brightness-110 transition"
                 >
                   {copiedSection === 'env' ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <Check className="w-3.5 h-3.5 text-[var(--nx-success)]" />
                       <span>Copied .env!</span>
                     </>
                   ) : (
@@ -1279,7 +1269,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                     <strong className="text-[var(--nx-text)]">NEXUS_API_KEY</strong>: The authentication secret key that connects your bot to the AI server.
                   </li>
                   <li>
-                    <strong className="text-[var(--nx-text)]">SUPER_CHILL_USER_ID</strong>: <code className="font-mono text-violet-300">1394001641899954368</code> (activates ultra-chill VIP homie mode).
+                    <strong className="text-[var(--nx-text)]">SUPER_CHILL_USER_ID</strong>: <code className="font-mono text-[var(--nx-accent-hover)]">1394001641899954368</code> (activates ultra-chill VIP homie mode).
                   </li>
                 </ul>
               </div>
@@ -1301,12 +1291,12 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-violet-500/20 text-violet-300 text-[11px]">
+                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-[var(--nx-accent-hover)]/20 text-[var(--nx-accent-hover)] text-[11px]">
                         POST
                       </span>
                       <code className="font-mono font-bold text-[var(--nx-text)] text-xs">/api/v1/nexus</code>
                     </div>
-                    <span className="text-[11px] text-violet-300 font-medium">Discord Homie AI</span>
+                    <span className="text-[11px] text-[var(--nx-accent-hover)] font-medium">Discord Homie AI</span>
                   </div>
                   <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Generates casual, expressive swearing, accurate answers, Casseurt roasts, and Super Chill VIP responses.
@@ -1333,12 +1323,12 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-emerald-500/15 text-emerald-400 text-[11px]">
+                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-[var(--nx-success)]/15 text-[var(--nx-success)] text-[11px]">
                         POST
                       </span>
                       <code className="font-mono font-bold text-[var(--nx-text)] text-xs">/api/v1/raidshield</code>
                     </div>
-                    <span className="text-[11px] text-emerald-400 font-medium">21-Hard-Rules Security</span>
+                    <span className="text-[11px] text-[var(--nx-success)] font-medium">21-Hard-Rules Security</span>
                   </div>
                   <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Evaluates Discord messages against all 21 hard security rules, outputs structured JSON with classification and confidence.
@@ -1364,12 +1354,12 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-purple-500/15 text-purple-400 text-[11px]">
+                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-[var(--nx-accent-hover)]/15 text-[var(--nx-accent-hover)] text-[11px]">
                         POST
                       </span>
                       <code className="font-mono font-bold text-[var(--nx-text)] text-xs">/api/v1/vision/analyze</code>
                     </div>
-                    <span className="text-[11px] text-purple-400 font-medium">Multimodal Vision & OCR</span>
+                    <span className="text-[11px] text-[var(--nx-accent-hover)] font-medium">Multimodal Vision & OCR</span>
                   </div>
                   <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Directly analyzes screenshots, images, QR codes, or attachments via Nexus autonomous vision and threat inspection.
@@ -1393,12 +1383,12 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-blue-500/15 text-blue-400 text-[11px]">
+                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-[var(--nx-info)]/15 text-[var(--nx-info)] text-[11px]">
                         POST
                       </span>
                       <code className="font-mono font-bold text-[var(--nx-text)] text-xs">/api/v1/generate</code>
                     </div>
-                    <span className="text-[11px] text-blue-400 font-medium">Gemini-Compatible Format</span>
+                    <span className="text-[11px] text-[var(--nx-info)] font-medium">Gemini-Compatible Format</span>
                   </div>
                   <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Supports Google GenAI / Gemini SDK payload formats with <code className="font-mono">contents</code>, <code className="font-mono">generationConfig</code>, and candidates response schema.
@@ -1409,12 +1399,12 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                 <div className="p-4 bg-[var(--nx-elevated)] border border-[var(--nx-border)] rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-cyan-500/15 text-cyan-400 text-[11px]">
+                      <span className="px-2 py-0.5 rounded font-bold font-mono bg-[var(--nx-info)]/15 text-[var(--nx-info)] text-[11px]">
                         POST
                       </span>
                       <code className="font-mono font-bold text-[var(--nx-text)] text-xs">/api/v1/web/search</code>
                     </div>
-                    <span className="text-[11px] text-cyan-400 font-medium font-semibold">Zero-API Live Google Search</span>
+                    <span className="text-[11px] text-[var(--nx-info)] font-medium font-semibold">Zero-API Live Google Search</span>
                   </div>
                   <p className="text-[11px] text-[var(--nx-text-muted)]">
                     Search Google, DuckDuckGo & Wikipedia live with infinite requests per day and zero external API dependencies.
@@ -1455,7 +1445,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-bold text-[var(--nx-text)] flex items-center gap-2">
-                  <Play className="w-4 h-4 text-emerald-400" />
+                  <Play className="w-4 h-4 text-[var(--nx-success)]" />
                   Interactive API Endpoint Tester
                 </h3>
                 <p className="text-[var(--nx-text-faint)] text-[11px] mt-0.5">
@@ -1521,7 +1511,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-cyan-500/10 hover:bg-cyan-500/15 border border-cyan-500/30 rounded text-[10px] font-semibold text-cyan-400"
+                        className="px-2 py-1 bg-[var(--nx-info)]/10 hover:bg-[var(--nx-info)]/15 border border-[var(--nx-info)]/30 rounded text-[10px] font-semibold text-[var(--nx-info)]"
                       >
                         🌐 Live Web Search
                       </button>
@@ -1534,7 +1524,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/30 rounded text-[10px] font-semibold text-emerald-400"
+                        className="px-2 py-1 bg-[var(--nx-success)]/10 hover:bg-[var(--nx-success)]/15 border border-[var(--nx-success)]/30 rounded text-[10px] font-semibold text-[var(--nx-success)]"
                       >
                         🧮 Math (1337*42)
                       </button>
@@ -1547,7 +1537,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/30 rounded text-[10px] font-semibold text-blue-400"
+                        className="px-2 py-1 bg-[var(--nx-info)]/10 hover:bg-[var(--nx-info)]/15 border border-[var(--nx-info)]/30 rounded text-[10px] font-semibold text-[var(--nx-info)]"
                       >
                         🍎 Apple from Bowl
                       </button>
@@ -1560,7 +1550,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-red-500/10 hover:bg-red-500/15 border border-red-500/30 rounded text-[10px] font-semibold text-red-400"
+                        className="px-2 py-1 bg-[var(--nx-danger)]/10 hover:bg-[var(--nx-danger)]/15 border border-[var(--nx-danger)]/30 rounded text-[10px] font-semibold text-[var(--nx-danger)]"
                       >
                         🤬 Crashout Mode
                       </button>
@@ -1573,7 +1563,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 rounded text-[10px] font-semibold text-amber-400"
+                        className="px-2 py-1 bg-[var(--nx-warn)]/10 hover:bg-[var(--nx-warn)]/15 border border-[var(--nx-warn)]/30 rounded text-[10px] font-semibold text-[var(--nx-warn)]"
                       >
                         🔥 Roast Casseurt
                       </button>
@@ -1586,7 +1576,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('1394001641899954368');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded text-[10px] font-semibold text-violet-300"
+                        className="px-2 py-1 bg-[var(--nx-accent-hover)]/10 hover:bg-[var(--nx-accent-hover)]/20 border border-[var(--nx-accent-hover)]/30 rounded text-[10px] font-semibold text-[var(--nx-accent-hover)]"
                       >
                         👑 VIP Homie
                       </button>
@@ -1598,7 +1588,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                           setTesterAuthorId('99887766');
                           setTesterImageUrl('');
                         }}
-                        className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/30 rounded text-[10px] font-semibold text-rose-400"
+                        className="px-2 py-1 bg-[var(--nx-danger)]/10 hover:bg-[var(--nx-danger)]/15 border border-[var(--nx-danger)]/30 rounded text-[10px] font-semibold text-[var(--nx-danger)]"
                       >
                         🛡️ Nitro Scam Test
                       </button>
@@ -1661,7 +1651,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                     <button
                       onClick={handleRunTester}
                       disabled={testerLoading}
-                      className="w-full py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition disabled:opacity-50 shadow-sm"
+                      className="w-full py-2.5 rounded-xl bg-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-hover)] text-white font-bold text-xs flex items-center justify-center gap-2 transition disabled:opacity-50 shadow-sm"
                     >
                       {testerLoading ? (
                         <>
@@ -1705,7 +1695,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
                       </div>
                     )}
                     {!testerLoading && testerResult && (
-                      <pre className="font-mono text-[11px] text-emerald-400 leading-relaxed overflow-x-auto">
+                      <pre className="font-mono text-[11px] text-[var(--nx-success)] leading-relaxed overflow-x-auto">
                         {testerResult}
                       </pre>
                     )}
@@ -1716,20 +1706,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-3 border-t border-[var(--nx-border)] bg-[var(--nx-surface)] flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2 text-[var(--nx-text-faint)]">
-            <Server className="w-3.5 h-3.5 text-[var(--nx-text-faint)]" />
-            <span>Server Running on Port 3000 • Ready for Discord Bot Connections</span>
-          </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-[var(--nx-elevated-hover)] text-white font-medium text-xs hover:bg-stone-800 transition"
-          >
-            Done
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };
