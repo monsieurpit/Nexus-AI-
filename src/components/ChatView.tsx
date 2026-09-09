@@ -19,6 +19,7 @@ import {
   Eye,
   Globe,
   ExternalLink,
+  PanelLeft,
 } from 'lucide-react';
 import { AISettings, ChatMessage, ModelPersona } from '../types';
 import { countTokens } from '../ai-engine/tokenizer';
@@ -37,6 +38,7 @@ interface ChatViewProps {
   onOpenCustomizer: () => void;
   onOpenKnowledge: () => void;
   onOpenApiIntegration?: () => void;
+  onToggleConversations?: () => void;
 }
 
 const SAMPLE_PROMPTS: { title: string; prompt: string }[] = [
@@ -85,6 +87,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onOpenCustomizer,
   onOpenKnowledge,
   onOpenApiIntegration,
+  onToggleConversations,
 }) => {
   const [inputText, setInputText] = useState('');
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
@@ -271,7 +274,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
       />
 
       {/* Top bar */}
-      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--nx-border-subtle)] bg-[var(--nx-surface)]/90 px-5 py-3 backdrop-blur">
+      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--nx-border-subtle)] bg-[var(--nx-surface)]/90 px-4 py-3 backdrop-blur sm:px-5">
+        {onToggleConversations && (
+          <button
+            type="button"
+            onClick={onToggleConversations}
+            className="-ml-1 rounded-[var(--nx-r-sm)] p-1.5 text-[var(--nx-text-muted)] transition hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-text)] md:hidden"
+            title="Conversations"
+            aria-label="Toggle conversation list"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </button>
+        )}
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-[var(--nx-accent)] to-[#4f46b5] text-white">
           <Sparkles className="h-4 w-4" />
         </div>

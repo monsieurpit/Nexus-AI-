@@ -107,6 +107,16 @@ export default function App() {
   const [isAttentionOpen, setIsAttentionOpen] = useState(false);
   const [isApiModalOpen, setIsApiModalOpen] = useState(false);
 
+  // On narrow screens the conversation list collapses into an overlay drawer
+  // toggled from the chat header; on md+ it's always a static column.
+  const [isConvoDrawerOpen, setIsConvoDrawerOpen] = useState(false);
+  useEffect(() => {
+    if (!isConvoDrawerOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setIsConvoDrawerOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isConvoDrawerOpen]);
+
   // Inspection states for attention modal
   const [activeAttentionMsg, setActiveAttentionMsg] = useState<ChatMessage | null>(null);
 
@@ -423,9 +433,18 @@ export default function App() {
     setIsAttentionOpen(true);
   };
 
+  const handleNewChatMobile = () => {
+    setIsConvoDrawerOpen(false);
+    handleNewChat();
+  };
+  const handleSelectConversationMobile = (id: string) => {
+    setIsConvoDrawerOpen(false);
+    handleSelectConversation(id);
+  };
+
   return (
-    <div className="h-screen bg-[var(--nx-bg)] text-[var(--nx-text)] flex font-sans antialiased selection:bg-[var(--nx-accent)] selection:text-white">
-      {/* Sidebar navigation */}
+    <div className="flex h-screen overflow-hidden bg-[var(--nx-bg)] text-[var(--nx-text)]">
+      {/* Icon rail */}
       <Sidebar
         settings={settings}
         activePersona={activePersona}
@@ -439,21 +458,35 @@ export default function App() {
         onOpenApiIntegration={() => setIsApiModalOpen(true)}
       />
 
-      {/* Conversation list panel */}
-      <ConversationSidebar
-        conversations={conversations}
-        activeConversationId={activeConversationId}
-        onNewChat={handleNewChat}
-        onSelectConversation={handleSelectConversation}
-        onRenameConversation={handleRenameConversation}
-        onDeleteConversation={handleDeleteConversation}
-        onExportConversation={handleExportConversation}
-        onShareConversation={handleShareConversation}
-      />
+      {/* Conversation list — static column on md+, slide-in drawer below */}
+      <div
+        className={`fixed inset-y-0 left-0 z-40 transition-transform duration-[var(--nx-dur-slow)] md:static md:z-10 md:translate-x-0 ${
+          isConvoDrawerOpen ? 'translate-x-[var(--nx-rail-w)] md:translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        <ConversationSidebar
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onNewChat={handleNewChatMobile}
+          onSelectConversation={handleSelectConversationMobile}
+          onRenameConversation={handleRenameConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onExportConversation={handleExportConversation}
+          onShareConversation={handleShareConversation}
+        />
+      </div>
+      {isConvoDrawerOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={() => setIsConvoDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
-      {/* Main Chat Interface */}
-      <main className="flex-1 flex flex-col min-w-0">
+      {/* Main chat */}
+      <main className="flex min-w-0 flex-1 flex-col">
         <ChatView
+          onToggleConversations={() => setIsConvoDrawerOpen((v) => !v)}
           // Forces a full remount whenever the active conversation changes, resetting every piece
           // of ChatView's own local state (attachedImage, inputText, expandedThoughts, etc.) —
           // found by a dedicated review: without this, ChatView is a single persistent component
