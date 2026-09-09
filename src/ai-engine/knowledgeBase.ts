@@ -205,6 +205,7 @@ import { AERODYNAMICS_GAPS } from './corpus/aerodynamicsGaps';
 import { GEMOLOGY_GAPS } from './corpus/gemologyGaps';
 import { SAILING_GAPS } from './corpus/sailingGaps';
 import { PERFUMERY_GAPS } from './corpus/perfumeryGaps';
+import { BRITISH_ENGLISH_GAPS } from './corpus/britishEnglishGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -1032,6 +1033,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...GEMOLOGY_GAPS,
   ...SAILING_GAPS,
   ...PERFUMERY_GAPS,
+  ...BRITISH_ENGLISH_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
