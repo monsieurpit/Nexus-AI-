@@ -1,18 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import {
-  X,
-  Database,
-  Plus,
-  Trash2,
-  Search,
-  BookOpen,
-  CheckCircle2,
-  Sparkles,
-  Zap,
-  Tag,
-} from 'lucide-react';
+import { Database, Plus, Trash2, Search, BookOpen, Sparkles, Zap, Tag } from 'lucide-react';
 import { KnowledgeItem } from '../types';
 import { computeEmbedding, searchKnowledgeGraph } from '../ai-engine/semanticEngine';
+import { Modal } from './Modal';
 
 interface KnowledgeTrainerModalProps {
   isOpen: boolean;
@@ -127,35 +117,20 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div
-        id="knowledge-trainer-modal"
-        className="bg-[var(--nx-elevated)] rounded-2xl shadow-2xl border border-[var(--nx-border)] w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--nx-border)] bg-[var(--nx-surface)]/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center">
-              <Database className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-[var(--nx-text)]">Knowledge Graph & Real-Time Trainer</h2>
-              <p className="text-xs text-[var(--nx-text-faint)]">
-                Teach Nexus AI new facts, private memories, and verified reference documents
-              </p>
-            </div>
-          </div>
-          <button
-            id="close-knowledge-modal-btn"
-            onClick={onClose}
-            className="p-1.5 text-[var(--nx-text-faint)] hover:text-[var(--nx-text-muted)] hover:bg-[var(--nx-elevated)] rounded-lg transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      icon={<Database className="h-4 w-4" />}
+      title="Knowledge Graph & Real-Time Trainer"
+      subtitle="Teach Nexus new facts, private memories, and verified reference documents"
+      maxWidth="max-w-4xl"
+      footer={
+        <button type="button" onClick={onClose} className="nx-btn nx-btn-secondary">
+          Done
+        </button>
+      }
+    >
+        <div className="space-y-6">
           {/* Top Bar: Add Button & Test Query */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Live Retrieval Test */}
@@ -176,7 +151,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
                     placeholder="e.g. self-attention, my custom project, quantum mechanics..."
                     className="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-[var(--nx-accent)]/30 bg-[var(--nx-elevated)] text-[var(--nx-text)]"
                   />
-                  <Search className="w-3.5 h-3.5 text-indigo-400 absolute left-2.5 top-2.5" />
+                  <Search className="w-3.5 h-3.5 text-[var(--nx-accent-hover)] absolute left-2.5 top-2.5" />
                 </div>
               </div>
 
@@ -191,7 +166,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
                       <span className="font-medium text-[var(--nx-text)] truncate max-w-[200px]">{item.title}</span>
                       <span
                         className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                          score > 0.6 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-amber-500/15 text-amber-400'
+                          score > 0.6 ? 'bg-emerald-500/15 text-[var(--nx-success)]' : 'bg-[var(--nx-warn)]/15 text-[var(--nx-warn)]'
                         }`}
                       >
                         {(score * 100).toFixed(0)}% Match
@@ -211,7 +186,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
                     <span className="font-bold text-[var(--nx-text)] text-base">{items.length}</span> Total Documents
                   </div>
                   <div>
-                    <span className="font-bold text-emerald-400 text-base">
+                    <span className="font-bold text-[var(--nx-success)] text-base">
                       {items.filter((i) => i.category === 'custom-user').length}
                     </span>{' '}
                     User-Taught
@@ -224,7 +199,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
 
               <button
                 onClick={() => setShowAddForm(!showAddForm)}
-                className="mt-3 w-full py-2 px-3 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1.5 transition"
+                className="mt-3 w-full py-2 px-3 rounded-lg text-xs font-semibold bg-[var(--nx-success)] hover:brightness-110 text-black flex items-center justify-center gap-1.5 transition"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{showAddForm ? 'Close Add Form' : 'Teach AI New Knowledge'}</span>
@@ -236,14 +211,14 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
           {showAddForm && (
             <form
               onSubmit={handleAddKnowledge}
-              className="p-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-3 animate-in fade-in duration-150"
+              className="p-5 rounded-xl border border-[var(--nx-success)]/30 bg-[var(--nx-success-soft)] space-y-3 animate-in fade-in duration-150"
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-bold text-[var(--nx-success)] flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4 text-[var(--nx-success)]" />
                   <span>Teach AI Knowledge Unit</span>
                 </span>
-                <span className="text-[11px] text-emerald-400">Auto-Embedded on Submit</span>
+                <span className="text-[11px] text-[var(--nx-success)]">Auto-Embedded on Submit</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -295,7 +270,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center gap-1.5 shadow-sm"
+                  className="px-4 py-1.5 text-xs font-bold bg-[var(--nx-success)] hover:brightness-110 text-black rounded-lg flex items-center gap-1.5 shadow-sm"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Index into Neural Graph</span>
@@ -344,7 +319,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
               {filteredItems.map((item) => (
                 <div
                   key={item.id}
-                  className="p-4 rounded-xl border border-[var(--nx-border)] bg-[var(--nx-elevated)] hover:border-[var(--nx-border)] transition flex flex-col justify-between"
+                  className="p-4 rounded-[var(--nx-r-md)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] hover:border-[var(--nx-border-strong)] transition flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
@@ -353,7 +328,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
                         <span
                           className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${
                             item.category === 'custom-user'
-                              ? 'bg-emerald-500/15 text-emerald-400'
+                              ? 'bg-emerald-500/15 text-[var(--nx-success)]'
                               : 'bg-[var(--nx-elevated)] text-[var(--nx-text-muted)]'
                           }`}
                         >
@@ -386,16 +361,6 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-[var(--nx-border)] bg-[var(--nx-surface)] flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-5 py-2 text-xs font-bold bg-[var(--nx-elevated-hover)] text-white rounded-xl hover:bg-[var(--nx-elevated)] transition"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };
