@@ -195,7 +195,7 @@ const COMPLIMENT_REQUEST_REGEX =
 function isQuantityWordProblemShape(q: string): boolean {
   return (
     /\d/.test(q) &&
-    /how\s+(?:many|much)\b.{0,25}\b(?:left|now|remain|do\s+you\s+have|does\s+\w+\s+have|are\s+there|is\s+there)\b/i.test(q)
+    /how\s+(?:many|much)\b.{0,25}\b(?:left|now|remain|do\s+(?:you|i|we|they)\s+have|does\s+\w+\s+have|are\s+there|is\s+there|in\s+total|in\s+all|altogether|total)\b/i.test(q)
   );
 }
 
@@ -999,6 +999,11 @@ export function detectQueryIntent(query: string): QueryIntent {
     'aight', 'ight', 'word', 'ok', 'okay', 'k', 'kk', 'ok cool', 'okay cool', 'nvm', 'nevermind', 'mood',
     'for real', 'for real for real', 'laughing my ass off', 'laughing my fucking ass off',
     'rolling on the floor laughing', 'never mind',
+    // More bare filler/acknowledgement slang an intent sweep caught falling through to 'general'
+    // and hitting a random corpus doc — all zero question content, exact-match only (they're in
+    // the same list the startsWith check reads, but none is a plausible question opener).
+    'my bad', 'on god', 'ongod', 'it is what it is', 'nah im good', "nah i'm good",
+    'w rizz', 'l rizz', 'facts bro', 'so real', 'big facts', 'true true', 'respectfully no',
     // Polish equivalents of the same small-talk/greeting set above — every one of these was
     // English-only, so a Polish "jak się masz?" (how are you) fell all the way through to corpus
     // search, matched some unrelated document by weak keyword/embedding overlap, and produced an
@@ -1183,7 +1188,7 @@ export function detectQueryIntent(query: string): QueryIntent {
     // symbol or math keyword at all, so these need their own trigger the same way the rate/time/
     // distance word problems above do. Observed live: this exact phrasing reached the LLM
     // unguarded and it never even stated a number in its answer, deflecting with a joke instead.
-    (/\d+/.test(q) && /how\s+(?:many|much)\b.{0,25}\b(?:left|now|remain|do\s+you\s+have|does\s+\w+\s+have|are\s+there|is\s+there)\b/.test(q)) ||
+    (/\d+/.test(q) && /how\s+(?:many|much)\b.{0,25}\b(?:left|now|remain|do\s+(?:you|i|we|they)\s+have|does\s+\w+\s+have|are\s+there|is\s+there|in\s+total|in\s+all|altogether|total)\b/.test(q)) ||
     // "how many <volume unit> in/per a <volume unit>" ("how many ounces in a gallon") — no digit
     // at all, so the digit-presence math triggers above never catch this shape, and
     // mathSolver.ts's own volume-conversion table (which does support this exact phrasing) never
@@ -1348,14 +1353,38 @@ export function detectQueryIntent(query: string): QueryIntent {
   if (
     q.includes('compare ') ||
     /\bdifferences?\s+between\b/.test(q) ||
+    // "diff between X and Y" — an intent sweep found "diff between affect and effect" and
+    // "whats the diff between a crocodile and an alligator" both fell to 'general'. "diff" as a
+    // clipped "difference" only counts right before "between" so it can't collide with the git
+    // sense ("show me the diff").
+    /\bdiff\s+between\b/.test(q) ||
     q.includes(' vs ') ||
     q.includes(' versus ') ||
     q.includes('better than') ||
     q.includes('differ from') ||
     q.includes('differs from') ||
+    q.includes('differ between') ||
+    q.includes('differ in') ||
     // Narrow "X or Y" pattern (e.g. "messi or ronaldo") — only two bare tokens either
     // side of "or", so it doesn't misfire on longer sentences that happen to contain "or"
-    /^[a-z0-9'-]+\s+or\s+[a-z0-9'-]+$/i.test(q)
+    /^[a-z0-9'-]+\s+or\s+[a-z0-9'-]+\??$/i.test(q) ||
+    // "which is <adjective>, A or B" / "whats better, A or B" / "A or B — which is <adj>" —
+    // an explicit choice between two named things. The trailing/leading "A or B" is kept short
+    // (each side ≤3 words, no other clause markers) so a rambling sentence that merely contains
+    // "or" doesn't match.
+    /\b(?:which\s+(?:is|one)|what'?s?\s+(?:better|worse|bigger|smaller|faster|stronger|more|the\s+best))\b[^.?!]*\b[a-z0-9'-]+(?:\s+[a-z0-9'-]+){0,2}\s+or\s+[a-z0-9'-]+(?:\s+[a-z0-9'-]+){0,2}\b/i.test(
+      q
+    ) ||
+    /\b[a-z0-9'-]+(?:\s+[a-z0-9'-]+){0,2}\s+or\s+[a-z0-9'-]+(?:\s+[a-z0-9'-]+){0,2}[,\s]+which\s+(?:is|one)\b/i.test(q) ||
+    // "is a hotdog a sandwich", "is a tomato a fruit or a vegetable", "is Pluto a planet" — a
+    // categorisation / either-this-or-that question, which the comparative synthesis path
+    // (side-by-side of the two candidate categories) handles better than a single-doc definition.
+    // The predicate MUST carry an article ("a"/"an") — that's what makes it a category question
+    // ("is X a Y") rather than a plain yes/no property check ("is the earth round", "is water
+    // wet"), which those regexes would otherwise swallow.
+    /^is\s+(?:an?\s+|the\s+)?[a-z0-9'-]+(?:\s+[a-z0-9'-]+){0,2}\s+an?\s+[a-z0-9'-]+(?:\s+or\s+an?\s+[a-z0-9'-]+)?\??$/i.test(
+      q
+    )
   ) {
     return 'comparative';
   }
