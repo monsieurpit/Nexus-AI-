@@ -208,6 +208,7 @@ import { PERFUMERY_GAPS } from './corpus/perfumeryGaps';
 import { BRITISH_ENGLISH_GAPS } from './corpus/britishEnglishGaps';
 import { CLIMBING_GAPS } from './corpus/climbingGaps';
 import { NAVIGATION_GAPS } from './corpus/navigationGaps';
+import { TEXTILE_ARTS_GAPS } from './corpus/textileArtsGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -1038,6 +1039,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...BRITISH_ENGLISH_GAPS,
   ...CLIMBING_GAPS,
   ...NAVIGATION_GAPS,
+  ...TEXTILE_ARTS_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
