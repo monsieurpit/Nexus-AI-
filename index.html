@@ -2,18 +2,106 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#090a0e" />
+    <meta name="color-scheme" content="dark" />
+
     <title>Nexus AI</title>
-    <meta name="description" content="A new fully customised AI called Nexus AI." />
-    <meta property="og:title" content="Nexus AI" />
-    <meta property="og:description" content="A new fully customised AI called Nexus AI." />
+    <meta
+      name="description"
+      content="Nexus AI — a fully custom, zero-quota AI engine with local inference, live web grounding, dedicated math / code / logic solvers and real-time model customization."
+    />
     <link rel="icon" type="image/png" href="/nexus-ai-icon.png" />
+    <link rel="apple-touch-icon" href="/nexus-ai-icon.png" />
+
     <meta property="og:type" content="website" />
+    <meta property="og:title" content="Nexus AI" />
+    <meta
+      property="og:description"
+      content="A fully custom, zero-quota AI engine with local inference and live web grounding."
+    />
+    <meta property="og:image" content="/nexus-ai-icon.png" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Nexus AI" />
+    <meta
+      name="twitter:description"
+      content="A fully custom, zero-quota AI engine with local inference and live web grounding."
+    />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* First-paint shell — shown before the React bundle mounts so the load
+         never flashes a white page on a dark app. Removed once #root fills. */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #090a0e;
+      }
+      #nx-boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #090a0e;
+        transition: opacity 0.35s ease;
+      }
+      #nx-boot.nx-boot-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #nx-boot .nx-boot-mark {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #7c6cf6, #4f46b5);
+        box-shadow: 0 8px 30px -8px rgba(124, 108, 246, 0.5);
+        animation: nx-boot-pulse 1.3s ease-in-out infinite;
+      }
+      @keyframes nx-boot-pulse {
+        0%,
+        100% {
+          transform: scale(0.9);
+          opacity: 0.7;
+        }
+        50% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="nx-boot"><div class="nx-boot-mark"></div></div>
+    <script>
+      // Fade the boot splash the moment React has painted content into #root.
+      (function () {
+        var boot = document.getElementById('nx-boot');
+        var root = document.getElementById('root');
+        if (!boot || !root) return;
+        var obs = new MutationObserver(function () {
+          if (root.childElementCount > 0) {
+            boot.classList.add('nx-boot-hidden');
+            setTimeout(function () {
+              boot.remove();
+            }, 400);
+            obs.disconnect();
+          }
+        });
+        obs.observe(root, { childList: true });
+        setTimeout(function () {
+          boot.classList.add('nx-boot-hidden');
+        }, 8000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

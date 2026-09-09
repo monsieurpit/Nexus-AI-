@@ -1,171 +1,580 @@
 @import "tailwindcss";
 
-/*
- * Nexus dark theme design tokens.
- * Three surface layers, Discord-server-list-inspired: `nx-bg` is the deepest layer (app shell/
- * sidebar rail), `nx-surface` is the main content plane (chat), `nx-elevated` is anything that
- * sits above the main plane (cards, the input bar, modals). Accent is a violet distinct from
- * Discord's own blurple, kept close to the indigo already used as the selection color pre-revamp.
- */
+/* =========================================================================
+ * NEXUS AI — DESIGN SYSTEM
+ * -------------------------------------------------------------------------
+ * One source of truth for colour, type, spacing, radius, elevation and
+ * motion. Components should reference these tokens (via var(--nx-*) or the
+ * .nx-* utility classes below) instead of hard-coding hex values or
+ * one-off Tailwind combinations, so the whole surface stays consistent and
+ * a future re-theme is a single-file change.
+ *
+ * SURFACE LAYERS (deepest -> highest):
+ *   --nx-bg          app shell / behind everything
+ *   --nx-sidebar     the icon rail + conversation list
+ *   --nx-surface     the main content plane (chat transcript)
+ *   --nx-elevated    cards, input bar, list rows, popovers
+ *   --nx-elevated-2  anything above an elevated surface (modal panels)
+ * ===================================================================== */
 :root {
-  --nx-bg: #0b0c10;
-  --nx-sidebar: #111318;
-  --nx-surface: #16181d;
-  --nx-elevated: #1e2128;
-  --nx-elevated-hover: #262a33;
-  --nx-border: #2a2e37;
-  --nx-border-subtle: #20232a;
-  --nx-text: #ececf2;
-  --nx-text-muted: #9a9ca8;
-  --nx-text-faint: #6b6e79;
+  /* ---- surface + line ---- */
+  --nx-bg: #090a0e;
+  --nx-sidebar: #0f1116;
+  --nx-surface: #131519;
+  --nx-elevated: #1b1e25;
+  --nx-elevated-hover: #23262f;
+  --nx-elevated-2: #20242c;
+  --nx-border: #2b2f39;
+  --nx-border-strong: #3a3f4b;
+  --nx-border-subtle: #1e2128;
+
+  /* ---- text ---- */
+  --nx-text: #f2f3f7;
+  --nx-text-muted: #a4a7b4;
+  --nx-text-faint: #6d7180;
+
+  /* ---- brand accent (violet, distinct from Discord blurple) ---- */
   --nx-accent: #7c6cf6;
-  --nx-accent-hover: #8f81f8;
+  --nx-accent-hover: #948bff;
+  --nx-accent-press: #6a58e8;
   --nx-accent-soft: rgba(124, 108, 246, 0.14);
+  --nx-accent-ring: rgba(124, 108, 246, 0.4);
+  --nx-on-accent: #ffffff;
+
+  /* ---- semantic ---- */
+  --nx-success: #3fce97;
+  --nx-success-soft: rgba(63, 206, 151, 0.13);
+  --nx-warn: #f5b83d;
+  --nx-danger: #f4576b;
+  --nx-danger-soft: rgba(244, 87, 107, 0.13);
+  --nx-info: #4aa8ff;
+  --nx-info-soft: rgba(74, 168, 255, 0.13);
+
+  /* ---- radius scale ---- */
+  --nx-r-xs: 6px;
+  --nx-r-sm: 9px;
+  --nx-r-md: 12px;
+  --nx-r-lg: 16px;
+  --nx-r-xl: 22px;
+  --nx-r-full: 9999px;
+
+  /* ---- elevation ---- */
+  --nx-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --nx-shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.45);
+  --nx-shadow-lg: 0 18px 50px -12px rgba(0, 0, 0, 0.6);
+  --nx-shadow-glow: 0 0 0 1px var(--nx-accent-soft), 0 8px 30px -8px rgba(124, 108, 246, 0.35);
+
+  /* ---- motion ---- */
+  --nx-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --nx-dur-fast: 110ms;
+  --nx-dur: 170ms;
+  --nx-dur-slow: 280ms;
+
+  /* ---- layout metrics (kept here so the shell and components agree) ---- */
+  --nx-rail-w: 72px;
+  --nx-convo-w: 264px;
+  --nx-content-max: 46rem;
 }
 
-body {
-  background: var(--nx-bg);
-  color-scheme: dark;
-}
-
-::selection {
-  background: var(--nx-accent);
-  color: white;
-}
-
-/* Slim, dark-aware scrollbars throughout the app */
+/* =========================================================================
+ * BASE
+ * ===================================================================== */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--nx-elevated-hover) transparent;
 }
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--nx-bg);
+  color: var(--nx-text);
+  color-scheme: dark;
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Ambient depth for the shell — a very soft violet glow top-left, so the flat
+ * near-black doesn't read as dead space. Sits behind everything. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(60rem 40rem at -10% -10%, rgba(124, 108, 246, 0.08), transparent 60%),
+    radial-gradient(50rem 40rem at 110% 0%, rgba(74, 168, 255, 0.05), transparent 55%);
+}
+
+::selection {
+  background: var(--nx-accent);
+  color: var(--nx-on-accent);
+}
+
+/* Consistent keyboard focus everywhere — never a raw browser outline, never
+ * nothing. Mouse clicks don't trigger :focus-visible so it stays quiet. */
+:focus-visible {
+  outline: 2px solid var(--nx-accent);
+  outline-offset: 2px;
+  border-radius: var(--nx-r-xs);
+}
+
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
   background-color: var(--nx-elevated-hover);
-  border-radius: 8px;
+  border-radius: var(--nx-r-full);
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background-color: #33384333;
+  background-color: var(--nx-border-strong);
 }
 
-/* Custom Markdown Content Formatting */
-.markdown-content p {
-  margin-top: 0.25rem;
-  margin-bottom: 0.85rem;
-  line-height: 1.65;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
-.markdown-content p:last-child {
+/* =========================================================================
+ * REUSABLE COMPONENT CLASSES
+ * Small, composable primitives. Prefer these over re-deriving the same
+ * Tailwind stack in every component.
+ * ===================================================================== */
+@layer components {
+  /* ---- buttons ---- */
+  .nx-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: var(--nx-r-md);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    border: 1px solid transparent;
+    transition: background-color var(--nx-dur) var(--nx-ease),
+      border-color var(--nx-dur) var(--nx-ease), color var(--nx-dur) var(--nx-ease),
+      transform var(--nx-dur-fast) var(--nx-ease), box-shadow var(--nx-dur) var(--nx-ease);
+  }
+  .nx-btn:active {
+    transform: translateY(0.5px) scale(0.985);
+  }
+  .nx-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .nx-btn-primary {
+    background: var(--nx-accent);
+    color: var(--nx-on-accent);
+  }
+  .nx-btn-primary:hover:not(:disabled) {
+    background: var(--nx-accent-hover);
+    box-shadow: var(--nx-shadow-glow);
+  }
+  .nx-btn-secondary {
+    background: var(--nx-elevated);
+    color: var(--nx-text);
+    border-color: var(--nx-border);
+  }
+  .nx-btn-secondary:hover:not(:disabled) {
+    background: var(--nx-elevated-hover);
+    border-color: var(--nx-border-strong);
+  }
+  .nx-btn-ghost {
+    background: transparent;
+    color: var(--nx-text-muted);
+  }
+  .nx-btn-ghost:hover:not(:disabled) {
+    background: var(--nx-elevated);
+    color: var(--nx-text);
+  }
+  .nx-btn-danger {
+    background: var(--nx-danger);
+    color: #fff;
+  }
+  .nx-btn-danger:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+
+  /* ---- surfaces ---- */
+  .nx-card {
+    background: var(--nx-elevated);
+    border: 1px solid var(--nx-border);
+    border-radius: var(--nx-r-lg);
+  }
+  .nx-card-interactive {
+    transition: border-color var(--nx-dur) var(--nx-ease),
+      background-color var(--nx-dur) var(--nx-ease), transform var(--nx-dur) var(--nx-ease);
+  }
+  .nx-card-interactive:hover {
+    border-color: var(--nx-accent);
+    background: var(--nx-elevated-hover);
+  }
+
+  /* ---- form controls ---- */
+  .nx-input {
+    width: 100%;
+    background: var(--nx-bg);
+    border: 1px solid var(--nx-border);
+    border-radius: var(--nx-r-md);
+    padding: 0.55rem 0.8rem;
+    font-size: 0.8125rem;
+    color: var(--nx-text);
+    transition: border-color var(--nx-dur) var(--nx-ease), box-shadow var(--nx-dur) var(--nx-ease);
+  }
+  .nx-input::placeholder {
+    color: var(--nx-text-faint);
+  }
+  .nx-input:focus {
+    outline: none;
+    border-color: var(--nx-accent);
+    box-shadow: 0 0 0 3px var(--nx-accent-soft);
+  }
+
+  /* ---- pills / badges ---- */
+  .nx-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--nx-r-full);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.4;
+    background: var(--nx-elevated);
+    color: var(--nx-text-muted);
+    border: 1px solid var(--nx-border-subtle);
+  }
+  .nx-badge-accent {
+    background: var(--nx-accent-soft);
+    color: var(--nx-accent-hover);
+    border-color: transparent;
+  }
+  .nx-badge-success {
+    background: var(--nx-success-soft);
+    color: var(--nx-success);
+    border-color: transparent;
+  }
+  .nx-badge-info {
+    background: var(--nx-info-soft);
+    color: var(--nx-info);
+    border-color: transparent;
+  }
+
+  /* ---- section eyebrow label ---- */
+  .nx-eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--nx-text-faint);
+  }
+
+  /* ---- modal chrome ---- */
+  .nx-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(5, 6, 9, 0.72);
+    backdrop-filter: blur(4px);
+    animation: nx-fade-in var(--nx-dur) var(--nx-ease);
+  }
+  .nx-modal-panel {
+    width: 100%;
+    background: var(--nx-elevated-2);
+    border: 1px solid var(--nx-border);
+    border-radius: var(--nx-r-xl);
+    box-shadow: var(--nx-shadow-lg);
+    display: flex;
+    flex-direction: column;
+    max-height: min(90vh, 900px);
+    overflow: hidden;
+    animation: nx-scale-in var(--nx-dur-slow) var(--nx-ease);
+  }
+  .nx-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--nx-border-subtle);
+  }
+  .nx-modal-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+  }
+  .nx-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    padding: 0.9rem 1.25rem;
+    border-top: 1px solid var(--nx-border-subtle);
+    background: var(--nx-elevated);
+  }
+
+  /* ---- thin divider ---- */
+  .nx-divider {
+    height: 1px;
+    background: var(--nx-border-subtle);
+  }
+}
+
+/* =========================================================================
+ * ANIMATIONS
+ * ===================================================================== */
+@keyframes nx-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes nx-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes nx-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes nx-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+@keyframes nx-pulse-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.nx-animate-in {
+  animation: nx-slide-up var(--nx-dur-slow) var(--nx-ease);
+}
+.nx-fade-in {
+  animation: nx-fade-in var(--nx-dur) var(--nx-ease);
+}
+
+/* Skeleton shimmer block */
+.nx-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--nx-elevated);
+  border-radius: var(--nx-r-sm);
+}
+.nx-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.06),
+    transparent
+  );
+  animation: nx-shimmer 1.5s infinite;
+}
+
+/* Typing dots — used by the streaming indicator */
+.nx-typing {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.nx-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--nx-accent);
+  animation: nx-pulse-dot 1.1s infinite var(--nx-ease);
+}
+.nx-typing span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.nx-typing span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+/* =========================================================================
+ * MARKDOWN CONTENT
+ * ===================================================================== */
+.markdown-content {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: color-mix(in srgb, var(--nx-text) 92%, transparent);
+}
+.markdown-content > :first-child {
+  margin-top: 0;
+}
+.markdown-content > :last-child {
   margin-bottom: 0;
 }
 
-.markdown-content h1 {
-  font-size: 1.35rem;
-  font-weight: 700;
-  margin-top: 1.25rem;
-  margin-bottom: 0.6rem;
-  color: var(--nx-text);
-  line-height: 1.3;
+.markdown-content p {
+  margin: 0.25rem 0 0.85rem;
 }
 
-.markdown-content h2 {
-  font-size: 1.2rem;
-  font-weight: 700;
-  margin-top: 1.15rem;
-  margin-bottom: 0.5rem;
-  color: var(--nx-text);
-  line-height: 1.35;
-}
-
-.markdown-content h3 {
-  font-size: 1.05rem;
-  font-weight: 650;
-  margin-top: 1rem;
-  margin-bottom: 0.45rem;
-  color: var(--nx-text);
-  line-height: 1.4;
-}
-
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
 .markdown-content h4 {
-  font-size: 0.95rem;
-  font-weight: 600;
-  margin-top: 0.85rem;
-  margin-bottom: 0.35rem;
   color: var(--nx-text);
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 1.15rem 0 0.5rem;
+  scroll-margin-top: 5rem;
+}
+.markdown-content h1 {
+  font-size: 1.3rem;
+}
+.markdown-content h2 {
+  font-size: 1.15rem;
+}
+.markdown-content h3 {
+  font-size: 1.02rem;
+  font-weight: 650;
+}
+.markdown-content h4 {
+  font-size: 0.92rem;
+  font-weight: 600;
 }
 
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 1.4rem;
+  margin: 0.4rem 0 0.85rem;
+}
 .markdown-content ul {
   list-style-type: disc;
-  padding-left: 1.35rem;
-  margin-top: 0.4rem;
-  margin-bottom: 0.85rem;
 }
-
 .markdown-content ol {
   list-style-type: decimal;
-  padding-left: 1.35rem;
-  margin-top: 0.4rem;
-  margin-bottom: 0.85rem;
 }
-
 .markdown-content li {
   margin-bottom: 0.35rem;
-  line-height: 1.55;
+  line-height: 1.6;
+}
+.markdown-content li::marker {
+  color: var(--nx-text-faint);
 }
 
 .markdown-content hr {
-  margin-top: 1.25rem;
-  margin-bottom: 1.25rem;
+  margin: 1.35rem 0;
   border: 0;
   border-top: 1px solid var(--nx-border);
 }
 
 .markdown-content blockquote {
   border-left: 3px solid var(--nx-accent);
-  padding-left: 1rem;
-  padding-top: 0.25rem;
-  padding-bottom: 0.25rem;
-  margin-top: 0.75rem;
-  margin-bottom: 0.85rem;
+  padding: 0.35rem 0 0.35rem 1rem;
+  margin: 0.8rem 0;
   color: var(--nx-text-muted);
-  font-style: italic;
-  background-color: var(--nx-elevated);
-  border-radius: 0 0.5rem 0.5rem 0;
+  background: var(--nx-elevated);
+  border-radius: 0 var(--nx-r-sm) var(--nx-r-sm) 0;
+}
+.markdown-content blockquote p:last-child {
+  margin-bottom: 0;
 }
 
 .markdown-content strong {
   font-weight: 650;
   color: var(--nx-text);
 }
+.markdown-content em {
+  color: var(--nx-text);
+}
 
 .markdown-content table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 0.75rem;
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
+  margin: 0.8rem 0 1rem;
+  font-size: 0.83rem;
+  display: block;
+  overflow-x: auto;
 }
-
 .markdown-content th,
 .markdown-content td {
   border: 1px solid var(--nx-border);
   padding: 0.5rem 0.75rem;
   text-align: left;
 }
-
 .markdown-content th {
-  background-color: var(--nx-elevated);
+  background: var(--nx-elevated);
   font-weight: 600;
   color: var(--nx-text);
+}
+.markdown-content tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--nx-elevated) 40%, transparent);
 }
 
 .markdown-content a {
   color: var(--nx-accent-hover);
   text-decoration: underline;
   text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--nx-accent-hover) 45%, transparent);
+  transition: text-decoration-color var(--nx-dur) var(--nx-ease);
+}
+.markdown-content a:hover {
+  text-decoration-color: var(--nx-accent-hover);
+}
+
+.markdown-content code {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    monospace;
+}
+.markdown-content :not(pre) > code {
+  padding: 0.12rem 0.4rem;
+  border-radius: var(--nx-r-xs);
+  background: var(--nx-elevated);
+  color: var(--nx-accent-hover);
+  font-size: 0.82em;
+  font-weight: 500;
 }
