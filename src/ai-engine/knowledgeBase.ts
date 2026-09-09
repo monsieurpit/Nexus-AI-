@@ -197,6 +197,7 @@ import { BOARD_GAMES_GAPS } from './corpus/boardGamesGaps';
 import { KNOTS_GAPS } from './corpus/knotsGaps';
 import { TYPOGRAPHY_GAPS } from './corpus/typographyGaps';
 import { COFFEE_TEA_WINE_GAPS } from './corpus/coffeeTeaWineGaps';
+import { TRANSPORTATION_HISTORY_GAPS } from './corpus/transportationHistoryGaps';
 import { CORPUS_GAPS_3 } from './corpus/corpusGaps3';
 import { BASIC_BODY_REFERENCE_FACTS_CORPUS } from './corpus/basicBodyReferenceFacts';
 import { BASIC_CIVICS_CORPUS } from './corpus/basicCivics';
@@ -1016,6 +1017,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...KNOTS_GAPS,
   ...TYPOGRAPHY_GAPS,
   ...COFFEE_TEA_WINE_GAPS,
+  ...TRANSPORTATION_HISTORY_GAPS,
   ...CORPUS_GAPS_3,
   ...BASIC_BODY_REFERENCE_FACTS_CORPUS,
   ...BASIC_CIVICS_CORPUS,
