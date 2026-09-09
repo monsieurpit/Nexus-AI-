@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { AISettings, ModelPersona, ModelPersonaId, ReasoningMode } from '../types';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../ai-engine/memoryStore';
+import { Modal } from './Modal';
 
 interface ModelCustomizerModalProps {
   isOpen: boolean;
@@ -216,33 +217,35 @@ Tone guidelines:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div
-        id="model-customizer-modal"
-        className="bg-[var(--nx-elevated)] rounded-2xl shadow-2xl border border-[var(--nx-border)] w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
-      >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--nx-border)] bg-[var(--nx-surface)]/50">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[var(--nx-elevated-hover)] text-white flex items-center justify-center">
-              <Sliders className="w-4 h-4 text-indigo-400" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-[var(--nx-text)]">Model Customization & Neural Tuning</h2>
-              <p className="text-xs text-[var(--nx-text-faint)]">Fine-tune system personas, sampling hyperparameters, and tone</p>
-            </div>
-          </div>
-          <button
-            id="close-customizer-modal-btn"
-            onClick={onClose}
-            className="p-1.5 text-[var(--nx-text-faint)] hover:text-[var(--nx-text-muted)] hover:bg-[var(--nx-elevated)] rounded-lg transition"
-          >
-            <X className="w-5 h-5" />
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      icon={<Sliders className="h-4 w-4" />}
+      title="Model Customization & Neural Tuning"
+      subtitle="Fine-tune system personas, sampling hyperparameters, and tone"
+      maxWidth="max-w-3xl"
+      padBody={false}
+      footer={
+        <div className="flex w-full items-center justify-between">
+          <button onClick={handleResetToDefaults} className="nx-btn nx-btn-ghost">
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset to defaults
           </button>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="nx-btn nx-btn-ghost">
+              Cancel
+            </button>
+            <button id="save-customizer-btn" onClick={handleSave} className="nx-btn nx-btn-primary">
+              {savedToast ? <Check className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+              <span>{savedToast ? 'Saved!' : 'Apply settings'}</span>
+            </button>
+          </div>
         </div>
-
+      }
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
         {/* Tab Navigation */}
-        <div className="flex border-b border-[var(--nx-border)] px-6 bg-[var(--nx-elevated)] gap-2 overflow-x-auto text-xs font-medium">
+        <div className="flex gap-2 overflow-x-auto border-b border-[var(--nx-border-subtle)] bg-[var(--nx-elevated)] px-5 text-xs font-medium">
           <button
             onClick={() => setActiveTab('persona')}
             className={`py-3 px-3 border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
@@ -290,7 +293,7 @@ Tone guidelines:
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 text-sm">
+        <div className="flex-1 overflow-y-auto p-5 space-y-6 text-sm">
           {/* Persona Tab */}
           {activeTab === 'persona' && (
             <div className="space-y-4">
@@ -333,8 +336,8 @@ Tone guidelines:
               </div>
 
               {localSettings.activePersonaId === 'custom' && (
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3 mt-4">
-                  <div className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                <div className="p-4 rounded-xl bg-[var(--nx-warn)]/10 border border-[var(--nx-warn)]/30 space-y-3 mt-4">
+                  <div className="text-xs font-semibold text-[var(--nx-warn)] flex items-center gap-1.5">
                     <Sliders className="w-3.5 h-3.5" />
                     <span>Custom Persona Configuration</span>
                   </div>
@@ -510,16 +513,16 @@ Tone guidelines:
               </div>
 
               {/* 🌐 Autonomous Web Search & Google Grounding */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-br from-blue-500/10 via-sky-500/10 to-indigo-500/10 border border-blue-500/30 space-y-3">
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-blue-500/10 via-sky-500/10 to-indigo-500/10 border border-[var(--nx-info)]/30 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-blue-600 text-white flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-md bg-[var(--nx-info)] text-white flex items-center justify-center">
                       <Globe className="w-3.5 h-3.5" />
                     </div>
                     <div>
                       <div className="text-xs font-bold text-[var(--nx-text)] flex items-center gap-1.5">
                         <span>Autonomous Live Web Search</span>
-                        <span className="px-1.5 py-0.2 bg-emerald-500/15 text-emerald-400 text-[10px] rounded font-semibold">
+                        <span className="px-1.5 py-0.2 bg-[var(--nx-success)]/15 text-[var(--nx-success)] text-[10px] rounded font-semibold">
                           Infinite Free Quota
                         </span>
                       </div>
@@ -540,7 +543,7 @@ Tone guidelines:
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-[var(--nx-elevated-hover)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--nx-elevated)] after:border-[var(--nx-border)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-9 h-5 bg-[var(--nx-elevated-hover)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--nx-elevated)] after:border-[var(--nx-border)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--nx-info)]"></div>
                   </label>
                 </div>
 
@@ -567,7 +570,7 @@ Tone guidelines:
                         }
                         className={`p-2 rounded-lg border text-left transition ${
                           (localSettings.webSearchMode || 'auto') === m.id
-                            ? 'border-blue-600 bg-blue-500/15 text-blue-300 font-bold shadow-sm'
+                            ? 'border-[var(--nx-info)] bg-[var(--nx-info)]/15 text-[var(--nx-info)] font-bold shadow-sm'
                             : 'border-[var(--nx-border)]/80 bg-[var(--nx-elevated)]/80 hover:bg-[var(--nx-elevated)] text-[var(--nx-text-muted)]'
                         }`}
                       >
@@ -601,7 +604,7 @@ Tone guidelines:
                         }
                         className={`p-1.5 rounded-lg border text-center text-xs transition ${
                           (localSettings.webSearchEngine || 'all') === eng.id
-                            ? 'border-blue-600 bg-blue-500/15 text-blue-300 font-semibold'
+                            ? 'border-[var(--nx-info)] bg-[var(--nx-info)]/15 text-[var(--nx-info)] font-semibold'
                             : 'border-[var(--nx-border)]/80 bg-[var(--nx-elevated)]/80 hover:bg-[var(--nx-elevated)] text-[var(--nx-text-muted)]'
                         }`}
                       >
@@ -705,10 +708,10 @@ Tone guidelines:
               <div className="space-y-1.5 pt-2 border-t border-[var(--nx-border)]">
                 <div className="flex justify-between text-xs font-semibold text-[var(--nx-text)]">
                   <span className="flex items-center gap-1">
-                    <Flame className="w-3.5 h-3.5 text-amber-500" />
+                    <Flame className="w-3.5 h-3.5 text-[var(--nx-warn)]" />
                     <span>Roast & Savage Banter Intensity</span>
                   </span>
-                  <span className="text-amber-400 font-bold">{localSettings.roastIntensity ?? 75}%</span>
+                  <span className="text-[var(--nx-warn)] font-bold">{localSettings.roastIntensity ?? 75}%</span>
                 </div>
                 <input
                   type="range"
@@ -728,16 +731,16 @@ Tone guidelines:
               </div>
 
               {/* Swear Engine & Expressive Profanity Pipeline */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-br from-rose-500/10 via-amber-500/10 to-orange-500/10 border border-rose-500/30 space-y-3">
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-rose-500/10 via-amber-500/10 to-orange-500/10 border border-[var(--nx-danger)]/30 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-rose-600 text-white flex items-center justify-center text-xs font-black">
+                    <div className="w-6 h-6 rounded-md bg-[var(--nx-danger)] text-white flex items-center justify-center text-xs font-black">
                       #!
                     </div>
                     <div>
                       <div className="text-xs font-bold text-[var(--nx-text)] flex items-center gap-1.5">
                         <span>Autonomous Swear Engine</span>
-                        <span className="px-1.5 py-0.2 bg-rose-500/15 text-rose-400 text-[10px] rounded font-semibold">
+                        <span className="px-1.5 py-0.2 bg-[var(--nx-danger)]/15 text-[var(--nx-danger)] text-[10px] rounded font-semibold">
                           Active
                         </span>
                       </div>
@@ -758,7 +761,7 @@ Tone guidelines:
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-[var(--nx-elevated-hover)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--nx-elevated)] after:border-[var(--nx-border)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600"></div>
+                    <div className="w-9 h-5 bg-[var(--nx-elevated-hover)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--nx-elevated)] after:border-[var(--nx-border)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--nx-danger)]"></div>
                   </label>
                 </div>
 
@@ -785,7 +788,7 @@ Tone guidelines:
                         }
                         className={`p-2 rounded-lg border text-left transition ${
                           (localSettings.swearIntensity || 'heavy') === tier.id
-                            ? 'border-rose-600 bg-rose-500/15 text-rose-300 font-bold shadow-sm'
+                            ? 'border-[var(--nx-danger)] bg-[var(--nx-danger)]/15 text-[var(--nx-danger)] font-bold shadow-sm'
                             : 'border-[var(--nx-border)]/80 bg-[var(--nx-elevated)]/80 hover:bg-[var(--nx-elevated)] text-[var(--nx-text-muted)]'
                         }`}
                       >
@@ -805,7 +808,7 @@ Tone guidelines:
               {/* Discord Bot Quick Presets */}
               <div className="p-3.5 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-[var(--nx-accent)]/20 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--nx-accent-hover)]">
                     <Bot className="w-4 h-4 text-[var(--nx-accent-hover)]" />
                     <span>Discord Bot & Rule Engine Presets</span>
                   </div>
@@ -820,10 +823,10 @@ Tone guidelines:
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('nexus')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-violet-500 hover:bg-violet-500/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-hover)]/10 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Bot className="w-3 h-3 text-violet-400" />
+                      <Bot className="w-3 h-3 text-[var(--nx-accent-hover)]" />
                       <span>Nexus (Discord Homie)</span>
                     </div>
                     <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">Swearing, Roasts & Facts</span>
@@ -832,10 +835,10 @@ Tone guidelines:
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('nexus_superchill')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-emerald-500 hover:bg-emerald-500/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-success)] hover:bg-[var(--nx-success)]/10 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Smile className="w-3 h-3 text-emerald-400" />
+                      <Smile className="w-3 h-3 text-[var(--nx-success)]" />
                       <span>Nexus (Super Chill Homie)</span>
                     </div>
                     <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">User ID 1394001641899954368</span>
@@ -844,10 +847,10 @@ Tone guidelines:
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('raidshield')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-emerald-500 hover:bg-emerald-500/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-success)] hover:bg-[var(--nx-success)]/10 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                      <ShieldCheck className="w-3 h-3 text-[var(--nx-success)]" />
                       <span>RaidShield AI</span>
                     </div>
                     <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">21 Hard Rules JSON</span>
@@ -856,10 +859,10 @@ Tone guidelines:
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('discord_safety')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-indigo-400 hover:bg-[var(--nx-accent-soft)]/40 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-soft)]/40 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <ShieldAlert className="w-3 h-3 text-emerald-400" />
+                      <ShieldAlert className="w-3 h-3 text-[var(--nx-success)]" />
                       <span>Safety & Helper Bot</span>
                     </div>
                     <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">0-1 Score + Help Handler</span>
@@ -868,7 +871,7 @@ Tone guidelines:
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('discord_json')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-indigo-400 hover:bg-[var(--nx-accent-soft)]/40 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-soft)]/40 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
                       <Terminal className="w-3 h-3 text-[var(--nx-accent-hover)]" />
@@ -880,10 +883,10 @@ Tone guidelines:
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('roast')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-amber-400 hover:bg-amber-500/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-warn)] hover:bg-[var(--nx-warn)]/10 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Flame className="w-3 h-3 text-amber-500" />
+                      <Flame className="w-3 h-3 text-[var(--nx-warn)]" />
                       <span>Savage Roast Bot</span>
                     </div>
                     <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">Banter, swearing & burns</span>
@@ -892,10 +895,10 @@ Tone guidelines:
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('crashout')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-rose-400 hover:bg-rose-500/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-danger)] hover:bg-[var(--nx-danger)]/10 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Zap className="w-3 h-3 text-rose-500" />
+                      <Zap className="w-3 h-3 text-[var(--nx-danger)]" />
                       <span>Crashout & Rage</span>
                     </div>
                     <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">All-caps frantic chaos</span>
@@ -904,10 +907,10 @@ Tone guidelines:
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('chill')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-emerald-400 hover:bg-emerald-500/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-success)] hover:bg-[var(--nx-success)]/10 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Smile className="w-3 h-3 text-emerald-500" />
+                      <Smile className="w-3 h-3 text-[var(--nx-success)]" />
                       <span>Chill Zen Mod</span>
                     </div>
                     <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">Relaxed wholesome vibes</span>
@@ -916,7 +919,7 @@ Tone guidelines:
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('strict_only')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-indigo-400 hover:bg-[var(--nx-accent-soft)]/40 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-soft)]/40 transition flex flex-col gap-0.5"
                   >
                     <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
                       <Check className="w-3 h-3 text-[var(--nx-accent-hover)]" />
@@ -973,7 +976,7 @@ Tone guidelines:
                       }
                       className={`px-3 py-2 text-xs font-semibold rounded-lg whitespace-nowrap border transition ${
                         localSettings.isSuperChillUser
-                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          ? 'bg-[var(--nx-success)] text-white border-[var(--nx-success)]'
                           : 'bg-[var(--nx-elevated)] text-[var(--nx-text-muted)] border-[var(--nx-border)] hover:bg-[var(--nx-elevated-hover)]'
                       }`}
                     >
@@ -1006,7 +1009,7 @@ Tone guidelines:
                   className="w-full text-xs font-mono p-3 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-surface)] disabled:text-[var(--nx-text-faint)]"
                 />
                 {localSettings.activePersonaId !== 'custom' && (
-                  <p className="text-[11px] text-amber-400 mt-1">
+                  <p className="text-[11px] text-[var(--nx-warn)] mt-1">
                     Select "Custom Persona" in the Personas tab to write arbitrary system instructions.
                   </p>
                 )}
@@ -1030,34 +1033,7 @@ Tone guidelines:
           )}
         </div>
 
-        {/* Modal Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--nx-border)] bg-[var(--nx-surface)]">
-          <button
-            onClick={handleResetToDefaults}
-            className="flex items-center gap-1 text-xs text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] font-medium transition"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset to Defaults</span>
-          </button>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-[var(--nx-text-muted)] hover:bg-[var(--nx-elevated-hover)] transition"
-            >
-              Cancel
-            </button>
-            <button
-              id="save-customizer-btn"
-              onClick={handleSave}
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-[var(--nx-accent)] hover:bg-[var(--nx-accent-hover)] text-white shadow-sm flex items-center gap-1.5 transition"
-            >
-              {savedToast ? <Check className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-              <span>{savedToast ? 'Saved!' : 'Apply Settings'}</span>
-            </button>
-          </div>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };
