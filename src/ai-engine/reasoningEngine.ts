@@ -644,6 +644,9 @@ const STANDALONE_SLANG_MEANINGS: Record<string, string> = {
   yn: 'a generic anonymous young guy — "some yn said..."',
   huzz: 'ironic bro-slang for "women" / "hoes", part of the "we love huzz" meme',
   bruzz: 'ironic bro-slang for "the bros", paired with "huzz"',
+  'la peace': 'an August 2026 meme from the Kai Cenat / IShowSpeed 5-day hardcore Minecraft stream: Speed dug up what he thought were diamonds, it was lapis lazuli, and Kai said "lapis" so calmly it sounded like "la peace" — Speed even asked if it was something from ancient Greece; edits overlay the audio on a serene old-monk image',
+  lapeace: 'spelling of "la peace" — the Kai Cenat lapis-lazuli mispronunciation meme from the Kai x IShowSpeed hardcore Minecraft stream (Aug 2026), used to mark a suspiciously calm, zen, philosopher-monk moment',
+  'thats la peace': 'catchphrase from the Kai Cenat "la peace" meme — said in a deadpan serene voice when something is unexpectedly peaceful or wise, mocking how zen Kai sounded mispronouncing "lapis lazuli"',
 };
 
 function classifyStandaloneSlangTerm(query: string): { term: string; meaning: string } | null {
