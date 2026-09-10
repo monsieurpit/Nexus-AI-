@@ -202,6 +202,7 @@ import { CLIMATE_CONCEPTS_GAPS_2 } from './corpus/climateConceptsGaps2';
 import { GRAMMAR_CONCEPTS_GAPS_2 } from './corpus/grammarConceptsGaps2';
 import { CYBERSECURITY_CONCEPTS_GAPS } from './corpus/cybersecurityConceptsGaps';
 import { LAW_CONCEPTS_GAPS_2 } from './corpus/lawConceptsGaps2';
+import { LAW_CONCEPTS_GAPS_3 } from './corpus/lawConceptsGaps3';
 import { HUMAN_GEOGRAPHY_CONCEPTS_GAPS } from './corpus/humanGeographyConceptsGaps';
 import { MUSIC_MODERN_CONCEPTS_GAPS } from './corpus/musicModernConceptsGaps';
 import { ART_TECHNIQUES_CONCEPTS_GAPS } from './corpus/artTechniquesConceptsGaps';
@@ -1127,6 +1128,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...GRAMMAR_CONCEPTS_GAPS_2,
   ...CYBERSECURITY_CONCEPTS_GAPS,
   ...LAW_CONCEPTS_GAPS_2,
+  ...LAW_CONCEPTS_GAPS_3,
   ...HUMAN_GEOGRAPHY_CONCEPTS_GAPS,
   ...MUSIC_MODERN_CONCEPTS_GAPS,
   ...ART_TECHNIQUES_CONCEPTS_GAPS,
