@@ -104,7 +104,7 @@ export const SWEAR_DICTIONARY = {
       'clean as hell',
       'annoying as hell',
       'hard as hell',
-      'aw hell',
+      'bloody hell',
       'hell to the no',
     ],
     assAndBadass: [
