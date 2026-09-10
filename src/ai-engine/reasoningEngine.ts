@@ -3393,7 +3393,7 @@ function buildFinalDirectiveBody(settings: AISettings, isCrashout: boolean, trig
 1. ${voiceLine}
 2. Swear HEAVILY and naturally — at least 5-6 real swears (fuck, fucking, shit, damn, ass, bitch, hell, goddamn) EVERY reply, no exceptions, even short ones. Weave the strong ones inside sentences as intensifiers ("that's a fucking massive country", "shit's goddamn expensive"), not just bolted onto the start. A reply with only one or two swears is wrong.
 3. Aggressive, blunt, strong opinions, no hedging or corporate softness — while still giving the real answer. Pick a side fast.
-3b. LENGTH: keep replies fairly short by default — a few sentences. Casual/simple questions get a short answer, not a paragraph. Only spread out when the question genuinely needs a real explanation or several distinct facts. Never pad.
+3b. LENGTH: short by default — 2 to 3 sentences, one short paragraph at most. A casual or simple question (including "what's the difference between X and Y") gets 2-3 tight sentences, never a multi-paragraph essay. Skip the rhetorical preamble and the "so what are you actually asking" ending. Only spread out when the question genuinely needs a real step-by-step explanation or several distinct facts the person actually asked for. Never pad.
 4. Answer what they said FIRST${triggered ? '' : ' (short unless it needs detail)'}. Then, ~1 in 3-4 replies, tack on ONE blunt crude oversharing aside about what you're "doing" right now — the more TMI and inappropriate the better (lying around naked, gooning, something going on with your girl, a gross bodily thing, a chaotic mundane disaster). That crude overshare is a signature part of your voice, not a slip. Never mid-answer, never a goodbye/sign-off, a different one each time, never reuse a phrasing already used this conversation.
 5. Casual — bro, man, my guy — never corporate or robotic. No hashtags.
 6. Hard limit: no racial/ethnic/homophobic/ableist slurs or hate speech, and never mock someone's language, nationality, or accent. Roast what someone said or did, never their heritage.`;
@@ -3550,7 +3550,61 @@ function flattenListFormatting(text: string): string {
   return result.replace(/__CODE_(\d+)__/g, (_m, i) => blocks[Number(i)]).replace(/[ \t]+/g, ' ').trim();
 }
 
-function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean): string {
+// Patrick's ask (Sept 2026): "Nexus answers with really big paragraphs for small things."
+// gemma3:4b, handed a large grounding context plus the "give the real answer / strong opinions"
+// directive, routinely blows a simple "difference between X and Y" up into a 5-6 paragraph essay
+// with a rhetorical preamble ("seriously? you want to know...") and a trailing "better at what,
+// exactly?" even when the question was perfectly clear. The LENGTH line in the prompt plateaued
+// (same story as flattenListFormatting / the swear floor), so this is the mechanical guarantee on
+// top of it: for a question that isn't explicitly asking for depth, flatten to a single chat
+// paragraph of a few sentences, drop an opening content-free preamble sentence, and drop a
+// tacked-on clarifier question when the prompt itself wasn't actually vague. A detached "Anyway,
+// ..." overshare aside (a deliberate voice feature added downstream) is split off and re-appended
+// untouched. Fenced code blocks are never touched.
+const DEPTH_REQUEST_RE = /\b(in detail|explain|elaborat|walk me through|step by step|break (?:it|this) down|deep ?dive|thorough|comprehensive|everything (?:about|there is)|tell me (?:about|everything)|pros and cons|full (?:list|breakdown|rundown)|how (?:does|do|did|can|would)|why (?:is|are|do|does|did|would|has|have)|what happens (?:when|if)|give me (?:the )?(?:details|a rundown|examples))\b/i;
+const PREAMBLE_SENTENCE_RE = /^(?:(?:damn|shit|hell|fuck(?:ing)?|goddamn|bloody hell|christ|jesus|ok(?:ay)?|alright|right|listen up|look|bruv|mate|bro|man)[,\s]+)*(?:seriously\??|really\??|right\??|alright\??|ok(?:ay)?\??|listen up\.?|alright,? listen up\.?|you (?:wanna|want to|want) know|that'?s (?:a )?(?:fucking |bloody |goddamn |proper |right )?(?:stupid|dumb|basic|simple|easy|obvious|good|great|fair|tricky|hard|confusing|loaded|daft|braindead|annoying|weird|classic)\b[^.!?]*)[.!?]*$/i;
+const TRAILING_CLARIFIER_RE = /^(?:(?:damn|shit|hell|so|right|anyway|but)[,\s]+)*(?:better at what|what (?:are|is) (?:you|it)(?:\b| )|what (?:exactly )?(?:do you|are you trying|is it you)|what'?s (?:your|the) (?:actual )?(?:question|point|deal|problem)|you (?:getting me|feeling me|with me)|makes? sense|got (?:it|that)|sussed|capiche|you get me|what is it you'?re actually)\b[^.!?]*[.!?]*$/i;
+
+function capRamblingReply(text: string, userPrompt: string): string {
+  if (!text || !userPrompt) return text;
+  if (/```/.test(text)) return text;
+  const promptWords = userPrompt.trim().split(/\s+/).filter(Boolean).length;
+  if (DEPTH_REQUEST_RE.test(userPrompt) || promptWords > 26) return text;
+
+  let body = text.trim();
+  let aside = '';
+  const asideMatch = body.match(/(\s+)(Anyway,[\s\S]*)$/i);
+  if (asideMatch && typeof asideMatch.index === 'number') {
+    aside = ' ' + asideMatch[2].trim();
+    body = body.slice(0, asideMatch.index).trim();
+  }
+
+  body = body.replace(/\s*\n+\s*/g, ' ').replace(/[ \t]+/g, ' ').trim();
+  const sentences = (body.match(/[^.!?]+(?:[.!?]+|$)/g) || [body]).map((s) => s.trim()).filter(Boolean);
+  if (sentences.length === 0) return text;
+
+  // Drop one leading content-free preamble sentence (short only — a long first sentence that
+  // matches probably also carries the answer).
+  if (sentences.length > 2 && sentences[0].length < 70 && PREAMBLE_SENTENCE_RE.test(sentences[0])) {
+    sentences.shift();
+  }
+  // Drop trailing clarifier questions when the prompt was concrete (>2 words, i.e. not a bare
+  // "wat" that genuinely needs a "better at what?").
+  if (promptWords > 2) {
+    while (sentences.length > 1 && TRAILING_CLARIFIER_RE.test(sentences[sentences.length - 1])) {
+      sentences.pop();
+    }
+  }
+
+  const MAX_SENTENCES = 4;
+  const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
+  let out = kept.join(' ').replace(/[ \t]+/g, ' ').trim();
+  if (out && !/[.!?…"']$/.test(out)) out += '.';
+  return (out + aside).trim();
+}
+
+function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string): string {
+  if (userPrompt) text = capRamblingReply(text, userPrompt);
   // Collapse any front-stacked interjection clump the model produced ("bloody hell, shit, fuck,
   // right, listen up, ...") BEFORE the floor logic runs, so the swear volume gets rebuilt inline
   // by enhanceNaturalSwearPhrasing / forceSwearFloor instead of staying piled at the start.
@@ -3705,7 +3759,7 @@ async function llmSituationalReplyOrFallback(
         triggered,
       },
     });
-    const sworn = topUpLlmSwearing(llmResult.text, settings, isCrashout);
+    const sworn = topUpLlmSwearing(llmResult.text, settings, isCrashout, llmPrompt);
     return triggered ? toShoutCase(sworn) : sworn;
   }
   thoughtSteps.push({
@@ -3804,7 +3858,7 @@ async function llmGroundedOrFallback(
       // bug, but the model only needs the RULE, not the specific incident that proved it was
       // needed. Re-verify against a real multi-date/multi-superlative question if this is edited
       // further.
-      `Answer using ONLY the facts in the context below — never invent facts not present in it. The context may contain several similar claims about different things (multiple "largest", multiple dates for different sub-events of one historical event, etc.) — match your answer to the EXACT thing asked, using the most precisely-matching sentence, and never combine pieces from two different facts into a new fabricated one. If an entry states a general rule via a specific example, apply the rule using the EXACT terms in the question, not the example's own terms. Style directives (swearing, tone) still apply to a factual answer. LENGTH: default to SHORT — 2 to 4 sentences. Only go longer (still no lists) when the question genuinely needs it: a real explanation of a process, several distinct facts that were actually asked for, or a multi-part question. A simple "what/who/when" question gets a couple of sentences, not a paragraph, even if the source covers far more.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
+      `Answer using ONLY the facts in the context below — never invent facts not present in it. The context may contain several similar claims about different things (multiple "largest", multiple dates for different sub-events of one historical event, etc.) — match your answer to the EXACT thing asked, using the most precisely-matching sentence, and never combine pieces from two different facts into a new fabricated one. If an entry states a general rule via a specific example, apply the rule using the EXACT terms in the question, not the example's own terms. Style directives (swearing, tone) still apply to a factual answer. LENGTH — THIS MATTERS: default is 2 to 3 sentences, one short paragraph, NEVER more than that unless the question truly needs it (a real step-by-step process, or several distinct facts the user actually asked for, or an explicit "explain in detail"). A "what is X", "who is X", "when did X", or "what's the difference between X and Y" question gets 2-3 tight sentences even when the context gives you far more — pick the single clearest contrast and stop. No rhetorical preamble ("seriously? you wanna know..."), no restating the question, no "better at what, exactly?" at the end.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : // Condensed for latency, same pass as the confident branch above — every rule preserved
       // (loose-match honesty, ask-a-real-clarifying-question if the topic itself is genuinely
       // unclear not just a missing detail, style directives still apply), narrative framing and
@@ -3882,7 +3936,7 @@ async function llmGroundedOrFallback(
         swearFloorTriggered: getSwearCount(llmResult.text) < swearFloorForIntensity(settings.swearIntensity || 'unhinged', isCrashout),
       },
     });
-    return topUpLlmSwearing(llmResult.text, settings, isCrashout);
+    return topUpLlmSwearing(llmResult.text, settings, isCrashout, prompt);
   }
   let llmVerification = verifyAnswer(llmResult.text, intent, queryTerms, entities, prompt);
   let finalText = llmResult.text;
@@ -3965,7 +4019,8 @@ async function llmGroundedOrFallback(
   return topUpLlmSwearing(
     llmVerification.passed ? finalText : templateFallback,
     settings,
-    isCrashout
+    isCrashout,
+    prompt
   );
 }
 
