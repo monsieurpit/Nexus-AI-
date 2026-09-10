@@ -177,6 +177,7 @@ import { ART_HISTORY_CONCEPTS_GAPS } from './corpus/artHistoryConceptsGaps';
 import { CLIMATE_ENERGY_CONCEPTS_GAPS } from './corpus/climateEnergyConceptsGaps';
 import { LAW_CONCEPTS_GAPS } from './corpus/lawConceptsGaps';
 import { LINGUISTICS_CONCEPTS_GAPS } from './corpus/linguisticsConceptsGaps';
+import { LINGUISTICS_CONCEPTS_GAPS_2 } from './corpus/linguisticsConceptsGaps2';
 import { COMPARATIVE_RELIGION_CONCEPTS_GAPS } from './corpus/comparativeReligionConceptsGaps';
 import { NUTRITION_SCIENCE_CONCEPTS_GAPS } from './corpus/nutritionScienceConceptsGaps';
 import { METEOROLOGY_ADVANCED_CONCEPTS_GAPS } from './corpus/meteorologyAdvancedConceptsGaps';
@@ -1101,6 +1102,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...CLIMATE_ENERGY_CONCEPTS_GAPS,
   ...LAW_CONCEPTS_GAPS,
   ...LINGUISTICS_CONCEPTS_GAPS,
+  ...LINGUISTICS_CONCEPTS_GAPS_2,
   ...COMPARATIVE_RELIGION_CONCEPTS_GAPS,
   ...NUTRITION_SCIENCE_CONCEPTS_GAPS,
   ...METEOROLOGY_ADVANCED_CONCEPTS_GAPS,
