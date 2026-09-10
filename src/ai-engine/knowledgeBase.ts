@@ -213,6 +213,7 @@ import { COMPUTING_BASICS_CONCEPTS_GAPS } from './corpus/computingBasicsConcepts
 import { HEALTH_NUTRITION_CONCEPTS_GAPS } from './corpus/healthNutritionConceptsGaps';
 import { SCIENCE_METHOD_CONCEPTS_GAPS } from './corpus/scienceMethodConceptsGaps';
 import { MUSIC_THEORY_CONCEPTS_GAPS_2 } from './corpus/musicTheoryConceptsGaps2';
+import { HUMAN_GEOGRAPHY_CONCEPTS_GAPS_2 } from './corpus/humanGeographyConceptsGaps2';
 import { SOCCER_KNOWLEDGE_GAPS } from './corpus/soccerKnowledgeGaps';
 import { CELL_BIOLOGY_CORE_GAPS } from './corpus/cellBiologyCoreGaps';
 import { PSYCHOLOGY_DEEP_GAPS } from './corpus/psychologyDeepGaps';
@@ -1119,6 +1120,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...HEALTH_NUTRITION_CONCEPTS_GAPS,
   ...SCIENCE_METHOD_CONCEPTS_GAPS,
   ...MUSIC_THEORY_CONCEPTS_GAPS_2,
+  ...HUMAN_GEOGRAPHY_CONCEPTS_GAPS_2,
   ...SOCCER_KNOWLEDGE_GAPS,
   ...CELL_BIOLOGY_CORE_GAPS,
   ...PSYCHOLOGY_DEEP_GAPS,
