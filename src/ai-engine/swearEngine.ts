@@ -1686,17 +1686,23 @@ const DESTACK_TOKENS = new Set([
   'hell', 'shit', 'fuck', 'fuckin', 'fucking', 'damn', 'goddamn', 'goddammit', 'bloody',
   'bollocks', 'christ', 'jesus', 'bruh', 'bro', 'man', 'mate', 'dude', 'dawg', 'right', 'ok',
   'okay', 'alright', 'aight', 'aiight', 'listen', 'look', 'so', 'seriously', 'honestly', 'ngl',
-  'fr', 'frfr', 'ong', 'deadass', 'lowkey', 'yo', 'ayo', 'oi', 'wait', 'nah', 'well', 'oh',
-  'jeez', 'geez', 'blimey', 'oof', 'sheesh', 'yikes', 'lmao',
+  'fr', 'frfr', 'ong', 'deadass', 'lowkey', 'yo', 'yoo', 'yooo', 'ayo', 'oi', 'wait', 'nah',
+  'naw', 'well', 'oh', 'ah', 'ahh', 'yeah', 'yea', 'yep', 'yup', 'nope', 'uh', 'um', 'hmm',
+  'jeez', 'geez', 'blimey', 'oof', 'sheesh', 'yikes', 'lmao', 'lmfao', 'basically', 'anyway',
+  'anyways', 'actually', 'frankly', 'bet', 'word', 'facts', 'true', 'ight', 'aite',
   // joual / québécois
   'criss', 'crisse', 'calisse', 'câlisse', 'tabarnak', 'osti', 'ostie', 'esti', 'estie',
-  'marde', 'maudit', 'voyons', 'écoute', 'ecoute', 'coudonc', 'ben',
+  'marde', 'maudit', 'voyons', 'écoute', 'ecoute', 'coudonc', 'ben', 'bon', 'ok',
   // polish
   'kurwa', 'cholera', 'chuj', 'no',
 ]);
 const DESTACK_TWO_WORD = new Set([
   'bloody hell', 'listen up', 'hold up', 'for real', 'no cap', 'real talk', 'oh my', 'my guy',
   'come on', 'let me', 'shut up', 'no bullshit', 'ja pierdolę', 'ja pierdole', 'o kurwa',
+  'so like', 'like so', 'so yeah', 'ok so', 'okay so', 'alright so', 'right so', 'and like',
+  'or like', 'you know', 'i mean', 'nah man', 'nah bro', 'yeah man', 'yeah bro', 'ok man',
+  'ok bro', 'hold on', 'wait wait', 'hang on', 'no shit', 'for sure', 'oh shit', 'oh hell',
+  'my god', 'oh god', 'so basically', 'ok listen', 'now listen', 'straight up', 'not gonna',
 ]);
 
 export function deStackLeadingInterjections(text: string): string {
@@ -1712,11 +1718,22 @@ export function deStackLeadingInterjections(text: string): string {
     .filter(Boolean);
   // Every leading segment must itself be a known short interjection (1-2 words) for this to be a
   // stack we should collapse — "the cat, the dog, and the bird ran" must be left alone.
-  const allInterjections = segments.every((seg) => {
+  const isKnown = (seg: string): boolean => {
     const low = seg.toLowerCase().replace(/[?!.]+$/, '');
     return DESTACK_TOKENS.has(low) || DESTACK_TWO_WORD.has(low);
-  });
-  if (!allInterjections || segments.length < 2) return text;
+  };
+  const knownCount = segments.filter(isKnown).length;
+  const allShort = segments.every((s) => s.replace(/[?!.]+$/, '').length <= 14 && s.split(/\s+/).length <= 2);
+  // Collapse when every leading segment is a known interjection, OR (looser) there are 3+ short
+  // segments, the first one is a known interjection, and at least 60% of them are — this catches
+  // the model's improvised fillers ("so like", "nah man") without an exhaustive list, while
+  // "the cat, the dog, and the bird ran" (0 known) is always left alone.
+  const looksLikeStack =
+    segments.length >= 2 &&
+    allShort &&
+    (knownCount === segments.length ||
+      (segments.length >= 3 && isKnown(segments[0]) && knownCount / segments.length >= 0.6));
+  if (!looksLikeStack) return text;
   // Keep the first segment only, drop the rest of the stack, glue the real sentence back on.
   const rest = m[2].trimStart();
   const keep = segments[0].replace(/[?!.]+$/, '');
