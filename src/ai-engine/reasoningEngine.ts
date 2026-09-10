@@ -3598,7 +3598,12 @@ function capRamblingReply(text: string, userPrompt: string): string {
     }
   }
 
-  const MAX_SENTENCES = 4;
+  // A comparison question ("difference between X and Y", "X vs Y") legitimately needs to cover
+  // both halves plus the contrast, so it gets more room than a single-subject "what is X" — but
+  // still far below the 15-sentence essays this function exists to stop. Without this bump the
+  // cap was chopping answers off after they'd only described X.
+  const COMPARISON_RE = /\b(difference between|vs\.?|versus|compared? (?:to|with)|which is (?:better|worse)|better than)\b/i;
+  const MAX_SENTENCES = COMPARISON_RE.test(userPrompt) ? 6 : 4;
   const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
   let out = kept.join(' ').replace(/[ \t]+/g, ' ').trim();
   if (out && !/[.!?…"']$/.test(out)) out += '.';
