@@ -2,6 +2,22 @@ import { KnowledgeItem } from '../../types';
 
 export const BRAINROT_SLANG_EXPANSION_CORPUS: KnowledgeItem[] = [
   {
+    id: 'kb-brainrot-la-peace',
+    title: 'Meme: "La Peace" / "that\'s la peace" (Kai Cenat and IShowSpeed, August 2026)',
+    category: 'Slang',
+    keywords: [
+      'la peace', 'thats la peace', "that's la peace", 'lapeace', 'la peace meaning', 'what does la peace mean',
+      'la peace meme', 'kai cenat la peace', 'ishowspeed la peace', 'lapis lazuli meme', 'diamonds diamonds',
+      'kai cenat minecraft', 'ishowspeed minecraft stream', 'la peace ancient greece',
+    ],
+    content: `"La peace" (also written "that's la peace" or "lapeace") is an August 2026 meme that came out of the five-day hardcore Minecraft stream Kai Cenat and IShowSpeed did together, trying to beat the game on its hardest difficulty for their viewers. IShowSpeed dug up a block he was convinced was diamonds, yelling "DIAMONDS DIAMONDS DIAMONDS" — but it was actually lapis lazuli. Kai Cenat said "lapis" so slowly and calmly that it came out sounding like "la peace." Speed didn't know what Kai meant and asked if "la peace" was something from ancient Greece.
+
+The line blew up because of the contrast: Kai Cenat is normally loud and hyper, and here he sounded like a serene monk mispronouncing a Minecraft ore. Edits of the clip overlay the "la peace" audio onto an image of a calm old man or philosopher, with a red arrow pointing at Kai, casting him as a zen sage.
+
+How people use it: you drop "la peace" or "that's la peace" in a flat, peaceful, wise-sounding voice when something is unexpectedly calm, chill, or oddly profound — basically to mark a moment as serene or to jokingly act enlightened. It's mostly said for laughs, riffing on the mispronunciation. It does not literally mean anything; it's just "lapis" said badly.`,
+    createdAt: Date.now(),
+  },
+  {
     id: 'kb-brainrot-yap-crashout-cooked',
     title: 'Brainrot Vocabulary: Yap, Crashout, Cooked, Glaze, Opps',
     category: 'Slang',
