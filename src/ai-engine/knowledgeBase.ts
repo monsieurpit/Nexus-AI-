@@ -274,6 +274,7 @@ import { OPERATING_SYSTEMS_GAPS } from './corpus/operatingSystemsGaps';
 import { CRYPTOGRAPHY_GAPS } from './corpus/cryptographyGaps';
 import { MUSIC_PRODUCTION_GAPS } from './corpus/musicProductionGaps';
 import { STATISTICS_GAPS } from './corpus/statisticsGaps';
+import { STATISTICS_CONCEPTS_GAPS } from './corpus/statisticsConceptsGaps';
 import { LAW_JUSTICE_GAPS } from './corpus/lawJusticeGaps';
 import { ARCHITECTURE_ENGINEERING_GAPS } from './corpus/architectureEngineeringGaps';
 import { NETWORKING_GAPS } from './corpus/networkingGaps';
@@ -1218,6 +1219,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...CRYPTOGRAPHY_GAPS,
   ...MUSIC_PRODUCTION_GAPS,
   ...STATISTICS_GAPS,
+  ...STATISTICS_CONCEPTS_GAPS,
   ...LAW_JUSTICE_GAPS,
   ...ARCHITECTURE_ENGINEERING_GAPS,
   ...NETWORKING_GAPS,
