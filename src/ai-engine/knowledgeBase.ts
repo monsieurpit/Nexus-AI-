@@ -201,6 +201,7 @@ import { CIVICS_GOVERNMENT_CONCEPTS_GAPS } from './corpus/civicsGovernmentConcep
 import { MEDICINE_CONCEPTS_GAPS } from './corpus/medicineConceptsGaps';
 import { GEOGRAPHY_PHYSICAL_CONCEPTS_GAPS } from './corpus/geographyPhysicalConceptsGaps';
 import { GEOLOGY_CONCEPTS_GAPS_2 } from './corpus/geologyConceptsGaps2';
+import { GEOLOGY_CONCEPTS_GAPS_3 } from './corpus/geologyConceptsGaps3';
 import { CHEMISTRY_CONCEPTS_GAPS_2 } from './corpus/chemistryConceptsGaps2';
 import { PSYCHOLOGY_CONCEPTS_GAPS_2 } from './corpus/psychologyConceptsGaps2';
 import { BIOLOGY_CONCEPTS_GAPS_2 } from './corpus/biologyConceptsGaps2';
@@ -1148,6 +1149,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...MEDICINE_CONCEPTS_GAPS,
   ...GEOGRAPHY_PHYSICAL_CONCEPTS_GAPS,
   ...GEOLOGY_CONCEPTS_GAPS_2,
+  ...GEOLOGY_CONCEPTS_GAPS_3,
   ...CHEMISTRY_CONCEPTS_GAPS_2,
   ...PSYCHOLOGY_CONCEPTS_GAPS_2,
   ...BIOLOGY_CONCEPTS_GAPS_2,
