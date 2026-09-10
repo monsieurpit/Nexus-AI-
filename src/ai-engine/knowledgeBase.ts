@@ -303,6 +303,7 @@ import { TYPOGRAPHY_GAPS } from './corpus/typographyGaps';
 import { COFFEE_TEA_WINE_GAPS } from './corpus/coffeeTeaWineGaps';
 import { TRANSPORTATION_HISTORY_GAPS } from './corpus/transportationHistoryGaps';
 import { GARDENING_GAPS } from './corpus/gardeningGaps';
+import { BOTANY_GARDENING_CONCEPTS_GAPS } from './corpus/botanyGardeningConceptsGaps';
 import { FORENSICS_GAPS } from './corpus/forensicsGaps';
 import { MATERIALS_FAILURE_GAPS } from './corpus/materialsFailureGaps';
 import { AERODYNAMICS_GAPS } from './corpus/aerodynamicsGaps';
@@ -1248,6 +1249,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...COFFEE_TEA_WINE_GAPS,
   ...TRANSPORTATION_HISTORY_GAPS,
   ...GARDENING_GAPS,
+  ...BOTANY_GARDENING_CONCEPTS_GAPS,
   ...FORENSICS_GAPS,
   ...MATERIALS_FAILURE_GAPS,
   ...AERODYNAMICS_GAPS,
