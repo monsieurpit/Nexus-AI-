@@ -219,6 +219,7 @@ import { PHILOSOPHY_LOGIC_CONCEPTS_GAPS_2 } from './corpus/philosophyLogicConcep
 import { HISTORY_CONCEPTS_GAPS_2 } from './corpus/historyConceptsGaps2';
 import { SOCCER_CONCEPTS_GAPS } from './corpus/soccerConceptsGaps';
 import { FINANCE_MARKETS_CONCEPTS_GAPS_2 } from './corpus/financeMarketsConceptsGaps2';
+import { PSYCHOLOGY_CONCEPTS_GAPS_3 } from './corpus/psychologyConceptsGaps3';
 import { SOCCER_KNOWLEDGE_GAPS } from './corpus/soccerKnowledgeGaps';
 import { CELL_BIOLOGY_CORE_GAPS } from './corpus/cellBiologyCoreGaps';
 import { PSYCHOLOGY_DEEP_GAPS } from './corpus/psychologyDeepGaps';
@@ -1131,6 +1132,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...HISTORY_CONCEPTS_GAPS_2,
   ...SOCCER_CONCEPTS_GAPS,
   ...FINANCE_MARKETS_CONCEPTS_GAPS_2,
+  ...PSYCHOLOGY_CONCEPTS_GAPS_3,
   ...SOCCER_KNOWLEDGE_GAPS,
   ...CELL_BIOLOGY_CORE_GAPS,
   ...PSYCHOLOGY_DEEP_GAPS,
