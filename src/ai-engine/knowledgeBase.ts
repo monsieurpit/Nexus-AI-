@@ -343,6 +343,7 @@ import { EVERYDAY_TRIVIA_REFERENCE_CORPUS } from './corpus/everydayTriviaReferen
 import { ANCIENT_WONDERS_AND_LANDMARKS_CORPUS } from './corpus/ancientWondersAndLandmarks';
 import { BODY_SYSTEMS_AND_PHYSIOLOGY_CORPUS } from './corpus/bodySystemsAndPhysiology';
 import { BUSINESS_AND_ENTREPRENEURSHIP_CORPUS } from './corpus/businessAndEntrepreneurship';
+import { BUSINESS_CONCEPTS_GAPS } from './corpus/businessConceptsGaps';
 import { CLASSIC_LITERATURE_DEEP_CORPUS } from './corpus/classicLiteratureDeep';
 import { CLASSIC_MOVIES_AND_CULTURAL_TOUCHSTONES_CORPUS } from './corpus/classicMoviesAndCulturalTouchstones';
 import { COMMON_MEDICAL_CONDITIONS_EXPLAINED_CORPUS } from './corpus/commonMedicalConditionsExplained';
@@ -1294,6 +1295,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...ANCIENT_WONDERS_AND_LANDMARKS_CORPUS,
   ...BODY_SYSTEMS_AND_PHYSIOLOGY_CORPUS,
   ...BUSINESS_AND_ENTREPRENEURSHIP_CORPUS,
+  ...BUSINESS_CONCEPTS_GAPS,
   ...CLASSIC_LITERATURE_DEEP_CORPUS,
   ...CLASSIC_MOVIES_AND_CULTURAL_TOUCHSTONES_CORPUS,
   ...COMMON_MEDICAL_CONDITIONS_EXPLAINED_CORPUS,
