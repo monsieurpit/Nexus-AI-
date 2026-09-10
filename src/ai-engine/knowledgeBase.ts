@@ -259,6 +259,7 @@ import { LAW_JUSTICE_GAPS } from './corpus/lawJusticeGaps';
 import { ARCHITECTURE_ENGINEERING_GAPS } from './corpus/architectureEngineeringGaps';
 import { NETWORKING_GAPS } from './corpus/networkingGaps';
 import { OBSERVATIONAL_ASTRONOMY_GAPS } from './corpus/observationalAstronomyGaps';
+import { ASTRONOMY_CONCEPTS_GAPS_3 } from './corpus/astronomyConceptsGaps3';
 import { FIRST_AID_EMERGENCY_GAPS } from './corpus/firstAidEmergencyGaps';
 import { POLITICS_IR_GAPS } from './corpus/politicsIRGaps';
 import { NUTRITION_GAPS } from './corpus/nutritionGaps';
@@ -1182,6 +1183,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...ARCHITECTURE_ENGINEERING_GAPS,
   ...NETWORKING_GAPS,
   ...OBSERVATIONAL_ASTRONOMY_GAPS,
+  ...ASTRONOMY_CONCEPTS_GAPS_3,
   ...FIRST_AID_EMERGENCY_GAPS,
   ...POLITICS_IR_GAPS,
   ...NUTRITION_GAPS,
