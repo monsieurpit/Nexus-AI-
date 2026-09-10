@@ -40,6 +40,7 @@ import { LIFE_SKILLS_CORPUS } from './corpus/lifeSkills';
 import { GAMING_CORPUS } from './corpus/gaming';
 import { MUSIC_CORPUS } from './corpus/music';
 import { AUTOMOTIVE_CORPUS } from './corpus/automotive';
+import { AUTOMOTIVE_CONCEPTS_GAPS } from './corpus/automotiveConceptsGaps';
 import { AI_TECH_CORPUS } from './corpus/aiTech';
 import { FOOTBALL_GAMES_CORPUS } from './corpus/footballGames';
 import { OTHER_SPORTS_CORPUS } from './corpus/otherSports';
@@ -983,6 +984,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...GAMING_CORPUS,
   ...MUSIC_CORPUS,
   ...AUTOMOTIVE_CORPUS,
+  ...AUTOMOTIVE_CONCEPTS_GAPS,
   ...AI_TECH_CORPUS,
   ...FOOTBALL_GAMES_CORPUS,
   ...OTHER_SPORTS_CORPUS,
