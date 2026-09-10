@@ -903,6 +903,34 @@ Note: as an offline knowledge base, treat anything beyond this as the most recen
     };
   }
 
+  // 24.6. 2024-25 SEASON — LEAGUE CHAMPIONS & KEY STORYLINES
+  if (
+    /(2024-?25 season|2024\/25 season|who won (?:the )?(?:2024-?25 |2024\/25 |last )?(?:premier league|la liga|serie a|bundesliga|ligue 1)(?: (?:in )?(?:2024-?25|2024\/25|2025)| last season)?|last season'?s (?:league )?champions|recent league champions|current (?:premier league|la liga|serie a|bundesliga) (?:champion|holder|winner)|latest (?:premier league|la liga|serie a) (?:winner|champion)|kane first trophy|slot liverpool|conte napoli 2025|flick barcelona treble)/i.test(
+      lower
+    )
+  ) {
+    return {
+      matched: true,
+      title: '2024-25 Season: League Champions & Big Storylines',
+      topic: 'season_recap_2024_25',
+      confidence: 0.9,
+      response: `The **2024-25 season** broke several long-running monopolies across Europe's big leagues:
+
+### 🏆 The Champions:
+- 🏴󠁧󠁢󠁥󠁮󠁧󠁿 **Premier League — Liverpool**, in **Arne Slot's** first season after replacing Jürgen Klopp, ending Manchester City's run of four straight titles. Mohamed Salah had a monster campaign.
+- 🇪🇸 **La Liga — FC Barcelona**, under **Hansi Flick**, playing an aggressive high line and coordinated offside trap. Barça also won the **Copa del Rey** and the **Supercopa** for a domestic treble, with 17-year-old **Lamine Yamal** taking the number 10 shirt and Raphinha and Lewandowski scoring freely.
+- 🇮🇹 **Serie A — Napoli**, under **Antonio Conte**, their second Scudetto in three years.
+- 🇩🇪 **Bundesliga — Bayern Munich**, reclaiming the title from Bayer Leverkusen — and **Harry Kane finally won his first-ever senior trophy** after a trophyless career at Tottenham.
+- 🇫🇷 **Ligue 1 — Paris Saint-Germain**, as part of a **treble** (Ligue 1 + Coupe de France + their first-ever Champions League) under **Luis Enrique**.
+
+### 🌍 Also in 2025:
+- **FIFA Club World Cup (expanded 32-team)** — won by **Chelsea**, who beat PSG **3-0** in the final in the USA.
+- **Ousmane Dembélé** won the **2025 Ballon d'Or** on the back of PSG's treble.
+
+*(Offline knowledge base — verify the very latest results and transfers independently.)*`,
+    };
+  }
+
   // 25. 2023 UEFA CHAMPIONS LEAGUE FINAL (MAN CITY VS INTER MILAN)
   if (
     /(2023 (?:uefa )?champions league|who won the 2023 (?:uefa )?champions league|2023 ucl final|man city vs inter 2023|inter vs man city 2023|city treble 2023)/i.test(
@@ -1175,7 +1203,8 @@ Note: as an offline knowledge base, treat anything beyond this as the most recen
 ### 🏆 History & Evolution:
 - Originally the **Intercontinental Cup / Toyota Cup** (1960–2004), a one-off match between the European Cup and Copa Libertadores winners — dominated fiercely by South American clubs in the 60s-80s (Peñarol, Santos, Independiente, Boca Juniors).
 - Rebranded as the **FIFA Club World Cup** in 2005 with all confederations included, though European clubs (Real Madrid with a record 5 titles, Barcelona, Bayern) have dominated the modern era almost every year.
-- **2025 Expanded 32-Team Format**: FIFA dramatically expanded the tournament into a full month-long, 32-club World Cup-style competition held in the United States, giving it far greater global weight and prize money than ever before — a preview of the infrastructure being tested for the 2026 World Cup.`,
+- **2025 Expanded 32-Team Format**: FIFA dramatically expanded the tournament into a full month-long, 32-club World Cup-style competition held in the United States in June–July 2025 (12 European clubs, 6 South American, plus AFC/CAF/CONCACAF/OFC entrants and a host club), with a group stage and knockout rounds and a prize pot in the billions. **Chelsea won the inaugural expanded edition**, thrashing a tired PSG **3-0** in the final in New Jersey (Cole Palmer with a brace and an assist). Player unions (FIFPRO) and the big leagues fought it in court over calendar congestion and burnout.
+- The next 32-team edition is scheduled for 2029; FIFA also revived an annual one-off "Intercontinental Cup" alongside it.`,
     };
   }
 
