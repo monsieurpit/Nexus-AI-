@@ -64,6 +64,7 @@ import { LEGAL_BASICS_CORPUS } from './corpus/legalBasics';
 import { COMMON_SCAMS_CORPUS } from './corpus/commonScams';
 import { WEATHER_PHENOMENA_CORPUS } from './corpus/weatherPhenomena';
 import { HOME_REPAIR_AND_TOOLS_CORPUS } from './corpus/homeRepairAndTools';
+import { HOME_DIY_CONCEPTS_GAPS } from './corpus/homeDiyConceptsGaps';
 import { WORKPLACE_RIGHTS_CORPUS } from './corpus/workplaceRights';
 import { CRYPTO_BASICS_CORPUS } from './corpus/cryptoBasics';
 import { SPEAKING_AND_NEGOTIATION_CORPUS } from './corpus/speakingAndNegotiation';
@@ -1007,6 +1008,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...COMMON_SCAMS_CORPUS,
   ...WEATHER_PHENOMENA_CORPUS,
   ...HOME_REPAIR_AND_TOOLS_CORPUS,
+  ...HOME_DIY_CONCEPTS_GAPS,
   ...WORKPLACE_RIGHTS_CORPUS,
   ...CRYPTO_BASICS_CORPUS,
   ...SPEAKING_AND_NEGOTIATION_CORPUS,
