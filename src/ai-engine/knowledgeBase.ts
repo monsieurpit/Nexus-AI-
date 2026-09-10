@@ -409,6 +409,7 @@ import { EVERYDAY_SCIENCE_AND_TECH_EXPLAINERS_CORPUS } from './corpus/everydaySc
 import { DAILY_LIFE_PRACTICAL_REFERENCE_2_CORPUS } from './corpus/dailyLifePracticalReference2';
 import { EVERYDAY_BASICS_EXPANSION_3_CORPUS } from './corpus/everydayBasicsExpansion3';
 import { POP_CULTURE_EXPANSION_CORPUS } from './corpus/popCultureExpansion';
+import { NIKO_B_MUSIC_GAPS } from './corpus/nikoBMusicGaps';
 import { MUSIC_HISTORY_EXPANSION_CORPUS } from './corpus/musicHistoryExpansion';
 import { GAMING_FRANCHISES_EXPANSION_CORPUS } from './corpus/gamingFranchisesExpansion';
 import { SPORTS_HISTORY_EXPANSION_CORPUS } from './corpus/sportsHistoryExpansion';
@@ -1339,6 +1340,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...EVERYDAY_BASICS_EXPANSION_3_CORPUS,
   // Round 8 knowledge expansion: pop culture, entertainment depth, sports, fashion, comics (2026-08-31)
   ...POP_CULTURE_EXPANSION_CORPUS,
+  ...NIKO_B_MUSIC_GAPS,
   ...MUSIC_HISTORY_EXPANSION_CORPUS,
   ...GAMING_FRANCHISES_EXPANSION_CORPUS,
   ...SPORTS_HISTORY_EXPANSION_CORPUS,
