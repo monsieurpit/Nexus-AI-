@@ -104,7 +104,7 @@ export const SWEAR_DICTIONARY = {
       'clean as hell',
       'annoying as hell',
       'hard as hell',
-      'bloody hell',
+      'aw hell',
       'hell to the no',
     ],
     assAndBadass: [
@@ -1541,7 +1541,7 @@ export function enhanceNaturalSwearPhrasing(
     // More coverage so heavy swearing lands as natural word-swaps here rather than as
     // interjections stapled on by forceSwearFloor downstream (which is what read mechanical).
     // All get the same proper-noun / code / hyphen / part-of-speech guards below.
-    [/\b(really|incredibly|extremely|super)\b/gi, ['fucking', 'goddamn', 'stupidly']],
+    [/\b(really|incredibly|extremely|super)\b/gi, ['fucking', 'damn', 'straight up']],
     [/\b(big|huge|massive|enormous)\b/gi, ['fucking huge', 'goddamn massive', 'huge as hell']],
     [/\b(important|significant|crucial)\b/gi, ['fucking important', 'a big damn deal']],
     [/\b(great|fantastic|wonderful)\b/gi, ['fucking great', 'badass', 'damn near perfect']],
