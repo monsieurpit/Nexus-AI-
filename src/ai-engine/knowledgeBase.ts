@@ -176,6 +176,7 @@ import { LITERATURE_CONCEPTS_GAPS } from './corpus/literatureConceptsGaps';
 import { EPIDEMIOLOGY_CONCEPTS_GAPS } from './corpus/epidemiologyConceptsGaps';
 import { MACROECONOMICS_CONCEPTS_GAPS } from './corpus/macroeconomicsConceptsGaps';
 import { ZOOLOGY_CONCEPTS_GAPS } from './corpus/zoologyConceptsGaps';
+import { ZOOLOGY_CONCEPTS_GAPS_2 } from './corpus/zoologyConceptsGaps2';
 import { PLANETARY_SCIENCE_CONCEPTS_GAPS } from './corpus/planetaryScienceConceptsGaps';
 import { ART_HISTORY_CONCEPTS_GAPS } from './corpus/artHistoryConceptsGaps';
 import { CLIMATE_ENERGY_CONCEPTS_GAPS } from './corpus/climateEnergyConceptsGaps';
@@ -1122,6 +1123,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...EPIDEMIOLOGY_CONCEPTS_GAPS,
   ...MACROECONOMICS_CONCEPTS_GAPS,
   ...ZOOLOGY_CONCEPTS_GAPS,
+  ...ZOOLOGY_CONCEPTS_GAPS_2,
   ...PLANETARY_SCIENCE_CONCEPTS_GAPS,
   ...ART_HISTORY_CONCEPTS_GAPS,
   ...CLIMATE_ENERGY_CONCEPTS_GAPS,
