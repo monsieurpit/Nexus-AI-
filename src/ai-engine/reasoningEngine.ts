@@ -24,6 +24,7 @@ import {
   uncensorProfanity,
   forceSwearFloor,
   forceChaoticOvershare,
+  deStackLeadingInterjections,
   SWEAR_DICTIONARY,
   detectUserInsult,
   generateInsultCrashoutReply,
@@ -3550,7 +3551,11 @@ function flattenListFormatting(text: string): string {
 }
 
 function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean): string {
-  const uncensored = uncensorProfanity(flattenListFormatting(text));
+  // Collapse any front-stacked interjection clump the model produced ("bloody hell, shit, fuck,
+  // right, listen up, ...") BEFORE the floor logic runs, so the swear volume gets rebuilt inline
+  // by enhanceNaturalSwearPhrasing / forceSwearFloor instead of staying piled at the start.
+  // Patrick's explicit ask: swear more than a real person, never as a stacked opener.
+  const uncensored = deStackLeadingInterjections(uncensorProfanity(flattenListFormatting(text)));
   const intensity = settings.swearIntensity || 'unhinged';
   if (!isCrashout && intensity !== 'unhinged' && intensity !== 'heavy') return uncensored;
   const substituted = enhanceNaturalSwearPhrasing(uncensored, isCrashout ? 'unhinged' : intensity);
@@ -3572,7 +3577,7 @@ function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolea
         .replace(/\bt'?es un con\b/gi, "t'es un cave")
     : substituted;
   const floor = isFrenchReply ? 2 : swearFloorForIntensity(intensity, isCrashout);
-  const swornUp = forceSwearFloor(deFranced, floor);
+  const swornUp = deStackLeadingInterjections(forceSwearFloor(deFranced, floor));
   // forceChaoticOvershare now has its own Polish pool and picks it based on the text's own
   // language, so this applies to both languages symmetrically — Polish never got the LLM
   // INSTRUCTION for this bit (buildPolishSystemPrompt's own comment explains why: the fuller

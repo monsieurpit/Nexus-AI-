@@ -1530,7 +1530,7 @@ export function enhanceNaturalSwearPhrasing(
     // names", "piece of nonsense" → "piece of straight fake"). Split so each slot gets a
     // replacement of the right part of speech.
     [/\b(nonsense)\b/gi, ['pure bullshit', 'total horseshit', 'complete dogshit']],
-    [/\b(fake|false|incorrect)\b/gi, ['bullshit', 'bogus-ass', 'flat-out wrong']],
+    [/\b(fake|incorrect)\b/gi, ['bullshit', 'bogus-ass', 'flat-out wrong']],
     [/\b(crazy|wild|insane)\b/gi, ['wild as hell', 'batshit crazy', 'insane as fuck']],
     [/\b(obviously)\b/gi, ['obviously, no shit,', 'obviously, no cap,']],
     [/\b(honestly|to be honest|truthfully)\b/gi, ['real talk,', 'no bullshit,', 'straight up,']],
@@ -1674,10 +1674,61 @@ export function enhanceNaturalSwearPhrasing(
 /**
  * Infuse expressive swearing based on rules and context
  */
+// Patrick's standing complaint about the crashout voice: the local model loves to open a reply
+// with a stacked clump of comma-separated interjections/swears — "bloody hell, shit, fuck, right,
+// listen up, numpty." / "damn, fuck, goddamn, seriously?" — which reads as a broken bot, not a
+// person. He wants Nexus to swear MORE than a real human overall, but NEVER as a front-stack.
+// This collapses a run of 2+ leading short interjection tokens down to just the first one, so the
+// swear volume gets rebuilt inline by enhanceNaturalSwearPhrasing / the topup instead of piled at
+// the start. Runs on every language path (the model does the same thing in joual: "criss, calisse,
+// tabarnak, écoute").
+const DESTACK_TOKENS = new Set([
+  'hell', 'shit', 'fuck', 'fuckin', 'fucking', 'damn', 'goddamn', 'goddammit', 'bloody',
+  'bollocks', 'christ', 'jesus', 'bruh', 'bro', 'man', 'mate', 'dude', 'dawg', 'right', 'ok',
+  'okay', 'alright', 'aight', 'aiight', 'listen', 'look', 'so', 'seriously', 'honestly', 'ngl',
+  'fr', 'frfr', 'ong', 'deadass', 'lowkey', 'yo', 'ayo', 'oi', 'wait', 'nah', 'well', 'oh',
+  'jeez', 'geez', 'blimey', 'oof', 'sheesh', 'yikes', 'lmao',
+  // joual / québécois
+  'criss', 'crisse', 'calisse', 'câlisse', 'tabarnak', 'osti', 'ostie', 'esti', 'estie',
+  'marde', 'maudit', 'voyons', 'écoute', 'ecoute', 'coudonc', 'ben',
+  // polish
+  'kurwa', 'cholera', 'chuj', 'no',
+]);
+const DESTACK_TWO_WORD = new Set([
+  'bloody hell', 'listen up', 'hold up', 'for real', 'no cap', 'real talk', 'oh my', 'my guy',
+  'come on', 'let me', 'shut up', 'no bullshit', 'ja pierdolę', 'ja pierdole', 'o kurwa',
+]);
+
+export function deStackLeadingInterjections(text: string): string {
+  const trimmed = text.trimStart();
+  // Don't touch all-caps CRASHOUT shouts or markdown/list openers.
+  if (/^[*_#\-•\d`>]/.test(trimmed)) return text;
+  // Grab the leading comma-separated run: "w1, w2, w3, ...rest"
+  const m = trimmed.match(/^((?:[A-Za-zÀ-ÿ']+(?:\s+[A-Za-zÀ-ÿ']+)?\s*,\s*){2,})(.*)$/s);
+  if (!m) return text;
+  const segments = m[1]
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // Every leading segment must itself be a known short interjection (1-2 words) for this to be a
+  // stack we should collapse — "the cat, the dog, and the bird ran" must be left alone.
+  const allInterjections = segments.every((seg) => {
+    const low = seg.toLowerCase().replace(/[?!.]+$/, '');
+    return DESTACK_TOKENS.has(low) || DESTACK_TWO_WORD.has(low);
+  });
+  if (!allInterjections || segments.length < 2) return text;
+  // Keep the first segment only, drop the rest of the stack, glue the real sentence back on.
+  const rest = m[2].trimStart();
+  const keep = segments[0].replace(/[?!.]+$/, '');
+  const leadingWS = text.slice(0, text.length - text.trimStart().length);
+  return `${leadingWS}${keep}, ${rest}`;
+}
+
 export function infuseSwearyHumanVoice(
   text: string,
   options: SwearOptions = {}
 ): string {
+  text = deStackLeadingInterjections(text);
   const {
     isSuperChill = false,
     language = 'english',
