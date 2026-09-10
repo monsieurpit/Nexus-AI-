@@ -1,3 +1,4 @@
+import { matchRaidShieldThreatCorpus } from './corpus/raidShieldThreatCorpus';
 import { trySolveMath } from './mathSolver';
 import { trySolveCode } from './codeSolver';
 import { trySolveLogic } from './logicSolver';
@@ -96,6 +97,16 @@ const REPORTING_INDICATORS = [
   /should i click this/i,
   /me llego esto/i,
   /es esto seguro/i,
+  // Community members warning each other about a scam, or narrating that they recognised one —
+  // phrasings a scammer running the scam would never write. Added after a live gap: "PSA there's
+  // a scammer in dms sending fake nitro links dont click" and 'the bot said "claim your free
+  // nitro" so i knew it was fake' both classified as the scam itself.
+  /\bpsa\b.{0,60}\b(?:scam|scammer|phish|nitro\s+link|fake\s+link|dm)/i,
+  /\bthere'?s?\s+(?:a\s+)?(?:scam(?:mer)?|phish\w*|fake\s+\w+|bot)\b.{0,50}\b(?:going\s+around|in\s+(?:the\s+)?dms?|spamming|dming|be\s+careful)\b/i,
+  /\bso\s+i\s+knew\s+(?:it|that)\s+was\b/i,
+  /\bknew\s+(?:it|that|right\s+away)\s+(?:it\s+)?was\s+(?:a\s+)?(?:scam|fake|phish\w*|bot)\b/i,
+  /\b(?:obvious(?:ly)?|classic|typical)\s+(?:scam|phish\w*|bait)\b/i,
+  /\bdo\s?n'?t\s+(?:click|fall\s+for|trust)\s+(?:it|this|that|the\s+link)\b/i,
 ];
 
 // Role & Rank talk indicators (Hard Rule #14 & #15)
@@ -304,6 +315,23 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
       classification: 'raid',
       confidence: 0.97,
       reason: 'Hostile mass mention raid advertisement.',
+    };
+  }
+
+  // RaidShield Threat Corpus — a large, data-driven second layer of scam / phishing / raid /
+  // spam / self-bot patterns (see ./corpus/raidShieldThreatCorpus.ts, 240+ entries). Runs AFTER
+  // every "always safe" exemption above (reporting, mod context, slang, questions, mainstream
+  // links, Spanish, role/rank, link-free bot commands) and after the hand-written high-severity
+  // rules, but BEFORE Default Safe — so it only ever gets to classify a message that would
+  // otherwise have fallen through as "safe". The corpus has its own report/warning/quote guard
+  // and per-entry exemptions, and each entry requires a distinctive scam construction (normally
+  // several independent tokens), so it does not fire on ordinary conversation.
+  const corpusHit = matchRaidShieldThreatCorpus(unquoted !== text ? `${text} ${unquoted}` : text);
+  if (corpusHit) {
+    return {
+      classification: corpusHit.classification,
+      confidence: corpusHit.confidence,
+      reason: corpusHit.reason,
     };
   }
 
