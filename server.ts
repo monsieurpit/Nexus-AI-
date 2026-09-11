@@ -1624,7 +1624,18 @@ app.post('/api/v1/raidshield', aiComputeLimiter, async (req, res) => {
     image,
     attachmentUrl,
   } = req.body;
-  const targetText = messageText || content || text || prompt || '';
+  let targetText = messageText || content || text || prompt || '';
+
+  // Found by a code review: nothing capped messageText's length beyond the global 25mb JSON body
+  // limit, and evaluateRaidShieldRules() + the ~250-entry threat corpus run synchronously on
+  // Node's single event-loop thread — a multi-MB messageText is a cheap way to block the whole
+  // server for multiple seconds. A real Discord message can't exceed 4000 characters anyway, so
+  // anything past a generous margin is truncated rather than rejected (keeps the endpoint
+  // permissive for callers passing extra context) before it ever reaches the classifier.
+  const MAX_RAIDSHIELD_TEXT_LENGTH = 8000;
+  if (typeof targetText === 'string' && targetText.length > MAX_RAIDSHIELD_TEXT_LENGTH) {
+    targetText = targetText.slice(0, MAX_RAIDSHIELD_TEXT_LENGTH);
+  }
 
   // Check for image attachment/input
   const imagePart = await resolveImagePart(imageUrl, imageData, image || attachmentUrl);

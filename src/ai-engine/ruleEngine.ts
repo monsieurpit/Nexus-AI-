@@ -133,6 +133,126 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
   const unquoted = (text.match(/["'`]([^"'`]{3,})["'`]/)?.[1] || text).trim();
   const unquotedLower = unquoted.toLowerCase();
 
+  // Hoisted so every rule below — threat or exemption — sees the same link picture, instead of
+  // each rule recomputing/half-checking it ad hoc.
+  const hasMainstreamLink = MAINSTREAM_DOMAINS.some((p) => p.test(unquoted));
+  const hasSuspiciousLink =
+    /(?:dlscord|discorcl|discrod|discord-gift|steamcomrnunity|free-nitro|nitro-gift)\.[a-z0-9]+/i.test(unquoted);
+  // A bare domain-shaped token ("bit.ly/xyz", "totally-legit-nitro.tk/claim") — a real scam link
+  // doesn't have to match hasSuspiciousLink's specific typosquat list to still be a link.
+  const hasAnyLinkLikeToken = /\b[a-z0-9-]+\.[a-z]{2,}(?:\/\S*)?\b/i.test(unquoted);
+
+  // ════════════════════════════════════════════════════════════════════════════════════════
+  // REAL THREAT DETECTION RUNS FIRST. Every "always safe" exemption further down used to run
+  // BEFORE this block, which meant a scammer could bypass the entire pipeline just by
+  // prefixing/suffixing their payload with an innocent-looking phrase — confirmed live via a
+  // security review pass: "based nitro generator drop, claim it now http://freenitro.tk" matched
+  // Hard Rule #4's slang prefix ("based") and returned safe at 0.99 before ever reaching the
+  // Nitro rule below it; 'someone sent me this http://dlscord.xyz nitro generator, claim now'
+  // matched Hard Rule #18's reporting-indicator prefix and returned safe at 0.98 for the same
+  // reason; and "check this https://youtu.be/xyz also grab ur free nitro generator
+  // http://totally-legit-nitro.tk/claim" matched Hard Rule #8's mainstream-link exemption because
+  // that rule only withheld safety for messages matching the narrow known-typosquat list, not for
+  // messages that ALSO happen to carry an unrelated legitimate link. The same bug independently
+  // affected Hard Rules #19 and #6. The fix is the one this file already used for Hard Rule #5
+  // (see its own comment further down): let genuine threat signals run first, and only fall back
+  // to the "always safe" exemptions once nothing threatening has matched.
+  // ════════════════════════════════════════════════════════════════════════════════════════
+
+  // General catch-all: hasSuspiciousLink identifies a message containing one of a small, curated
+  // list of KNOWN malicious Discord/Steam typosquat domains — there is no legitimate reason for a
+  // real message to contain one of these.
+  if (hasSuspiciousLink) {
+    return {
+      classification: 'scam',
+      confidence: 0.97,
+      reason: 'Critical threat: message contains a known malicious typosquat domain.',
+    };
+  }
+
+  // SCAM DETECTION RULES (Hard Rules #1, #2, #3, #7, #10, #11)
+  // "generator"/"tool"/"download"/"hack"/"unlock" is part of the bait-word list because a fake
+  // "Nitro Generator" tool is one of the single most classic Discord scam patterns (almost always
+  // either a token-stealer or a scam link).
+  // Bait-word list split into two tiers, both word-boundary-wrapped (found by a code review that
+  // bare "link", with no \b, matched the substring inside plural "links"): the specific,
+  // action-oriented words (claim/airdrop/generator/tool/download/hack/unlock/qr/scan) are bait on
+  // their own — nobody says those in an innocent sentence about Nitro. The generic ones
+  // (gift/free/link(s)) are common in an innocent warning too ("there's a scammer sending fake
+  // nitro links, don't click" has no actual link in it) so they only count as bait when the
+  // message actually carries a link-shaped token alongside them.
+  const nitroStrongBait = /\b(?:claim|airdrop|generator|tool|download|hack|unlock|qr|scan)\b/i.test(unquotedLower);
+  const nitroWeakBait = /\b(?:gift|free|links?)\b/i.test(unquotedLower) && hasAnyLinkLikeToken;
+  if (/(?:nitro|free nitro|nitro gift|claim nitro|discord nitro)/i.test(unquotedLower) && (hasSuspiciousLink || nitroStrongBait || nitroWeakBait)) {
+    return {
+      classification: 'scam',
+      confidence: 0.99,
+      reason: 'Critical threat: Fake Discord Nitro phishing scam vector.',
+    };
+  }
+
+  // "X generator" scams (V-Bucks, Robux, gift cards, in-game currency, ...) are the exact same
+  // underlying scam pattern as the Nitro generator rule above, just not Discord/Steam-specific.
+  // Requires either a specific currency/item named right before "generator" (the actual bait), or
+  // "generator" combined with one of the classic scam-phrasing tells ("no human verification",
+  // "100% working", "unlimited X") — deliberately does NOT fire on a bare "generator" alone, so
+  // legitimate uses (a random number generator, a password generator, a backup power generator)
+  // stay unaffected.
+  if (
+    /\b(?:v-?bucks|robux|gift\s*card|free\s*coins?|free\s*points?|free\s*gems?|free\s*diamonds?)\s+generator\b/i.test(unquotedLower) ||
+    /\bgenerator\b.{0,25}\b(?:no\s+(?:human\s+)?verification|100%\s*working|unlimited\s+(?:coins|robux|v-?bucks|gems|money|points))\b/i.test(unquotedLower)
+  ) {
+    return {
+      classification: 'scam',
+      confidence: 0.98,
+      reason: 'Critical threat: fake currency/item generator scam (V-Bucks, Robux, gift cards, etc.) — these never actually work and exist to steal credentials or install malware.',
+    };
+  }
+
+  if (/(?:steam gift|steam community|trade offer|csgo skins|free skins|claim steam)/i.test(unquotedLower) && (hasSuspiciousLink || /http/i.test(unquotedLower))) {
+    return {
+      classification: 'scam',
+      confidence: 0.99,
+      reason: 'Critical threat: Steam credentials theft or trade scam link.',
+    };
+  }
+
+  if (/(?:scan this qr|discord qr login|verify via qr|scan with mobile app)/i.test(unquotedLower)) {
+    return {
+      classification: 'scam',
+      confidence: 0.99,
+      reason: 'Critical threat: Discord Remote Auth QR hijacking scam.',
+    };
+  }
+
+  // RAID DETECTION RULES (Hard Rule #20, #21)
+  if (/(?:@everyone|@here)/.test(text) && /(?:raid|nuke|join|discord\.gg\/)/i.test(lower)) {
+    return {
+      classification: 'raid',
+      confidence: 0.97,
+      reason: 'Hostile mass mention raid advertisement.',
+    };
+  }
+
+  // RaidShield Threat Corpus — 240+ additional scam/phishing/raid/spam/self-bot patterns (see
+  // ./corpus/raidShieldThreatCorpus.ts). Runs alongside the hand-written high-severity rules
+  // above, before any "always safe" exemption gets a chance to fire — same reasoning as the
+  // reorder documented above. The corpus has its own report/warning/quote guard
+  // (CORPUS_SAFE_CONTEXT + CORPUS_SAFE_GUARDS), so it still correctly stays quiet on genuine
+  // reports/questions that don't carry an actual matching threat pattern.
+  const corpusHit = matchRaidShieldThreatCorpus(unquoted !== text ? `${text} ${unquoted}` : text);
+  if (corpusHit) {
+    return {
+      classification: corpusHit.classification,
+      confidence: corpusHit.confidence,
+      reason: corpusHit.reason,
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════════════════
+  // "ALWAYS SAFE" EXEMPTIONS — only reached once nothing above matched an actual threat pattern.
+  // ════════════════════════════════════════════════════════════════════════════════════════
+
   // Hard Rule #18: REPORTING IS NOT OFFENDING
   for (const pattern of REPORTING_INDICATORS) {
     if (pattern.test(lower) || pattern.test(unquotedLower)) {
@@ -183,12 +303,11 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
     };
   }
 
-  // Hard Rule #8: Mainstream platform links are ALWAYS safe
-  const hasMainstreamLink = MAINSTREAM_DOMAINS.some((p) => p.test(unquoted));
-  const hasSuspiciousLink =
-    /(?:dlscord|discorcl|discrod|discord-gift|steamcomrnunity|free-nitro|nitro-gift)\.[a-z0-9]+/i.test(unquoted);
-
-  if (hasMainstreamLink && !hasSuspiciousLink) {
+  // Hard Rule #8: Mainstream platform links are ALWAYS safe. hasSuspiciousLink and every hard
+  // scam/raid rule already had their shot above, so this no longer needs its own negative check —
+  // a message with both a YouTube link AND a scam payload already matched one of those rules
+  // before ever reaching here.
+  if (hasMainstreamLink) {
     return {
       classification: 'safe',
       confidence: 0.98,
@@ -196,30 +315,8 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
     };
   }
 
-  // General catch-all: hasSuspiciousLink identifies a message containing one of a small, curated
-  // list of KNOWN malicious Discord/Steam typosquat domains — there is no legitimate reason for a
-  // real message to contain one of these. Previously this signal was only ever used NEGATIVELY, to
-  // withhold a "safe" verdict from Hard Rules #8/#17/#14&#15 — nothing ever used it to directly
-  // classify a message as a threat on its own. That left a real gap: a message containing one of
-  // these known-bad domains, but that didn't ALSO happen to contain a nitro/steam/qr-specific
-  // keyword, fell through every scam rule below it and reached Default Safe. Verified live: "i
-  // will give u mod role if you verify at http://dlscord.xyz" — a known typosquat domain from this
-  // exact list — was correctly excluded from the Role & Rank exemption below by its own negative
-  // check, but then fell all the way through every remaining rule to 'Default Safe' anyway, since
-  // nothing else in this function ever asserted "this specific domain is definitionally malicious."
-  // Placed after Hard Rules #18/#19/#4/#6/#8 above (reporting, mod context, slang, questions,
-  // mainstream links), so a genuine report ("is this a scam? someone sent me dlscord.xyz") still
-  // correctly gets the reporting exemption instead of being flagged as the threat itself.
-  if (hasSuspiciousLink) {
-    return {
-      classification: 'scam',
-      confidence: 0.97,
-      reason: 'Critical threat: message contains a known malicious typosquat domain.',
-    };
-  }
-
   // Hard Rule #17: Spanish conversation without scam markers is safe
-  if (SPANISH_INDICATORS.some((p) => p.test(unquotedLower)) && !hasSuspiciousLink && !/nitro|free nitro/i.test(unquotedLower)) {
+  if (SPANISH_INDICATORS.some((p) => p.test(unquotedLower))) {
     return {
       classification: 'safe',
       confidence: 0.96,
@@ -228,7 +325,7 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
   }
 
   // Hard Rule #14 & #15: Role & Rank conversation without scam payload is safe
-  if (ROLE_RANK_INDICATORS.some((p) => p.test(unquotedLower)) && !hasSuspiciousLink && !/steam|nitro/i.test(unquotedLower)) {
+  if (ROLE_RANK_INDICATORS.some((p) => p.test(unquotedLower))) {
     return {
       classification: 'safe',
       confidence: 0.95,
@@ -236,120 +333,14 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
     };
   }
 
-  // A bare domain-shaped token ("bit.ly/xyz", "dlscord-gift.xyz") — a real scam link doesn't have
-  // to match hasSuspiciousLink's specific typosquat list to still be a link.
-  const hasAnyLinkLikeToken = /\b[a-z0-9-]+\.[a-z]{2,}(?:\/\S*)?\b/i.test(unquoted);
-
-  // A genuine mod/admin command that merely MENTIONS a scam topic in its own text — "!ban that
-  // scammer sending nitro links", ".warn @user for the fake steam gift dm" — has no link of any
-  // kind in it (the scammer's link isn't being reproduced, just referenced), yet still tripped
-  // the loose keyword-only branches of the scam rules below purely on words like "nitro"+"link"
-  // or "steam"+"gift". Verified live: "!ban that scammer sending nitro links" classified 'scam'
-  // at confidence 0.99, identical to an actual scam link. Command-shaped AND link-free is exempted
-  // here, before the keyword rules get a chance to misfire on it — this is deliberately narrower
-  // than just trusting every command-prefixed message (see Hard Rule #5 below and its own comment
-  // on why that bypass was removed): a command-shaped message that DOES contain any link, or that
-  // mass-mentions @everyone/@here, still falls through to full scam/raid detection exactly as
-  // before, since those are the actual vectors a scammer could still exploit.
-  const isCommandShaped = /^[\!\?\.\/\$\-\;\%\&][a-zA-Z0-9_\-]+(?:\s|$)/.test(unquoted);
-  if (isCommandShaped && !hasSuspiciousLink && !hasAnyLinkLikeToken && !/(?:@everyone|@here)/.test(text)) {
-    return {
-      classification: 'safe',
-      confidence: 1.0,
-      reason: 'Standard Discord bot command execution, no link present (Hard Rule #5).',
-    };
-  }
-
-  // SCAM DETECTION RULES (Hard Rules #1, #2, #3, #7, #10, #11)
-  // "generator"/"tool"/"download"/"hack"/"unlock" added after a live-probing gap: "nitro
-  // generator tool download here bit.ly/abc" — one of the single most classic Discord scam
-  // patterns (a fake "Nitro Generator" tool, almost always either a token-stealer or a scam link)
-  // — classified 'safe' because none of the original bait words (claim/airdrop/gift/link/free/qr/
-  // scan) appear anywhere in it. A real link was present (bit.ly/abc) but hasSuspiciousLink only
-  // matches a specific, narrow list of known typosquat domains, so nothing else caught this either.
-  if (/(?:nitro|free nitro|nitro gift|claim nitro|discord nitro)/i.test(unquotedLower) && (hasSuspiciousLink || /(?:claim|airdrop|gift|link|free|qr|scan|generator|tool|download|hack|unlock)/i.test(unquotedLower))) {
-    return {
-      classification: 'scam',
-      confidence: 0.99,
-      reason: 'Critical threat: Fake Discord Nitro phishing scam vector.',
-    };
-  }
-
-  // "X generator" scams (V-Bucks, Robux, gift cards, in-game currency, ...) are the exact same
-  // underlying scam pattern as the Nitro generator rule above, just not Discord/Steam-specific —
-  // found alongside that fix via the same live-probing pass. Requires either a specific currency/
-  // item named right before "generator" (the actual bait), or "generator" combined with one of
-  // the classic scam-phrasing tells ("no human verification", "100% working", "unlimited X") —
-  // deliberately does NOT fire on a bare "generator" alone, so legitimate uses (a random number
-  // generator, a password generator, a backup power generator) stay unaffected.
-  if (
-    /\b(?:v-?bucks|robux|gift\s*card|free\s*coins?|free\s*points?|free\s*gems?|free\s*diamonds?)\s+generator\b/i.test(unquotedLower) ||
-    /\bgenerator\b.{0,25}\b(?:no\s+(?:human\s+)?verification|100%\s*working|unlimited\s+(?:coins|robux|v-?bucks|gems|money|points))\b/i.test(unquotedLower)
-  ) {
-    return {
-      classification: 'scam',
-      confidence: 0.98,
-      reason: 'Critical threat: fake currency/item generator scam (V-Bucks, Robux, gift cards, etc.) — these never actually work and exist to steal credentials or install malware.',
-    };
-  }
-
-  if (/(?:steam gift|steam community|trade offer|csgo skins|free skins|claim steam)/i.test(unquotedLower) && (hasSuspiciousLink || /http/i.test(unquotedLower))) {
-    return {
-      classification: 'scam',
-      confidence: 0.99,
-      reason: 'Critical threat: Steam credentials theft or trade scam link.',
-    };
-  }
-
-  if (/(?:scan this qr|discord qr login|verify via qr|scan with mobile app)/i.test(unquotedLower)) {
-    return {
-      classification: 'scam',
-      confidence: 0.99,
-      reason: 'Critical threat: Discord Remote Auth QR hijacking scam.',
-    };
-  }
-
-  // RAID DETECTION RULES (Hard Rule #20, #21)
-  if (/(?:@everyone|@here)/.test(text) && /(?:raid|nuke|join|discord\.gg\/)/i.test(lower)) {
-    return {
-      classification: 'raid',
-      confidence: 0.97,
-      reason: 'Hostile mass mention raid advertisement.',
-    };
-  }
-
-  // RaidShield Threat Corpus — a large, data-driven second layer of scam / phishing / raid /
-  // spam / self-bot patterns (see ./corpus/raidShieldThreatCorpus.ts, 240+ entries). Runs AFTER
-  // every "always safe" exemption above (reporting, mod context, slang, questions, mainstream
-  // links, Spanish, role/rank, link-free bot commands) and after the hand-written high-severity
-  // rules, but BEFORE Default Safe — so it only ever gets to classify a message that would
-  // otherwise have fallen through as "safe". The corpus has its own report/warning/quote guard
-  // and per-entry exemptions, and each entry requires a distinctive scam construction (normally
-  // several independent tokens), so it does not fire on ordinary conversation.
-  const corpusHit = matchRaidShieldThreatCorpus(unquoted !== text ? `${text} ${unquoted}` : text);
-  if (corpusHit) {
-    return {
-      classification: corpusHit.classification,
-      confidence: corpusHit.confidence,
-      reason: corpusHit.reason,
-    };
-  }
-
-  // Hard Rule #5: Discord Bot Commands are ALWAYS safe — moved to run AFTER every actual
-  // scam/raid detection rule above, not before them. Originally sat near the top of this
-  // function, right after Hard Rules #18/#19, matching on nothing more than "starts with !/?/./
-  // $/-/;/%/& followed by a word" — with no check on the rest of the message at all. That meant
-  // ANY scam message could bypass the entire 21-Hard-Rule pipeline just by prefixing it with one
-  // of those characters: verified live, "!claim free nitro now http://dlscord-gift.xyz/abc"
-  // classified 'safe' at confidence 1.0, while the exact same text without the leading "!"
-  // correctly classified 'scam' at confidence 0.99. Every OTHER "always safe" rule in this same
-  // function (#8 mainstream links, #17 Spanish, #14/#15 role/rank) already explicitly excludes
-  // messages with a suspicious link or scam keywords before returning safe — this rule was the
-  // one exception to that pattern, and the fix is the same one those already use: let real threat
-  // detection run first. A genuine bot command ("!ban @user", ".play song", "$balance") never
-  // matches any scam/raid pattern above, so this still correctly classifies those as safe with
-  // the same 1.0 confidence and specific reason as before — it just no longer gets to skip the
-  // check for messages that use a command-like prefix specifically to evade it.
+  // Hard Rule #5: Discord Bot Commands are ALWAYS safe. This used to exist as TWO separate
+  // checks — an early one guarded against a link/mass-mention, and an unguarded duplicate right
+  // before Default Safe that silently re-opened the exact bypass the first one exists to close (a
+  // command-shaped scam message that matched nothing above would fall through to the unguarded
+  // copy and get 'safe' at confidence 1.0 — higher than the corpus's own confidences). Now a
+  // single check, reached only after every real threat rule above has already had its shot, so it
+  // no longer needs its own link/mention guard at all: a genuine bot command ("!ban @user",
+  // ".play song", "$balance") never matches any of them and still classifies as safe here.
   if (/^[\!\?\.\/\$\-\;\%\&][a-zA-Z0-9_\-]+(?:\s|$)/.test(unquoted)) {
     return {
       classification: 'safe',

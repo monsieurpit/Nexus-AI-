@@ -207,7 +207,14 @@ const STEAM: RaidShieldThreatPattern[] = [
   }),
   t('steam-community-typo', 'scam', 0.96, 'Misspelled "steamcommunity" domain — session-token phish.', {
     keywords: ['steamcomunity', 'steamcommunuty'],
-    allOf: [/\bsteam(?:c[o0]mm?un[il1]ty|-community|comunity|powered)\.[a-z]/i],
+    // Found by a code review: `c[o0]mm?un[il1]ty` allowed the CORRECT letter at every position
+    // (o not just 0, mm not just single m, i not just l/1), so the alternation literally spelled
+    // "community" too and matched the real, legitimate steamcommunity.com on any ordinary trade-
+    // link share. `powered` also matched Valve's real steampowered.com. Now enumerates only
+    // genuinely misspelled forms (each differs from the correct spelling by at least one
+    // character, same approach as nitro-disc0rd-typo above) and explicitly excludes both real
+    // domains via a negative lookahead as a second safety net.
+    allOf: [/\bsteam(?!community\.|powered\.)(?:c0mmunity|commun1ty|comunity|communnity|-community)\.[a-z]/i],
   }),
   t('steam-gift-you-won', 'scam', 0.93, 'Fake "you won a Steam gift / wallet code, claim now".', {
     keywords: ['steam', 'won', 'wallet code'],
@@ -481,7 +488,11 @@ const PHISH: RaidShieldThreatPattern[] = [
 const MALWARE: RaidShieldThreatPattern[] = [
   t('mal-run-exe', 'scam', 0.94, 'Tells the user to download and run an .exe / .bat / .scr file.', {
     keywords: ['exe', 'download', 'run'],
-    allOf: [/\.(?:exe|bat|scr|cmd|msi|com|vbs|jar|apk|rar\s+password)\b/i, /\b(?:run|open|download|execute|double[-\s]?click|extract)\b/i],
+    // Found by a code review: `com` here matched the ubiquitous .com TLD, not the old DOS
+    // executable extension it was meant for — "just open reddit.com and check it out" tripped
+    // this at 0.94 confidence. Dropped; every other extension here is unambiguous (none are also
+    // common TLDs), so no replacement pattern is needed.
+    allOf: [/\.(?:exe|bat|scr|cmd|msi|vbs|jar|apk|rar\s+password)\b/i, /\b(?:run|open|download|execute|double[-\s]?click|extract)\b/i],
   }),
   t('mal-free-cheat', 'scam', 0.92, 'Free game "cheat / hack / aimbot / injector" download — RAT bundle.', {
     keywords: ['cheat', 'aimbot', 'injector'],
@@ -555,7 +566,12 @@ const DMADV: RaidShieldThreatPattern[] = [
   }),
   t('dm-add-me-free', 'spam', 0.7, '"Add me / DM me for free [thing]" cold solicitation.', {
     keywords: ['add me', 'dm me', 'free'],
-    allOf: [/\b(?:add|dm|message|hmu|hit\s+me\s+up)\s+me\b/i, FREE],
+    // Found by a code review: the shared FREE fragment includes the bare adjective "free" (as in
+    // "free time/free tonight"), not just "free [bait noun]" — so "add me on Steam, I'm free
+    // tonight if you wanna play" satisfied both halves of this allOf on completely ordinary chat.
+    // Narrowed here to require "free" modify an actual bait noun, same standard the rest of the
+    // corpus already holds "free X" claims to.
+    allOf: [/\b(?:add|dm|message|hmu|hit\s+me\s+up)\s+me\b/i, /\bfree\s+(?:nitro|robux|v-?bucks|gift\s*cards?|codes?|stuff|money|skins?|followers?|subs?|giveaways?)\b/i],
   }),
   t('dm-i-dmed-everyone', 'spam', 0.74, '"I just DMed everyone / all of you" — bulk DM advertising.', {
     keywords: ['dmed everyone'],
@@ -1341,12 +1357,20 @@ export const RAIDSHIELD_CORPUS_SIZE = RAIDSHIELD_THREAT_CORPUS.length + CORPUS_S
 
 function entryMatches(entry: RaidShieldThreatPattern, text: string, lower: string): boolean {
   if (entry.exempt && entry.exempt.some((re) => re.test(text) || re.test(lower))) return false;
-  const anySignal = entry.signals ? entry.signals.some((re) => re.test(text) || re.test(lower)) : null;
-  const allOf = entry.allOf ? entry.allOf.every((re) => re.test(text) || re.test(lower)) : null;
-  if (anySignal === null && allOf === null) return false;
-  if (anySignal === false && allOf !== true) return false;
-  if (allOf === false) return false;
-  return anySignal === true || allOf === true;
+  const hasSignals = !!entry.signals;
+  const hasAllOf = !!entry.allOf;
+  if (!hasSignals && !hasAllOf) return false;
+  const anySignal = hasSignals ? entry.signals!.some((re) => re.test(text) || re.test(lower)) : true;
+  const allOf = hasAllOf ? entry.allOf!.every((re) => re.test(text) || re.test(lower)) : true;
+  // Found by a code review: this used to be `anySignal === true || allOf === true` (OR
+  // semantics), so an entry defining BOTH `signals` and `allOf` only needed ONE of the two groups
+  // to be satisfied — silently dropping the "must also have a link/click/urgency signal"
+  // requirement the file's own header describes for entries built this way. 25 entries were
+  // affected (e.g. nitro-giveaway-link, crypto-connect-wallet, raid-spam-slurs-everywhere), each
+  // firing on ordinary conversation that matched only their `allOf` half with zero actual link/
+  // urgency/slur signal present. Both groups, when declared, must now hold (AND semantics) —
+  // matches the file's documented design and each entry's own stated intent.
+  return anySignal && allOf;
 }
 
 /**
