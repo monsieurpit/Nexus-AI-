@@ -253,6 +253,7 @@ import { METEOROLOGY_CONCEPTS_GAPS_4 } from './corpus/meteorologyConceptsGaps4';
 import { ENERGY_ELECTRICAL_CONCEPTS_GAPS } from './corpus/energyElectricalConceptsGaps';
 import { IMMUNOLOGY_EPIDEMIOLOGY_CONCEPTS_GAPS } from './corpus/immunologyEpidemiologyConceptsGaps';
 import { SPORTS_RULES_CONCEPTS_GAPS_2 } from './corpus/sportsRulesConceptsGaps2';
+import { SPORTS_RULES_CONCEPTS_GAPS_3 } from './corpus/sportsRulesConceptsGaps3';
 import { PROGRAMMING_CONCEPTS_GAPS_2 } from './corpus/programmingConceptsGaps2';
 import { SOCCER_KNOWLEDGE_GAPS } from './corpus/soccerKnowledgeGaps';
 import { CELL_BIOLOGY_CORE_GAPS } from './corpus/cellBiologyCoreGaps';
@@ -1205,6 +1206,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...ENERGY_ELECTRICAL_CONCEPTS_GAPS,
   ...IMMUNOLOGY_EPIDEMIOLOGY_CONCEPTS_GAPS,
   ...SPORTS_RULES_CONCEPTS_GAPS_2,
+  ...SPORTS_RULES_CONCEPTS_GAPS_3,
   ...PROGRAMMING_CONCEPTS_GAPS_2,
   ...SOCCER_KNOWLEDGE_GAPS,
   ...CELL_BIOLOGY_CORE_GAPS,
