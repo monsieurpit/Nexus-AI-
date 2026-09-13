@@ -264,7 +264,20 @@ export const SLANG_LEXICON: Record<string, string> = {
 const CASE_SENSITIVE_ABBREVIATION_KEYS = new Set(['r', 'bc']);
 
 export function normalizeInternetSlang(text: string): SlangNormalizationResult {
-  const words = text.split(/(\s+|[.,!?;:()]+)/);
+  // "dih" is near-universally TikTok/Discord meme slang for "dick" (a deliberately garbled
+  // spelling), but it only ever got GROUNDED via the knowledgeBase lookup entry for explicit
+  // "what does dih mean"-style questions — any other phrasing ("you got any dih", "nexus you got
+  // dih") skipped that lookup entirely and reached the model with no idea what the token meant,
+  // producing an actual hallucination live ("dih" answered as if it were a country). Substituting
+  // it to the real word here, before intent detection/retrieval/the LLM prompt ever see it, means
+  // every existing "dick"-aware path (insult detection, personal-question handling, the model's
+  // own trained vocabulary) just works on it directly. The one phrase this must NOT touch is the
+  // Jamaican Patois "suh dih" ("that's how it is" / "what's up", see regionalInternetSlang.ts) —
+  // guarded with a negative lookbehind rather than added to ABBREVIATIONS_MAP below, since that
+  // map is a blind, context-free per-token substitution with no way to protect one specific
+  // two-word phrase from the same token being swapped everywhere else.
+  const dihNormalized = text.replace(/(?<!\bsuh\s)\bdih\b/gi, 'dick');
+  const words = dihNormalized.split(/(\s+|[.,!?;:()]+)/);
   const detectedSlangs: Array<{ slang: string; meaning: string; category: string }> = [];
 
   const normalizedTokens = words.map((token) => {
