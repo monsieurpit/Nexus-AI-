@@ -405,6 +405,7 @@ import { ANXIETY_AND_DEPRESSION_EXPLAINED_CORPUS } from './corpus/anxietyAndDepr
 import { FOUNDING_FATHERS_AND_PRESIDENTS_CORPUS } from './corpus/foundingFathersAndPresidents';
 import { TECH_COMPANY_ORIGINS_CORPUS } from './corpus/techCompanyOrigins';
 import { VIDEO_GAME_CONSOLE_HISTORY_CORPUS } from './corpus/videoGameConsoleHistory';
+import { VIDEO_GAME_GENRES_GAPS } from './corpus/videoGameGenresGaps';
 import { MORE_MUSIC_GENRES_ORIGINS_CORPUS } from './corpus/moreMusicGenresOrigins';
 import { FAMOUS_PAINTINGS_DEEP_CORPUS } from './corpus/famousPaintingsDeep';
 import { BIG_CATS_AND_PRIMATES_FACTS_CORPUS } from './corpus/bigCatsAndPrimatesFacts';
@@ -1359,6 +1360,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...FOUNDING_FATHERS_AND_PRESIDENTS_CORPUS,
   ...TECH_COMPANY_ORIGINS_CORPUS,
   ...VIDEO_GAME_CONSOLE_HISTORY_CORPUS,
+  ...VIDEO_GAME_GENRES_GAPS,
   ...MORE_MUSIC_GENRES_ORIGINS_CORPUS,
   ...FAMOUS_PAINTINGS_DEEP_CORPUS,
   ...BIG_CATS_AND_PRIMATES_FACTS_CORPUS,
