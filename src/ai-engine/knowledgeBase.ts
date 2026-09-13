@@ -263,6 +263,7 @@ import { IMMUNOLOGY_EPIDEMIOLOGY_CONCEPTS_GAPS } from './corpus/immunologyEpidem
 import { SPORTS_RULES_CONCEPTS_GAPS_2 } from './corpus/sportsRulesConceptsGaps2';
 import { SPORTS_RULES_CONCEPTS_GAPS_3 } from './corpus/sportsRulesConceptsGaps3';
 import { PROGRAMMING_CONCEPTS_GAPS_2 } from './corpus/programmingConceptsGaps2';
+import { PROGRAMMING_CONCEPTS_GAPS_3 } from './corpus/programmingConceptsGaps3';
 import { SOCCER_KNOWLEDGE_GAPS } from './corpus/soccerKnowledgeGaps';
 import { CELL_BIOLOGY_CORE_GAPS } from './corpus/cellBiologyCoreGaps';
 import { PSYCHOLOGY_DEEP_GAPS } from './corpus/psychologyDeepGaps';
@@ -1225,6 +1226,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...SPORTS_RULES_CONCEPTS_GAPS_2,
   ...SPORTS_RULES_CONCEPTS_GAPS_3,
   ...PROGRAMMING_CONCEPTS_GAPS_2,
+  ...PROGRAMMING_CONCEPTS_GAPS_3,
   ...SOCCER_KNOWLEDGE_GAPS,
   ...CELL_BIOLOGY_CORE_GAPS,
   ...PSYCHOLOGY_DEEP_GAPS,
