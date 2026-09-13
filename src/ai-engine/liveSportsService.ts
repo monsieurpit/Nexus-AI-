@@ -138,9 +138,7 @@ function resolveTeamName(text: string): string {
   return TEAM_ALIASES[t] || t;
 }
 
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-const execFileAsync = promisify(execFile);
+import * as https from 'https';
 
 const FETCH_TIMEOUT_MS = 8000;
 
@@ -148,26 +146,54 @@ const FETCH_TIMEOUT_MS = 8000;
 // bot-management edge, which fingerprints the TLS/HTTP2 handshake — the runtime's native fetch()
 // gets a hard 403 "Access Denied" (AkamaiGHost) on every single request, while curl hitting the
 // exact same URL from the exact same machine gets a clean 200 every time. This isn't a one-off
-// fluke: confirmed repeatedly, back to back, same process. Shelling out to curl (argv array, never
-// a shell string — the URL always comes from this file's own fixed sport/league code map, never
-// raw user input, so there's no injection surface) is the pragmatic fix: it's the one client
-// Akamai actually lets through for this endpoint.
-async function espnFetch(url: string): Promise<any | null> {
-  try {
-    const { stdout } = await execFileAsync(
-      'curl',
-      ['-s', '--max-time', String(Math.ceil(FETCH_TIMEOUT_MS / 1000)), url],
-      { maxBuffer: 10 * 1024 * 1024, timeout: FETCH_TIMEOUT_MS + 2000 }
+// fluke: confirmed repeatedly, back to back, same process.
+//
+// First fix attempted was shelling out to curl via child_process.execFile — worked locally (macOS
+// ships curl), but broke in production: the Railway/Nixpacks deploy image doesn't have curl
+// installed ("spawn curl ENOENT" in the logs, confirmed via diagnostic logging), so the whole
+// feature silently no-opped there even though the local dev server worked fine. Rather than fight
+// the build image to guarantee curl exists, switched to Node's built-in `https` module instead of
+// `fetch()` — confirmed locally that `https.get()` reaches this same endpoint with a clean 200
+// where `fetch()` gets the 403. The Akamai fingerprinting appears to specifically target `fetch()`'s
+// HTTP/2 + undici TLS negotiation, not Node's plain HTTP/1.1 `https` client — so this has zero
+// external dependencies (no curl, no extra package) and works the same in dev and in the deployed
+// container.
+function espnFetch(url: string): Promise<any | null> {
+  return new Promise((resolve) => {
+    const req = https.get(
+      url,
+      { headers: { 'User-Agent': 'curl/8.4.0', Accept: 'application/json' }, timeout: FETCH_TIMEOUT_MS },
+      (res) => {
+        if (res.statusCode !== 200) {
+          console.warn('[liveSports] espnFetch got status', res.statusCode, 'for', url);
+          res.resume();
+          resolve(null);
+          return;
+        }
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (err) {
+            console.warn('[liveSports] espnFetch JSON parse failed for', url, '-', err instanceof Error ? err.message : err);
+            resolve(null);
+          }
+        });
+      }
     );
-    if (!stdout) {
-      console.warn('[liveSports] curl returned empty stdout for', url);
-      return null;
-    }
-    return JSON.parse(stdout);
-  } catch (err) {
-    console.warn('[liveSports] espnFetch failed for', url, '-', err instanceof Error ? err.message : err);
-    return null;
-  }
+    req.on('timeout', () => {
+      req.destroy();
+      console.warn('[liveSports] espnFetch timed out for', url);
+      resolve(null);
+    });
+    req.on('error', (err) => {
+      console.warn('[liveSports] espnFetch failed for', url, '-', err.message);
+      resolve(null);
+    });
+  });
 }
 
 function mapEvent(ev: EspnEvent): LiveMatch | null {
