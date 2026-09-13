@@ -241,6 +241,7 @@ import { SOCCER_CONCEPTS_GAPS_3 } from './corpus/soccerConceptsGaps3';
 import { HOCKEY_CONCEPTS_GAPS } from './corpus/hockeyConceptsGaps';
 import { BASKETBALL_CONCEPTS_GAPS } from './corpus/basketballConceptsGaps';
 import { BASEBALL_CONCEPTS_GAPS } from './corpus/baseballConceptsGaps';
+import { FOOTBALL_AMERICAN_CONCEPTS_GAPS } from './corpus/footballAmericanConceptsGaps';
 import { FINANCE_MARKETS_CONCEPTS_GAPS_2 } from './corpus/financeMarketsConceptsGaps2';
 import { FINANCE_MARKETS_CONCEPTS_GAPS_3 } from './corpus/financeMarketsConceptsGaps3';
 import { PSYCHOLOGY_CONCEPTS_GAPS_3 } from './corpus/psychologyConceptsGaps3';
@@ -1200,6 +1201,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...HOCKEY_CONCEPTS_GAPS,
   ...BASKETBALL_CONCEPTS_GAPS,
   ...BASEBALL_CONCEPTS_GAPS,
+  ...FOOTBALL_AMERICAN_CONCEPTS_GAPS,
   ...FINANCE_MARKETS_CONCEPTS_GAPS_2,
   ...FINANCE_MARKETS_CONCEPTS_GAPS_3,
   ...PSYCHOLOGY_CONCEPTS_GAPS_3,
