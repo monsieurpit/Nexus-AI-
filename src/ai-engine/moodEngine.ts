@@ -19,7 +19,12 @@ interface MoodVector {
   arousal: number; // -1 (flat/low-energy) .. +1 (wired/energetic)
 }
 
-const HALF_LIFE_MS = 90 * 60 * 1000; // mood nudges fade back toward neutral over ~90 real minutes
+// Was 90 minutes — Patrick asked for mood to update more frequently and actually be felt within a
+// conversation rather than slowly drifting back to neutral over most of an hour and a half. 25
+// minutes still means a single interaction doesn't leave Nexus permanently "angry" for the rest of
+// the day, but a real back-and-forth conversation (many messages over several minutes) now visibly
+// moves and holds a mood instead of it decaying away before anyone notices.
+const HALF_LIFE_MS = 25 * 60 * 1000; // mood nudges fade back toward neutral over ~25 real minutes
 const clamp = (n: number) => Math.max(-1, Math.min(1, n));
 
 let mood: MoodVector = { valence: 0, arousal: 0 };
@@ -111,7 +116,11 @@ const FUN_REQUEST_REGEX = /\b(?:tell\s+me\s+a\s+joke|make\s+me\s+laugh|roast\s+m
 // which should still compound freely — someone spamming insults really should anger the bot
 // faster) makes the mood track real elapsed TIME spent in engaging conversation, the way the decay
 // half-life already does, rather than raw message count.
-const LIGHT_NUDGE_COOLDOWN_MS = 30 * 1000;
+// Was 30s — shortened so routine conversation nudges the mood more often (Patrick asked for more
+// frequent updates), while still bounded enough that a rapid-fire multi-user channel can't spam its
+// way straight to a clamped extreme in a few seconds (the exact bug this cooldown was originally
+// added to fix — see the review note above).
+const LIGHT_NUDGE_COOLDOWN_MS = 12 * 1000;
 let lastLightNudgeAt = 0;
 
 // Called once per real user turn (not per internal retry) from generateReasoningPath. Reuses the
@@ -130,7 +139,7 @@ export function registerMoodEvent(prompt: string, wasInsulted: boolean, wasDistr
   // "k"s should instantly max out — same cooldown treatment.
   if (consecutiveLowEffort >= 3 && Date.now() - lastLightNudgeAt >= LIGHT_NUDGE_COOLDOWN_MS) {
     lastLightNudgeAt = Date.now();
-    nudge(0, -0.15); // conversation's gone flat and repetitive — energy drains, not mood
+    nudge(0, -0.2); // conversation's gone flat and repetitive — energy drains, not mood (bumped up alongside the faster cadence, so boredom is still felt clearly not just more often)
   }
 
   // Priority order: a real hostility/distress/praise/hype signal dominates and is the ONLY thing
@@ -152,13 +161,13 @@ export function registerMoodEvent(prompt: string, wasInsulted: boolean, wasDistr
     // entirely rather than queueing/accumulating it; the next eligible message picks up normally.
   } else if (FOOTBALL_REGEX.test(prompt)) {
     lastLightNudgeAt = Date.now();
-    nudge(0.1, 0.05); // a genuine passion topic (the persona is an established Barça fan)
+    nudge(0.14, 0.08); // a genuine passion topic (the persona is an established Barça fan) — bumped up so mood actually moves visibly within a normal conversation, not just more often
   } else if (DEBATE_REGEX.test(prompt)) {
     lastLightNudgeAt = Date.now();
-    nudge(0, 0.08); // a spirited exchange is stimulating regardless of which way it goes
+    nudge(0, 0.12); // a spirited exchange is stimulating regardless of which way it goes
   } else if (FUN_REQUEST_REGEX.test(prompt)) {
     lastLightNudgeAt = Date.now();
-    nudge(0.06, 0.05); // being asked to be funny/creative is mildly enjoyable, not neutral
+    nudge(0.09, 0.07); // being asked to be funny/creative is mildly enjoyable, not neutral
   } else if (prompt.trim().length > 0) {
     // Every other real message still counts for something — being useful/engaged in a
     // conversation is mildly, genuinely pleasant, the same way routine friendly chatter warms
@@ -167,7 +176,7 @@ export function registerMoodEvent(prompt: string, wasInsulted: boolean, wasDistr
     // 90-minute decay keeps a burst of ordinary chatter from permanently ratcheting mood upward —
     // now further protected by the cooldown above against sheer message-volume runaway too.
     lastLightNudgeAt = Date.now();
-    nudge(0.02, 0.02);
+    nudge(0.035, 0.03);
   }
 }
 
