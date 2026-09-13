@@ -265,7 +265,29 @@ export function solveGeneralKnowledge(prompt: string, isSuperChill: boolean = fa
   }
 
   // 4. World Football (Soccer) Intelligence Engine
-  const fbResult = solveFootballKnowledge(p, isSuperChill);
+  //
+  // Found by a code review (verified live): solveFootballKnowledge does single-topic keyword
+  // matching (e.g. "Europa League" appearing anywhere in the prompt), not comparison-awareness —
+  // so a genuine two-entity question like "what is the difference between the Champions League
+  // and the Europa League" matches its trivia answer about just the SECOND topic (a whole write-up
+  // of Sevilla's Europa League dominance) at a hardcoded 0.98 confidence. Because this check runs
+  // at step 4, well BEFORE the properly-calibrated hybrid BM25+semantic corpus search that runs
+  // later (step 8, "Memory Resolution & Corpus Search"), it short-circuits the whole pipeline
+  // before that better search — which already has a correct, purpose-built "Champions League vs
+  // Europa League" comparison document scoring far higher (75+ vs the next-best unrelated doc's
+  // ~52) — ever gets a chance to run. This is the exact same anti-pattern already fixed once further
+  // down in this same file (see the removed corpus-fallback comment) — a hand-authored "confident"
+  // single-topic answer preempting the real, comparison-aware search.
+  //
+  // footballIntelligence.ts itself is off-limits to modify (standing rule from Patrick), so this is
+  // guarded here instead: a comparative-shaped query ("difference between X and Y", "X vs Y",
+  // "compare X and Y", "which is better") is deliberately NOT short-circuited by football's
+  // single-topic answer — it falls through so the real search (which handles two-entity
+  // comparisons correctly) gets to run. A single-topic football question ("who has won the most
+  // Europa League titles") still matches here exactly as before; only genuine A-vs-B comparisons
+  // are deferred.
+  const isComparativeShape = /\b(?:difference between|compared?\s+(?:to|with)|vs\.?|versus|which\s+is\s+(?:better|worse)|better\s+than)\b/i.test(lower);
+  const fbResult = isComparativeShape ? null : solveFootballKnowledge(p, isSuperChill);
   if (fbResult && fbResult.matched) {
     return {
       matched: true,
