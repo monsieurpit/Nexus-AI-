@@ -8,6 +8,7 @@ import {
   WebSearchResult,
 } from '../types';
 import { extractQueryEntities, searchKnowledgeGraph, getBM25Engine } from './semanticEngine';
+import { detectLiveSportsIntent, resolveLiveSportsContext } from './liveSportsService';
 import { hybridSearchKnowledgeGraph } from './vectorSearch';
 import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
@@ -5534,6 +5535,54 @@ export async function generateReasoningPath(
       }),
       knowledgeHits: [],
     };
+  }
+
+  // 5.5. Live Sports Data (ESPN) — current scores, in-progress matches, and league standings.
+  //
+  // Deliberately runs BEFORE Domain Intelligence/the static football fact bank below: those are
+  // hand-written knowledge that goes stale the moment a real match kicks off, so a "what's the
+  // score right now" or "who's top of La Liga" question must never be answered from a frozen
+  // corpus fact — it needs an actual network call, every time. detectLiveSportsIntent() is
+  // deliberately conservative (a real live-data trigger word AND a resolvable league/team), so it
+  // never hijacks an ordinary rules/trivia question ("what's the offside rule", "who has the most
+  // Ballons d'Or") — those still fall through to Domain Intelligence/corpus search exactly as
+  // before. If the live fetch itself fails or finds nothing (network hiccup, off-season, no
+  // fixtures today), resolveLiveSportsContext returns null and this falls through to the normal
+  // pipeline below rather than presenting a broken "no data" block as if it were the real answer.
+  const liveSportsIntent = detectLiveSportsIntent(effectivePrompt) || detectLiveSportsIntent(prompt);
+  if (liveSportsIntent) {
+    const liveContext = await resolveLiveSportsContext(liveSportsIntent);
+    if (liveContext) {
+      thoughtSteps.push({
+        id: 'step-live-sports',
+        type: 'reasoning',
+        title: '⚽ Live Sports Data (ESPN)',
+        description: `Fetched live data for query: "${prompt}".`,
+      });
+      const liveReply = await llmGroundedOrFallback(
+        prompt,
+        persona,
+        settings,
+        isCrashout,
+        [{ item: { title: 'Live Sports Data', content: liveContext } }],
+        liveContext,
+        intent,
+        queryTerms,
+        entities,
+        thoughtSteps,
+        true
+      );
+      return {
+        thoughtSteps,
+        content: enforceStrictSdkRules(liveReply, prompt, settings.userCustomDirectives, {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+        }),
+        knowledgeHits: ['Live Sports Data (ESPN)'],
+      };
+    }
   }
 
   // 6. General & Specialised Domain Intelligence (Science, Football, History, Everyday How-Tos)

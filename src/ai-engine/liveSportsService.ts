@@ -1,0 +1,365 @@
+/**
+ * Live Sports Service — ESPN's public scoreboard/standings API
+ * =============================================================
+ *
+ * Gives Nexus live scores, live status, and league standings for soccer and
+ * a handful of other major sports (NBA, NFL, NHL, MLB), using the same free,
+ * no-API-key ESPN endpoint the Discord bot's own footballService.js already
+ * relies on for fixture syncing (`site.api.espn.com/apis/site/v2/sports/...`)
+ * — same data source, no new account/key to manage.
+ *
+ * This is deliberately separate from footballIntelligence.ts (off-limits to
+ * modify — standing rule) and from the corpus/Domain Intelligence static
+ * fact banks: those answer "what IS the Champions League" style questions
+ * from hand-written/pre-baked knowledge, while this module answers "what's
+ * the score RIGHT NOW" / "where does Barça sit in the table" style questions
+ * that need a live network call, every time, with no caching of the actual
+ * scores (only the resolved league/team name lookup below is memoized).
+ */
+
+interface EspnCompetitor {
+  team: { displayName: string; shortDisplayName?: string; abbreviation?: string };
+  score?: string;
+  homeAway?: 'home' | 'away';
+  winner?: boolean;
+}
+
+interface EspnEvent {
+  name: string;
+  shortName?: string;
+  date: string;
+  competitions: Array<{
+    status: {
+      type: { description: string; detail?: string; shortDetail?: string; state?: string; completed?: boolean };
+      displayClock?: string;
+    };
+    competitors: EspnCompetitor[];
+  }>;
+}
+
+export interface LiveMatch {
+  name: string;
+  kickoffIso: string;
+  statusDescription: string;
+  statusDetail: string;
+  isLive: boolean;
+  isCompleted: boolean;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: string | null;
+  awayScore: string | null;
+  displayClock: string | null;
+}
+
+export interface StandingsRow {
+  rank: number;
+  team: string;
+  gamesPlayed: number | null;
+  wins: number | null;
+  losses: number | null;
+  draws: number | null;
+  points: number | null;
+}
+
+interface LeagueEntry {
+  sport: string;
+  league: string;
+  label: string;
+}
+
+// Common name -> ESPN sport/league code. Soccer leagues first (Patrick's own priority — FC
+// Barcelona / La Liga / Champions League), then the other major sports the corpus loop has been
+// covering this session (NHL, NBA, MLB, NFL).
+const LEAGUE_MAP: Record<string, LeagueEntry> = {
+  'la liga': { sport: 'soccer', league: 'esp.1', label: 'La Liga' },
+  laliga: { sport: 'soccer', league: 'esp.1', label: 'La Liga' },
+  'la liga ea sports': { sport: 'soccer', league: 'esp.1', label: 'La Liga' },
+  'premier league': { sport: 'soccer', league: 'eng.1', label: 'Premier League' },
+  epl: { sport: 'soccer', league: 'eng.1', label: 'Premier League' },
+  'champions league': { sport: 'soccer', league: 'uefa.champions', label: 'UEFA Champions League' },
+  ucl: { sport: 'soccer', league: 'uefa.champions', label: 'UEFA Champions League' },
+  'europa league': { sport: 'soccer', league: 'uefa.europa', label: 'UEFA Europa League' },
+  'europa conference league': { sport: 'soccer', league: 'uefa.europa.conf', label: 'UEFA Europa Conference League' },
+  'ligue 1': { sport: 'soccer', league: 'fra.1', label: 'Ligue 1' },
+  'serie a': { sport: 'soccer', league: 'ita.1', label: 'Serie A' },
+  bundesliga: { sport: 'soccer', league: 'ger.1', label: 'Bundesliga' },
+  mls: { sport: 'soccer', league: 'usa.1', label: 'MLS' },
+  'liga mx': { sport: 'soccer', league: 'mex.1', label: 'Liga MX' },
+  'copa del rey': { sport: 'soccer', league: 'esp.copa_del_rey', label: 'Copa del Rey' },
+  nba: { sport: 'basketball', league: 'nba', label: 'NBA' },
+  'ncaa basketball': { sport: 'basketball', league: 'mens-college-basketball', label: 'NCAA Basketball' },
+  'college basketball': { sport: 'basketball', league: 'mens-college-basketball', label: 'NCAA Basketball' },
+  nfl: { sport: 'football', league: 'nfl', label: 'NFL' },
+  'college football': { sport: 'football', league: 'college-football', label: 'NCAA Football' },
+  ncaaf: { sport: 'football', league: 'college-football', label: 'NCAA Football' },
+  nhl: { sport: 'hockey', league: 'nhl', label: 'NHL' },
+  mlb: { sport: 'baseball', league: 'mlb', label: 'MLB' },
+};
+
+// A handful of well-known club nicknames that don't literally appear in ESPN's own displayName
+// ("FC Barcelona" is just "Barcelona" in the API, but people say "Barça"/"the Blaugrana").
+const TEAM_ALIASES: Record<string, string> = {
+  barca: 'barcelona',
+  "barça": 'barcelona',
+  blaugrana: 'barcelona',
+  culers: 'barcelona',
+  madrid: 'real madrid',
+  'los blancos': 'real madrid',
+  united: 'manchester united',
+  'man united': 'manchester united',
+  'man utd': 'manchester united',
+  city: 'manchester city',
+  'man city': 'manchester city',
+  spurs: 'tottenham',
+  gunners: 'arsenal',
+  reds: 'liverpool',
+};
+
+function normalize(s: string): string {
+  return s.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/** Resolves a free-text league name ("la liga", "the champions league", "prem") to an ESPN code. */
+export function resolveLeague(text: string): LeagueEntry | null {
+  const t = normalize(text);
+  // Exact key match first, then substring — "who's top of la liga right now" contains extra words.
+  if (LEAGUE_MAP[t]) return LEAGUE_MAP[t];
+  for (const [key, entry] of Object.entries(LEAGUE_MAP)) {
+    if (t.includes(key)) return entry;
+  }
+  // A few loose single-word aliases that would otherwise need every phrasing spelled out.
+  if (/\bprem\b/.test(t)) return LEAGUE_MAP['premier league'];
+  if (/\bchamps\s*league\b/.test(t)) return LEAGUE_MAP['champions league'];
+  return null;
+}
+
+function resolveTeamName(text: string): string {
+  const t = normalize(text);
+  return TEAM_ALIASES[t] || t;
+}
+
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+const execFileAsync = promisify(execFile);
+
+const FETCH_TIMEOUT_MS = 8000;
+
+// Found live while wiring this up: ESPN's hidden site.api.espn.com endpoint sits behind Akamai's
+// bot-management edge, which fingerprints the TLS/HTTP2 handshake — the runtime's native fetch()
+// gets a hard 403 "Access Denied" (AkamaiGHost) on every single request, while curl hitting the
+// exact same URL from the exact same machine gets a clean 200 every time. This isn't a one-off
+// fluke: confirmed repeatedly, back to back, same process. Shelling out to curl (argv array, never
+// a shell string — the URL always comes from this file's own fixed sport/league code map, never
+// raw user input, so there's no injection surface) is the pragmatic fix: it's the one client
+// Akamai actually lets through for this endpoint.
+async function espnFetch(url: string): Promise<any | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      'curl',
+      ['-s', '--max-time', String(Math.ceil(FETCH_TIMEOUT_MS / 1000)), url],
+      { maxBuffer: 10 * 1024 * 1024, timeout: FETCH_TIMEOUT_MS + 2000 }
+    );
+    if (!stdout) return null;
+    return JSON.parse(stdout);
+  } catch {
+    return null;
+  }
+}
+
+function mapEvent(ev: EspnEvent): LiveMatch | null {
+  const comp = ev.competitions?.[0];
+  if (!comp) return null;
+  const home = comp.competitors.find((c) => c.homeAway === 'home');
+  const away = comp.competitors.find((c) => c.homeAway === 'away');
+  if (!home || !away) return null;
+  const statusType = comp.status?.type;
+  const state = statusType?.state;
+  return {
+    name: ev.name || ev.shortName || `${away.team.displayName} at ${home.team.displayName}`,
+    kickoffIso: ev.date,
+    statusDescription: statusType?.description || 'Unknown',
+    statusDetail: statusType?.shortDetail || statusType?.detail || '',
+    isLive: state === 'in',
+    isCompleted: !!statusType?.completed || state === 'post',
+    homeTeam: home.team.displayName,
+    awayTeam: away.team.displayName,
+    homeScore: home.score ?? null,
+    awayScore: away.score ?? null,
+    displayClock: comp.status?.displayClock || null,
+  };
+}
+
+/**
+ * Fetches the current scoreboard (today's matches, live scores, and recent completed results)
+ * for a resolved league.
+ */
+export async function getLeagueScoreboard(leagueEntry: LeagueEntry): Promise<LiveMatch[]> {
+  const url = `https://site.api.espn.com/apis/site/v2/sports/${leagueEntry.sport}/${leagueEntry.league}/scoreboard`;
+  const data = await espnFetch(url);
+  if (!data || !Array.isArray(data.events)) return [];
+  return data.events.map(mapEvent).filter((m: LiveMatch | null): m is LiveMatch => m !== null);
+}
+
+/**
+ * Searches a league's current scoreboard for a specific team (by ESPN displayName substring
+ * match, case-insensitive, alias-aware — "barca"/"barça" both resolve to "barcelona").
+ */
+export async function findTeamMatch(leagueEntry: LeagueEntry, teamQuery: string): Promise<LiveMatch | null> {
+  const matches = await getLeagueScoreboard(leagueEntry);
+  const wanted = resolveTeamName(teamQuery);
+  return (
+    matches.find(
+      (m) => normalize(m.homeTeam).includes(wanted) || normalize(m.awayTeam).includes(wanted) || wanted.includes(normalize(m.homeTeam)) || wanted.includes(normalize(m.awayTeam))
+    ) || null
+  );
+}
+
+/**
+ * Looks for a team's match across several of the most relevant competitions at once — used when
+ * the user just says "the Barça game" without naming a competition (a club plays in its domestic
+ * league AND continental competitions across a season, so a single-league lookup would often miss).
+ */
+export async function findTeamMatchAcrossLeagues(teamQuery: string, leagueEntries: LeagueEntry[]): Promise<{ match: LiveMatch; league: LeagueEntry } | null> {
+  for (const entry of leagueEntries) {
+    const match = await findTeamMatch(entry, teamQuery);
+    if (match) return { match, league: entry };
+  }
+  return null;
+}
+
+/** The competitions FC Barcelona (or any club followed this closely) could plausibly appear in. */
+export const BARCELONA_LEAGUE_SEARCH_ORDER: LeagueEntry[] = [
+  LEAGUE_MAP['la liga'],
+  LEAGUE_MAP['champions league'],
+  LEAGUE_MAP['europa league'],
+  LEAGUE_MAP['copa del rey'],
+];
+
+/**
+ * Fetches full league standings/table for a resolved league.
+ */
+export async function getLeagueStandings(leagueEntry: LeagueEntry): Promise<StandingsRow[]> {
+  const url = `https://site.api.espn.com/apis/v2/sports/${leagueEntry.sport}/${leagueEntry.league}/standings`;
+  const data = await espnFetch(url);
+  if (!data) return [];
+  // Soccer standings nest one level under `children[0].standings.entries`; some other sports'
+  // standings (conferences/divisions) can have multiple children — flatten them all together
+  // rather than only reading children[0], so e.g. NBA's two conferences both come through.
+  const children = Array.isArray(data.children) ? data.children : [data];
+  const rows: StandingsRow[] = [];
+  for (const child of children) {
+    const entries = child?.standings?.entries;
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      const statByName = (name: string): number | null => {
+        const stat = entry.stats?.find((s: any) => s.name === name);
+        if (!stat) return null;
+        const val = Number(stat.value);
+        return Number.isFinite(val) ? val : null;
+      };
+      rows.push({
+        rank: statByName('rank') ?? rows.length + 1,
+        team: entry.team?.displayName || 'Unknown',
+        gamesPlayed: statByName('gamesPlayed'),
+        wins: statByName('wins'),
+        losses: statByName('losses'),
+        draws: statByName('ties'),
+        points: statByName('points'),
+      });
+    }
+  }
+  return rows.sort((a, b) => a.rank - b.rank);
+}
+
+function formatMatchLine(m: LiveMatch): string {
+  const score = m.homeScore !== null && m.awayScore !== null ? `${m.homeTeam} ${m.homeScore} - ${m.awayScore} ${m.awayTeam}` : `${m.homeTeam} vs ${m.awayTeam}`;
+  const status = m.isLive ? `LIVE (${m.displayClock || m.statusDetail})` : m.isCompleted ? `Final (${m.statusDetail || 'FT'})` : `Scheduled (${m.statusDetail || m.kickoffIso})`;
+  return `${score} — ${status}`;
+}
+
+/** Renders a compact, LLM-groundable text block for one match. */
+export function renderMatchContext(m: LiveMatch, leagueLabel: string): string {
+  return `[LIVE DATA — ${leagueLabel}, fetched just now from ESPN]\n${formatMatchLine(m)}`;
+}
+
+/** Renders a compact, LLM-groundable text block for a league's current scoreboard (multiple matches). */
+export function renderScoreboardContext(matches: LiveMatch[], leagueLabel: string): string {
+  if (matches.length === 0) return `[LIVE DATA — ${leagueLabel}: no matches found right now (likely no fixtures today).]`;
+  const lines = matches.slice(0, 10).map(formatMatchLine);
+  return `[LIVE DATA — ${leagueLabel} scoreboard, fetched just now from ESPN]\n${lines.join('\n')}`;
+}
+
+/** Renders a compact, LLM-groundable text block for a league table. */
+export function renderStandingsContext(rows: StandingsRow[], leagueLabel: string): string {
+  if (rows.length === 0) return `[LIVE DATA — ${leagueLabel}: standings unavailable right now.]`;
+  const lines = rows.slice(0, 12).map((r) => {
+    const record = r.draws !== null ? `${r.wins}W-${r.draws}D-${r.losses}L` : `${r.wins}W-${r.losses}L`;
+    return `${r.rank}. ${r.team} — ${record}${r.points !== null ? `, ${r.points} pts` : ''}${r.gamesPlayed !== null ? ` (${r.gamesPlayed} played)` : ''}`;
+  });
+  return `[LIVE DATA — ${leagueLabel} standings, fetched just now from ESPN]\n${lines.join('\n')}`;
+}
+
+// ─── Query intent detection ─────────────────────────────────────────────────
+
+export interface LiveSportsIntent {
+  kind: 'team_score' | 'league_scoreboard' | 'standings';
+  team?: string;
+  league?: LeagueEntry;
+}
+
+const SCORE_TRIGGER_RE = /\b(?:score|scoreline|result|playing|live|winning|losing|tied|game\s+(?:right\s+)?now|today'?s?\s+(?:game|match))\b/i;
+const STANDINGS_TRIGGER_RE = /\b(?:standings?|table|rankings?|leaderboard|who'?s?\s+(?:top|first|leading|winning the league))\b/i;
+
+/**
+ * Detects whether a prompt is asking for LIVE data (a current/recent score, or league standings)
+ * as opposed to a general historical/rules/trivia question that the static corpus already covers.
+ * Deliberately conservative — only fires on a clear live-data signal word AND a resolvable
+ * team/league, so it doesn't hijack a normal "what's the offside rule" style question.
+ */
+export function detectLiveSportsIntent(prompt: string): LiveSportsIntent | null {
+  const lower = prompt.toLowerCase();
+  const league = resolveLeague(lower);
+
+  if (STANDINGS_TRIGGER_RE.test(lower) && league) {
+    return { kind: 'standings', league };
+  }
+
+  if (SCORE_TRIGGER_RE.test(lower)) {
+    if (league) return { kind: 'league_scoreboard', league };
+
+    // No explicit league named — check for a known club/team mention (Barça-first, since that's
+    // the single most likely "the game" reference for Patrick specifically) before giving up.
+    const teamHit = Object.keys(TEAM_ALIASES).find((alias) => lower.includes(alias));
+    if (teamHit) return { kind: 'team_score', team: teamHit };
+    if (/\bbarcelona\b/.test(lower)) return { kind: 'team_score', team: 'barcelona' };
+  }
+
+  return null;
+}
+
+/**
+ * Resolves a detected live-sports intent into a ready-to-use grounding context string, or null if
+ * the live fetch itself failed/found nothing (caller should fall back to the normal answer path
+ * rather than presenting a broken/empty live-data block as if it were a real answer).
+ */
+export async function resolveLiveSportsContext(intent: LiveSportsIntent): Promise<string | null> {
+  if (intent.kind === 'standings' && intent.league) {
+    const rows = await getLeagueStandings(intent.league);
+    if (rows.length === 0) return null;
+    return renderStandingsContext(rows, intent.league.label);
+  }
+
+  if (intent.kind === 'league_scoreboard' && intent.league) {
+    const matches = await getLeagueScoreboard(intent.league);
+    if (matches.length === 0) return null;
+    return renderScoreboardContext(matches, intent.league.label);
+  }
+
+  if (intent.kind === 'team_score' && intent.team) {
+    const found = await findTeamMatchAcrossLeagues(intent.team, BARCELONA_LEAGUE_SEARCH_ORDER);
+    if (!found) return null;
+    return renderMatchContext(found.match, found.league.label);
+  }
+
+  return null;
+}
