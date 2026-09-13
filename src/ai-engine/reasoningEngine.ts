@@ -5551,7 +5551,11 @@ export async function generateReasoningPath(
   // pipeline below rather than presenting a broken "no data" block as if it were the real answer.
   const liveSportsIntent = detectLiveSportsIntent(effectivePrompt) || detectLiveSportsIntent(prompt);
   if (liveSportsIntent) {
+    console.log('[liveSports] intent detected:', JSON.stringify(liveSportsIntent));
     const liveContext = await resolveLiveSportsContext(liveSportsIntent);
+    if (!liveContext) {
+      console.warn('[liveSports] resolveLiveSportsContext returned null, falling through to normal pipeline');
+    }
     if (liveContext) {
       thoughtSteps.push({
         id: 'step-live-sports',

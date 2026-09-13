@@ -1,0 +1,8 @@
+# Ensures `curl` is present in the deployed Railway container. src/ai-engine/liveSportsService.ts
+# shells out to curl (via child_process.execFile) to reach ESPN's API, because that endpoint is
+# behind an Akamai bot-management edge that blocks Node/Bun's native fetch() (TLS/HTTP2
+# fingerprinting returns a 403) while curl on the same request succeeds. Without this, curl may be
+# missing from the Nixpacks base image and the live-sports feature silently falls back to the
+# normal corpus search (no error, just no live data).
+[phases.setup]
+nixPkgs = ["curl"]

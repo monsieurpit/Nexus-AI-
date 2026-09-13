@@ -159,9 +159,13 @@ async function espnFetch(url: string): Promise<any | null> {
       ['-s', '--max-time', String(Math.ceil(FETCH_TIMEOUT_MS / 1000)), url],
       { maxBuffer: 10 * 1024 * 1024, timeout: FETCH_TIMEOUT_MS + 2000 }
     );
-    if (!stdout) return null;
+    if (!stdout) {
+      console.warn('[liveSports] curl returned empty stdout for', url);
+      return null;
+    }
     return JSON.parse(stdout);
-  } catch {
+  } catch (err) {
+    console.warn('[liveSports] espnFetch failed for', url, '-', err instanceof Error ? err.message : err);
     return null;
   }
 }
