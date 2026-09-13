@@ -163,6 +163,7 @@ import { GRAMMAR_LITERARY_CONCEPTS_GAPS } from './corpus/grammarLiteraryConcepts
 import { FOOD_SCIENCE_CONCEPTS_GAPS } from './corpus/foodScienceConceptsGaps';
 import { PSYCHOLOGY_CONCEPTS_GAPS } from './corpus/psychologyConceptsGaps';
 import { CONSUMER_TECH_CONCEPTS_GAPS } from './corpus/consumerTechConceptsGaps';
+import { PC_HARDWARE_GAPS } from './corpus/pcHardwareGaps';
 import { HEALTH_FITNESS_CONCEPTS_GAPS } from './corpus/healthFitnessConceptsGaps';
 import { CIVICS_CONCEPTS_GAPS } from './corpus/civicsConceptsGaps';
 import { ENGINEERING_MACHINES_CONCEPTS_GAPS } from './corpus/engineeringMachinesConceptsGaps';
@@ -1118,6 +1119,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...FOOD_SCIENCE_CONCEPTS_GAPS,
   ...PSYCHOLOGY_CONCEPTS_GAPS,
   ...CONSUMER_TECH_CONCEPTS_GAPS,
+  ...PC_HARDWARE_GAPS,
   ...HEALTH_FITNESS_CONCEPTS_GAPS,
   ...CIVICS_CONCEPTS_GAPS,
   ...ENGINEERING_MACHINES_CONCEPTS_GAPS,
