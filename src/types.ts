@@ -55,6 +55,10 @@ export interface AISettings {
   webSearchEnabled?: boolean;
   webSearchMode?: 'auto' | 'always' | 'disabled';
   webSearchEngine?: 'all' | 'google' | 'duckduckgo' | 'wikipedia';
+  // Client-only display preference (never read by the server/model) — whether the 3D portal
+  // animation plays once on page load. Lives here anyway rather than a separate storage bucket
+  // since AISettings already has the load/save/modal plumbing this needs.
+  entryAnimationEnabled?: boolean;
 }
 
 export interface WebSearchResult {

@@ -667,3 +667,159 @@ body::after {
   font-size: 0.82em;
   font-weight: 500;
 }
+
+/* =========================================================================
+ * ENTRY ANIMATION
+ * -------------------------------------------------------------------------
+ * A 3D glass portal: six rings at increasing depth, each spinning a
+ * different direction/speed (the part that reads as physically impossible
+ * for solid glass), shards flying in from deep 3D space to converge on a
+ * pulsing core, then an iris-close reveal into the app. Pure CSS — no
+ * animation library, no JS render loop.
+ * ===================================================================== */
+.entry-anim {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: var(--glass-base);
+  cursor: pointer;
+  overflow: hidden;
+  perspective: 1600px;
+  clip-path: circle(150% at 50% 50%);
+  transition: clip-path 0.55s cubic-bezier(0.7, 0, 0.3, 1), opacity 0.5s ease 0.15s;
+}
+.entry-anim--leaving {
+  clip-path: circle(0% at 50% 50%);
+  opacity: 0;
+}
+
+.entry-anim__scene {
+  position: relative;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+}
+
+.entry-anim__ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  border: 1.5px solid var(--glass-border-strong);
+  box-shadow: 0 0 40px -6px var(--glass-accent-soft), inset 0 0 30px -10px var(--glass-accent-soft);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  animation: entry-ring-in 0.5s var(--glass-ease) both;
+}
+/* --tz feeds the spin keyframes below (a transform-driving animation replaces the element's whole
+   computed transform while it runs, so a plain static `transform: translateZ()` on the rule itself
+   would get silently clobbered the moment the spin animation starts — routing the depth through a
+   custom property the keyframes read via var() keeps it alive for the animation's full duration). */
+.entry-anim__ring--0 { width: 46vmin; height: 46vmin; margin: -23vmin 0 0 -23vmin; --tz: 0px; border-color: var(--glass-accent-a); animation: entry-ring-in 0.5s var(--glass-ease) both, entry-spin-cw 5.5s linear infinite; }
+.entry-anim__ring--1 { width: 38vmin; height: 38vmin; margin: -19vmin 0 0 -19vmin; --tz: -140px; animation: entry-ring-in 0.5s var(--glass-ease) 0.05s both, entry-spin-ccw 4.2s linear infinite; }
+.entry-anim__ring--2 { width: 31vmin; height: 31vmin; margin: -15.5vmin 0 0 -15.5vmin; --tz: -280px; border-color: var(--glass-accent-b); animation: entry-ring-in 0.5s var(--glass-ease) 0.1s both, entry-spin-cw 3.2s linear infinite; }
+.entry-anim__ring--3 { width: 25vmin; height: 25vmin; margin: -12.5vmin 0 0 -12.5vmin; --tz: -420px; animation: entry-ring-in 0.5s var(--glass-ease) 0.15s both, entry-spin-ccw 2.4s linear infinite; }
+.entry-anim__ring--4 { width: 20vmin; height: 20vmin; margin: -10vmin 0 0 -10vmin; --tz: -560px; border-color: var(--glass-accent-a); animation: entry-ring-in 0.5s var(--glass-ease) 0.2s both, entry-spin-cw 1.7s linear infinite; }
+.entry-anim__ring--5 { width: 15vmin; height: 15vmin; margin: -7.5vmin 0 0 -7.5vmin; --tz: -700px; animation: entry-ring-in 0.5s var(--glass-ease) 0.25s both, entry-spin-ccw 1.1s linear infinite; }
+
+.entry-anim__shard {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3.2vmin;
+  height: 5vmin;
+  margin: -2.5vmin 0 0 -1.6vmin;
+  border-radius: var(--glass-r-xs);
+  background: var(--glass-panel-elevated);
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 18px -4px var(--glass-accent-soft);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: entry-shard-fly 1.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.entry-anim__core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6vmin;
+  height: 6vmin;
+  margin: -3vmin 0 0 -3vmin;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, var(--glass-accent-a) 35%, var(--glass-accent-b) 70%, transparent 100%);
+  animation: entry-core-pulse 2.9s var(--glass-ease) both;
+}
+
+.entry-anim__brand {
+  position: relative;
+  z-index: 1;
+  margin-top: 28vmin;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.5em;
+  color: var(--glass-text);
+  text-shadow: 0 0 24px var(--glass-accent-soft);
+  opacity: 0;
+  animation: entry-brand-in 0.9s var(--glass-ease) 0.9s both;
+}
+
+.entry-anim__skip {
+  position: absolute;
+  bottom: 2rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.6875rem;
+  color: var(--glass-text-faint);
+  letter-spacing: 0.04em;
+  opacity: 0;
+  animation: entry-fade-in-slow 1s ease 1.4s both;
+  pointer-events: none;
+}
+
+@keyframes entry-ring-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes entry-spin-cw {
+  from { transform: translateZ(var(--tz, 0)) rotate(0deg); }
+  to { transform: translateZ(var(--tz, 0)) rotate(540deg); }
+}
+@keyframes entry-spin-ccw {
+  from { transform: translateZ(var(--tz, 0)) rotate(0deg); }
+  to { transform: translateZ(var(--tz, 0)) rotate(-540deg); }
+}
+@keyframes entry-shard-fly {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--sx), var(--sy), var(--sz)) rotateZ(var(--srz)) scale(0.4);
+  }
+  55% {
+    opacity: 0.95;
+    transform: translate3d(0, 0, 0) rotateZ(0deg) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, 60px) rotateZ(0deg) scale(0.15);
+  }
+}
+@keyframes entry-core-pulse {
+  0% { opacity: 0; transform: scale(0.15); filter: brightness(1); }
+  50% { opacity: 0.85; transform: scale(1); filter: brightness(1); }
+  78% { opacity: 1; transform: scale(1.15); filter: brightness(1.1); }
+  86% { opacity: 1; transform: scale(2.6); filter: brightness(2.2); }
+  100% { opacity: 1; transform: scale(3.4); filter: brightness(2.6); }
+}
+@keyframes entry-brand-in {
+  from { opacity: 0; letter-spacing: 0.9em; }
+  to { opacity: 0.85; letter-spacing: 0.5em; }
+}
+@keyframes entry-fade-in-slow {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

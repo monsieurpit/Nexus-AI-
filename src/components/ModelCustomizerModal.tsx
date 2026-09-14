@@ -19,6 +19,7 @@ import {
   Copy,
   Smile,
   Globe,
+  Orbit,
 } from 'lucide-react';
 import { AISettings, ModelPersona, ModelPersonaId, ReasoningMode } from '../types';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../ai-engine/memoryStore';
@@ -369,6 +370,37 @@ Tone guidelines:
           {/* Parameters Tab */}
           {activeTab === 'parameters' && (
             <div className="space-y-6">
+              {/* Entry animation */}
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-[var(--glass-accent-a)]/10 via-[var(--glass-accent-b)]/10 to-[var(--glass-accent-a)]/10 border border-[var(--glass-accent)]/30 space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-[image:var(--glass-accent-gradient)] text-white flex items-center justify-center">
+                      <Orbit className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-[var(--glass-text)]">3D Entry Animation</div>
+                      <p className="text-[11px] text-[var(--glass-text-faint)]">
+                        The portal animation that plays once when the site loads
+                      </p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={localSettings.entryAnimationEnabled ?? true}
+                      onChange={(e) =>
+                        setLocalSettings((prev) => ({
+                          ...prev,
+                          entryAnimationEnabled: e.target.checked,
+                        }))
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-[var(--glass-panel-elevated-hover)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--glass-panel-elevated)] after:border-[var(--glass-border)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[image:var(--glass-accent-gradient)]"></div>
+                  </label>
+                </div>
+              </div>
+
               {/* Temperature */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">

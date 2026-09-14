@@ -317,6 +317,7 @@ export const DEFAULT_SETTINGS: AISettings = {
   webSearchEnabled: true,
   webSearchMode: 'auto',
   webSearchEngine: 'all',
+  entryAnimationEnabled: true,
 };
 
 const STORAGE_KEYS = {

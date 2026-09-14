@@ -7,6 +7,7 @@ import { ModelCustomizerModal } from './components/ModelCustomizerModal';
 import { KnowledgeTrainerModal } from './components/KnowledgeTrainerModal';
 import { AttentionVisualizerModal } from './components/AttentionVisualizerModal';
 import { ApiIntegrationModal } from './components/ApiIntegrationModal';
+import { EntryAnimation } from './components/EntryAnimation';
 import {
   AISettings,
   ChatMessage,
@@ -40,6 +41,16 @@ export default function App() {
   const [view, setView] = useState<AppView>('chat');
   const [settings, setSettings] = useState<AISettings>(loadSettings);
   const [memories, setMemories] = useState<UserMemory[]>(loadMemories);
+
+  // Plays once per page load, before anything else is interactable — reads the setting directly
+  // from the very same loadSettings() call above (via a lazy initializer, so it's decided
+  // synchronously on first render, not after an effect) rather than from `settings` state, and
+  // also backs off for prefers-reduced-motion regardless of the setting.
+  const [showEntryAnimation, setShowEntryAnimation] = useState(() => {
+    const reducedMotion =
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return settings.entryAnimationEnabled !== false && !reducedMotion;
+  });
 
   // initConversations() must run exactly ONCE — it calls createConversation() when storage is
   // empty, and a second call produces a DIFFERENT fresh conversation with a different id. When
@@ -571,6 +582,8 @@ export default function App() {
         isOpen={isApiModalOpen}
         onClose={closeModal}
       />
+
+      {showEntryAnimation && <EntryAnimation onDone={() => setShowEntryAnimation(false)} />}
     </div>
   );
 }
