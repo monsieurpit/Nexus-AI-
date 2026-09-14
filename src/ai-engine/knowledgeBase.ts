@@ -491,6 +491,7 @@ import { ALGORITHMS_DATA_STRUCTURES_CORPUS } from './corpus/algorithmsDataStruct
 import { COFFEE_TEA_COMPARISONS_GAPS } from './corpus/coffeeTeaComparisonsGaps';
 import { SOFTWARE_ENGINEERING_CONCEPTS_CORPUS } from './corpus/softwareEngineeringConceptsCorpus';
 import { ADDITIONAL_LANGUAGES_CORPUS } from './corpus/additionalLanguagesCorpus';
+import { ADVANCED_PROGRAMMING_CONCEPTS_CORPUS } from './corpus/advancedProgrammingConceptsCorpus';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1495,6 +1496,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...COFFEE_TEA_COMPARISONS_GAPS,
   ...SOFTWARE_ENGINEERING_CONCEPTS_CORPUS,
   ...ADDITIONAL_LANGUAGES_CORPUS,
+  ...ADVANCED_PROGRAMMING_CONCEPTS_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
