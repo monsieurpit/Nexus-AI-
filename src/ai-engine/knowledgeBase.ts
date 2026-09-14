@@ -482,6 +482,8 @@ import { WEATHER_AND_EARTH_PHENOMENA_EXPANSION_CORPUS } from './corpus/weatherAn
 import { SCIENCE_AND_NATURE_FINAL_EXPANSION_CORPUS } from './corpus/scienceAndNatureFinalExpansion';
 import { PYTHON_FUNDAMENTALS_CORPUS } from './corpus/pythonFundamentalsCorpus';
 import { JAVASCRIPT_TYPESCRIPT_CORPUS } from './corpus/javascriptTypescriptCorpus';
+import { SYSTEMS_LANGUAGES_CORPUS } from './corpus/systemsLanguagesCorpus';
+import { FUNGI_COMPARISONS_GAPS } from './corpus/fungiComparisonsGaps';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1475,6 +1477,9 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // by Patrick to make the model much better at coding help. Split into per-language/theme files.
   ...PYTHON_FUNDAMENTALS_CORPUS,
   ...JAVASCRIPT_TYPESCRIPT_CORPUS,
+  ...SYSTEMS_LANGUAGES_CORPUS,
+  // Batch 297 corpus fixes (2026-09-14): fungi/mycology "difference between X and Y" gaps.
+  ...FUNGI_COMPARISONS_GAPS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
