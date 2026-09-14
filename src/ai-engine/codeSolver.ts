@@ -12,6 +12,33 @@ export interface CodeSolution {
   title: string;
 }
 
+// trySolveCode() runs BEFORE corpus retrieval (see reasoningEngine.ts's call site) specifically
+// so a genuine "write me code" request gets real code instead of a corpus-grounded explanation —
+// that ordering is correct and must stay. The problem was several topic branches below had no
+// guard at all against a DEFINITIONAL or COMPARISON question about the same keyword: "what's the
+// difference between LRU and LFU eviction" matched the same bare `/\blru\b/` check as "write me
+// an LRU cache" and got the identical canned code dump instead of ever reaching the corpus's
+// actual LRU-vs-LFU comparison entry — confirmed live by the corpus-testing loop (see
+// src/ai-engine/corpus/cachingSerializationTypeSystemsGaps.ts's own note on this). The SQL branch
+// below already had a working guard (`isSqlDefinitionQuestion`) for exactly this — this is that
+// same idea, generalized into one shared helper instead of copy-pasting topic-specific wording
+// four more times, with two additions the SQL version didn't need: (a) it also matches "X vs Y" /
+// "difference between X and Y" shapes that don't start with a question word, since that's the
+// exact phrasing the corpus-testing loop uses and that's what caught this bug in the first place;
+// (b) an explicit "how do I write/implement" carve-out inside asksToGenerate, so a phrasing like
+// "explain how to write a debounce function" (starts with "explain", which alone would read as
+// definitional) still correctly falls through to real code generation.
+function isDefinitionOrComparisonQuestion(lower: string): boolean {
+  const asksForExplanation =
+    /^(?:what(?:'s|\s+is|\s+are|\s+does)|define|explain|how\s+do(?:es)?\s+.+\s+(?:differ|compare|work))\b/i.test(lower.trim()) ||
+    /\bdifference\s+between\b/i.test(lower) ||
+    /\bvs\.?\b/i.test(lower) ||
+    /\bcompared?\s+to\b/i.test(lower);
+  const asksToGenerate =
+    /\b(write|generate|create|build|make\s+me|show\s+me\s+(?:a|an|some)|implement|code\s+(?:up|me))\b/i.test(lower);
+  return asksForExplanation && !asksToGenerate;
+}
+
 export function trySolveCode(prompt: string): CodeSolution | null {
   const lower = prompt.toLowerCase();
 
@@ -127,7 +154,7 @@ client.login(process.env.DISCORD_BOT_TOKEN);`,
   }
 
   // 1. Debounce / Throttle
-  if (lower.includes('debounce') || lower.includes('throttle')) {
+  if (!isDefinitionOrComparisonQuestion(lower) && (lower.includes('debounce') || lower.includes('throttle'))) {
     const isThrottle = lower.includes('throttle');
     if (isThrottle) {
       return {
@@ -206,7 +233,7 @@ export function debounce<T extends (...args: any[]) => any>(
   // 2. LRU Cache Implementation
   // \b-bounded — bare 'lru' as a substring matched inside "walrus" and "bulrush", returning a full
   // LRU cache code dump for "tell me a fact about a walrus". Verified live.
-  if (lower.includes('lru cache') || /\blru\b/.test(lower)) {
+  if (!isDefinitionOrComparisonQuestion(lower) && (lower.includes('lru cache') || /\blru\b/.test(lower))) {
     return {
       isCode: true,
       language: 'typescript',
@@ -288,7 +315,7 @@ export class LRUCache<K, V> {
   }
 
   // 3. Binary Search / Sorting Algorithms
-  if (lower.includes('quicksort') || lower.includes('quick sort')) {
+  if (!isDefinitionOrComparisonQuestion(lower) && (lower.includes('quicksort') || lower.includes('quick sort'))) {
     return {
       isCode: true,
       language: 'typescript',
@@ -440,11 +467,11 @@ if __name__ == "__main__":
   // concept explanation, not a query to generate — but the bare "sql" keyword used to fire this
   // branch unconditionally, so every SQL-related definition question got the same canned
   // advanced CTE/window-function example back instead of an actual answer to what was asked.
-  // Skip this branch for those and let them fall through to the knowledge corpus.
-  const isSqlDefinitionQuestion =
-    /^(?:what\s+(?:is|are|does)|define|explain\s+what|how\s+do\s+you|how\s+to)\b/i.test(lower.trim()) &&
-    !/\b(write|generate|create|build|make\s+me|show\s+me\s+(?:a|an|some)\s+(?:query|code))\b/i.test(lower);
-  if (!isSqlDefinitionQuestion && (lower.includes('sql') || hasQueryInSqlContext || hasJoinPhrase || lower.includes('group by'))) {
+  // Skip this branch for those and let them fall through to the knowledge corpus. Now uses the
+  // shared isDefinitionOrComparisonQuestion() helper (see its own comment near the top of this
+  // file) instead of a SQL-specific inline copy of the same idea — this branch was the original
+  // template the helper was generalized from.
+  if (!isDefinitionOrComparisonQuestion(lower) && (lower.includes('sql') || hasQueryInSqlContext || hasJoinPhrase || lower.includes('group by'))) {
     return {
       isCode: true,
       language: 'sql',
@@ -487,7 +514,7 @@ ORDER BY sale_month DESC, monthly_revenue_rank ASC;`,
   }
 
   // 7. Regex / Regular Expression generator
-  if (lower.includes('regex') || lower.includes('regular expression')) {
+  if (!isDefinitionOrComparisonQuestion(lower) && (lower.includes('regex') || lower.includes('regular expression'))) {
     return {
       isCode: true,
       language: 'regex',

@@ -25,6 +25,7 @@ import { trySolveCategoryClassification } from '../src/ai-engine/categorySolver'
 import { detectSubjectiveDebate, pickDebateSide } from '../src/ai-engine/argumentEngine';
 import { detectHumanTells, hasListFormatting } from '../src/ai-engine/humanTellDetector';
 import { processForSearch } from '../src/ai-engine/bm25Engine';
+import { trySolveCode } from '../src/ai-engine/codeSolver';
 
 let passed = 0;
 let failed = 0;
@@ -111,6 +112,33 @@ async function runDeterministicChecks() {
     'a bare single-digit token ("item 1") is still dropped (no regression from the length>1 filter)',
     !processForSearch('item 1 on the list').includes('1')
   );
+
+  console.log('\nCode solver definitional/comparison guard:');
+  // trySolveCode() used to hijack ANY prompt mentioning certain keywords into a hardcoded code
+  // dump regardless of whether it was actually a "write me code" request — confirmed live by the
+  // corpus-testing loop: "LRU vs LFU" got the same canned LRUCache implementation as "write me an
+  // LRU cache", never reaching the actual comparison content in the corpus. Fixed with a shared
+  // isDefinitionOrComparisonQuestion() guard applied to every previously-unguarded branch (LRU,
+  // debounce/throttle, quicksort, regex) plus the pre-existing SQL branch, refactored onto the
+  // same shared helper. Each pair below checks both directions so a future edit can't silently
+  // widen the guard into swallowing real "write me code" requests either.
+  const codeGuardCases: [string, boolean][] = [
+    ['what is the difference between LRU and LFU eviction', false],
+    ['write me an LRU cache in TypeScript', true],
+    ['what is the difference between debounce and throttle', false],
+    ['write a debounce function in JavaScript', true],
+    ['how does quicksort compare to mergesort', false],
+    ['implement quicksort in Python', true],
+    ['what is the difference between regex and glob patterns', false],
+    ['write a regex for email validation', true],
+    ['what is a primary key in sql', false],
+    ['write a sql query to join two tables', true],
+  ];
+  for (const [prompt, expectCode] of codeGuardCases) {
+    const result = trySolveCode(prompt);
+    const gotCode = result !== null && result.isCode === true;
+    check(`"${prompt}" -> isCode=${expectCode}`, gotCode === expectCode, `got isCode=${gotCode}`);
+  }
 
   console.log('\nCategory classification:');
   const catResult = trySolveCategoryClassification('which of these is not a mammal: whale, shark, bat');
