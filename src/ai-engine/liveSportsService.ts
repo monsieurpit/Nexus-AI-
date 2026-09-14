@@ -86,6 +86,29 @@ const LEAGUE_MAP: Record<string, LeagueEntry> = {
   mls: { sport: 'soccer', league: 'usa.1', label: 'MLS' },
   'liga mx': { sport: 'soccer', league: 'mex.1', label: 'Liga MX' },
   'copa del rey': { sport: 'soccer', league: 'esp.copa_del_rey', label: 'Copa del Rey' },
+  // Broader soccer coverage, added after Patrick asked for "every football/soccer league" — every
+  // code below was individually verified live against ESPN's standings endpoint before being added
+  // (a wrong code just 400s and the feature cleanly falls through to the normal answer path, but
+  // better to know these actually work rather than guess).
+  // NOT the bare word "championship" — that collides with every other sport's own "championship"
+  // (verified live: "who is leading the F1 championship" was being hijacked by this entry purely
+  // because the substring "championship" appears in the query). "EFL Championship" is the league's
+  // actual proper name, so requiring at least "efl" or "english" alongside it avoids the collision.
+  'efl championship': { sport: 'soccer', league: 'eng.2', label: 'EFL Championship' },
+  'english championship': { sport: 'soccer', league: 'eng.2', label: 'EFL Championship' },
+  eredivisie: { sport: 'soccer', league: 'ned.1', label: 'Eredivisie' },
+  'primeira liga': { sport: 'soccer', league: 'por.1', label: 'Primeira Liga' },
+  'liga portugal': { sport: 'soccer', league: 'por.1', label: 'Primeira Liga' },
+  brasileirao: { sport: 'soccer', league: 'bra.1', label: 'Brasileirão Série A' },
+  'brasileirão': { sport: 'soccer', league: 'bra.1', label: 'Brasileirão Série A' },
+  'serie a brazil': { sport: 'soccer', league: 'bra.1', label: 'Brasileirão Série A' },
+  'liga profesional argentina': { sport: 'soccer', league: 'arg.1', label: 'Liga Profesional Argentina' },
+  'argentine primera division': { sport: 'soccer', league: 'arg.1', label: 'Liga Profesional Argentina' },
+  'scottish premiership': { sport: 'soccer', league: 'sco.1', label: 'Scottish Premiership' },
+  'super lig': { sport: 'soccer', league: 'tur.1', label: 'Süper Lig' },
+  'saudi pro league': { sport: 'soccer', league: 'ksa.1', label: 'Saudi Pro League' },
+  'copa libertadores': { sport: 'soccer', league: 'conmebol.libertadores', label: 'Copa Libertadores' },
+  libertadores: { sport: 'soccer', league: 'conmebol.libertadores', label: 'Copa Libertadores' },
   nba: { sport: 'basketball', league: 'nba', label: 'NBA' },
   'ncaa basketball': { sport: 'basketball', league: 'mens-college-basketball', label: 'NCAA Basketball' },
   'college basketball': { sport: 'basketball', league: 'mens-college-basketball', label: 'NCAA Basketball' },
@@ -94,6 +117,12 @@ const LEAGUE_MAP: Record<string, LeagueEntry> = {
   ncaaf: { sport: 'football', league: 'college-football', label: 'NCAA Football' },
   nhl: { sport: 'hockey', league: 'nhl', label: 'NHL' },
   mlb: { sport: 'baseball', league: 'mlb', label: 'MLB' },
+  // F1's ESPN "sport" segment is 'racing', not 'motorsport' — its standings are driver standings
+  // (name + championship points), a different shape from every other league here (team + W/L/D/pts),
+  // handled separately in getF1DriverStandings/renderF1StandingsContext below.
+  f1: { sport: 'racing', league: 'f1', label: 'Formula 1' },
+  'formula 1': { sport: 'racing', league: 'f1', label: 'Formula 1' },
+  'formula one': { sport: 'racing', league: 'f1', label: 'Formula 1' },
 };
 
 // A handful of well-known club nicknames that don't literally appear in ESPN's own displayName
@@ -301,6 +330,53 @@ export async function getLeagueStandings(leagueEntry: LeagueEntry): Promise<Stan
   return rows.sort((a, b) => a.rank - b.rank);
 }
 
+export interface DriverStandingRow {
+  rank: number;
+  driver: string;
+  points: number | null;
+}
+
+/**
+ * F1's ESPN standings endpoint has a fundamentally different shape from every team-sport league
+ * here: entries are keyed by `athlete` (the driver), not `team`, and the points stat is named
+ * `championshipPts` rather than `points` — plus it carries a `stats` entry per individual race
+ * (one per Grand Prix code) that isn't relevant to "who's leading the championship." Kept as its
+ * own function/type rather than shoehorning drivers into StandingsRow, which is genuinely
+ * team-shaped (wins/losses/draws) and doesn't fit a driver at all.
+ */
+export async function getF1DriverStandings(): Promise<DriverStandingRow[]> {
+  const url = 'https://site.api.espn.com/apis/v2/sports/racing/f1/standings';
+  const data = await espnFetch(url);
+  if (!data || !Array.isArray(data.children)) return [];
+  const driverChild = data.children.find((c: any) => /driver/i.test(c?.name || '')) || data.children[0];
+  const entries = driverChild?.standings?.entries;
+  if (!Array.isArray(entries)) return [];
+  const rows: DriverStandingRow[] = entries.map((entry: any, i: number) => {
+    const rankStat = entry.stats?.find((s: any) => s.name === 'rank');
+    const ptsStat = entry.stats?.find((s: any) => s.name === 'championshipPts');
+    return {
+      rank: Number.isFinite(Number(rankStat?.value)) ? Number(rankStat.value) : i + 1,
+      driver: entry.athlete?.displayName || 'Unknown',
+      points: Number.isFinite(Number(ptsStat?.value)) ? Number(ptsStat.value) : null,
+    };
+  });
+  return rows.sort((a, b) => a.rank - b.rank);
+}
+
+// Patrick reported team names coming back garbled in the actual reply ("bretford" instead of
+// "Brentford") even though the live data fetched from ESPN was correct — the small model was
+// silently respelling/paraphrasing names while relaying them in its own crashout voice. Appended to
+// every render*Context block below so the grounding instruction travels with the data itself no
+// matter which call site uses it.
+
+
+/** Renders a compact, LLM-groundable text block for F1 driver standings. */
+export function renderF1StandingsContext(rows: DriverStandingRow[]): string {
+  if (rows.length === 0) return '[LIVE DATA — Formula 1: driver standings unavailable right now.]';
+  const lines = rows.slice(0, 10).map((r) => `${r.rank}. ${r.driver}${r.points !== null ? ` — ${r.points} pts` : ''}`);
+  return `[LIVE DATA — Formula 1 Driver Championship standings, fetched just now from ESPN — copy every name exactly as spelled here]\n${lines.join('\n')}`;
+}
+
 function formatMatchLine(m: LiveMatch): string {
   const score = m.homeScore !== null && m.awayScore !== null ? `${m.homeTeam} ${m.homeScore} - ${m.awayScore} ${m.awayTeam}` : `${m.homeTeam} vs ${m.awayTeam}`;
   const status = m.isLive ? `LIVE (${m.displayClock || m.statusDetail})` : m.isCompleted ? `Final (${m.statusDetail || 'FT'})` : `Scheduled (${m.statusDetail || m.kickoffIso})`;
@@ -309,14 +385,14 @@ function formatMatchLine(m: LiveMatch): string {
 
 /** Renders a compact, LLM-groundable text block for one match. */
 export function renderMatchContext(m: LiveMatch, leagueLabel: string): string {
-  return `[LIVE DATA — ${leagueLabel}, fetched just now from ESPN]\n${formatMatchLine(m)}`;
+  return `[LIVE DATA — ${leagueLabel}, fetched just now from ESPN — copy every name exactly as spelled here]\n${formatMatchLine(m)}`;
 }
 
 /** Renders a compact, LLM-groundable text block for a league's current scoreboard (multiple matches). */
 export function renderScoreboardContext(matches: LiveMatch[], leagueLabel: string): string {
   if (matches.length === 0) return `[LIVE DATA — ${leagueLabel}: no matches found right now (likely no fixtures today).]`;
   const lines = matches.slice(0, 10).map(formatMatchLine);
-  return `[LIVE DATA — ${leagueLabel} scoreboard, fetched just now from ESPN]\n${lines.join('\n')}`;
+  return `[LIVE DATA — ${leagueLabel} scoreboard, fetched just now from ESPN — copy every name exactly as spelled here]\n${lines.join('\n')}`;
 }
 
 /** Renders a compact, LLM-groundable text block for a league table. */
@@ -326,7 +402,7 @@ export function renderStandingsContext(rows: StandingsRow[], leagueLabel: string
     const record = r.draws !== null ? `${r.wins}W-${r.draws}D-${r.losses}L` : `${r.wins}W-${r.losses}L`;
     return `${r.rank}. ${r.team} — ${record}${r.points !== null ? `, ${r.points} pts` : ''}${r.gamesPlayed !== null ? ` (${r.gamesPlayed} played)` : ''}`;
   });
-  return `[LIVE DATA — ${leagueLabel} standings, fetched just now from ESPN]\n${lines.join('\n')}`;
+  return `[LIVE DATA — ${leagueLabel} standings, fetched just now from ESPN — copy every name exactly as spelled here]\n${lines.join('\n')}`;
 }
 
 // ─── Query intent detection ─────────────────────────────────────────────────
@@ -338,7 +414,14 @@ export interface LiveSportsIntent {
 }
 
 const SCORE_TRIGGER_RE = /\b(?:score|scoreline|result|playing|live|winning|losing|tied|game\s+(?:right\s+)?now|today'?s?\s+(?:game|match))\b/i;
-const STANDINGS_TRIGGER_RE = /\b(?:standings?|table|rankings?|leaderboard|who'?s?\s+(?:top|first|leading|winning the league))\b/i;
+// Was `who'?s?\s+(?:top|first|leading|...)` — that only ever matched the contraction "who's", not
+// the fully spelled-out "who is" (verified live: "who is leading the F1 championship" silently
+// missed this entirely and fell through to static trivia). `who\s?(?:'s|\s+is)` covers both. Also
+// added the bare word "championship" as its own trigger — "who's leading the championship" /
+// "what's the championship standings" are exactly the kind of live-standings question this is meant
+// to catch, and neither contained "standings"/"table"/"leaderboard" before.
+const STANDINGS_TRIGGER_RE =
+  /\b(?:standings?|table|rankings?|leaderboard|championship(?:\s+standings)?|who\s?(?:'s|\s+is)\s+(?:top|first|leading|winning(?:\s+the\s+league)?))\b/i;
 
 /**
  * Detects whether a prompt is asking for LIVE data (a current/recent score, or league standings)
@@ -374,6 +457,14 @@ export function detectLiveSportsIntent(prompt: string): LiveSportsIntent | null 
  */
 export async function resolveLiveSportsContext(intent: LiveSportsIntent): Promise<string | null> {
   if (intent.kind === 'standings' && intent.league) {
+    // F1's standings are driver-shaped (name + championship points), not team-shaped (W/L/D/pts) —
+    // routed to its own fetch/render pair rather than forcing it through getLeagueStandings, whose
+    // StandingsRow type doesn't have anywhere to put a driver name.
+    if (intent.league.sport === 'racing') {
+      const driverRows = await getF1DriverStandings();
+      if (driverRows.length === 0) return null;
+      return renderF1StandingsContext(driverRows);
+    }
     const rows = await getLeagueStandings(intent.league);
     if (rows.length === 0) return null;
     return renderStandingsContext(rows, intent.league.label);
