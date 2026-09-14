@@ -454,8 +454,8 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--nx-bg)] text-[var(--nx-text)]">
-      {/* Icon rail */}
+    <div className="relative flex h-screen gap-3 overflow-hidden bg-[var(--glass-base)] p-3 text-[var(--glass-text)]">
+      {/* Icon rail — a floating glass panel, not an edge-to-edge column */}
       <Sidebar
         settings={settings}
         activePersona={activePersona}
@@ -473,10 +473,10 @@ export default function App() {
 
       {view === 'chat' && (
         <>
-          {/* Conversation list — static column on md+, slide-in drawer below */}
+          {/* Conversation list — floating glass panel, static on md+, slide-in drawer below */}
           <div
-            className={`fixed inset-y-0 left-0 z-40 transition-transform duration-[var(--nx-dur-slow)] md:static md:z-10 md:translate-x-0 ${
-              isConvoDrawerOpen ? 'translate-x-[var(--nx-rail-w)] md:translate-x-0' : '-translate-x-full md:translate-x-0'
+            className={`fixed inset-y-0 left-0 z-40 py-3 pl-3 transition-transform duration-[var(--glass-dur-slow)] md:static md:z-10 md:translate-x-0 md:p-0 ${
+              isConvoDrawerOpen ? 'translate-x-[calc(var(--glass-rail-w)_+_1.5rem)] md:translate-x-0' : '-translate-x-full md:translate-x-0'
             }`}
           >
             <ConversationSidebar
@@ -498,8 +498,8 @@ export default function App() {
             />
           )}
 
-          {/* Main chat */}
-          <main className="flex min-w-0 flex-1 flex-col">
+          {/* Main chat — its own floating glass panel */}
+          <main className="glass-panel flex min-w-0 flex-1 flex-col overflow-hidden">
             <ChatView
               onToggleConversations={() => setIsConvoDrawerOpen((v) => !v)}
               // Forces a full remount whenever the active conversation changes, resetting every piece
@@ -532,7 +532,7 @@ export default function App() {
       )}
 
       {view === 'code' && (
-        <main className="flex min-w-0 flex-1 flex-col bg-[var(--nx-surface)]">
+        <main className="glass-panel flex min-w-0 flex-1 flex-col overflow-hidden">
           <NexusCodeView />
         </main>
       )}

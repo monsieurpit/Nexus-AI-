@@ -101,7 +101,7 @@ const RailButton: React.FC<RailButtonProps> = ({
     <div className="relative flex items-center justify-center group w-full">
       {/* Active / hover indicator pill, Discord-server-list style */}
       <span
-        className={`absolute left-0 rounded-r-full bg-[var(--nx-text)] transition-all duration-150 ${
+        className={`absolute left-0 rounded-r-full bg-[var(--glass-text)] transition-all duration-150 ${
           active ? 'h-7 w-[3px]' : 'h-2 w-[3px] opacity-0 group-hover:opacity-100 group-hover:h-4'
         }`}
       />
@@ -117,10 +117,10 @@ const RailButton: React.FC<RailButtonProps> = ({
         aria-pressed={active}
         className={`w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-150 ${
           active
-            ? 'rounded-[14px] bg-[var(--nx-accent)] text-[var(--nx-on-accent)] shadow-[var(--nx-shadow-glow)]'
+            ? 'rounded-[14px] bg-[image:var(--glass-accent-gradient)] text-[var(--glass-on-accent)] shadow-[var(--glass-shadow-glow)]'
             : variant === 'tool'
-            ? 'rounded-[18px] hover:rounded-[14px] bg-transparent text-[var(--nx-text-faint)] hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-text)]'
-            : 'rounded-[18px] hover:rounded-[14px] bg-[var(--nx-elevated)] text-[var(--nx-text-muted)] hover:bg-[var(--nx-accent)] hover:text-[var(--nx-on-accent)]'
+            ? 'rounded-[18px] hover:rounded-[14px] bg-transparent text-[var(--glass-text-faint)] hover:bg-[var(--glass-panel-elevated)] hover:text-[var(--glass-text)]'
+            : 'rounded-[18px] hover:rounded-[14px] bg-[var(--glass-panel-elevated)] text-[var(--glass-text-muted)] hover:bg-[image:var(--glass-accent-gradient)] hover:text-[var(--glass-on-accent)]'
         }`}
       >
         {children}
@@ -129,12 +129,12 @@ const RailButton: React.FC<RailButtonProps> = ({
       {tooltipPos &&
         createPortal(
           <div
-            className="pointer-events-none fixed z-[100] -translate-y-1/2 rounded-lg bg-[var(--nx-elevated-2)] border border-[var(--nx-border)] px-3 py-2 shadow-[var(--nx-shadow-md)]"
+            className="glass-panel-elevated pointer-events-none fixed z-[100] -translate-y-1/2 px-3 py-2"
             style={{ top: tooltipPos.top, left: tooltipPos.left }}
           >
-            <div className="whitespace-nowrap text-xs font-semibold text-[var(--nx-text)]">{title}</div>
+            <div className="whitespace-nowrap text-xs font-semibold text-[var(--glass-text)]">{title}</div>
             {subtitle && (
-              <div className="mt-0.5 max-w-[200px] whitespace-normal text-[11px] leading-snug text-[var(--nx-text-muted)]">
+              <div className="mt-0.5 max-w-[200px] whitespace-normal text-[11px] leading-snug text-[var(--glass-text-muted)]">
                 {subtitle}
               </div>
             )}
@@ -146,7 +146,7 @@ const RailButton: React.FC<RailButtonProps> = ({
 };
 
 const RailDivider: React.FC = () => (
-  <div className="my-1 h-px w-7 shrink-0 rounded-full bg-[var(--nx-border)]" />
+  <div className="my-1 h-px w-7 shrink-0 rounded-full bg-[var(--glass-border)]" />
 );
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -162,12 +162,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   return (
     <nav
-      className="relative z-10 flex h-screen w-[var(--nx-rail-w)] shrink-0 flex-col items-center gap-1.5 border-r border-[var(--nx-border-subtle)] bg-[var(--nx-sidebar)] py-3"
+      className="glass-panel relative z-10 flex h-full w-[var(--glass-rail-w)] shrink-0 flex-col items-center gap-1.5 overflow-hidden py-3"
       aria-label="Nexus navigation"
     >
       {/* Brand mark */}
       <div
-        className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-[var(--nx-accent)] to-[#4f46b5] text-white shadow-[var(--nx-shadow-glow)]"
+        className="mb-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[image:var(--glass-accent-gradient)] text-white shadow-[var(--glass-shadow-glow)]"
         title="Nexus AI"
       >
         <Sparkles className="h-5 w-5" />

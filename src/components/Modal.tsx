@@ -56,7 +56,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className="nx-modal-overlay"
+      className="glass-modal-overlay"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -64,24 +64,24 @@ export const Modal: React.FC<ModalProps> = ({
       aria-modal="true"
       aria-label={title}
     >
-      <div className={`nx-modal-panel ${maxWidth}`} onMouseDown={(e) => e.stopPropagation()}>
-        <div className="nx-modal-header">
+      <div className={`glass-modal-panel ${maxWidth}`} onMouseDown={(e) => e.stopPropagation()}>
+        <div className="glass-modal-header">
           {icon && (
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--nx-r-sm)] bg-[var(--nx-accent)] text-white">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--glass-r-sm)] bg-[image:var(--glass-accent-gradient)] text-white shadow-[var(--glass-shadow-glow)]">
               {icon}
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-[15px] font-bold text-[var(--nx-text)]">{title}</h2>
+            <h2 className="truncate text-[15px] font-bold text-[var(--glass-text)]">{title}</h2>
             {subtitle && (
-              <p className="truncate text-xs text-[var(--nx-text-faint)]">{subtitle}</p>
+              <p className="truncate text-xs text-[var(--glass-text-faint)]">{subtitle}</p>
             )}
           </div>
           {headerAside}
           <button
             type="button"
             onClick={onClose}
-            className="rounded-[var(--nx-r-sm)] p-1.5 text-[var(--nx-text-faint)] transition hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-text)]"
+            className="rounded-[var(--glass-r-sm)] p-1.5 text-[var(--glass-text-faint)] transition hover:bg-[var(--glass-panel-elevated)] hover:text-[var(--glass-text)]"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -90,7 +90,7 @@ export const Modal: React.FC<ModalProps> = ({
 
         <div className={`min-h-0 flex-1 overflow-y-auto ${padBody ? 'p-5' : ''}`}>{children}</div>
 
-        {footer && <div className="nx-modal-footer">{footer}</div>}
+        {footer && <div className="glass-modal-footer">{footer}</div>}
       </div>
     </div>
   );

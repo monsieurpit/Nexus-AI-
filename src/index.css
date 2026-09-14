@@ -1,79 +1,90 @@
 @import "tailwindcss";
 
 /* =========================================================================
- * NEXUS AI — DESIGN SYSTEM
+ * NEXUS AI — LIQUID GLASS DESIGN SYSTEM
  * -------------------------------------------------------------------------
- * One source of truth for colour, type, spacing, radius, elevation and
- * motion. Components should reference these tokens (via var(--nx-*) or the
- * .nx-* utility classes below) instead of hard-coding hex values or
- * one-off Tailwind combinations, so the whole surface stays consistent and
- * a future re-theme is a single-file change.
- *
- * SURFACE LAYERS (deepest -> highest):
- *   --nx-bg          app shell / behind everything
- *   --nx-sidebar     the icon rail + conversation list
- *   --nx-surface     the main content plane (chat transcript)
- *   --nx-elevated    cards, input bar, list rows, popovers
- *   --nx-elevated-2  anything above an elevated surface (modal panels)
+ * Every surface is a translucent, blurred pane of "glass" floating over an
+ * animated ambient background rather than a flat solid colour. Components
+ * reference the --glass-* tokens (via var(--glass-*) or the .glass-*
+ * utility classes below) instead of hard-coding colours, so the whole
+ * surface stays one coherent material and a future re-theme is a
+ * single-file change.
  * ===================================================================== */
 :root {
-  /* ---- surface + line ---- */
-  --nx-bg: #090a0e;
-  --nx-sidebar: #0f1116;
-  --nx-surface: #131519;
-  --nx-elevated: #1b1e25;
-  --nx-elevated-hover: #23262f;
-  --nx-elevated-2: #20242c;
-  --nx-border: #2b2f39;
-  --nx-border-strong: #3a3f4b;
-  --nx-border-subtle: #1e2128;
+  /* ---- base + ambient ---- */
+  --glass-base: #050507;
+  --glass-base-2: #08080c;
+
+  /* ---- glass panel tints (translucent, layered over backdrop-filter) ---- */
+  --glass-panel: rgba(255, 255, 255, 0.055);
+  --glass-panel-hover: rgba(255, 255, 255, 0.085);
+  --glass-panel-elevated: rgba(255, 255, 255, 0.09);
+  --glass-panel-elevated-hover: rgba(255, 255, 255, 0.12);
+  --glass-panel-solid-fallback: #131318;
+  --glass-panel-elevated-solid-fallback: #1a1a21;
+
+  /* ---- borders / highlights ---- */
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-border-strong: rgba(255, 255, 255, 0.16);
+  --glass-border-subtle: rgba(255, 255, 255, 0.05);
+  --glass-highlight: rgba(255, 255, 255, 0.35);
 
   /* ---- text ---- */
-  --nx-text: #f2f3f7;
-  --nx-text-muted: #a4a7b4;
-  --nx-text-faint: #6d7180;
+  --glass-text: #f5f6fa;
+  --glass-text-muted: #a9acba;
+  --glass-text-faint: #6f7284;
 
-  /* ---- brand accent (violet, distinct from Discord blurple) ---- */
-  --nx-accent: #7c6cf6;
-  --nx-accent-hover: #948bff;
-  --nx-accent-press: #6a58e8;
-  --nx-accent-soft: rgba(124, 108, 246, 0.14);
-  --nx-accent-ring: rgba(124, 108, 246, 0.4);
-  --nx-on-accent: #ffffff;
+  /* ---- accent (violet -> blue gradient family) ---- */
+  --glass-accent-a: #8b7bff;
+  --glass-accent-b: #5ac8ff;
+  --glass-accent: #8b7bff;
+  --glass-accent-hover: #a397ff;
+  --glass-accent-press: #7566e6;
+  --glass-accent-soft: rgba(139, 123, 255, 0.16);
+  --glass-accent-ring: rgba(139, 123, 255, 0.45);
+  --glass-accent-gradient: linear-gradient(135deg, var(--glass-accent-a), var(--glass-accent-b));
+  --glass-on-accent: #ffffff;
 
   /* ---- semantic ---- */
-  --nx-success: #3fce97;
-  --nx-success-soft: rgba(63, 206, 151, 0.13);
-  --nx-warn: #f5b83d;
-  --nx-danger: #f4576b;
-  --nx-danger-soft: rgba(244, 87, 107, 0.13);
-  --nx-info: #4aa8ff;
-  --nx-info-soft: rgba(74, 168, 255, 0.13);
+  --glass-success: #4ee0a6;
+  --glass-success-soft: rgba(78, 224, 166, 0.14);
+  --glass-warn: #ffc65c;
+  --glass-warn-soft: rgba(255, 198, 92, 0.14);
+  --glass-danger: #ff6b81;
+  --glass-danger-soft: rgba(255, 107, 129, 0.14);
+  --glass-info: #5ac8ff;
+  --glass-info-soft: rgba(90, 200, 255, 0.14);
 
-  /* ---- radius scale ---- */
-  --nx-r-xs: 6px;
-  --nx-r-sm: 9px;
-  --nx-r-md: 12px;
-  --nx-r-lg: 16px;
-  --nx-r-xl: 22px;
-  --nx-r-full: 9999px;
+  /* ---- radius scale (rounder, more "pill"-leaning than the old system) ---- */
+  --glass-r-xs: 8px;
+  --glass-r-sm: 12px;
+  --glass-r-md: 16px;
+  --glass-r-lg: 20px;
+  --glass-r-xl: 28px;
+  --glass-r-full: 9999px;
+
+  /* ---- blur amounts ---- */
+  --glass-blur-sm: 14px;
+  --glass-blur-md: 24px;
+  --glass-blur-lg: 36px;
 
   /* ---- elevation ---- */
-  --nx-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --nx-shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.45);
-  --nx-shadow-lg: 0 18px 50px -12px rgba(0, 0, 0, 0.6);
-  --nx-shadow-glow: 0 0 0 1px var(--nx-accent-soft), 0 8px 30px -8px rgba(124, 108, 246, 0.35);
+  --glass-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --glass-shadow-md: 0 10px 30px -8px rgba(0, 0, 0, 0.55);
+  --glass-shadow-lg: 0 24px 70px -16px rgba(0, 0, 0, 0.7);
+  --glass-shadow-glow: 0 0 0 1px var(--glass-accent-soft), 0 10px 36px -10px rgba(139, 123, 255, 0.45);
 
   /* ---- motion ---- */
-  --nx-ease: cubic-bezier(0.4, 0, 0.2, 1);
-  --nx-dur-fast: 110ms;
-  --nx-dur: 170ms;
-  --nx-dur-slow: 280ms;
+  --glass-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --glass-dur-fast: 120ms;
+  --glass-dur: 200ms;
+  --glass-dur-slow: 360ms;
 
-  /* ---- layout metrics (kept here so the shell and components agree) ---- */
-  --nx-rail-w: 72px;
-  --nx-convo-w: 264px;
-  --nx-content-max: 46rem;
+  /* ---- layout metrics ---- */
+  --glass-rail-w: 76px;
+  --glass-convo-w: 272px;
+  --glass-content-max: 46rem;
+  --glass-gap: 12px;
 }
 
 /* =========================================================================
@@ -81,7 +92,7 @@
  * ===================================================================== */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--nx-elevated-hover) transparent;
+  scrollbar-color: var(--glass-panel-elevated-hover) transparent;
 }
 
 html,
@@ -92,8 +103,8 @@ body,
 
 body {
   margin: 0;
-  background: var(--nx-bg);
-  color: var(--nx-text);
+  background: var(--glass-base);
+  color: var(--glass-text);
   color-scheme: dark;
   font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
@@ -102,30 +113,40 @@ body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-/* Ambient depth for the shell — a very soft violet glow top-left, so the flat
- * near-black doesn't read as dead space. Sits behind everything. */
-body::before {
+/* Ambient mesh — a slowly drifting field of colour behind every glass panel
+ * so translucency always has something to refract, rather than sitting over
+ * dead flat black. Two stacked layers moving at different speeds. */
+body::before,
+body::after {
   content: "";
   position: fixed;
-  inset: 0;
+  inset: -10%;
   pointer-events: none;
   z-index: 0;
+}
+body::before {
   background:
-    radial-gradient(60rem 40rem at -10% -10%, rgba(124, 108, 246, 0.08), transparent 60%),
-    radial-gradient(50rem 40rem at 110% 0%, rgba(74, 168, 255, 0.05), transparent 55%);
+    radial-gradient(46rem 34rem at 8% 12%, rgba(139, 123, 255, 0.22), transparent 60%),
+    radial-gradient(40rem 32rem at 92% 8%, rgba(90, 200, 255, 0.14), transparent 55%),
+    radial-gradient(50rem 40rem at 50% 100%, rgba(255, 107, 200, 0.08), transparent 60%);
+  animation: glass-drift 26s var(--glass-ease) infinite alternate;
+}
+body::after {
+  background: radial-gradient(38rem 30rem at 70% 60%, rgba(78, 224, 166, 0.06), transparent 60%);
+  animation: glass-drift 34s var(--glass-ease) infinite alternate-reverse;
 }
 
 ::selection {
-  background: var(--nx-accent);
-  color: var(--nx-on-accent);
+  background: var(--glass-accent);
+  color: var(--glass-on-accent);
 }
 
 /* Consistent keyboard focus everywhere — never a raw browser outline, never
  * nothing. Mouse clicks don't trigger :focus-visible so it stays quiet. */
 :focus-visible {
-  outline: 2px solid var(--nx-accent);
+  outline: 2px solid var(--glass-accent-hover);
   outline-offset: 2px;
-  border-radius: var(--nx-r-xs);
+  border-radius: var(--glass-r-xs);
 }
 
 *::-webkit-scrollbar {
@@ -136,13 +157,13 @@ body::before {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background-color: var(--nx-elevated-hover);
-  border-radius: var(--nx-r-full);
+  background-color: var(--glass-panel-elevated-hover);
+  border-radius: var(--glass-r-full);
   border: 2px solid transparent;
   background-clip: content-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background-color: var(--nx-border-strong);
+  background-color: var(--glass-border-strong);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -156,19 +177,44 @@ body::before {
 }
 
 /* =========================================================================
- * REUSABLE COMPONENT CLASSES
- * Small, composable primitives. Prefer these over re-deriving the same
- * Tailwind stack in every component.
+ * REUSABLE COMPONENT CLASSES — the glass material system
  * ===================================================================== */
 @layer components {
+  /* ---- glass panel primitive (the core material) ---- */
+  .glass-panel {
+    background: var(--glass-panel);
+    backdrop-filter: blur(var(--glass-blur-md)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-md)) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--glass-r-lg);
+    box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-md);
+  }
+  .glass-panel-elevated {
+    background: var(--glass-panel-elevated);
+    backdrop-filter: blur(var(--glass-blur-lg)) saturate(190%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(190%);
+    border: 1px solid var(--glass-border-strong);
+    border-radius: var(--glass-r-xl);
+    box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-lg);
+  }
+  @supports not (backdrop-filter: blur(1px)) {
+    .glass-panel {
+      background: var(--glass-panel-solid-fallback);
+    }
+    .glass-panel-elevated {
+      background: var(--glass-panel-elevated-solid-fallback);
+    }
+  }
+
   /* ---- buttons ---- */
-  .nx-btn {
+  .glass-btn {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    padding: 0.5rem 0.9rem;
-    border-radius: var(--nx-r-md);
+    padding: 0.55rem 1rem;
+    border-radius: var(--glass-r-md);
     font-size: 0.8125rem;
     font-weight: 600;
     line-height: 1;
@@ -176,126 +222,151 @@ body::before {
     cursor: pointer;
     user-select: none;
     border: 1px solid transparent;
-    transition: background-color var(--nx-dur) var(--nx-ease),
-      border-color var(--nx-dur) var(--nx-ease), color var(--nx-dur) var(--nx-ease),
-      transform var(--nx-dur-fast) var(--nx-ease), box-shadow var(--nx-dur) var(--nx-ease);
+    overflow: hidden;
+    transition: background-color var(--glass-dur) var(--glass-ease),
+      border-color var(--glass-dur) var(--glass-ease), color var(--glass-dur) var(--glass-ease),
+      transform var(--glass-dur-fast) var(--glass-ease), box-shadow var(--glass-dur) var(--glass-ease);
   }
-  .nx-btn:active {
-    transform: translateY(0.5px) scale(0.985);
+  .glass-btn:active {
+    transform: translateY(0.5px) scale(0.97);
   }
-  .nx-btn:disabled {
-    opacity: 0.45;
+  .glass-btn:disabled {
+    opacity: 0.4;
     cursor: not-allowed;
   }
-  .nx-btn-primary {
-    background: var(--nx-accent);
-    color: var(--nx-on-accent);
+  .glass-btn-primary {
+    background: var(--glass-accent-gradient);
+    color: var(--glass-on-accent);
   }
-  .nx-btn-primary:hover:not(:disabled) {
-    background: var(--nx-accent-hover);
-    box-shadow: var(--nx-shadow-glow);
+  .glass-btn-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: var(--glass-shadow-glow);
   }
-  .nx-btn-secondary {
-    background: var(--nx-elevated);
-    color: var(--nx-text);
-    border-color: var(--nx-border);
+  .glass-btn-secondary {
+    background: var(--glass-panel-elevated);
+    backdrop-filter: blur(var(--glass-blur-sm)) saturate(160%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(160%);
+    color: var(--glass-text);
+    border-color: var(--glass-border);
   }
-  .nx-btn-secondary:hover:not(:disabled) {
-    background: var(--nx-elevated-hover);
-    border-color: var(--nx-border-strong);
+  .glass-btn-secondary:hover:not(:disabled) {
+    background: var(--glass-panel-elevated-hover);
+    border-color: var(--glass-border-strong);
   }
-  .nx-btn-ghost {
+  .glass-btn-ghost {
     background: transparent;
-    color: var(--nx-text-muted);
+    color: var(--glass-text-muted);
   }
-  .nx-btn-ghost:hover:not(:disabled) {
-    background: var(--nx-elevated);
-    color: var(--nx-text);
+  .glass-btn-ghost:hover:not(:disabled) {
+    background: var(--glass-panel);
+    color: var(--glass-text);
   }
-  .nx-btn-danger {
-    background: var(--nx-danger);
-    color: #fff;
+  .glass-btn-danger {
+    background: var(--glass-danger);
+    color: #1a0509;
   }
-  .nx-btn-danger:hover:not(:disabled) {
+  .glass-btn-danger:hover:not(:disabled) {
     filter: brightness(1.08);
   }
 
-  /* ---- surfaces ---- */
-  .nx-card {
-    background: var(--nx-elevated);
-    border: 1px solid var(--nx-border);
-    border-radius: var(--nx-r-lg);
+  /* ---- glass shimmer sweep on hover (used by cards/buttons that opt in) ---- */
+  .glass-sheen {
+    position: relative;
+    overflow: hidden;
   }
-  .nx-card-interactive {
-    transition: border-color var(--nx-dur) var(--nx-ease),
-      background-color var(--nx-dur) var(--nx-ease), transform var(--nx-dur) var(--nx-ease);
+  .glass-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.09) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform var(--glass-dur-slow) var(--glass-ease);
+    pointer-events: none;
   }
-  .nx-card-interactive:hover {
-    border-color: var(--nx-accent);
-    background: var(--nx-elevated-hover);
+  .glass-sheen:hover::after {
+    transform: translateX(120%);
+  }
+
+  /* ---- surfaces / cards ---- */
+  .glass-card {
+    background: var(--glass-panel);
+    backdrop-filter: blur(var(--glass-blur-sm)) saturate(170%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(170%);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--glass-r-lg);
+  }
+  .glass-card-interactive {
+    transition: border-color var(--glass-dur) var(--glass-ease),
+      background-color var(--glass-dur) var(--glass-ease), transform var(--glass-dur) var(--glass-ease);
+  }
+  .glass-card-interactive:hover {
+    border-color: var(--glass-accent);
+    background: var(--glass-panel-hover);
   }
 
   /* ---- form controls ---- */
-  .nx-input {
+  .glass-input {
     width: 100%;
-    background: var(--nx-bg);
-    border: 1px solid var(--nx-border);
-    border-radius: var(--nx-r-md);
-    padding: 0.55rem 0.8rem;
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(var(--glass-blur-sm));
+    -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--glass-r-md);
+    padding: 0.6rem 0.85rem;
     font-size: 0.8125rem;
-    color: var(--nx-text);
-    transition: border-color var(--nx-dur) var(--nx-ease), box-shadow var(--nx-dur) var(--nx-ease);
+    color: var(--glass-text);
+    transition: border-color var(--glass-dur) var(--glass-ease), box-shadow var(--glass-dur) var(--glass-ease);
   }
-  .nx-input::placeholder {
-    color: var(--nx-text-faint);
+  .glass-input::placeholder {
+    color: var(--glass-text-faint);
   }
-  .nx-input:focus {
+  .glass-input:focus {
     outline: none;
-    border-color: var(--nx-accent);
-    box-shadow: 0 0 0 3px var(--nx-accent-soft);
+    border-color: var(--glass-accent);
+    box-shadow: 0 0 0 3px var(--glass-accent-soft);
   }
 
   /* ---- pills / badges ---- */
-  .nx-badge {
+  .glass-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: var(--nx-r-full);
+    padding: 0.15rem 0.55rem;
+    border-radius: var(--glass-r-full);
     font-size: 0.6875rem;
     font-weight: 600;
     line-height: 1.4;
-    background: var(--nx-elevated);
-    color: var(--nx-text-muted);
-    border: 1px solid var(--nx-border-subtle);
+    background: var(--glass-panel);
+    color: var(--glass-text-muted);
+    border: 1px solid var(--glass-border-subtle);
   }
-  .nx-badge-accent {
-    background: var(--nx-accent-soft);
-    color: var(--nx-accent-hover);
+  .glass-badge-accent {
+    background: var(--glass-accent-soft);
+    color: var(--glass-accent-hover);
     border-color: transparent;
   }
-  .nx-badge-success {
-    background: var(--nx-success-soft);
-    color: var(--nx-success);
+  .glass-badge-success {
+    background: var(--glass-success-soft);
+    color: var(--glass-success);
     border-color: transparent;
   }
-  .nx-badge-info {
-    background: var(--nx-info-soft);
-    color: var(--nx-info);
+  .glass-badge-info {
+    background: var(--glass-info-soft);
+    color: var(--glass-info);
     border-color: transparent;
   }
 
   /* ---- section eyebrow label ---- */
-  .nx-eyebrow {
+  .glass-eyebrow {
     font-size: 0.6875rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
-    color: var(--nx-text-faint);
+    color: var(--glass-text-faint);
   }
 
   /* ---- modal chrome ---- */
-  .nx-modal-overlay {
+  .glass-modal-overlay {
     position: fixed;
     inset: 0;
     z-index: 60;
@@ -303,54 +374,70 @@ body::before {
     align-items: center;
     justify-content: center;
     padding: 1rem;
-    background: rgba(5, 6, 9, 0.72);
-    backdrop-filter: blur(4px);
-    animation: nx-fade-in var(--nx-dur) var(--nx-ease);
+    background: rgba(3, 3, 6, 0.55);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    animation: glass-fade-in var(--glass-dur) var(--glass-ease);
   }
-  .nx-modal-panel {
+  .glass-modal-panel {
     width: 100%;
-    background: var(--nx-elevated-2);
-    border: 1px solid var(--nx-border);
-    border-radius: var(--nx-r-xl);
-    box-shadow: var(--nx-shadow-lg);
+    background: var(--glass-panel-elevated);
+    backdrop-filter: blur(var(--glass-blur-lg)) saturate(200%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(200%);
+    border: 1px solid var(--glass-border-strong);
+    border-radius: var(--glass-r-xl);
+    box-shadow: inset 0 1px 0 var(--glass-highlight), var(--glass-shadow-lg);
     display: flex;
     flex-direction: column;
     max-height: min(90vh, 900px);
     overflow: hidden;
-    animation: nx-scale-in var(--nx-dur-slow) var(--nx-ease);
+    animation: glass-scale-in var(--glass-dur-slow) var(--glass-ease);
   }
-  .nx-modal-header {
+  @supports not (backdrop-filter: blur(1px)) {
+    .glass-modal-panel {
+      background: var(--glass-panel-elevated-solid-fallback);
+    }
+  }
+  .glass-modal-header {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 1rem 1.25rem;
-    border-bottom: 1px solid var(--nx-border-subtle);
+    padding: 1.05rem 1.3rem;
+    border-bottom: 1px solid var(--glass-border-subtle);
   }
-  .nx-modal-body {
-    padding: 1.25rem;
+  .glass-modal-body {
+    padding: 1.3rem;
     overflow-y: auto;
   }
-  .nx-modal-footer {
+  .glass-modal-footer {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 0.6rem;
-    padding: 0.9rem 1.25rem;
-    border-top: 1px solid var(--nx-border-subtle);
-    background: var(--nx-elevated);
+    padding: 0.9rem 1.3rem;
+    border-top: 1px solid var(--glass-border-subtle);
+    background: rgba(255, 255, 255, 0.03);
   }
 
   /* ---- thin divider ---- */
-  .nx-divider {
+  .glass-divider {
     height: 1px;
-    background: var(--nx-border-subtle);
+    background: var(--glass-border-subtle);
   }
 }
 
 /* =========================================================================
  * ANIMATIONS
  * ===================================================================== */
-@keyframes nx-fade-in {
+@keyframes glass-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(2%, 3%, 0) scale(1.06);
+  }
+}
+@keyframes glass-fade-in {
   from {
     opacity: 0;
   }
@@ -358,32 +445,34 @@ body::before {
     opacity: 1;
   }
 }
-@keyframes nx-slide-up {
+@keyframes glass-slide-up {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
-@keyframes nx-scale-in {
+@keyframes glass-scale-in {
   from {
     opacity: 0;
-    transform: scale(0.97) translateY(6px);
+    filter: blur(6px);
+    transform: scale(0.94) translateY(10px);
   }
   to {
     opacity: 1;
+    filter: blur(0);
     transform: scale(1) translateY(0);
   }
 }
-@keyframes nx-shimmer {
+@keyframes glass-shimmer {
   100% {
     transform: translateX(100%);
   }
 }
-@keyframes nx-pulse-dot {
+@keyframes glass-pulse-dot {
   0%,
   100% {
     opacity: 0.35;
@@ -395,51 +484,46 @@ body::before {
   }
 }
 
-.nx-animate-in {
-  animation: nx-slide-up var(--nx-dur-slow) var(--nx-ease);
+.glass-animate-in {
+  animation: glass-slide-up var(--glass-dur-slow) var(--glass-ease);
 }
-.nx-fade-in {
-  animation: nx-fade-in var(--nx-dur) var(--nx-ease);
+.glass-fade-in {
+  animation: glass-fade-in var(--glass-dur) var(--glass-ease);
 }
 
 /* Skeleton shimmer block */
-.nx-skeleton {
+.glass-skeleton {
   position: relative;
   overflow: hidden;
-  background: var(--nx-elevated);
-  border-radius: var(--nx-r-sm);
+  background: var(--glass-panel);
+  border-radius: var(--glass-r-sm);
 }
-.nx-skeleton::after {
+.glass-skeleton::after {
   content: "";
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.06),
-    transparent
-  );
-  animation: nx-shimmer 1.5s infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  animation: glass-shimmer 1.5s infinite;
 }
 
 /* Typing dots — used by the streaming indicator */
-.nx-typing {
+.glass-typing {
   display: inline-flex;
   gap: 4px;
   align-items: center;
 }
-.nx-typing span {
+.glass-typing span {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--nx-accent);
-  animation: nx-pulse-dot 1.1s infinite var(--nx-ease);
+  background: var(--glass-accent-gradient);
+  animation: glass-pulse-dot 1.1s infinite var(--glass-ease);
 }
-.nx-typing span:nth-child(2) {
+.glass-typing span:nth-child(2) {
   animation-delay: 0.18s;
 }
-.nx-typing span:nth-child(3) {
+.glass-typing span:nth-child(3) {
   animation-delay: 0.36s;
 }
 
@@ -449,7 +533,7 @@ body::before {
 .markdown-content {
   font-size: 0.9rem;
   line-height: 1.7;
-  color: color-mix(in srgb, var(--nx-text) 92%, transparent);
+  color: color-mix(in srgb, var(--glass-text) 92%, transparent);
 }
 .markdown-content > :first-child {
   margin-top: 0;
@@ -466,7 +550,7 @@ body::before {
 .markdown-content h2,
 .markdown-content h3,
 .markdown-content h4 {
-  color: var(--nx-text);
+  color: var(--glass-text);
   font-weight: 700;
   line-height: 1.35;
   margin: 1.15rem 0 0.5rem;
@@ -503,22 +587,22 @@ body::before {
   line-height: 1.6;
 }
 .markdown-content li::marker {
-  color: var(--nx-text-faint);
+  color: var(--glass-text-faint);
 }
 
 .markdown-content hr {
   margin: 1.35rem 0;
   border: 0;
-  border-top: 1px solid var(--nx-border);
+  border-top: 1px solid var(--glass-border);
 }
 
 .markdown-content blockquote {
-  border-left: 3px solid var(--nx-accent);
+  border-left: 3px solid var(--glass-accent);
   padding: 0.35rem 0 0.35rem 1rem;
   margin: 0.8rem 0;
-  color: var(--nx-text-muted);
-  background: var(--nx-elevated);
-  border-radius: 0 var(--nx-r-sm) var(--nx-r-sm) 0;
+  color: var(--glass-text-muted);
+  background: var(--glass-panel);
+  border-radius: 0 var(--glass-r-sm) var(--glass-r-sm) 0;
 }
 .markdown-content blockquote p:last-child {
   margin-bottom: 0;
@@ -526,10 +610,10 @@ body::before {
 
 .markdown-content strong {
   font-weight: 650;
-  color: var(--nx-text);
+  color: var(--glass-text);
 }
 .markdown-content em {
-  color: var(--nx-text);
+  color: var(--glass-text);
 }
 
 .markdown-content table {
@@ -542,28 +626,28 @@ body::before {
 }
 .markdown-content th,
 .markdown-content td {
-  border: 1px solid var(--nx-border);
+  border: 1px solid var(--glass-border);
   padding: 0.5rem 0.75rem;
   text-align: left;
 }
 .markdown-content th {
-  background: var(--nx-elevated);
+  background: var(--glass-panel);
   font-weight: 600;
-  color: var(--nx-text);
+  color: var(--glass-text);
 }
 .markdown-content tr:nth-child(even) td {
-  background: color-mix(in srgb, var(--nx-elevated) 40%, transparent);
+  background: color-mix(in srgb, var(--glass-panel) 40%, transparent);
 }
 
 .markdown-content a {
-  color: var(--nx-accent-hover);
+  color: var(--glass-accent-hover);
   text-decoration: underline;
   text-underline-offset: 2px;
-  text-decoration-color: color-mix(in srgb, var(--nx-accent-hover) 45%, transparent);
-  transition: text-decoration-color var(--nx-dur) var(--nx-ease);
+  text-decoration-color: color-mix(in srgb, var(--glass-accent-hover) 45%, transparent);
+  transition: text-decoration-color var(--glass-dur) var(--glass-ease);
 }
 .markdown-content a:hover {
-  text-decoration-color: var(--nx-accent-hover);
+  text-decoration-color: var(--glass-accent-hover);
 }
 
 .markdown-content code {
@@ -572,9 +656,9 @@ body::before {
 }
 .markdown-content :not(pre) > code {
   padding: 0.12rem 0.4rem;
-  border-radius: var(--nx-r-xs);
-  background: var(--nx-elevated);
-  color: var(--nx-accent-hover);
+  border-radius: var(--glass-r-xs);
+  background: var(--glass-panel);
+  color: var(--glass-accent-hover);
   font-size: 0.82em;
   font-weight: 500;
 }

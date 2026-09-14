@@ -1,19 +1,23 @@
 // Standalone legal pages — Terms of Service, Privacy Policy, and Disclaimer — served directly by this server (same
 // pattern as BANC_HTML in bancHtml.ts: plain template-literal HTML, no build step, no React/SPA
 // state involved) so they're stable, directly linkable URLs independent of the chat app's own
-// client-side view state. Styled to match the real site's dark theme (the --nx-* tokens from
-// src/index.css) rather than the separate Noémie banc's palette.
+// client-side view state. Styled to match the real site's liquid-glass dark theme (the --glass-*
+// tokens from src/index.css) rather than the separate Noémie banc's palette.
 
 const SHARED_STYLE = `
   :root {
     color-scheme: dark;
-    --bg: #090a0e; --surface: #131519; --elevated: #1b1e25; --border: #2b2f39;
-    --text: #f2f3f7; --text-muted: #a4a7b4; --text-faint: #6d7180;
-    --accent: #7c6cf6; --warn: #f5b83d;
+    --bg: #050507; --surface: rgba(255, 255, 255, 0.055); --elevated: rgba(255, 255, 255, 0.09); --border: rgba(255, 255, 255, 0.09);
+    --text: #f5f6fa; --text-muted: #a9acba; --text-faint: #6f7284;
+    --accent: #8b7bff; --warn: #ffc65c;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--bg); color: var(--text);
+    margin: 0; color: var(--text);
+    background:
+      radial-gradient(46rem 34rem at 8% 0%, rgba(139, 123, 255, 0.16), transparent 60%),
+      radial-gradient(40rem 32rem at 92% 8%, rgba(90, 200, 255, 0.1), transparent 55%),
+      var(--bg);
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     line-height: 1.65;
   }
@@ -28,8 +32,9 @@ const SHARED_STYLE = `
   ul { padding-left: 1.3em; }
   li { margin-bottom: 8px; }
   .callout {
-    background: rgba(245, 184, 61, 0.08); border: 1px solid rgba(245, 184, 61, 0.3);
-    border-radius: 10px; padding: 16px 18px; margin: 24px 0; color: var(--text);
+    background: rgba(255, 198, 92, 0.08); backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%);
+    border: 1px solid rgba(255, 198, 92, 0.3);
+    border-radius: 16px; padding: 16px 18px; margin: 24px 0; color: var(--text);
   }
   .callout strong { color: var(--warn); }
   .nav { display: flex; gap: 16px; margin-bottom: 32px; font-size: 0.85rem; }
