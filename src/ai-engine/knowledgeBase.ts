@@ -484,6 +484,7 @@ import { PYTHON_FUNDAMENTALS_CORPUS } from './corpus/pythonFundamentalsCorpus';
 import { JAVASCRIPT_TYPESCRIPT_CORPUS } from './corpus/javascriptTypescriptCorpus';
 import { SYSTEMS_LANGUAGES_CORPUS } from './corpus/systemsLanguagesCorpus';
 import { FUNGI_COMPARISONS_GAPS } from './corpus/fungiComparisonsGaps';
+import { JVM_AND_CSHARP_CORPUS } from './corpus/jvmAndCSharpCorpus';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1480,6 +1481,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...SYSTEMS_LANGUAGES_CORPUS,
   // Batch 297 corpus fixes (2026-09-14): fungi/mycology "difference between X and Y" gaps.
   ...FUNGI_COMPARISONS_GAPS,
+  ...JVM_AND_CSHARP_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
