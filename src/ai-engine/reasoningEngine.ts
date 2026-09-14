@@ -3401,6 +3401,26 @@ function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggere
   return buildFinalDirectiveBody(settings, isCrashout, triggered) + getMoodDirective(false);
 }
 
+// The single source of truth for the system prompt sent to Ollama. Used to be independently
+// concatenated inline at every call site (llmSituationalReplyOrFallback, llmGroundedOrFallback's
+// first attempt and its retry, plus a fourth simplified copy in getSystemPromptCharCount) — easy
+// to have one of them drift out of sync with the others when a directive gets added. Same
+// language/draft-suppression priority as before: suppressSwearing > Polish > French > English.
+function buildSystemPrompt(
+  persona: ModelPersona,
+  settings: AISettings,
+  isCrashout: boolean,
+  triggered: boolean,
+  suppressSwearing: boolean,
+  usePolish: boolean,
+  useFrench: boolean
+): string {
+  if (suppressSwearing) return buildCleanDraftSystemPrompt(settings);
+  if (usePolish) return buildPolishSystemPrompt(isCrashout);
+  if (useFrench) return buildFrenchSystemPrompt(isCrashout);
+  return persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, triggered, suppressSwearing);
+}
+
 // Wave 9 (automated "sounds human" watchdog): the exact prompt-bloat problem that cost the earlier
 // latency fix (see localLlmClient.ts's LATENCY_DEBUG comment) — this session's own directive
 // additions quietly grew a confident-grounded-answer prompt to ~4000 tokens with nobody noticing
@@ -3409,7 +3429,7 @@ function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggere
 // regressionCheck.ts to assert a ceiling against, without needing a live Ollama call. Mirrors the
 // exact concatenation llmSituationalReplyOrFallback/llmGroundedOrFallback build inline.
 export function getSystemPromptCharCount(persona: ModelPersona, settings: AISettings, isCrashout: boolean): number {
-  return (persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false)).length;
+  return buildSystemPrompt(persona, settings, isCrashout, false, false, false, false).length;
 }
 
 function buildFinalDirectiveBody(settings: AISettings, isCrashout: boolean, triggered: boolean): string {
@@ -3767,13 +3787,7 @@ async function llmSituationalReplyOrFallback(
   // if it starts drifting.
   const temperature = usePolish || useFrench ? 0.55 : 0.8;
   const generateOptions = {
-    system: suppressSwearing
-      ? buildCleanDraftSystemPrompt(settings)
-      : usePolish
-      ? buildPolishSystemPrompt(isCrashout)
-      : useFrench
-      ? buildFrenchSystemPrompt(isCrashout)
-      : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, triggered, suppressSwearing),
+    system: buildSystemPrompt(persona, settings, isCrashout, triggered, suppressSwearing, usePolish, useFrench),
     // 0.75 is tuned for creative, varied English swearing/tangents, but the model is far less
     // stable in Polish/French (weaker secondary languages for it) at that temperature — observed
     // live, two separate real users got genuinely garbled Polish output ("Jak sieMaszc?", words
@@ -3964,13 +3978,7 @@ async function llmGroundedOrFallback(
       : factualPin ? 0.25 : confident ? 0.5 : 0.7) - reasoningDrop
   );
   const llmResult = await localLlmClient.generate(groundedPrompt, {
-    system: suppressSwearing
-      ? buildCleanDraftSystemPrompt(settings)
-      : usePolish
-      ? buildPolishSystemPrompt(isCrashout)
-      : useFrench
-      ? buildFrenchSystemPrompt(isCrashout)
-      : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false, suppressSwearing),
+    system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
     temperature: usedTemperature,
     maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
     preferPolish: usePolish,
@@ -4040,13 +4048,7 @@ async function llmGroundedOrFallback(
       ? `\n\nTa réponse précédente avait un problème : ${issueSummary} Corrige ça et réponds à nouveau, précisément à la question : ${prompt}`
       : `\n\nYour previous answer had a problem: ${issueSummary} Fix that and answer again, specifically addressing: ${prompt}`;
     const retryResult = await localLlmClient.generate(groundedPrompt + correctionNote, {
-      system: suppressSwearing
-        ? buildCleanDraftSystemPrompt(settings)
-        : usePolish
-        ? buildPolishSystemPrompt(isCrashout)
-        : useFrench
-        ? buildFrenchSystemPrompt(isCrashout)
-        : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false, suppressSwearing),
+      system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
       temperature: usedTemperature,
       maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
       preferPolish: usePolish,
