@@ -6,9 +6,19 @@
 // local AI engine (via a loopback call to this same server's own /api/v1/nexus, reusing the
 // already-verified codeEditRequest -> code-architect -> nexus-12b path) to rewrite it, diffs the
 // result, and — only after explicit approval on the frontend — commits and pushes with the
-// user's own token. Owns the single global concurrency lock: this Mac mini is documented
-// elsewhere (localLlmClient.ts) as already tight on memory with nexus-12b loaded, so only one
-// edit request may be in flight across the whole server at a time.
+// user's own token.
+//
+// Owns a single-slot FIFO wait-queue covering the whole propose->apply/reject/expiry lifecycle:
+// this Mac mini is documented elsewhere (localLlmClient.ts) as already tight on memory with
+// nexus-12b loaded, so only one edit request should actually be doing work at a time. A second
+// concurrent request WAITS its turn rather than being rejected — same philosophy Patrick already
+// uses for Discord chat traffic (see globalRequestQueue in server.ts, which the AI-generation call
+// inside proposeEdit already goes through on its own, separately, via the /api/v1/nexus loopback).
+// This queue is deliberately its own thing rather than reusing globalRequestQueue directly: that
+// queue's maxConcurrency is 2, and proposeEdit's own work already makes a NESTED call into it (the
+// loopback to /api/v1/nexus) — if proposeEdit itself also took a slot from that same pool, two
+// concurrent propose() calls could occupy both slots just waiting on their own nested calls into
+// the very pool they're blocking, deadlocking the whole queue.
 import { randomUUID } from 'crypto';
 import { mkdtemp, readFile as fsReadFile, writeFile, rm } from 'fs/promises';
 import { existsSync } from 'fs';
@@ -21,8 +31,36 @@ const MAX_FILE_BYTES = 200 * 1024; // one file, not a whole-codebase refactor �
 const CLONE_TIMEOUT_MS = 30_000;
 const PENDING_TTL_MS = 10 * 60 * 1000;
 const SELF_PORT = process.env.PORT || 3000;
+// Generous backstop, not a real expected ceiling — this is a low-traffic personal feature, not
+// the main chat path. Just stops an actual abuse flood from growing the waiter list unbounded.
+const MAX_QUEUE_WAITERS = 50;
 
-let lockHolder: { requestId: string; acquiredAt: number } | null = null;
+let lockHolderId: string | null = null;
+const lockWaiters: Array<{ requestId: string; resolve: () => void }> = [];
+
+function acquireLock(requestId: string): Promise<void> {
+  if (lockHolderId === null) {
+    lockHolderId = requestId;
+    return Promise.resolve();
+  }
+  if (lockWaiters.length >= MAX_QUEUE_WAITERS) {
+    return Promise.reject(new Error('Too many repo edits are already queued — try again shortly.'));
+  }
+  return new Promise((resolve) => {
+    lockWaiters.push({ requestId, resolve });
+  });
+}
+
+function releaseLock(requestId: string) {
+  if (lockHolderId !== requestId) return; // not the current holder — already released, or never held; safe no-op
+  const next = lockWaiters.shift();
+  if (next) {
+    lockHolderId = next.requestId;
+    next.resolve(); // hand the lock straight to the next waiter in line, still held (not released)
+  } else {
+    lockHolderId = null;
+  }
+}
 
 interface PendingRequest {
   dir: string;
@@ -37,16 +75,6 @@ interface PendingRequest {
 }
 
 const pendingRequests = new Map<string, PendingRequest>();
-
-function acquireLock(requestId: string): boolean {
-  if (lockHolder) return false;
-  lockHolder = { requestId, acquiredAt: Date.now() };
-  return true;
-}
-
-function releaseLock(requestId: string) {
-  if (lockHolder && lockHolder.requestId === requestId) lockHolder = null;
-}
 
 setInterval(() => {
   const now = Date.now();
@@ -163,11 +191,8 @@ export async function proposeEdit(opts: { repoUrl: string; filePath: string; ins
   }
 
   const requestId = randomUUID();
-  if (!acquireLock(requestId)) {
-    const err: any = new Error('Nexus is already working on another repo edit — try again in a minute.');
-    err.code = 'BUSY';
-    throw err;
-  }
+  // Waits its turn if another edit is already in flight, rather than rejecting outright.
+  await acquireLock(requestId);
 
   try {
     const { dir, safeFilePath, oldContent, repoUrl: cleanUrl } = await cloneAndReadFile(opts);
@@ -285,5 +310,5 @@ export function getPendingRequest(requestId: string) {
 }
 
 export function lockStatus() {
-  return { locked: lockHolder !== null, since: lockHolder?.acquiredAt || null };
+  return { locked: lockHolderId !== null, holderId: lockHolderId, waiting: lockWaiters.length };
 }

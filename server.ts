@@ -254,19 +254,6 @@ const aiComputeLimiter = rateLimit({
   message: { error: 'Slow down — you are sending messages faster than Nexus can think. Try again in a few seconds.' },
 });
 
-// aiComputeLimiter above is keyed off a Discord authorId/userId/discordUserId and SKIPS entirely
-// when the request body has none — which every Nexus Code (/api/codeedit/*) request does, since
-// that feature is reached straight from the website with no Discord identity at all. That left
-// those three routes completely unthrottled from any source. Plain IP-keyed limiter instead,
-// scoped to just this feature — every other route's rate-limiting story is untouched.
-const codeEditLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests — slow down a bit and try again shortly.' },
-});
-
 // Strict key check for endpoints that mutate global, server-wide state (persona/settings that
 // apply to every future request, the knowledge base, API key management) or that exist purely as
 // internal debug tooling (test-burst). Deliberately does NOT auto-register unknown keys the way
@@ -2318,21 +2305,22 @@ app.post('/api/v1/swear', (req, res) => {
 // normal chat view). No auth beyond the GitHub token the user pastes in on every request (never
 // stored) — same posture as the rest of this site's API. See src/server/repoEditService.ts for
 // the clone/diff/commit/push mechanics and the single global concurrency lock.
-app.post('/api/codeedit/propose', codeEditLimiter, async (req, res) => {
+app.post('/api/codeedit/propose', async (req, res) => {
   const { repoUrl, filePath, instruction, githubToken } = req.body || {};
   if (!githubToken || typeof githubToken !== 'string') {
     return res.status(400).json({ error: 'A GitHub token is required.' });
   }
   try {
+    // proposeCodeEdit waits its turn (queued) rather than rejecting outright when another edit
+    // is already in flight — same philosophy as the Discord chat queue, see repoEditService.ts.
     const result = await proposeCodeEdit({ repoUrl, filePath, instruction, githubToken });
     res.json(result);
   } catch (err: any) {
-    if (err.code === 'BUSY') return res.status(409).json({ error: err.message });
     res.status(400).json({ error: err.message || 'Something went wrong proposing this edit.' });
   }
 });
 
-app.post('/api/codeedit/apply', codeEditLimiter, async (req, res) => {
+app.post('/api/codeedit/apply', async (req, res) => {
   const { requestId, githubToken } = req.body || {};
   if (!requestId) return res.status(400).json({ error: 'Missing requestId.' });
   if (!githubToken || typeof githubToken !== 'string') {
@@ -2349,7 +2337,7 @@ app.post('/api/codeedit/apply', codeEditLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/codeedit/cancel', codeEditLimiter, async (req, res) => {
+app.post('/api/codeedit/cancel', async (req, res) => {
   const { requestId } = req.body || {};
   if (requestId) await rejectCodeEdit(requestId);
   res.json({ ok: true });
