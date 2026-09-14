@@ -3367,7 +3367,37 @@ function buildLlmKnowledgeInstruction(reasoningMode: AISettings['reasoningMode']
 // Wraps buildFinalDirectiveBody so the mood directive (artificial "feelings" — see moodEngine.ts)
 // gets appended exactly once regardless of which of the four return branches below fires, instead
 // of threading it into each one separately.
-function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggered: boolean): string {
+// Patrick's explicit ask: Nexus should swear heavily everywhere EXCEPT when the user is actually
+// asking it to draft something they'll send/submit elsewhere verbatim (an email, a text to send
+// someone, an essay, a cover letter) — a crude first draft of an email is actually useless to
+// hand someone, unlike normal chat where the swearing IS the point. Deliberately narrow: matches
+// "write/draft/compose (me) a/an <artifact> (to/for/about...)" shapes, not just any mention of
+// the word "email"/"essay" in passing (asking "what's an essay" or "my email got hacked" must NOT
+// suppress swearing — those aren't drafting requests).
+function isFormalDraftRequest(text: string): boolean {
+  const artifact = '(e-?mails?|texts?( messages?)?|messages?|essays?|letters?|cover letters?|resumes?|cvs?|courriels?|lettres?|dissertations?|r[ée]dactions?)';
+  const verb = '(write|draft|compose|send|type|help( me)?( with)? (writing|drafting|composing))|([ée]cri[rst]|r[ée]dige[rz]?)';
+  const pattern = new RegExp(`\\b(${verb})\\b[^.!?\\n]{0,25}\\b${artifact}\\b`, 'i');
+  return pattern.test(text);
+}
+
+// A late appended "don't swear THIS time" exception, tacked onto the end of the full crude
+// crashout persona prompt, was tried first and verified live NOT to reliably hold: gemma3:4b kept
+// leaking crude British insults ("right, you plonker, don't waste my time with this rubbish")
+// into the drafted content anyway. The persona prompt's own pervasive crude-voice framing
+// ("CRUDE OVERSHARING is part of your voice", "Swear HEAVILY... no exceptions, even short ones")
+// dominated a small model's instruction-following even with my exception as the literal last
+// paragraph. Replacing the ENTIRE system prompt with a clean, non-crude one for this one call —
+// rather than trying to out-argue the crude persona — is what actually holds up live.
+function buildCleanDraftSystemPrompt(settings: AISettings): string {
+  return (
+    "You are Nexus, a capable writing assistant. The user is asking you to draft an actual document they intend to send or submit as-is — an email, text message, essay, letter, or similar. Write it directly, in clean, professional or appropriately warm language matching what they asked for — absolutely no profanity, slurs, or crude insults anywhere in your reply, including any framing comment before or after the draft itself. Be genuinely helpful and get straight to the actual draft; a short one-line intro before it (e.g. \"Here you go:\") is fine, but keep it plain and clean too. Reply entirely in the language the user wrote in."
+    + getMoodDirective(false)
+  );
+}
+
+function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggered: boolean, suppressSwearing: boolean = false): string {
+  if (suppressSwearing) return '';
   return buildFinalDirectiveBody(settings, isCrashout, triggered) + getMoodDirective(false);
 }
 
@@ -3622,8 +3652,30 @@ function capRamblingReply(text: string, userPrompt: string): string {
   return (out + aside).trim();
 }
 
-function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string): string {
+// Defensive scrub for a formal-draft response (buildCleanDraftSystemPrompt already tells the
+// model not to swear, but a 4B local model isn't perfectly reliable — verified live it can still
+// leak one stray mild interjection, e.g. a reply opening with "Hell," before an otherwise
+// completely clean drafted email). Strips whole-word matches only (guards word boundaries so
+// "class"/"assignment"/"hello" etc. are never touched) and tidies up the resulting punctuation.
+function scrubSwearingForDraft(text: string): string {
+  const words =
+    /\b(fuck(ing|ed|er|s)?|shit(ty|s)?|damn(ed|it)?|goddamn(ed|it)?|hell|ass(hole)?|bitch(y|es)?|bastards?|crap(py)?|bloody|bugger(ed)?|knobheads?|wankers?|bollocks|plonkers?|bellends?|tossers?|twats?|piss(ed|y)?|arse(hole)?|dick(head)?|cunt|prick|slut|whore)\b/gi;
+  return text
+    .replace(words, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+([,.!?;:])/g, '$1')
+    .replace(/^[,.\s]+/, '')
+    .replace(/,\s*,/g, ',')
+    .trim();
+}
+
+function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
   if (userPrompt) text = capRamblingReply(text, userPrompt);
+  // Formal draft request (email/text/essay the user will actually send) — none of the swear-floor
+  // machinery below should run at all; the system prompt already told the model not to swear in
+  // the drafted content (see buildFinalDirective's suppressSwearing branch). scrubSwearingForDraft
+  // is a defensive net on top of that in case the model leaks something anyway.
+  if (suppressSwearing) return scrubSwearingForDraft(flattenListFormatting(text).trim());
   // Collapse any front-stacked interjection clump the model produced ("bloody hell, shit, fuck,
   // right, listen up, ...") BEFORE the floor logic runs, so the swear volume gets rebuilt inline
   // by enhanceNaturalSwearPhrasing / forceSwearFloor instead of staying piled at the start.
@@ -3708,17 +3760,20 @@ async function llmSituationalReplyOrFallback(
   // itself doesn't need to declare against English.
   const useFrench = !usePolish && looksFrench(llmPrompt);
   const languageTag = usePolish ? 'pl' : useFrench ? 'fr' : 'en';
+  const suppressSwearing = isFormalDraftRequest(llmPrompt);
   // The 0.3 for PL/FR was a qwen2.5:3b fix (it garbled its weaker languages
   // above ~0.3 — fused words, leaked instructions). gemma3 is genuinely stable
   // multilingually, so raised toward the English value; re-check FR/PL output
   // if it starts drifting.
   const temperature = usePolish || useFrench ? 0.55 : 0.8;
   const generateOptions = {
-    system: usePolish
+    system: suppressSwearing
+      ? buildCleanDraftSystemPrompt(settings)
+      : usePolish
       ? buildPolishSystemPrompt(isCrashout)
       : useFrench
       ? buildFrenchSystemPrompt(isCrashout)
-      : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, triggered),
+      : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, triggered, suppressSwearing),
     // 0.75 is tuned for creative, varied English swearing/tangents, but the model is far less
     // stable in Polish/French (weaker secondary languages for it) at that temperature — observed
     // live, two separate real users got genuinely garbled Polish output ("Jak sieMaszc?", words
@@ -3756,7 +3811,7 @@ async function llmSituationalReplyOrFallback(
       durationMs: llmResult.latencyMs,
       data: { language: languageTag, temperature, safetyBlocked: true, triggered },
     });
-    return topUpLlmSwearing(fallbackText, settings, isCrashout);
+    return topUpLlmSwearing(fallbackText, settings, isCrashout, undefined, suppressSwearing);
   }
   if (llmResult.status === 'success') {
     // getSwearCount is checked here (mirroring forceSwearFloor's own internal check) purely for
@@ -3778,8 +3833,8 @@ async function llmSituationalReplyOrFallback(
         triggered,
       },
     });
-    const sworn = topUpLlmSwearing(llmResult.text, settings, isCrashout, llmPrompt);
-    return triggered ? toShoutCase(sworn) : sworn;
+    const sworn = topUpLlmSwearing(llmResult.text, settings, isCrashout, llmPrompt, suppressSwearing);
+    return triggered && !suppressSwearing ? toShoutCase(sworn) : sworn;
   }
   thoughtSteps.push({
     id: 'step-llm-unavailable',
@@ -3803,8 +3858,8 @@ async function llmSituationalReplyOrFallback(
   // despite the "always swear" persona mandate. Observed live: "how are you?" hit this exact path
   // and returned a fully clean, unswearing hardcoded line. Applying the same floor here closes
   // that gap regardless of why the LLM call failed.
-  const swornFallback = topUpLlmSwearing(fallbackText, settings, isCrashout);
-  return triggered ? toShoutCase(swornFallback) : swornFallback;
+  const swornFallback = topUpLlmSwearing(fallbackText, settings, isCrashout, undefined, suppressSwearing);
+  return triggered && !suppressSwearing ? toShoutCase(swornFallback) : swornFallback;
 }
 
 async function llmFreeResponseOrFallback(
@@ -3856,6 +3911,7 @@ async function llmGroundedOrFallback(
 ): Promise<string> {
   const usePolish = looksPolish(prompt);
   const useFrench = !usePolish && looksFrench(prompt);
+  const suppressSwearing = isFormalDraftRequest(prompt);
   const groundingContext = buildGroundingContext(top);
   // Same reasoning as buildPolishSystemPrompt above — a long English wrapper is what caused the
   // confusion in testing, so Polish (and now French) gets its own short native version of the
@@ -3908,11 +3964,13 @@ async function llmGroundedOrFallback(
       : factualPin ? 0.25 : confident ? 0.5 : 0.7) - reasoningDrop
   );
   const llmResult = await localLlmClient.generate(groundedPrompt, {
-    system: usePolish
+    system: suppressSwearing
+      ? buildCleanDraftSystemPrompt(settings)
+      : usePolish
       ? buildPolishSystemPrompt(isCrashout)
       : useFrench
       ? buildFrenchSystemPrompt(isCrashout)
-      : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false),
+      : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false, suppressSwearing),
     temperature: usedTemperature,
     maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
     preferPolish: usePolish,
@@ -3929,7 +3987,7 @@ async function llmGroundedOrFallback(
     });
     // Same gap fixed in llmSituationalReplyOrFallback above — the fallback text was returned raw,
     // with no guaranteed swear floor, whenever the LLM call itself failed.
-    return topUpLlmSwearing(templateFallback, settings, isCrashout);
+    return topUpLlmSwearing(templateFallback, settings, isCrashout, undefined, suppressSwearing);
   }
   if (containsSlurOrHateSpeech(llmResult.text)) {
     thoughtSteps.push({
@@ -3940,7 +3998,7 @@ async function llmGroundedOrFallback(
       durationMs: llmResult.latencyMs,
       data: { language: groundedLanguageTag, temperature: usedTemperature, safetyBlocked: true },
     });
-    return topUpLlmSwearing(templateFallback, settings, isCrashout);
+    return topUpLlmSwearing(templateFallback, settings, isCrashout, undefined, suppressSwearing);
   }
   if (!confident) {
     thoughtSteps.push({
@@ -3955,7 +4013,7 @@ async function llmGroundedOrFallback(
         swearFloorTriggered: getSwearCount(llmResult.text) < swearFloorForIntensity(settings.swearIntensity || 'unhinged', isCrashout),
       },
     });
-    return topUpLlmSwearing(llmResult.text, settings, isCrashout, prompt);
+    return topUpLlmSwearing(llmResult.text, settings, isCrashout, prompt, suppressSwearing);
   }
   let llmVerification = verifyAnswer(llmResult.text, intent, queryTerms, entities, prompt);
   let finalText = llmResult.text;
@@ -3982,11 +4040,13 @@ async function llmGroundedOrFallback(
       ? `\n\nTa réponse précédente avait un problème : ${issueSummary} Corrige ça et réponds à nouveau, précisément à la question : ${prompt}`
       : `\n\nYour previous answer had a problem: ${issueSummary} Fix that and answer again, specifically addressing: ${prompt}`;
     const retryResult = await localLlmClient.generate(groundedPrompt + correctionNote, {
-      system: usePolish
+      system: suppressSwearing
+        ? buildCleanDraftSystemPrompt(settings)
+        : usePolish
         ? buildPolishSystemPrompt(isCrashout)
         : useFrench
         ? buildFrenchSystemPrompt(isCrashout)
-        : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false),
+        : persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, false, suppressSwearing),
       temperature: usedTemperature,
       maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
       preferPolish: usePolish,
@@ -4039,7 +4099,8 @@ async function llmGroundedOrFallback(
     llmVerification.passed ? finalText : templateFallback,
     settings,
     isCrashout,
-    prompt
+    prompt,
+    suppressSwearing
   );
 }
 
