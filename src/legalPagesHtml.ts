@@ -1,4 +1,4 @@
-// Standalone legal pages — Privacy Policy and Disclaimer — served directly by this server (same
+// Standalone legal pages — Terms of Service, Privacy Policy, and Disclaimer — served directly by this server (same
 // pattern as BANC_HTML in bancHtml.ts: plain template-literal HTML, no build step, no React/SPA
 // state involved) so they're stable, directly linkable URLs independent of the chat app's own
 // client-side view state. Styled to match the real site's dark theme (the --nx-* tokens from
@@ -49,7 +49,7 @@ export const PRIVACY_POLICY_HTML = `<!doctype html>
 </head>
 <body>
 <div class="wrap">
-  <div class="nav"><a href="/">← Back to Nexus AI</a><a href="/disclaimer">Disclaimer →</a></div>
+  <div class="nav"><a href="/">← Back to Nexus AI</a><a href="/terms">Terms of Service</a><a href="/disclaimer">Disclaimer →</a></div>
   <h1>Privacy Policy</h1>
   <p class="updated">Last updated: September 2026</p>
 
@@ -127,7 +127,7 @@ export const DISCLAIMER_HTML = `<!doctype html>
 </head>
 <body>
 <div class="wrap">
-  <div class="nav"><a href="/">← Back to Nexus AI</a><a href="/privacy">Privacy Policy →</a></div>
+  <div class="nav"><a href="/">← Back to Nexus AI</a><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy →</a></div>
   <h1>Disclaimer</h1>
   <p class="updated">Last updated: September 2026</p>
 
@@ -180,7 +180,105 @@ export const DISCLAIMER_HTML = `<!doctype html>
   <p>This disclaimer may be updated as the project evolves. Continued use after an update means you
   accept the revised terms.</p>
 
-  <footer>See also our <a href="/privacy">Privacy Policy</a>.</footer>
+  <footer>See also our <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</footer>
+</div>
+</body>
+</html>`;
+
+export const TERMS_OF_SERVICE_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms of Service — Nexus AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>${SHARED_STYLE}</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nav"><a href="/">← Back to Nexus AI</a><a href="/privacy">Privacy Policy</a><a href="/disclaimer">Disclaimer →</a></div>
+  <h1>Terms of Service</h1>
+  <p class="updated">Last updated: September 2026</p>
+
+  <p>These Terms of Service ("Terms") govern your use of Nexus AI (this website) and the related
+  Nexus Discord bot family (together, the "Service"), operated as an independent personal project.
+  By accessing or using the Service, you agree to these Terms. If you don't agree, don't use the
+  Service.</p>
+
+  <h2>Who can use the Service</h2>
+  <p>You must be able to form a binding agreement to use the Service, and if you're under the age
+  required to do so where you live, you should only use the Service with a parent or guardian's
+  involvement and consent. The Service uses intentionally crude and profane language by design (see
+  the <a href="/disclaimer">Disclaimer</a>) — using it means you accept that.</p>
+
+  <h2>Acceptable use</h2>
+  <ul>
+    <li>Don't use the Service for anything illegal, or to harass, abuse, or harm anyone.</li>
+    <li>Don't try to break, overload, exploit, or gain unauthorized access to the Service, its
+    infrastructure, or any account/repository connected through it.</li>
+    <li>Don't use the Service to generate or spread content you know to be false in a way intended
+    to cause real-world harm.</li>
+    <li>We can suspend or terminate your access to the Service at any time, for any reason, without
+    notice — particularly for violating these Terms.</li>
+  </ul>
+
+  <h2>Your content</h2>
+  <p>You retain ownership of whatever you type into the Service. By using it, you grant us the
+  minimum permission necessary to process your input and return a response (nothing more — see the
+  <a href="/privacy">Privacy Policy</a> for exactly what is and isn't stored). You're responsible
+  for what you send — don't submit anything you don't have the right to share.</p>
+
+  <h2>"Nexus Code" (GitHub repository editing)</h2>
+  <p>If you use the Nexus Code feature, you confirm the repository you connect is your own and that
+  you're authorized to modify it. You are solely responsible for reviewing every proposed change
+  before approving it, and for anything that happens to that repository as a result — including
+  code pushed after your own explicit approval. See the <a href="/disclaimer">Disclaimer</a> for
+  more detail on this specific feature.</p>
+
+  <h2>Third-party platforms</h2>
+  <p>Parts of the Service integrate with Discord and GitHub. Your use of those platforms is governed
+  by their own terms, entirely separate from these Terms — we don't control them and aren't a party
+  to your agreement with them.</p>
+
+  <h2 id="liability">No warranty — we are not responsible for anything arising from your use of the Service</h2>
+  <div class="callout">
+    <strong>Please read this section carefully.</strong> THE SERVICE IS PROVIDED "AS IS" AND "AS
+    AVAILABLE," ENTIRELY AT YOUR OWN RISK, WITHOUT WARRANTIES OF ANY KIND — EXPRESS, IMPLIED, OR
+    STATUTORY — INCLUDING, WITHOUT LIMITATION, ANY WARRANTY OF ACCURACY, MERCHANTABILITY, FITNESS
+    FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT. TO THE FULLEST EXTENT PERMITTED BY LAW, THE
+    OPERATOR OF THE SERVICE IS NOT RESPONSIBLE OR LIABLE FOR ANYTHING ARISING FROM OR RELATED TO
+    YOUR USE OF THE SERVICE — INCLUDING, WITHOUT LIMITATION: INACCURATE OR HARMFUL AI-GENERATED
+    CONTENT, DECISIONS OR ACTIONS YOU TAKE BASED ON THAT CONTENT, ANY DAMAGE OR LOSS TO A GITHUB
+    REPOSITORY CONNECTED THROUGH "NEXUS CODE" (EVEN A CHANGE YOU YOURSELF APPROVED), LOSS OF DATA
+    STORED IN YOUR OWN BROWSER, SERVICE INTERRUPTIONS OR DOWNTIME, OR ANY DIRECT, INDIRECT,
+    INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES OF ANY KIND. THIS APPLIES WHETHER THE
+    CLAIM IS BASED ON WARRANTY, CONTRACT, TORT, OR ANY OTHER LEGAL THEORY, EVEN IF WE WERE ADVISED
+    OF THE POSSIBILITY OF SUCH DAMAGES. YOU USE THE SERVICE ENTIRELY AT YOUR OWN RISK.
+  </div>
+  <p>If, despite the above, liability cannot be excluded under applicable law, our total liability
+  for any claim relating to the Service is limited to the greater of nothing or the smallest amount
+  permitted by that law — this Service is provided for free, with no payment ever made by you to us
+  for it.</p>
+
+  <h2>Indemnification</h2>
+  <p>You agree to hold the operator of the Service harmless from any claim, loss, or damage
+  (including reasonable legal costs) arising from your use of the Service, your content, or your
+  violation of these Terms.</p>
+
+  <h2>Changes to the Service or these Terms</h2>
+  <p>We can change, suspend, or discontinue the Service, in whole or in part, at any time, for any
+  reason, without notice or liability. These Terms may also be updated as the project evolves —
+  continued use after a change means you accept the revised Terms. Check back periodically.</p>
+
+  <h2>Independent personal project</h2>
+  <p>Nexus AI is built and operated as an independent personal project, not a registered company
+  with dedicated legal staff. These Terms are provided on a good-faith, best-effort basis to make
+  the arrangement between you and the Service clear — not as a substitute for professional legal
+  advice on either side.</p>
+
+  <footer>See also our <a href="/privacy">Privacy Policy</a> and <a href="/disclaimer">Disclaimer</a>.</footer>
 </div>
 </body>
 </html>`;

@@ -26,7 +26,7 @@ import {
 } from './src/ai-engine/localLlmClient';
 import { ROLEPLAY_PERSONAS, buildRoleplayPrompt } from './src/ai-engine/roleplayPersonas';
 import { BANC_HTML } from './src/bancHtml';
-import { PRIVACY_POLICY_HTML, DISCLAIMER_HTML } from './src/legalPagesHtml';
+import { PRIVACY_POLICY_HTML, DISCLAIMER_HTML, TERMS_OF_SERVICE_HTML } from './src/legalPagesHtml';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
 import {
   BUILTIN_KNOWLEDGE,
@@ -2358,6 +2358,9 @@ app.get('/privacy', (_req, res) => {
 });
 app.get('/disclaimer', (_req, res) => {
   res.type('html').send(DISCLAIMER_HTML);
+});
+app.get('/terms', (_req, res) => {
+  res.type('html').send(TERMS_OF_SERVICE_HTML);
 });
 
 app.get('/api/v1/corpus', (req, res) => {
