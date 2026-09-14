@@ -12,7 +12,12 @@ import {
 } from './src/ai-engine/ruleEngine';
 import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommendReasoningMode } from './src/ai-engine/reasoningEngine';
 import { getMoodDisplay } from './src/ai-engine/moodEngine';
-import { checkAvailability as checkLocalLlmAvailability, generate as generateLlmText, generateVision } from './src/ai-engine/localLlmClient';
+import {
+  checkAvailability as checkLocalLlmAvailability,
+  generate as generateLlmText,
+  generateVision,
+  modelForReasoningMode,
+} from './src/ai-engine/localLlmClient';
 import { ROLEPLAY_PERSONAS, buildRoleplayPrompt } from './src/ai-engine/roleplayPersonas';
 import { BANC_HTML } from './src/bancHtml';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
@@ -1068,6 +1073,14 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
     deepThink: requestedDeepThink,
     crashout: requestedCrashout,
     memories: requestedMemories,
+    // "Nexus Code" repo-editing feature (Nexus-Bot-1-'s dashboard/server, never the website —
+    // see the !hasClientSettings guard on isCodeEdit below). Deliberately its own named field
+    // rather than overloading `persona`/`mode`: this is the ONE narrow, explicit exception to
+    // resolveRequestedPersona() always forcing crashout-bot for the Discord-bot request path (a
+    // deliberate, documented operator choice — see the comment on clientSettings above). Only
+    // the new askCodeEdit() client method sets this; every other existing caller (including the
+    // rest of the Discord bot's own normal chat traffic) is completely unaffected.
+    codeEditRequest: requestedCodeEdit,
     // The website's own settings (persona choice, reasoning mode, temperature, everything the
     // customizer modal lets a user configure) — sent as one opaque blob rather than threading
     // every individual field through this handler's destructuring one at a time. Only ever sent
@@ -1132,7 +1145,10 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
   // fixed voice, not something the website's own persona picker (sidebar + customizer modal)
   // should be silently overridden by, or that UI becomes fully non-functional.
   const personaSelector = requestedPersona || requestedModel || requestedPersonaId || requestedMode;
-  const persona =
+  // let, not const: the isCodeEdit override just below reassigns this directly (see comment
+  // there) — settings.activePersonaId alone does NOT drive generation, `persona` itself (passed
+  // straight into generateReasoningPath below) is what actually matters.
+  let persona =
     clientSettings && typeof clientSettings === 'object' && clientSettings.activePersonaId
       ? clientSettings.activePersonaId === 'custom' && clientSettings.customPersona
         ? clientSettings.customPersona
@@ -1193,6 +1209,18 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
   const isDeep = requestedDeepThink || requestedMode === 'deep' || requestedMode === 'deep-cot';
   const isCrash = requestedCrashout || requestedMode === 'crashout' || persona.id === 'crashout-bot';
   const hasClientSettings = Boolean(clientSettings && typeof clientSettings === 'object');
+  // "Nexus Code" repo-editing feature — see the codeEditRequest destructure comment above. The
+  // !hasClientSettings guard scopes this to the Discord-bot request path only, exactly like
+  // isCrash/isDeep below; the website's own persona control is never touched by this flag.
+  const isCodeEdit = Boolean(requestedCodeEdit) && !hasClientSettings;
+  // The actual fix: `persona` itself (not settings.activePersonaId, which nothing downstream
+  // reads) is what generateReasoningPath below receives directly, and what the response's
+  // `persona`/`personaName` fields reflect. Reassigning it here — rather than only setting
+  // settings.activePersonaId — is what actually makes code-architect (and therefore nexus-12b,
+  // via its reasoningMode: 'deep-cot') take effect. Verified live: without this line, the
+  // response stayed in crashout-bot's voice ("personaName": "Crashout & Gamer Rage") even with
+  // isCodeEdit true and settings.activePersonaId correctly set to 'code-architect'.
+  if (isCodeEdit) persona = DEFAULT_PERSONAS['code-architect'];
 
   try {
     const queuedExecution = await globalRequestQueue.enqueue('nexus', async () => {
@@ -1219,7 +1247,10 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
           }
         : {
             ...DEFAULT_SETTINGS,
-            activePersonaId: (isCrash ? 'crashout-bot' : persona.id) as ModelPersonaId,
+            // isCodeEdit checked before isCrash: "Nexus Code" explicitly asking for code-architect
+            // wins over the usual forced crashout-bot voice, but ONLY when that narrow flag is
+            // present — every other Discord-bot request is completely unaffected.
+            activePersonaId: (isCodeEdit ? 'code-architect' : isCrash ? 'crashout-bot' : persona.id) as ModelPersonaId,
             // Requested directly: was hardcoded to 'thorough' (or 'deep-cot' when explicitly
             // asked) for every single message, meaning the qwen2.5:7b reasoning escalation (see
             // modelForReasoningMode, localLlmClient.ts) fired on every reply regardless of how
@@ -1227,8 +1258,9 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
             // Now defaults to 'fast' and only escalates for signals that actually warrant it:
             // math questions (explicit ask) and genuinely broad/hard questions, via
             // recommendReasoningMode (reasoningEngine.ts) — an explicit deepThink/deep-cot request
-            // still always wins, same as before.
-            reasoningMode: isDeep ? ('deep-cot' as ReasoningMode) : (recommendReasoningMode(userText) as ReasoningMode),
+            // still always wins, same as before. isCodeEdit also always escalates to deep-cot,
+            // which is what routes to OLLAMA_MODEL_DEEP (nexus-12b) via modelForReasoningMode.
+            reasoningMode: isCodeEdit || isDeep ? ('deep-cot' as ReasoningMode) : (recommendReasoningMode(userText) as ReasoningMode),
             userName: username || '',
             discordUserId: effectiveAuthorId,
             isSuperChillUser: isSuperChill,
@@ -1301,6 +1333,38 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
 
       if (strictEvaluation.hasCustomRules && strictEvaluation.output) {
         outputText = strictEvaluation.output;
+      } else if (isCodeEdit) {
+        // "Nexus Code" repo-editing feature — skips generateReasoningPath entirely rather than
+        // routing a code-architect-persona request through it. That pipeline is built for
+        // conversational Q&A (intent classification, corpus retrieval, web-search triggering) —
+        // verified live it actively hurts a "transform this exact file per this instruction" task:
+        // a plain test prompt ("write a one-line function that adds two numbers") got hijacked by
+        // an irrelevant corpus match ("Function vs method (programming)") instead of just being
+        // answered directly. A direct generate() call with code-architect's own system prompt is
+        // both simpler and more reliable for this task shape — the caller (dashboard/server) sends
+        // the full file content + instruction as the prompt itself, no retrieval needed at all.
+        const codeGenResult = await generateLlmText(promptToEvaluate, {
+          system: persona.systemPrompt,
+          temperature: persona.defaultTemperature,
+          topP: persona.defaultTopP,
+          model: modelForReasoningMode('deep-cot'),
+          maxTokens: 2000,
+          timeoutMs: 90000,
+          // Verified live: without this, a correct one-line TypeScript function got rejected as
+          // "wrong_language" by the English-prose density heuristic (see localLlmClient.ts).
+          skipLanguageCheck: true,
+        });
+        outputText =
+          codeGenResult.status === 'success'
+            ? codeGenResult.text
+            : "Nexus couldn't generate a code change right now — the local AI model didn't respond. Try again in a moment.";
+        thoughtStepsResult = [
+          {
+            type: 'reasoning',
+            title: '🧑‍💻 Code Architect (direct generation)',
+            description: `Bypassed corpus/reasoning pipeline — generated directly with code-architect persona on ${modelForReasoningMode('deep-cot')}.`,
+          },
+        ];
       } else {
         // Only wired when this request actually asked to stream — `res` is captured from the
         // outer route handler's closure, so writing directly to it from inside this queued task is

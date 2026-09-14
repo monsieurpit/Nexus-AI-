@@ -341,6 +341,15 @@ export interface OllamaGenerateOptions {
   // want the thorough/deep-cot escalation tier to use the larger model. Left undefined by default
   // so every existing call site keeps using the fast, default-sized model unchanged.
   model?: string;
+  // The English/Polish/French word-density check below exists to catch a small model drifting
+  // into an unrelated language mid-response — but it fires on legitimate CODE output too, since
+  // code (variable names, syntax, punctuation) naturally has very low "English signal word"
+  // density. Verified live: a correct TypeScript one-liner
+  // (`const add = (a: number, b: number): number => a + b;`) was rejected as "wrong_language"
+  // purely because it didn't read like English prose. Set by the code-architect direct-generation
+  // path (server.ts) only; every existing caller leaves this false/undefined and keeps the
+  // language check exactly as before.
+  skipLanguageCheck?: boolean;
 }
 
 export type LocalLlmResult =
@@ -647,7 +656,7 @@ async function processRawGenerateOutput(
     const signal = scoreLanguageSignal(text);
     const frenchSignal = options.preferFrench ? scoreFrenchSignal(text) : null;
     const languageCheckWordCount = frenchSignal ? frenchSignal.wordCount : signal.wordCount;
-    if (languageCheckWordCount >= 8) {
+    if (!options.skipLanguageCheck && languageCheckWordCount >= 8) {
       const density = options.preferPolish
         ? signal.polish / signal.wordCount
         : frenchSignal
