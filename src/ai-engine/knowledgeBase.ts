@@ -507,6 +507,7 @@ import { FRONTEND_FRAMEWORK_CONCEPTS_GAPS } from './corpus/frontendFrameworkConc
 import { COCKTAILS_SPIRITS_COMPARISONS_GAPS } from './corpus/cocktailsSpiritsComparisonsGaps';
 import { PROGRAMMING_LANGUAGE_COMPARISONS_GAPS } from './corpus/programmingLanguageComparisonsGaps';
 import { NUMISMATICS_PHILATELY_VEXILLOLOGY_GAPS } from './corpus/numismaticsPhilatelyVexillologyGaps';
+import { HAIRDRESSING_BARBERING_GAPS } from './corpus/hairdressingBarberingGaps';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1532,6 +1533,8 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...PROGRAMMING_LANGUAGE_COMPARISONS_GAPS,
   // Batch 309 corpus fixes (2026-09-14): numismatics/philately/vexillology "difference between X and Y" gaps.
   ...NUMISMATICS_PHILATELY_VEXILLOLOGY_GAPS,
+  // Batch 311 corpus fixes (2026-09-14): hairdressing/barbering/personal grooming "difference between X and Y" gaps.
+  ...HAIRDRESSING_BARBERING_GAPS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
