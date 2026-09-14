@@ -256,8 +256,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     <div
       className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
         isUser
-          ? 'bg-[var(--nx-elevated-hover)] text-[var(--nx-text)]'
-          : 'bg-gradient-to-br from-[var(--nx-accent)] to-[#4f46b5] text-white'
+          ? 'bg-[var(--glass-panel-elevated-hover)] text-[var(--glass-text)]'
+          : 'bg-[image:var(--glass-accent-gradient)] text-white'
       }`}
     >
       {isUser ? settings.userName?.[0]?.toUpperCase() || 'U' : <Sparkles className="h-4 w-4" />}
@@ -266,8 +266,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   return (
     <div
-      className={`relative z-10 flex h-screen flex-1 flex-col overflow-hidden bg-[var(--nx-surface)] ${
-        isDraggingOver ? 'ring-4 ring-[var(--nx-accent-ring)]' : ''
+      className={`relative z-10 flex h-screen flex-1 flex-col overflow-hidden bg-[var(--glass-base)] ${
+        isDraggingOver ? 'ring-4 ring-[var(--glass-accent-ring)]' : ''
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -282,32 +282,32 @@ export const ChatView: React.FC<ChatViewProps> = ({
       />
 
       {/* Top bar */}
-      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--nx-border-subtle)] bg-[var(--nx-surface)]/90 px-4 py-3 backdrop-blur sm:px-5">
+      <header className="glass-panel relative z-10 flex shrink-0 items-center gap-3 rounded-none border-x-0 border-t-0 px-4 py-3 sm:px-5">
         {onToggleConversations && (
           <button
             type="button"
             onClick={onToggleConversations}
-            className="-ml-1 rounded-[var(--nx-r-sm)] p-1.5 text-[var(--nx-text-muted)] transition hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-text)] md:hidden"
+            className="-ml-1 rounded-[var(--glass-r-sm)] p-1.5 text-[var(--glass-text-muted)] transition hover:bg-[var(--glass-panel-elevated)] hover:text-[var(--glass-text)] md:hidden"
             title="Conversations"
             aria-label="Toggle conversation list"
           >
             <PanelLeft className="h-4 w-4" />
           </button>
         )}
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-[var(--nx-accent)] to-[#4f46b5] text-white">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[image:var(--glass-accent-gradient)] text-white">
           <Sparkles className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <div className="truncate text-sm font-bold text-[var(--nx-text)]">
+          <div className="truncate text-sm font-bold text-[var(--glass-text)]">
             {activePersona.name}
           </div>
-          <div className="truncate text-xs text-[var(--nx-text-faint)]">
+          <div className="truncate text-xs text-[var(--glass-text-faint)]">
             {activePersona.tagline}
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <span className="nx-badge nx-badge-success">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--nx-success)]" />
+          <span className="glass-badge glass-badge-success">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--glass-success)]" />
             <span className="hidden sm:inline">Zero quota · local inference</span>
             <span className="sm:hidden">Live</span>
           </span>
@@ -316,9 +316,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       {/* Drag overlay */}
       {isDraggingOver && (
-        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-[var(--nx-accent-soft)] backdrop-blur-[2px]">
-          <div className="nx-card flex items-center gap-3 px-6 py-4 font-semibold text-[var(--nx-text)] shadow-[var(--nx-shadow-lg)]">
-            <ImageIcon className="h-6 w-6 text-[var(--nx-accent-hover)]" />
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-[var(--glass-accent-soft)] backdrop-blur-md">
+          <div className="glass-panel-elevated flex items-center gap-3 px-6 py-4 font-semibold text-[var(--glass-text)]">
+            <ImageIcon className="h-6 w-6 text-[var(--glass-accent-hover)]" />
             <span>Drop image for Nexus Vision &amp; RaidShield scan</span>
           </div>
         </div>
@@ -327,20 +327,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
       {/* Image zoom modal */}
       {previewModalImage && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"
           onClick={() => setPreviewModalImage(null)}
         >
-          <div className="relative max-h-[90vh] max-w-4xl overflow-hidden rounded-[var(--nx-r-xl)] bg-[var(--nx-surface)] p-2 shadow-[var(--nx-shadow-lg)]">
+          <div className="glass-panel-elevated relative max-h-[90vh] max-w-4xl overflow-hidden p-2">
             <button
               onClick={() => setPreviewModalImage(null)}
-              className="absolute right-4 top-4 rounded-full bg-black/60 p-2 text-white transition hover:bg-black"
+              className="absolute right-4 top-4 rounded-full bg-black/60 p-2 text-white backdrop-blur-md transition hover:bg-black/80"
             >
               <X className="h-5 w-5" />
             </button>
             <img
               src={previewModalImage}
               alt="Expanded preview"
-              className="max-h-[85vh] w-auto rounded-[var(--nx-r-lg)] object-contain"
+              className="max-h-[85vh] w-auto rounded-[var(--glass-r-lg)] object-contain"
               referrerPolicy="no-referrer"
             />
           </div>
@@ -354,29 +354,29 @@ export const ChatView: React.FC<ChatViewProps> = ({
           response (see calculateTypingDuration elsewhere), not real token-by-token generation, so
           announcing per-chunk would just spam a screen reader with word fragments. */}
       <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:px-8" role="log" aria-live="polite" aria-busy={isGenerating}>
-        <div className="mx-auto max-w-[var(--nx-content-max)] space-y-1">
+        <div className="mx-auto max-w-[var(--glass-content-max)] space-y-1">
           {messages.length === 0 && (
-            <div className="nx-animate-in space-y-8 py-8 sm:py-12">
+            <div className="glass-animate-in space-y-8 py-8 sm:py-12">
               <div className="space-y-3 text-center">
-                <div className="mb-1 inline-flex h-14 w-14 items-center justify-center rounded-[var(--nx-r-lg)] bg-gradient-to-br from-[var(--nx-accent)] to-[#4f46b5] text-white shadow-[var(--nx-shadow-glow)]">
+                <div className="mb-1 inline-flex h-14 w-14 items-center justify-center rounded-[var(--glass-r-lg)] bg-[image:var(--glass-accent-gradient)] text-white shadow-[var(--glass-shadow-glow)]">
                   <Sparkles className="h-7 w-7" />
                 </div>
-                <h1 className="text-2xl font-extrabold tracking-tight text-[var(--nx-text)] sm:text-3xl">
+                <h1 className="text-2xl font-extrabold tracking-tight text-[var(--glass-text)] sm:text-3xl">
                   {activePersona.name}
                 </h1>
-                <p className="mx-auto max-w-lg text-sm leading-relaxed text-[var(--nx-text-muted)]">
+                <p className="mx-auto max-w-lg text-sm leading-relaxed text-[var(--glass-text-muted)]">
                   A standalone, custom-built AI engine running client-side with{' '}
-                  <strong className="text-[var(--nx-text)]">zero quota limits</strong>. Dedicated
+                  <strong className="text-[var(--glass-text)]">zero quota limits</strong>. Dedicated
                   math, code, and formal-logic solvers, multi-head self-attention, live web
                   grounding, and real-time model customization.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                  <span className="nx-badge nx-badge-success">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--nx-success)]" />
+                  <span className="glass-badge glass-badge-success">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--glass-success)]" />
                     Infinite local inference
                   </span>
-                  <span className="nx-badge capitalize">{settings.reasoningMode} reasoning</span>
-                  <span className="nx-badge">{settings.attentionHeads} attention heads</span>
+                  <span className="glass-badge capitalize">{settings.reasoningMode} reasoning</span>
+                  <span className="glass-badge">{settings.attentionHeads} attention heads</span>
                 </div>
               </div>
 
@@ -388,13 +388,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       setInputText(sample.prompt);
                       textareaRef.current?.focus();
                     }}
-                    className="nx-card nx-card-interactive group flex flex-col p-4 text-left"
+                    className="glass-card glass-card-interactive group flex flex-col p-4 text-left"
                   >
-                    <div className="mb-1 flex items-center justify-between text-xs font-bold text-[var(--nx-text)] transition group-hover:text-[var(--nx-accent-hover)]">
+                    <div className="mb-1 flex items-center justify-between text-xs font-bold text-[var(--glass-text)] transition group-hover:text-[var(--glass-accent-hover)]">
                       <span>{sample.title}</span>
-                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[var(--nx-text-faint)] transition group-hover:translate-x-0.5 group-hover:text-[var(--nx-accent-hover)]" />
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-[var(--glass-text-faint)] transition group-hover:translate-x-0.5 group-hover:text-[var(--glass-accent-hover)]" />
                     </div>
-                    <p className="line-clamp-2 text-xs leading-relaxed text-[var(--nx-text-muted)]">
+                    <p className="line-clamp-2 text-xs leading-relaxed text-[var(--glass-text-muted)]">
                       {sample.prompt}
                     </p>
                   </button>
@@ -403,17 +403,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {onOpenApiIntegration && (
-                  <button onClick={onOpenApiIntegration} className="nx-btn nx-btn-ghost">
+                  <button onClick={onOpenApiIntegration} className="glass-btn glass-btn-ghost">
                     <Code2 className="h-3.5 w-3.5" />
                     Bot API &amp; SDK
                   </button>
                 )}
-                <button onClick={onOpenCustomizer} className="nx-btn nx-btn-ghost">
+                <button onClick={onOpenCustomizer} className="glass-btn glass-btn-ghost">
                   <Sliders className="h-3.5 w-3.5" />
                   Customize persona
                 </button>
-                <button onClick={onOpenKnowledge} className="nx-btn nx-btn-ghost">
-                  <Database className="h-3.5 w-3.5 text-[var(--nx-success)]" />
+                <button onClick={onOpenKnowledge} className="glass-btn glass-btn-ghost">
+                  <Database className="h-3.5 w-3.5 text-[var(--glass-success)]" />
                   Teach custom knowledge
                 </button>
               </div>
@@ -427,19 +427,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
             return (
               <div
                 key={message.id}
-                className="group flex items-start gap-3 rounded-[var(--nx-r-md)] px-2 py-2 transition hover:bg-white/[0.02]"
+                className={`group glass-card mb-3 flex items-start gap-3 !rounded-[var(--glass-r-lg)] px-3 py-3 transition ${
+                  isUser
+                    ? 'ml-auto max-w-[92%] !bg-[var(--glass-accent-soft)] sm:max-w-[85%]'
+                    : 'mr-auto max-w-[92%] sm:max-w-[85%]'
+                }`}
               >
                 <Avatar isUser={isUser} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
                     <span
                       className={`text-sm font-semibold ${
-                        isUser ? 'text-[var(--nx-text)]' : 'text-[var(--nx-accent-hover)]'
+                        isUser ? 'text-[var(--glass-text)]' : 'text-[var(--glass-accent-hover)]'
                       }`}
                     >
                       {isUser ? settings.userName || 'You' : activePersona.name}
                     </span>
-                    <span className="text-[11px] text-[var(--nx-text-faint)]">
+                    <span className="text-[11px] text-[var(--glass-text-faint)]">
                       {new Date(message.timestamp).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
@@ -449,7 +453,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
                   {message.imageUrl && (
                     <div className="mb-1 mt-2">
-                      <div className="group/img relative max-w-sm overflow-hidden rounded-[var(--nx-r-md)] border border-[var(--nx-border)] bg-black/40">
+                      <div className="group/img relative max-w-sm overflow-hidden rounded-[var(--glass-r-md)] border border-[var(--glass-border)] bg-black/40">
                         <img
                           src={message.imageUrl}
                           alt={message.imageName || 'Attached preview'}
@@ -457,12 +461,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           onClick={() => setPreviewModalImage(message.imageUrl!)}
                           referrerPolicy="no-referrer"
                         />
-                        <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-[10px] font-mono text-white opacity-0 backdrop-blur-[2px] transition group-hover/img:opacity-100">
+                        <div className="pointer-events-none absolute right-2 top-2 flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-[10px] font-mono text-white opacity-0 backdrop-blur-md transition group-hover/img:opacity-100">
                           <Eye className="h-3 w-3" />
                           <span>Click to zoom</span>
                         </div>
                         {message.imageName && (
-                          <div className="truncate bg-black/80 px-3 py-1.5 text-[11px] font-mono text-[var(--nx-text-muted)]">
+                          <div className="truncate bg-black/80 px-3 py-1.5 text-[11px] font-mono text-[var(--glass-text-muted)]">
                             🖼️ {message.imageName}
                           </div>
                         )}
@@ -474,58 +478,58 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <div className="my-1.5">
                       <button
                         onClick={() => toggleThought(message.id)}
-                        className="inline-flex items-center gap-2 rounded-md bg-[var(--nx-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--nx-text-muted)] transition hover:bg-[var(--nx-elevated-hover)]"
+                        className="inline-flex items-center gap-2 rounded-md bg-[var(--glass-panel-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--glass-text-muted)] transition hover:bg-[var(--glass-panel-elevated-hover)]"
                         title="Toggle reasoning trace"
                         aria-label="Toggle reasoning trace"
                       >
-                        <BrainCircuit className="h-3.5 w-3.5 text-[var(--nx-accent-hover)]" />
+                        <BrainCircuit className="h-3.5 w-3.5 text-[var(--glass-accent-hover)]" />
                         <span>
                           {isExpanded
                             ? 'Hide thinking process'
                             : `View thinking process (${message.thoughtProcess.length} steps)`}
                         </span>
                         {isExpanded ? (
-                          <ChevronUp className="ml-0.5 h-3 w-3 text-[var(--nx-text-faint)]" />
+                          <ChevronUp className="ml-0.5 h-3 w-3 text-[var(--glass-text-faint)]" />
                         ) : (
-                          <ChevronDown className="ml-0.5 h-3 w-3 text-[var(--nx-text-faint)]" />
+                          <ChevronDown className="ml-0.5 h-3 w-3 text-[var(--glass-text-faint)]" />
                         )}
                       </button>
 
                       {isExpanded && (
-                        <div className="nx-fade-in mt-2 space-y-2.5 rounded-[var(--nx-r-md)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] p-3 text-xs text-[var(--nx-text-muted)]">
+                        <div className="glass-fade-in mt-2 space-y-2.5 rounded-[var(--glass-r-md)] border border-[var(--glass-border)] bg-[var(--glass-panel-elevated)] p-3 text-xs text-[var(--glass-text-muted)]">
                           <div className="mb-1 flex items-center gap-1.5">
-                            <span className="h-1.5 w-1.5 rounded-full bg-[var(--nx-accent)]" />
-                            <span className="nx-eyebrow">Internal neural thought stream</span>
+                            <span className="h-1.5 w-1.5 rounded-full bg-[var(--glass-accent)]" />
+                            <span className="glass-eyebrow">Internal neural thought stream</span>
                           </div>
                           {message.thoughtProcess.map((step) => (
                             <div
                               key={step.id}
-                              className="space-y-1 border-l-2 border-[var(--nx-accent)]/50 pl-2.5"
+                              className="space-y-1 border-l-2 border-[var(--glass-accent)]/50 pl-2.5"
                             >
-                              <div className="flex flex-wrap items-center gap-1.5 text-[12px] font-semibold text-[var(--nx-text)]">
-                                <span className="rounded bg-[var(--nx-accent-soft)] px-1 py-px text-[9px] font-bold uppercase tracking-wide text-[var(--nx-accent-hover)]">
+                              <div className="flex flex-wrap items-center gap-1.5 text-[12px] font-semibold text-[var(--glass-text)]">
+                                <span className="rounded bg-[var(--glass-accent-soft)] px-1 py-px text-[9px] font-bold uppercase tracking-wide text-[var(--glass-accent-hover)]">
                                   {step.type}
                                 </span>
                                 <span>{step.title}</span>
                                 {typeof step.durationMs === 'number' && (
-                                  <span className="text-[10px] font-normal text-[var(--nx-text-faint)]">
+                                  <span className="text-[10px] font-normal text-[var(--glass-text-faint)]">
                                     {step.durationMs >= 1000
                                       ? `${(step.durationMs / 1000).toFixed(2)}s`
                                       : `${step.durationMs}ms`}
                                   </span>
                                 )}
                               </div>
-                              <p className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-[var(--nx-text-muted)]">
+                              <p className="whitespace-pre-wrap text-[11.5px] leading-relaxed text-[var(--glass-text-muted)]">
                                 {step.description}
                               </p>
                               {step.data && Object.keys(step.data).length > 0 && (
-                                <div className="mt-1 space-y-0.5 overflow-x-auto rounded-md border border-[var(--nx-border)] bg-[var(--nx-bg)]/60 p-2 font-mono text-[10.5px] text-[var(--nx-text-faint)]">
+                                <div className="mt-1 space-y-0.5 overflow-x-auto rounded-md border border-[var(--glass-border)] bg-[var(--glass-base)]/60 p-2 font-mono text-[10.5px] text-[var(--glass-text-faint)]">
                                   {Object.entries(step.data).map(([k, v]) => (
                                     <div key={k} className="flex gap-2">
-                                      <span className="shrink-0 text-[var(--nx-accent-hover)]">
+                                      <span className="shrink-0 text-[var(--glass-accent-hover)]">
                                         {k}:
                                       </span>
-                                      <span className="break-all text-[var(--nx-text-muted)]">
+                                      <span className="break-all text-[var(--glass-text-muted)]">
                                         {typeof v === 'object' ? JSON.stringify(v) : String(v)}
                                       </span>
                                     </div>
@@ -541,7 +545,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
                   <div
                     className={`markdown-content mt-0.5 ${
-                      message.isError ? 'rounded-[var(--nx-r-md)] border border-[var(--nx-danger)]/30 bg-[var(--nx-danger)]/10 px-3 py-2 text-[var(--nx-danger)]' : ''
+                      message.isError ? 'rounded-[var(--glass-r-md)] border border-[var(--glass-danger)]/30 bg-[var(--glass-danger)]/10 px-3 py-2 text-[var(--glass-danger)]' : ''
                     }`}
                   >
                     <ReactMarkdown
@@ -558,8 +562,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           }
                           const codeString = String(children).replace(/\n$/, '');
                           return (
-                            <div className="group/code my-3 overflow-hidden rounded-[var(--nx-r-md)] border border-[var(--nx-border)]">
-                              <div className="flex items-center justify-between border-b border-[var(--nx-border)] bg-black/40 px-3.5 py-1.5 text-[11px] font-mono text-[var(--nx-text-faint)]">
+                            <div className="group/code my-3 overflow-hidden rounded-[var(--glass-r-md)] border border-[var(--glass-border)]">
+                              <div className="flex items-center justify-between border-b border-[var(--glass-border)] bg-black/40 px-3.5 py-1.5 text-[11px] font-mono text-[var(--glass-text-faint)]">
                                 <span>{className?.replace('language-', '') || 'code'}</span>
                                 <button
                                   onClick={() =>
@@ -569,8 +573,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                 >
                                   {copiedMsgId === `${message.id}-code` ? (
                                     <>
-                                      <Check className="h-3 w-3 text-[var(--nx-success)]" />
-                                      <span className="text-[var(--nx-success)]">Copied</span>
+                                      <Check className="h-3 w-3 text-[var(--glass-success)]" />
+                                      <span className="text-[var(--glass-success)]">Copied</span>
                                     </>
                                   ) : (
                                     <>
@@ -580,7 +584,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                   )}
                                 </button>
                               </div>
-                              <pre className="overflow-x-auto bg-black/30 p-4 font-mono text-xs text-[var(--nx-text)]">
+                              <pre className="overflow-x-auto bg-black/30 p-4 font-mono text-xs text-[var(--glass-text)]">
                                 <code>{children}</code>
                               </pre>
                             </div>
@@ -593,13 +597,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   </div>
 
                   {!isUser && message.webSources && message.webSources.length > 0 && (
-                    <div className="mt-3 border-t border-[var(--nx-border-subtle)] pt-2.5">
+                    <div className="mt-3 border-t border-[var(--glass-border-subtle)] pt-2.5">
                       <div className="mb-2 flex items-center gap-1.5">
-                        <Globe className="h-3.5 w-3.5 text-[var(--nx-info)]" />
-                        <span className="nx-eyebrow">
+                        <Globe className="h-3.5 w-3.5 text-[var(--glass-info)]" />
+                        <span className="glass-eyebrow">
                           Live web grounding · {message.webSources.length}
                         </span>
-                        <span className="nx-badge nx-badge-success text-[9px]">infinite quota</span>
+                        <span className="glass-badge glass-badge-success text-[9px]">infinite quota</span>
                       </div>
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {message.webSources.map((source, sIdx) => (
@@ -608,22 +612,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             href={source.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="group/src flex flex-col justify-between rounded-[var(--nx-r-md)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] p-2.5 text-left transition hover:border-[var(--nx-info)]/50 hover:bg-[var(--nx-info-soft)]"
+                            className="group/src flex flex-col justify-between rounded-[var(--glass-r-md)] border border-[var(--glass-border)] bg-[var(--glass-panel-elevated)] p-2.5 text-left transition hover:border-[var(--glass-info)]/50 hover:bg-[var(--glass-info-soft)]"
                           >
                             <div>
                               <div className="mb-1 flex items-start justify-between gap-1">
-                                <span className="line-clamp-1 text-xs font-semibold text-[var(--nx-text)] transition group-hover/src:text-[var(--nx-info)]">
+                                <span className="line-clamp-1 text-xs font-semibold text-[var(--glass-text)] transition group-hover/src:text-[var(--glass-info)]">
                                   {source.title}
                                 </span>
-                                <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 text-[var(--nx-text-faint)] group-hover/src:text-[var(--nx-info)]" />
+                                <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 text-[var(--glass-text-faint)] group-hover/src:text-[var(--glass-info)]" />
                               </div>
-                              <p className="line-clamp-2 text-[11px] leading-tight text-[var(--nx-text-muted)]">
+                              <p className="line-clamp-2 text-[11px] leading-tight text-[var(--glass-text-muted)]">
                                 {source.snippet}
                               </p>
                             </div>
-                            <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono text-[var(--nx-text-faint)]">
+                            <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono text-[var(--glass-text-faint)]">
                               <span className="max-w-[150px] truncate">{source.domain}</span>
-                              <span className="rounded bg-[var(--nx-elevated-hover)] px-1 capitalize text-[var(--nx-text-muted)]">
+                              <span className="rounded bg-[var(--glass-panel-elevated-hover)] px-1 capitalize text-[var(--glass-text-muted)]">
                                 {source.engine}
                               </span>
                             </div>
@@ -645,7 +649,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             key={idx}
                             onClick={() => onSendMessage(q)}
                             disabled={isGenerating}
-                            className="inline-flex items-center gap-1.5 rounded-[var(--nx-r-full)] border border-[var(--nx-accent)]/30 bg-[var(--nx-accent-soft)] px-3 py-1.5 text-xs font-medium text-[var(--nx-accent-hover)] transition hover:bg-[var(--nx-accent)]/25 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-[var(--glass-r-full)] border border-[var(--glass-accent)]/30 bg-[var(--glass-accent-soft)] px-3 py-1.5 text-xs font-medium text-[var(--glass-accent-hover)] transition hover:bg-[var(--glass-accent)]/25 disabled:opacity-50"
                           >
                             <Sparkles className="h-3 w-3" />
                             <span className="max-w-xs truncate">{q}</span>
@@ -656,7 +660,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   )}
 
                   {!isUser && (
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--nx-text-faint)] opacity-0 transition group-hover:opacity-100">
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--glass-text-faint)] opacity-0 transition group-hover:opacity-100">
                       {message.telemetry && (
                         <div className="flex items-center gap-2 font-mono text-[11px]">
                           <span>{message.telemetry.tokensGenerated} tok</span>
@@ -669,7 +673,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       <div className="ml-auto flex items-center gap-1">
                         <button
                           onClick={() => onOpenAttentionForMessage(message)}
-                          className="rounded p-1 text-[var(--nx-text-faint)] transition hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-accent-hover)]"
+                          className="rounded p-1 text-[var(--glass-text-faint)] transition hover:bg-[var(--glass-panel-elevated)] hover:text-[var(--glass-accent-hover)]"
                           title="Inspect attention matrix"
                           aria-label="Inspect attention matrix"
                         >
@@ -677,12 +681,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         </button>
                         <button
                           onClick={() => copyToClipboard(message.content, message.id)}
-                          className="rounded p-1 text-[var(--nx-text-faint)] transition hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-text)]"
+                          className="rounded p-1 text-[var(--glass-text-faint)] transition hover:bg-[var(--glass-panel-elevated)] hover:text-[var(--glass-text)]"
                           title="Copy message"
                           aria-label="Copy message"
                         >
                           {copiedMsgId === message.id ? (
-                            <Check className="h-3.5 w-3.5 text-[var(--nx-success)]" />
+                            <Check className="h-3.5 w-3.5 text-[var(--glass-success)]" />
                           ) : (
                             <Copy className="h-3.5 w-3.5" />
                           )}
@@ -696,14 +700,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
           })}
 
           {isGenerating && (
-            <div className="nx-fade-in flex items-start gap-3 px-2 py-2">
+            <div className="glass-fade-in glass-card mb-3 mr-auto flex max-w-[92%] items-start gap-3 px-3 py-3 sm:max-w-[85%]">
               <Avatar isUser={false} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-sm font-semibold text-[var(--nx-accent-hover)]">
+                  <span className="text-sm font-semibold text-[var(--glass-accent-hover)]">
                     {activePersona.name}
                   </span>
-                  <span className="text-[11px] font-medium text-[var(--nx-success)]">
+                  <span className="text-[11px] font-medium text-[var(--glass-success)]">
                     {streamingChunk
                       ? 'Reasoning & streaming…'
                       : progressStage || 'Thinking…'}
@@ -712,17 +716,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 {streamingChunk ? (
                   <div className="markdown-content mt-0.5">
                     <ReactMarkdown>{streamingChunk}</ReactMarkdown>
-                    <span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-[var(--nx-accent)] align-middle" />
+                    <span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-[var(--glass-accent)] align-middle" />
                   </div>
                 ) : (
                   <div className="mt-2 space-y-1.5" aria-hidden="true">
-                    <div className="nx-typing">
+                    <div className="glass-typing">
                       <span />
                       <span />
                       <span />
                     </div>
                     {waitEscalation && (
-                      <p className="nx-fade-in text-xs text-[var(--nx-text-faint)]">
+                      <p className="glass-fade-in text-xs text-[var(--glass-text-faint)]">
                         {waitEscalation}
                       </p>
                     )}
@@ -737,19 +741,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
       </div>
 
       {/* Composer */}
-      <div className="shrink-0 bg-[var(--nx-surface)] px-4 py-3 sm:px-6">
-        <div className="mx-auto max-w-[var(--nx-content-max)] space-y-2">
-          <div className="flex items-center justify-between px-1 text-xs text-[var(--nx-text-faint)]">
+      <div className="glass-panel relative z-10 shrink-0 rounded-none border-x-0 border-b-0 px-4 py-3 sm:px-6">
+        <div className="mx-auto max-w-[var(--glass-content-max)] space-y-2">
+          <div className="flex items-center justify-between px-1 text-xs text-[var(--glass-text-faint)]">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="font-semibold text-[var(--nx-text-muted)]">
+              <span className="font-semibold text-[var(--glass-text-muted)]">
                 {activePersona.name}
               </span>
-              <span className="nx-badge font-mono text-[10px]">temp {settings.temperature}</span>
-              <span className="nx-badge font-mono text-[10px] capitalize">
+              <span className="glass-badge font-mono text-[10px]">temp {settings.temperature}</span>
+              <span className="glass-badge font-mono text-[10px] capitalize">
                 {settings.reasoningMode}
               </span>
               {settings.webSearchEnabled && (
-                <span className="nx-badge nx-badge-info text-[10px]">
+                <span className="glass-badge glass-badge-info text-[10px]">
                   <Globe className="h-2.5 w-2.5" />
                   web {settings.webSearchMode || 'auto'}
                 </span>
@@ -760,7 +764,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               {messages.length > 0 && !isGenerating && (
                 <button
                   onClick={onRegenerate}
-                  className="flex items-center gap-1 text-[var(--nx-text-muted)] transition hover:text-[var(--nx-text)]"
+                  className="flex items-center gap-1 text-[var(--glass-text-muted)] transition hover:text-[var(--glass-text)]"
                   title="Regenerate last response"
                   aria-label="Regenerate last response"
                 >
@@ -772,23 +776,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
 
           {attachedImage && (
-            <div className="nx-fade-in flex items-center gap-3 rounded-[var(--nx-r-md)] border border-[var(--nx-accent)]/30 bg-[var(--nx-accent-soft)] p-2.5 text-xs text-[var(--nx-text)]">
+            <div className="glass-fade-in flex items-center gap-3 rounded-[var(--glass-r-md)] border border-[var(--glass-accent)]/30 bg-[var(--glass-accent-soft)] p-2.5 text-xs text-[var(--glass-text)]">
               <img
                 src={attachedImage.dataUrl}
                 alt="Upload preview"
-                className="h-12 w-12 rounded-[var(--nx-r-sm)] border border-[var(--nx-accent)]/40 object-cover"
+                className="h-12 w-12 rounded-[var(--glass-r-sm)] border border-[var(--glass-accent)]/40 object-cover"
                 referrerPolicy="no-referrer"
               />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{attachedImage.name}</p>
-                <p className="font-mono text-[11px] text-[var(--nx-accent-hover)]">
+                <p className="font-mono text-[11px] text-[var(--glass-accent-hover)]">
                   {attachedImage.size} · vision scanner ready
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setAttachedImage(null)}
-                className="rounded-[var(--nx-r-sm)] p-1 text-[var(--nx-text-faint)] transition hover:bg-white/5 hover:text-[var(--nx-danger)]"
+                className="rounded-[var(--glass-r-sm)] p-1 text-[var(--glass-text-faint)] transition hover:bg-white/5 hover:text-[var(--glass-danger)]"
                 title="Remove attached image"
                 aria-label="Remove attached image"
               >
@@ -798,7 +802,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           )}
 
           <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
-            <div className="relative flex-1 overflow-hidden rounded-[var(--nx-r-lg)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] transition focus-within:border-[var(--nx-accent)] focus-within:ring-2 focus-within:ring-[var(--nx-accent-soft)]">
+            <div className="glass-input relative flex-1 overflow-hidden !p-0 transition focus-within:border-[var(--glass-accent)] focus-within:ring-2 focus-within:ring-[var(--glass-accent-soft)]">
               <textarea
                 ref={textareaRef}
                 rows={1}
@@ -807,14 +811,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 placeholder={`Message ${activePersona.name}…  (Enter to send · Shift+Enter for newline · paste or drop an image)`}
-                className="max-h-44 w-full resize-none bg-transparent px-4 py-3 text-sm text-[var(--nx-text)] placeholder:text-[var(--nx-text-faint)] focus:outline-none"
+                className="max-h-44 w-full resize-none bg-transparent px-4 py-3 text-sm text-[var(--glass-text)] placeholder:text-[var(--glass-text-faint)] focus:outline-none"
               />
             </div>
 
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--nx-r-lg)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] text-[var(--nx-text-muted)] transition hover:bg-[var(--nx-elevated-hover)] hover:text-[var(--nx-accent-hover)]"
+              className="glass-btn glass-btn-secondary !h-12 !w-12 shrink-0 !rounded-[var(--glass-r-lg)] !p-0 hover:!text-[var(--glass-accent-hover)]"
               title="Upload image or screenshot"
               aria-label="Upload image or screenshot"
             >
@@ -825,7 +829,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <button
                 type="button"
                 onClick={onStopGeneration}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--nx-r-lg)] bg-[var(--nx-danger)] text-white transition hover:brightness-110"
+                className="glass-btn glass-btn-danger !h-12 !w-12 shrink-0 !rounded-[var(--glass-r-lg)] !p-0"
                 title="Stop generation"
                 aria-label="Stop generation"
               >
@@ -835,7 +839,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <button
                 type="submit"
                 disabled={!inputText.trim() && !attachedImage}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--nx-r-lg)] bg-[var(--nx-accent)] text-white transition hover:bg-[var(--nx-accent-hover)] disabled:opacity-30 disabled:hover:bg-[var(--nx-accent)]"
+                className="glass-btn glass-btn-primary !h-12 !w-12 shrink-0 !rounded-[var(--glass-r-lg)] !p-0"
                 title="Send message"
                 aria-label="Send message"
               >
