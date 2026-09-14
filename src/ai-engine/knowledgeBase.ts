@@ -493,6 +493,8 @@ import { SOFTWARE_ENGINEERING_CONCEPTS_CORPUS } from './corpus/softwareEngineeri
 import { ADDITIONAL_LANGUAGES_CORPUS } from './corpus/additionalLanguagesCorpus';
 import { ADVANCED_PROGRAMMING_CONCEPTS_CORPUS } from './corpus/advancedProgrammingConceptsCorpus';
 import { NETWORKING_AND_ARCHITECTURE_CORPUS } from './corpus/networkingAndArchitectureCorpus';
+import { WATCHES_HOROLOGY_COMPARISONS_GAPS } from './corpus/watchesHorologyComparisonsGaps';
+import { PRACTICAL_DEV_CONCEPTS_CORPUS } from './corpus/practicalDevConceptsCorpus';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1499,6 +1501,9 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...ADDITIONAL_LANGUAGES_CORPUS,
   ...ADVANCED_PROGRAMMING_CONCEPTS_CORPUS,
   ...NETWORKING_AND_ARCHITECTURE_CORPUS,
+  // Batch 299 corpus fixes (2026-09-14): watches/horology "difference between X and Y" gaps.
+  ...WATCHES_HOROLOGY_COMPARISONS_GAPS,
+  ...PRACTICAL_DEV_CONCEPTS_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
