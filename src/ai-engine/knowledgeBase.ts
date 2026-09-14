@@ -512,6 +512,7 @@ import { MESSAGE_QUEUES_EVENT_DRIVEN_ARCHITECTURE_GAPS } from './corpus/messageQ
 import { CARTOGRAPHY_SURVEYING_GAPS } from './corpus/cartographySurveyingGaps';
 import { LOCKSMITHING_GAPS } from './corpus/locksmithingGaps';
 import { GIT_WORKFLOWS_BRANCHING_GAPS } from './corpus/gitWorkflowsBranchingGaps';
+import { OBSERVABILITY_MONITORING_GAPS } from './corpus/observabilityMonitoringGaps';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1544,6 +1545,8 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...CARTOGRAPHY_SURVEYING_GAPS,
   // Batch 314 corpus fixes (2026-09-14): git branching workflows/strategies "difference between X and Y" gaps.
   ...GIT_WORKFLOWS_BRANCHING_GAPS,
+  // Batch 316 corpus fixes (2026-09-14): observability & monitoring "difference between X and Y" gaps.
+  ...OBSERVABILITY_MONITORING_GAPS,
   // Batch 315 corpus fixes (2026-09-14): locksmithing / physical lock & key mechanisms "difference between X and Y" gaps.
   ...LOCKSMITHING_GAPS,
 ];
