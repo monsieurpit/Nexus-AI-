@@ -384,8 +384,16 @@ const ALL_SOCCER_LEAGUES: LeagueEntry[] = (() => {
 /**
  * Fetches full league standings/table for a resolved league.
  */
-export async function getLeagueStandings(leagueEntry: LeagueEntry): Promise<StandingsRow[]> {
-  const url = `https://site.api.espn.com/apis/v2/sports/${leagueEntry.sport}/${leagueEntry.league}/standings`;
+/**
+ * `season`, when given, fetches a PAST season's final standings instead of the current live ones —
+ * ESPN's standings endpoint supports a `?season=YYYY` query param that returns that season's actual
+ * data (verified live: `?season=2024` on F1 correctly returns Verstappen's real 2024 championship,
+ * not the current season). Patrick asked for Nexus to know every past champion ESPN has, not just
+ * current live standings — this is what makes "who won the 2024 [league]" answerable for real
+ * instead of falling back to a vague corpus/web-search non-answer.
+ */
+export async function getLeagueStandings(leagueEntry: LeagueEntry, season?: number): Promise<StandingsRow[]> {
+  const url = `https://site.api.espn.com/apis/v2/sports/${leagueEntry.sport}/${leagueEntry.league}/standings${season ? `?season=${season}` : ''}`;
   const data = await espnFetch(url);
   if (!data) return [];
   // Soccer standings nest one level under `children[0].standings.entries`; some other sports'
@@ -431,8 +439,8 @@ export interface DriverStandingRow {
  * own function/type rather than shoehorning drivers into StandingsRow, which is genuinely
  * team-shaped (wins/losses/draws) and doesn't fit a driver at all.
  */
-export async function getF1DriverStandings(): Promise<DriverStandingRow[]> {
-  const url = 'https://site.api.espn.com/apis/v2/sports/racing/f1/standings';
+export async function getF1DriverStandings(season?: number): Promise<DriverStandingRow[]> {
+  const url = `https://site.api.espn.com/apis/v2/sports/racing/f1/standings${season ? `?season=${season}` : ''}`;
   const data = await espnFetch(url);
   if (!data || !Array.isArray(data.children)) return [];
   const driverChild = data.children.find((c: any) => /driver/i.test(c?.name || '')) || data.children[0];
@@ -525,10 +533,16 @@ export function renderF1RaceResultContext(result: F1RaceResult): string {
  * even after the header text was shortened once already, so every render function here now uses a
  * plain sentence lead-in instead of a "[LIVE DATA — ...]" bracket.
  */
-export function renderF1StandingsContext(rows: DriverStandingRow[]): string {
+export function renderF1StandingsContext(rows: DriverStandingRow[], season?: number): string {
   if (rows.length === 0) return 'Formula 1 driver standings are unavailable right now.';
   const lines = rows.slice(0, 10).map((r) => `${r.rank}. ${r.driver}${r.points !== null ? ` — ${r.points} pts` : ''}`);
-  return `Formula 1 Driver Championship standings, from live ESPN data just fetched:\n${lines.join('\n')}`;
+  // Explicitly states whether this is the FINAL standings of a named past season or the current
+  // in-progress one — without this, the model has no way to know which it's looking at and could
+  // present a past champion as "currently leading" or vice versa.
+  const label = season
+    ? `Formula 1 Driver Championship — FINAL standings for the ${season} season (already completed), from ESPN data`
+    : 'Formula 1 Driver Championship standings, CURRENT/in-progress season, from live ESPN data just fetched';
+  return `${label}:\n${lines.join('\n')}`;
 }
 
 function formatMatchLine(m: LiveMatch): string {
@@ -584,13 +598,16 @@ export function renderScoreboardContext(matches: LiveMatch[], leagueLabel: strin
 }
 
 /** Renders a compact, LLM-groundable text block for a league table. */
-export function renderStandingsContext(rows: StandingsRow[], leagueLabel: string): string {
+export function renderStandingsContext(rows: StandingsRow[], leagueLabel: string, season?: number): string {
   if (rows.length === 0) return `${leagueLabel} standings are unavailable right now.`;
   const lines = rows.slice(0, 12).map((r) => {
     const record = r.draws !== null ? `${r.wins}W-${r.draws}D-${r.losses}L` : `${r.wins}W-${r.losses}L`;
     return `${r.rank}. ${r.team} — ${record}${r.points !== null ? `, ${r.points} pts` : ''}${r.gamesPlayed !== null ? ` (${r.gamesPlayed} played)` : ''}`;
   });
-  return `${leagueLabel} standings, from live ESPN data just fetched:\n${lines.join('\n')}`;
+  const label = season
+    ? `${leagueLabel} — FINAL standings for the ${season} season (already completed), from ESPN data`
+    : `${leagueLabel} standings, CURRENT/in-progress season, from live ESPN data just fetched`;
+  return `${label}:\n${lines.join('\n')}`;
 }
 
 // ─── Query intent detection ─────────────────────────────────────────────────
@@ -600,6 +617,7 @@ export interface LiveSportsIntent {
   team?: string;
   league?: LeagueEntry;
   gpQuery?: string;
+  season?: number;
 }
 
 // "did Lewis Hamilton win the Spanish GP" / "who won the last F1 race" — a RACE result question,
@@ -635,42 +653,45 @@ const STANDINGS_TRIGGER_RE =
  */
 // Found live: "who won the 2024 F1 championship" (a settled, historical past-season question) was
 // silently returning the CURRENT 2026 season's live standings instead — the year the user actually
-// asked about was never even looked at. ESPN's standings/scoreboard endpoints here only ever expose
-// the current season, so any query naming a past year needs to fall through to the normal static
-// corpus/trivia answer path (which may or may not have that historical fact — that's an honest "I
-// don't know" rather than confidently mislabeling this season's data as the answer to a different
-// season's question) instead of being treated as a live-data lookup at all.
+// asked about was never even looked at. First fix (commit 17dddd0) was to skip live-sports handling
+// entirely whenever a past year was mentioned, falling back to static corpus/web search. Patrick
+// then asked for MORE, not less, here: he wants Nexus to know every past champion/standings ESPN
+// actually has, not just bail out to a vague non-answer. ESPN's standings endpoint supports a
+// `?season=YYYY` query param that returns that exact past season's real final standings (verified
+// live: `?season=2024` on F1 correctly returns Verstappen's real 2024 championship) — so a
+// STANDINGS-shaped question with a past year now becomes a season-aware live lookup for that real
+// year instead of either wrongly using the current season OR giving up. A SCORE/scoreboard-shaped
+// question with a past year still bails out (there's no sensible "live score" for a match that's
+// long over and ESPN's scoreboard endpoint here isn't wired to browse arbitrary historical dates).
 const YEAR_RE = /\b(19|20)\d{2}\b/;
 
-function mentionsStaleYear(lower: string): boolean {
+function extractMentionedYear(lower: string): number | null {
   const match = lower.match(YEAR_RE);
-  if (!match) return false;
-  const year = Number(match[0]);
-  const currentYear = new Date().getFullYear();
-  // A small future/past tolerance (e.g. "the 2026/27 season") isn't flagged as stale — only a
-  // clearly PAST season/year relative to now.
-  return year < currentYear;
+  return match ? Number(match[0]) : null;
 }
 
 export function detectLiveSportsIntent(prompt: string): LiveSportsIntent | null {
   const lower = prompt.toLowerCase();
   const league = resolveLeague(lower);
-
-  if (mentionsStaleYear(lower)) return null;
+  const mentionedYear = extractMentionedYear(lower);
+  const currentYear = new Date().getFullYear();
+  const isStaleYear = mentionedYear !== null && mentionedYear < currentYear;
 
   // Checked before the generic standings/league branches below — "the 2026 Spanish GP" would
   // otherwise resolve `league` to nothing (no league name in the query) and fall through to a
-  // dead end, or worse, get misread by a broader future trigger.
-  if (F1_RACE_TRIGGER_RE.test(lower)) {
+  // dead end, or worse, get misread by a broader future trigger. A past-year GP result isn't
+  // covered by this file's F1 scoreboard call (only returns the current/most-recent race), so a
+  // stale year here still bails out rather than confidently answering the wrong race.
+  if (F1_RACE_TRIGGER_RE.test(lower) && !isStaleYear) {
     const gpMatch = lower.match(GP_NAME_RE);
     return { kind: 'f1_race_result', gpQuery: gpMatch ? gpMatch[1] : undefined };
   }
 
   if (STANDINGS_TRIGGER_RE.test(lower) && league) {
-    return { kind: 'standings', league };
+    return { kind: 'standings', league, season: isStaleYear ? mentionedYear! : undefined };
   }
 
-  if (SCORE_TRIGGER_RE.test(lower)) {
+  if (SCORE_TRIGGER_RE.test(lower) && !isStaleYear) {
     if (league) return { kind: 'league_scoreboard', league };
 
     // No explicit league named — check for a known club/team mention (Barça-first, since that's
@@ -732,13 +753,13 @@ export async function resolveLiveSportsContext(intent: LiveSportsIntent): Promis
     // routed to its own fetch/render pair rather than forcing it through getLeagueStandings, whose
     // StandingsRow type doesn't have anywhere to put a driver name.
     if (intent.league.sport === 'racing') {
-      const driverRows = await getF1DriverStandings();
+      const driverRows = await getF1DriverStandings(intent.season);
       if (driverRows.length === 0) return null;
-      return renderF1StandingsContext(driverRows);
+      return renderF1StandingsContext(driverRows, intent.season);
     }
-    const rows = await getLeagueStandings(intent.league);
+    const rows = await getLeagueStandings(intent.league, intent.season);
     if (rows.length === 0) return null;
-    return renderStandingsContext(rows, intent.league.label);
+    return renderStandingsContext(rows, intent.league.label, intent.season);
   }
 
   if (intent.kind === 'league_scoreboard' && intent.league) {

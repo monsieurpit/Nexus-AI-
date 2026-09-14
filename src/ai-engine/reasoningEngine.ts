@@ -1590,6 +1590,15 @@ export function detectQueryIntent(query: string): QueryIntent {
     /\bhow\s+many\s+days?\s+(?:until|till|since)\b/i.test(q) ||
     /\bwhat\s+day\s+(?:of\s+the\s+week\s+)?(?:is|was|will)\b/i.test(q) ||
     /\bwhat\s+day\s+is\s+(?:it|today)\b/i.test(q) ||
+    // Found live: "what is today's date" / "what's today's date" got classified 'general' by every
+    // check in this function (none of the patterns above match this exact phrasing — no "what day",
+    // no bare "what date" substring, no "when"), so it never reached 'temporal' at all and the date
+    // solver below (which already has the correct regex for exactly this phrasing) never got a
+    // chance to run — it fell all the way through to a full corpus search, which confidently
+    // answered with an unrelated doc about the Gregorian calendar reform instead of just stating the
+    // actual date. dateSolver.ts's own matcher is `(?:what'?s|what\s+is)\s+(?:today'?s?\s+date|the
+    // date today)` — mirrored here so the classifier and the solver agree on what counts.
+    /\b(?:what'?s|what\s+is)\s+(?:today'?s?\s+date|the\s+date\s+today)\b/i.test(q) ||
     // Polish equivalents — this whole English question-word classification block had ZERO Polish
     // coverage before this pass (see the definition/explanation/causal/location/person branches
     // below for the same fix), so every Polish factual question fell through this entire function
