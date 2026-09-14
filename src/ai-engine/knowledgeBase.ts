@@ -510,6 +510,7 @@ import { NUMISMATICS_PHILATELY_VEXILLOLOGY_GAPS } from './corpus/numismaticsPhil
 import { HAIRDRESSING_BARBERING_GAPS } from './corpus/hairdressingBarberingGaps';
 import { MESSAGE_QUEUES_EVENT_DRIVEN_ARCHITECTURE_GAPS } from './corpus/messageQueuesEventDrivenArchitectureGaps';
 import { CARTOGRAPHY_SURVEYING_GAPS } from './corpus/cartographySurveyingGaps';
+import { LOCKSMITHING_GAPS } from './corpus/locksmithingGaps';
 import { GIT_WORKFLOWS_BRANCHING_GAPS } from './corpus/gitWorkflowsBranchingGaps';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
@@ -1543,6 +1544,8 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...CARTOGRAPHY_SURVEYING_GAPS,
   // Batch 314 corpus fixes (2026-09-14): git branching workflows/strategies "difference between X and Y" gaps.
   ...GIT_WORKFLOWS_BRANCHING_GAPS,
+  // Batch 315 corpus fixes (2026-09-14): locksmithing / physical lock & key mechanisms "difference between X and Y" gaps.
+  ...LOCKSMITHING_GAPS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
