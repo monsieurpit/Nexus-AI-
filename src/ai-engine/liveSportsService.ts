@@ -18,7 +18,7 @@
  */
 
 interface EspnCompetitor {
-  team: { displayName: string; shortDisplayName?: string; abbreviation?: string };
+  team: { id?: string; displayName: string; shortDisplayName?: string; abbreviation?: string };
   score?: string;
   homeAway?: 'home' | 'away';
   winner?: boolean;
@@ -34,7 +34,24 @@ interface EspnEvent {
       displayClock?: string;
     };
     competitors: EspnCompetitor[];
+    // Soccer scoreboard events carry a play-by-play-style log here — goals, cards, subs — each
+    // entry tagged with which team.id it belongs to. Used to pull out goal scorers specifically
+    // (type.text === "Goal"); other event types (cards, subs) are ignored for now.
+    details?: Array<{
+      type?: { text?: string };
+      clock?: { displayValue?: string };
+      team?: { id?: string };
+      scoringPlay?: boolean;
+      ownGoal?: boolean;
+      athletesInvolved?: Array<{ displayName?: string }>;
+    }>;
   }>;
+}
+
+export interface GoalScorer {
+  minute: string;
+  player: string;
+  teamSide: 'home' | 'away';
 }
 
 export interface LiveMatch {
@@ -49,6 +66,7 @@ export interface LiveMatch {
   homeScore: string | null;
   awayScore: string | null;
   displayClock: string | null;
+  goalScorers: GoalScorer[];
 }
 
 export interface StandingsRow {
@@ -266,6 +284,15 @@ function mapEvent(ev: EspnEvent): LiveMatch | null {
   if (!home || !away) return null;
   const statusType = comp.status?.type;
   const state = statusType?.state;
+  const goalScorers: GoalScorer[] = Array.isArray(comp.details)
+    ? comp.details
+        .filter((d) => d.type?.text === 'Goal')
+        .map((d) => ({
+          minute: d.clock?.displayValue || '?',
+          player: d.athletesInvolved?.[0]?.displayName || 'Unknown',
+          teamSide: (d.team?.id && d.team.id === home.team.id ? 'home' : 'away') as 'home' | 'away',
+        }))
+    : [];
   return {
     name: ev.name || ev.shortName || `${away.team.displayName} at ${home.team.displayName}`,
     kickoffIso: ev.date,
@@ -278,6 +305,7 @@ function mapEvent(ev: EspnEvent): LiveMatch | null {
     homeScore: home.score ?? null,
     awayScore: away.score ?? null,
     displayClock: comp.status?.displayClock || null,
+    goalScorers,
   };
 }
 
@@ -424,6 +452,7 @@ export async function getF1DriverStandings(): Promise<DriverStandingRow[]> {
 
 export interface F1RaceResult {
   raceName: string;
+  raceDate: string | null;
   isCompleted: boolean;
   order: { position: number; driver: string }[];
 }
@@ -454,14 +483,23 @@ export async function getF1RaceResult(gpQuery?: string): Promise<F1RaceResult | 
   const order = competitors
     .map((c: any) => ({ position: Number(c.order) || 999, driver: c.athlete?.displayName || 'Unknown' }))
     .sort((a: { position: number }, b: { position: number }) => a.position - b.position);
+  // event.date is an ISO string like "2026-09-11T11:30Z" — sliced to just the calendar date (no
+  // time/timezone math needed for a "what year/date was this race" grounding fact).
+  const raceDate = typeof event.date === 'string' && event.date.length >= 10 ? event.date.slice(0, 10) : null;
   return {
     raceName: event.name || event.shortName || 'the race',
+    raceDate,
     isCompleted: !!comp?.status?.type?.completed,
     order,
   };
 }
 
-/** Renders a compact, LLM-groundable text block for a specific F1 race's result. */
+/**
+ * Renders a compact, LLM-groundable text block for a specific F1 race's result. Includes the race's
+ * actual date — found live that without it, the model would sometimes just invent a year on its own
+ * ("Russell took the top spot in the 2024 Spanish GP") since nothing in the context gave it a real
+ * one to use.
+ */
 export function renderF1RaceResultContext(result: F1RaceResult): string {
   if (result.order.length === 0) return `Result for ${result.raceName} is unavailable right now.`;
   if (!result.isCompleted) return `${result.raceName} hasn't finished yet — no result available right now.`;
@@ -470,7 +508,8 @@ export function renderF1RaceResultContext(result: F1RaceResult): string {
     .slice(0, 5)
     .map((r) => `${r.position}. ${r.driver}`)
     .join(', ');
-  return `${result.raceName} result, from live ESPN data just fetched: the winner was ${winner.driver}. Full top 5: ${top5}.`;
+  const dateNote = result.raceDate ? ` (held on ${result.raceDate})` : '';
+  return `${result.raceName}${dateNote} result, from live ESPN data just fetched: the winner was ${winner.driver}. Full top 5: ${top5}.`;
 }
 
 // Patrick reported team names coming back garbled in the actual reply ("bretford" instead of
@@ -516,7 +555,13 @@ function formatMatchLine(m: LiveMatch): string {
     score = `${m.homeTeam} vs ${m.awayTeam}`;
   }
   const status = m.isLive ? `LIVE (${m.displayClock || m.statusDetail})` : m.isCompleted ? `Final (${m.statusDetail || 'FT'})` : `Scheduled (${m.statusDetail || m.kickoffIso})`;
-  return `${score} — ${status}`;
+  // Goal scorers, when ESPN's data includes them (soccer only) — answers "who scored" without a
+  // separate lookup, since it's the single most common natural follow-up to a match score.
+  const scorersLine =
+    m.goalScorers.length > 0
+      ? ` Goals: ${m.goalScorers.map((g) => `${g.player} (${g.teamSide === 'home' ? m.homeTeam : m.awayTeam}, ${g.minute})`).join(', ')}.`
+      : '';
+  return `${score} — ${status}.${scorersLine}`;
 }
 
 /**
@@ -569,7 +614,10 @@ const F1_RACE_TRIGGER_RE = /\b(?:grand\s+prix|\bgp\b)\b/i;
 // no adjective ("who won the last race") just returns the most recent event instead.
 const GP_NAME_RE = /\b(?:\d{4}\s+)?([a-z]+)\s+(?:grand\s+prix|gp)\b/i;
 
-const SCORE_TRIGGER_RE = /\b(?:score|scoreline|result|playing|live|winning|losing|tied|game\s+(?:right\s+)?now|today'?s?\s+(?:game|match))\b/i;
+// Added "scored"/"scorer"/"goals" — "who scored the goals" wouldn't match the bare "score" trigger
+// (\bscore\b requires a word boundary right after "score", which "scored"/"scorer" don't have).
+const SCORE_TRIGGER_RE =
+  /\b(?:score|scoreline|scored|scorers?|goals?|result|playing|live|winning|losing|tied|game\s+(?:right\s+)?now|today'?s?\s+(?:game|match))\b/i;
 // Was `who'?s?\s+(?:top|first|leading|...)` — that only ever matched the contraction "who's", not
 // the fully spelled-out "who is" (verified live: "who is leading the F1 championship" silently
 // missed this entirely and fell through to static trivia). `who\s?(?:'s|\s+is)` covers both. Also
