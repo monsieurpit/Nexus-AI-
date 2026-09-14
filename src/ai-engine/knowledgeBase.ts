@@ -288,6 +288,7 @@ import { ADVANCED_GEOGRAPHY_GAPS } from './corpus/advancedGeographyGaps';
 import { ECOLOGY_ANIMAL_BEHAVIOR_GAPS } from './corpus/ecologyAnimalBehaviorGaps';
 import { TRANSPORTATION_VEHICLES_GAPS } from './corpus/transportationVehiclesGaps';
 import { MILITARY_HISTORY_WEAPONS_GAPS } from './corpus/militaryHistoryWeaponsGaps';
+import { INSECT_COMPARISONS_GAPS } from './corpus/insectComparisonsGaps';
 import { SOCCER_KNOWLEDGE_GAPS } from './corpus/soccerKnowledgeGaps';
 import { CELL_BIOLOGY_CORE_GAPS } from './corpus/cellBiologyCoreGaps';
 import { PSYCHOLOGY_DEEP_GAPS } from './corpus/psychologyDeepGaps';
@@ -1275,6 +1276,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...ECOLOGY_ANIMAL_BEHAVIOR_GAPS,
   ...TRANSPORTATION_VEHICLES_GAPS,
   ...MILITARY_HISTORY_WEAPONS_GAPS,
+  ...INSECT_COMPARISONS_GAPS,
   ...SOCCER_KNOWLEDGE_GAPS,
   ...CELL_BIOLOGY_CORE_GAPS,
   ...PSYCHOLOGY_DEEP_GAPS,
