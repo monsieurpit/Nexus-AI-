@@ -504,6 +504,7 @@ import { CODING_BUILD_DEPLOY_DATA_GAPS } from './corpus/codingBuildDeployDataGap
 import { MARTIAL_ARTS_COMPARISONS_GAPS } from './corpus/martialArtsComparisonsGaps';
 import { FRONTEND_FRAMEWORK_CONCEPTS_GAPS } from './corpus/frontendFrameworkConceptsGaps';
 import { COCKTAILS_SPIRITS_COMPARISONS_GAPS } from './corpus/cocktailsSpiritsComparisonsGaps';
+import { PROGRAMMING_LANGUAGE_COMPARISONS_GAPS } from './corpus/programmingLanguageComparisonsGaps';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1525,6 +1526,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...FRONTEND_FRAMEWORK_CONCEPTS_GAPS,
   // Batch 307 corpus fixes (2026-09-14): cocktails/spirits "difference between X and Y" gaps.
   ...COCKTAILS_SPIRITS_COMPARISONS_GAPS,
+  ...PROGRAMMING_LANGUAGE_COMPARISONS_GAPS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
