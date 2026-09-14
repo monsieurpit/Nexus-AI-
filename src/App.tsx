@@ -99,11 +99,19 @@ export default function App() {
   const setProgressStageFor = (id: string, value: string) =>
     setProgressStages((prev) => ({ ...prev, [id]: value }));
 
-  // Modal visibility states
-  const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
-  const [isKnowledgeOpen, setIsKnowledgeOpen] = useState(false);
-  const [isAttentionOpen, setIsAttentionOpen] = useState(false);
-  const [isApiModalOpen, setIsApiModalOpen] = useState(false);
+  // Modal visibility — a single piece of state rather than 4 independent booleans. Each modal
+  // (Modal.tsx) mounts its own Escape-key listener and body-scroll-lock effect; with 4
+  // independent booleans nothing prevented 2+ being open at once, which meant Escape closed BOTH
+  // at once (each had its own global listener) and closing the first-opened one wrongly restored
+  // background scroll while the second was still open. One `openModal` value structurally
+  // prevents that: opening any modal is exclusive by construction.
+  type ModalId = 'customizer' | 'knowledge' | 'attention' | 'api';
+  const [openModal, setOpenModal] = useState<ModalId | null>(null);
+  const isCustomizerOpen = openModal === 'customizer';
+  const isKnowledgeOpen = openModal === 'knowledge';
+  const isAttentionOpen = openModal === 'attention';
+  const isApiModalOpen = openModal === 'api';
+  const closeModal = () => setOpenModal(null);
 
   // On narrow screens the conversation list collapses into an overlay drawer
   // toggled from the chat header; on md+ it's always a static column.
@@ -433,7 +441,7 @@ export default function App() {
 
   const handleOpenAttentionForMessage = (msg: ChatMessage) => {
     setActiveAttentionMsg(msg);
-    setIsAttentionOpen(true);
+    setOpenModal('attention');
   };
 
   const handleNewChatMobile = () => {
@@ -454,13 +462,13 @@ export default function App() {
         view={view}
         onSelectView={setView}
         onSelectPersona={handleSelectPersona}
-        onOpenCustomizer={() => setIsCustomizerOpen(true)}
-        onOpenKnowledge={() => setIsKnowledgeOpen(true)}
+        onOpenCustomizer={() => setOpenModal('customizer')}
+        onOpenKnowledge={() => setOpenModal('knowledge')}
         onOpenAttention={() => {
           setActiveAttentionMsg(null);
-          setIsAttentionOpen(true);
+          setOpenModal('attention');
         }}
-        onOpenApiIntegration={() => setIsApiModalOpen(true)}
+        onOpenApiIntegration={() => setOpenModal('api')}
       />
 
       {view === 'chat' && (
@@ -515,9 +523,9 @@ export default function App() {
               onStopGeneration={handleStopGeneration}
               onRegenerate={handleRegenerate}
               onOpenAttentionForMessage={handleOpenAttentionForMessage}
-              onOpenCustomizer={() => setIsCustomizerOpen(true)}
-              onOpenKnowledge={() => setIsKnowledgeOpen(true)}
-              onOpenApiIntegration={() => setIsApiModalOpen(true)}
+              onOpenCustomizer={() => setOpenModal('customizer')}
+              onOpenKnowledge={() => setOpenModal('knowledge')}
+              onOpenApiIntegration={() => setOpenModal('api')}
             />
           </main>
         </>
@@ -532,7 +540,7 @@ export default function App() {
       {/* Customizer Modal */}
       <ModelCustomizerModal
         isOpen={isCustomizerOpen}
-        onClose={() => setIsCustomizerOpen(false)}
+        onClose={closeModal}
         settings={settings}
         onSaveSettings={handleSaveSettings}
       />
@@ -540,13 +548,13 @@ export default function App() {
       {/* Knowledge Trainer Modal */}
       <KnowledgeTrainerModal
         isOpen={isKnowledgeOpen}
-        onClose={() => setIsKnowledgeOpen(false)}
+        onClose={closeModal}
       />
 
       {/* Attention & Latent Space Visualizer Modal */}
       <AttentionVisualizerModal
         isOpen={isAttentionOpen}
-        onClose={() => setIsAttentionOpen(false)}
+        onClose={closeModal}
         lastAttentionMatrix={activeAttentionMsg?.attentionMatrix}
         lastPrompt={
           activeAttentionMsg
@@ -561,7 +569,7 @@ export default function App() {
       {/* Bot API & SDK Integration Modal */}
       <ApiIntegrationModal
         isOpen={isApiModalOpen}
-        onClose={() => setIsApiModalOpen(false)}
+        onClose={closeModal}
       />
     </div>
   );
