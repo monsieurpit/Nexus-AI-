@@ -502,6 +502,7 @@ import { DISTRIBUTED_SYSTEMS_AND_CS_BASICS_CORPUS } from './corpus/distributedSy
 import { CODING_TOOLING_ERRORS_GAPS } from './corpus/codingToolingErrorsGaps';
 import { CODING_BUILD_DEPLOY_DATA_GAPS } from './corpus/codingBuildDeployDataGaps';
 import { MARTIAL_ARTS_COMPARISONS_GAPS } from './corpus/martialArtsComparisonsGaps';
+import { FRONTEND_FRAMEWORK_CONCEPTS_GAPS } from './corpus/frontendFrameworkConceptsGaps';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1519,6 +1520,8 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...CODING_BUILD_DEPLOY_DATA_GAPS,
   // Batch 305 corpus fixes (2026-09-14): martial arts "difference between X and Y" gaps.
   ...MARTIAL_ARTS_COMPARISONS_GAPS,
+  // Batch 306 corpus fixes (2026-09-14): frontend framework concepts "difference between X and Y" gaps.
+  ...FRONTEND_FRAMEWORK_CONCEPTS_GAPS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
