@@ -374,25 +374,53 @@ export async function getF1DriverStandings(): Promise<DriverStandingRow[]> {
 export function renderF1StandingsContext(rows: DriverStandingRow[]): string {
   if (rows.length === 0) return '[LIVE DATA — Formula 1: driver standings unavailable right now.]';
   const lines = rows.slice(0, 10).map((r) => `${r.rank}. ${r.driver}${r.points !== null ? ` — ${r.points} pts` : ''}`);
-  return `[LIVE DATA — Formula 1 Driver Championship standings, fetched just now from ESPN — copy every name exactly as spelled here]\n${lines.join('\n')}`;
+  return `[LIVE DATA — Formula 1 Driver Championship standings, fetched just now from ESPN]\n${lines.join('\n')}`;
 }
 
 function formatMatchLine(m: LiveMatch): string {
-  const score = m.homeScore !== null && m.awayScore !== null ? `${m.homeTeam} ${m.homeScore} - ${m.awayScore} ${m.awayTeam}` : `${m.homeTeam} vs ${m.awayTeam}`;
+  // Found live: the compact "TeamA 2 - 4 TeamB" shorthand was frequently misread by the small
+  // model — it would report "2-4 to TeamA" (i.e. read the dash-separated numbers as belonging to
+  // the WRONG side) more often than not in repeated testing, turning a Barcelona win into a
+  // reported Barcelona loss. Spelling out each team's own score next to its own name, plus an
+  // explicit winner/draw callout, removes the need for the model to parse ambiguous shorthand at
+  // all — it only has to copy a sentence that's already unambiguous.
+  let score: string;
+  if (m.homeScore !== null && m.awayScore !== null) {
+    const home = Number(m.homeScore);
+    const away = Number(m.awayScore);
+    const outcome =
+      Number.isFinite(home) && Number.isFinite(away)
+        ? home === away
+          ? 'Draw.'
+          : home > away
+          ? `${m.homeTeam} won.`
+          : `${m.awayTeam} won.`
+        : '';
+    score = `${m.homeTeam} scored ${m.homeScore}, ${m.awayTeam} scored ${m.awayScore}. ${outcome}`.trim();
+  } else {
+    score = `${m.homeTeam} vs ${m.awayTeam}`;
+  }
   const status = m.isLive ? `LIVE (${m.displayClock || m.statusDetail})` : m.isCompleted ? `Final (${m.statusDetail || 'FT'})` : `Scheduled (${m.statusDetail || m.kickoffIso})`;
   return `${score} — ${status}`;
 }
 
-/** Renders a compact, LLM-groundable text block for one match. */
+/**
+ * Renders a compact, LLM-groundable text block for one match. Deliberately NO bracketed
+ * "[LIVE DATA — ...]" header here (unlike the scoreboard/standings renderers below) — a single
+ * short match line is so brief that, in repeated live testing, the model would often just copy the
+ * bracket header verbatim into its reply instead of paraphrasing (there was barely anything else in
+ * the block to distract it into rephrasing). A plain sentence gives it nothing bracket-shaped to
+ * echo while still being unambiguous enough via formatMatchLine's explicit per-team scoring.
+ */
 export function renderMatchContext(m: LiveMatch, leagueLabel: string): string {
-  return `[LIVE DATA — ${leagueLabel}, fetched just now from ESPN — copy every name exactly as spelled here]\n${formatMatchLine(m)}`;
+  return `${leagueLabel} match, from live ESPN data just fetched: ${formatMatchLine(m)}`;
 }
 
 /** Renders a compact, LLM-groundable text block for a league's current scoreboard (multiple matches). */
 export function renderScoreboardContext(matches: LiveMatch[], leagueLabel: string): string {
   if (matches.length === 0) return `[LIVE DATA — ${leagueLabel}: no matches found right now (likely no fixtures today).]`;
   const lines = matches.slice(0, 10).map(formatMatchLine);
-  return `[LIVE DATA — ${leagueLabel} scoreboard, fetched just now from ESPN — copy every name exactly as spelled here]\n${lines.join('\n')}`;
+  return `[LIVE DATA — ${leagueLabel} scoreboard, fetched just now from ESPN]\n${lines.join('\n')}`;
 }
 
 /** Renders a compact, LLM-groundable text block for a league table. */
@@ -402,7 +430,7 @@ export function renderStandingsContext(rows: StandingsRow[], leagueLabel: string
     const record = r.draws !== null ? `${r.wins}W-${r.draws}D-${r.losses}L` : `${r.wins}W-${r.losses}L`;
     return `${r.rank}. ${r.team} — ${record}${r.points !== null ? `, ${r.points} pts` : ''}${r.gamesPlayed !== null ? ` (${r.gamesPlayed} played)` : ''}`;
   });
-  return `[LIVE DATA — ${leagueLabel} standings, fetched just now from ESPN — copy every name exactly as spelled here]\n${lines.join('\n')}`;
+  return `[LIVE DATA — ${leagueLabel} standings, fetched just now from ESPN]\n${lines.join('\n')}`;
 }
 
 // ─── Query intent detection ─────────────────────────────────────────────────
