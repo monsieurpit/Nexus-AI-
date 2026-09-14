@@ -633,9 +633,30 @@ const STANDINGS_TRIGGER_RE =
  * Deliberately conservative — only fires on a clear live-data signal word AND a resolvable
  * team/league, so it doesn't hijack a normal "what's the offside rule" style question.
  */
+// Found live: "who won the 2024 F1 championship" (a settled, historical past-season question) was
+// silently returning the CURRENT 2026 season's live standings instead — the year the user actually
+// asked about was never even looked at. ESPN's standings/scoreboard endpoints here only ever expose
+// the current season, so any query naming a past year needs to fall through to the normal static
+// corpus/trivia answer path (which may or may not have that historical fact — that's an honest "I
+// don't know" rather than confidently mislabeling this season's data as the answer to a different
+// season's question) instead of being treated as a live-data lookup at all.
+const YEAR_RE = /\b(19|20)\d{2}\b/;
+
+function mentionsStaleYear(lower: string): boolean {
+  const match = lower.match(YEAR_RE);
+  if (!match) return false;
+  const year = Number(match[0]);
+  const currentYear = new Date().getFullYear();
+  // A small future/past tolerance (e.g. "the 2026/27 season") isn't flagged as stale — only a
+  // clearly PAST season/year relative to now.
+  return year < currentYear;
+}
+
 export function detectLiveSportsIntent(prompt: string): LiveSportsIntent | null {
   const lower = prompt.toLowerCase();
   const league = resolveLeague(lower);
+
+  if (mentionsStaleYear(lower)) return null;
 
   // Checked before the generic standings/league branches below — "the 2026 Spanish GP" would
   // otherwise resolve `league` to nothing (no league name in the query) and fall through to a
