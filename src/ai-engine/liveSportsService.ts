@@ -408,6 +408,27 @@ const ALL_SOCCER_LEAGUES: LeagueEntry[] = (() => {
   return out;
 })();
 
+// Found in review: despite NBA/NFL/NHL/MLB already being registered in LEAGUE_MAP for league-wide
+// scoreboard/standings questions, the generic team-name lookup (extractGenericTeamName) only ever
+// searched ALL_SOCCER_LEAGUES — "what's the score of the Lakers game" or "the Cowboys game" had no
+// live-data path at all and silently fell through to a non-live answer. Verified live that
+// getLeagueScoreboard/mapEvent already work identically for these sports (no soccer-specific
+// assumptions in the fetch/parse code) — the gap was purely that nothing outside soccer was ever in
+// the search list. Every non-racing team sport this file knows about (racing/F1 is driver-based, not
+// team-based, and is handled entirely separately) is included here.
+const ALL_TEAM_SPORT_LEAGUES: LeagueEntry[] = (() => {
+  const seen = new Set<string>();
+  const out: LeagueEntry[] = [];
+  for (const entry of Object.values(LEAGUE_MAP)) {
+    if (entry.sport === 'racing') continue;
+    const key = `${entry.sport}/${entry.league}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+  return out;
+})();
+
 /**
  * Fetches full league standings/table for a resolved league.
  */
@@ -844,11 +865,16 @@ export async function resolveLiveSportsContext(intent: LiveSportsIntent): Promis
 
   if (intent.kind === 'team_score' && intent.team) {
     // Barcelona's own competitions checked first (fastest, most common case for Patrick
-    // specifically), then every other supported soccer league/cup in parallel if that comes up
-    // empty — covers any team ESPN carries, not just the ones this file has a hardcoded alias for.
+    // specifically), then every other supported soccer league/cup, then — added after review
+    // found team-specific lookups silently never worked for basketball/football/hockey/baseball
+    // despite those leagues being registered — every other team sport (NBA/NFL/NHL/MLB) as a final
+    // fallback. Three sequential passes rather than one combined list so a soccer club is still
+    // found via its own domestic competitions before a same-named team in a different sport could
+    // ever get checked.
     const found =
       (await findTeamMatchAcrossLeagues(intent.team, BARCELONA_LEAGUE_SEARCH_ORDER)) ||
-      (await findTeamMatchAcrossLeagues(intent.team, ALL_SOCCER_LEAGUES));
+      (await findTeamMatchAcrossLeagues(intent.team, ALL_SOCCER_LEAGUES)) ||
+      (await findTeamMatchAcrossLeagues(intent.team, ALL_TEAM_SPORT_LEAGUES));
     if (!found) return null;
     return renderMatchContext(found.match, found.league.label);
   }
