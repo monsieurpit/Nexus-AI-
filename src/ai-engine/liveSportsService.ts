@@ -477,13 +477,29 @@ export interface F1RaceResult {
  * (typically the latest completed or upcoming race).
  */
 export async function getF1RaceResult(gpQuery?: string): Promise<F1RaceResult | null> {
-  const url = 'https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard';
+  // Found live: the plain scoreboard call (no date range) only ever returns a SINGLE event (the
+  // current/most recent race) — asking about any other race from earlier in the season ("when was
+  // the Hungarian GP") found nothing, silently fell through to a normal web search, and that web
+  // search then hit Google's rate limit (HTTP 429) on top of it. ESPN's scoreboard endpoint accepts
+  // a `?dates=YYYY` param that returns the WHOLE season's races (verified live: 25 events for 2026,
+  // in chronological order, each with its own completed/scheduled status) — used here instead so any
+  // named GP from the current season can actually be found, not just whichever one happens to be
+  // "current" right now.
+  const year = new Date().getFullYear();
+  const url = `https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?dates=${year}`;
   const data = await espnFetch(url);
   if (!data || !Array.isArray(data.events) || data.events.length === 0) return null;
   const wanted = gpQuery ? normalize(gpQuery) : null;
-  const event = wanted
-    ? data.events.find((ev: any) => normalize(ev.name || '').includes(wanted) || normalize(ev.shortName || '').includes(wanted))
-    : data.events[0];
+  let event: any;
+  if (wanted) {
+    event = data.events.find((ev: any) => normalize(ev.name || '').includes(wanted) || normalize(ev.shortName || '').includes(wanted));
+  } else {
+    // No specific GP named ("who won the last race") — events are in chronological order, so the
+    // most recent COMPLETED one is the last entry whose status says completed, not events[0] (which
+    // with a full-season fetch is now the SEASON OPENER, not the latest race).
+    const completed = data.events.filter((ev: any) => ev.competitions?.[0]?.status?.type?.completed);
+    event = completed[completed.length - 1] || data.events[data.events.length - 1];
+  }
   if (!event) return null;
   const comp = event.competitions?.[0];
   const competitors = comp?.competitors;
