@@ -2150,11 +2150,24 @@ app.all(['/api/v1/documents', '/api/v1/knowledge'], (req, res) => {
     const category = req.query.category as string;
     const filtered = category ? all.filter((k) => k.category === category) : all;
 
+    // Pagination — this endpoint used to return the ENTIRE filtered set unbounded, which was fine
+    // for API integrators but became a real problem once the client-side Knowledge Trainer modal
+    // became this endpoint's only consumer (see KnowledgeTrainerModal.tsx): the corpus is 500+
+    // files and growing via an ongoing automated testing loop, so "return everything" doesn't
+    // scale. Same clamp pattern as /api/v1/documents/search below.
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const page = filtered.slice(offset, offset + limit);
+
     return res.json({
       object: 'list',
       totalDocuments: filtered.length,
       categories: Array.from(new Set(all.map((k) => k.category))),
-      documents: filtered.map((k) => ({
+      limit,
+      offset,
+      hasMore: offset + page.length < filtered.length,
+      nextOffset: offset + page.length < filtered.length ? offset + page.length : null,
+      documents: page.map((k) => ({
         id: k.id,
         title: k.title,
         category: k.category,

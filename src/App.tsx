@@ -11,7 +11,6 @@ import {
   AISettings,
   ChatMessage,
   Conversation,
-  KnowledgeItem,
   ModelPersona,
   ModelPersonaId,
   UserMemory,
@@ -22,12 +21,10 @@ import {
   deriveConversationTitle,
   loadActiveConversationId,
   loadConversations,
-  loadKnowledge,
   loadMemories,
   loadSettings,
   saveActiveConversationId,
   saveConversations,
-  saveKnowledge,
   saveMemories,
   saveSettings,
 } from './ai-engine/memoryStore';
@@ -42,7 +39,6 @@ function initConversations(): Conversation[] {
 export default function App() {
   const [view, setView] = useState<AppView>('chat');
   const [settings, setSettings] = useState<AISettings>(loadSettings);
-  const [knowledgeList, setKnowledgeList] = useState<KnowledgeItem[]>(loadKnowledge);
   const [memories, setMemories] = useState<UserMemory[]>(loadMemories);
 
   // initConversations() must run exactly ONCE — it calls createConversation() when storage is
@@ -132,12 +128,6 @@ export default function App() {
   const handleSaveSettings = (newSettings: AISettings) => {
     setSettings(newSettings);
     saveSettings(newSettings);
-  };
-
-  // Save knowledge list when changed
-  const handleSaveKnowledge = (newList: KnowledgeItem[]) => {
-    setKnowledgeList(newList);
-    saveKnowledge(newList);
   };
 
   // Handle persona quick selection
@@ -326,7 +316,6 @@ export default function App() {
         updatedMessages,
         activePersona,
         settings,
-        knowledgeList,
         currentMemories,
         {
           onReasoningStart: () => {
@@ -552,8 +541,6 @@ export default function App() {
       <KnowledgeTrainerModal
         isOpen={isKnowledgeOpen}
         onClose={() => setIsKnowledgeOpen(false)}
-        knowledgeList={knowledgeList}
-        onSaveKnowledge={handleSaveKnowledge}
       />
 
       {/* Attention & Latent Space Visualizer Modal */}

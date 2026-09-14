@@ -2,12 +2,10 @@ import {
   AISettings,
   ChatMessage,
   Conversation,
-  KnowledgeItem,
   ModelPersona,
   ModelPersonaId,
   UserMemory,
 } from '../types';
-import { BUILTIN_KNOWLEDGE } from './knowledgeBase';
 
 export const DEFAULT_PERSONAS: Record<ModelPersonaId, ModelPersona> = {
   'nexus-homie': {
@@ -324,7 +322,6 @@ export const DEFAULT_SETTINGS: AISettings = {
 const STORAGE_KEYS = {
   SETTINGS: 'custom_ai_settings_v1',
   PERSONAS: 'custom_ai_personas_v1',
-  KNOWLEDGE: 'custom_ai_knowledge_v1',
   MEMORIES: 'custom_ai_memories_v1',
   MESSAGES: 'custom_ai_messages_v1',
   CONVERSATIONS: 'custom_ai_conversations_v1',
@@ -355,35 +352,14 @@ export function saveSettings(settings: AISettings): void {
   }
 }
 
-export function loadKnowledge(): KnowledgeItem[] {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const saved = localStorage.getItem(STORAGE_KEYS.KNOWLEDGE);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge custom user items with the rich built-in corpus
-          const existingIds = new Set(parsed.map((item: KnowledgeItem) => item.id));
-          const missingBuiltins = BUILTIN_KNOWLEDGE.filter((b) => !existingIds.has(b.id));
-          return [...parsed, ...missingBuiltins];
-        }
-      }
-    }
-  } catch (e) {
-    console.error('Failed to load knowledge', e);
-  }
-  return BUILTIN_KNOWLEDGE;
-}
-
-export function saveKnowledge(items: KnowledgeItem[]): void {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem(STORAGE_KEYS.KNOWLEDGE, JSON.stringify(items));
-    }
-  } catch (e) {
-    console.error('Failed to save knowledge', e);
-  }
-}
+// loadKnowledge()/saveKnowledge() used to return/persist the ENTIRE built-in corpus
+// (BUILTIN_KNOWLEDGE, imported from knowledgeBase.ts) as the client-side fallback — that static
+// import is what made Vite bundle the whole 511-file/66k-line corpus into the browser JS (App.tsx
+// -> memoryStore.ts -> knowledgeBase.ts was one reachable chain from the client entry point),
+// regardless of whether the fallback branch actually ran. Removed: the Knowledge Trainer modal
+// now fetches/searches/adds/deletes directly against the server's paginated /api/v1/documents
+// API instead of receiving a full in-memory array, so nothing client-side needs the built-in
+// corpus at all anymore.
 
 // Heuristic extraction of one durable, worth-remembering personal fact from a single message —
 // used server-side (server.ts's /api/v1/nexus) to build actual cross-conversation memory for

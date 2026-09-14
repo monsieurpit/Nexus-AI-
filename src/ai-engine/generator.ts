@@ -1,7 +1,6 @@
 import {
   AISettings,
   ChatMessage,
-  KnowledgeItem,
   MessageTelemetry,
   ModelPersona,
   ThoughtStep,
@@ -50,7 +49,6 @@ export async function generateAIResponse(
   history: ChatMessage[],
   persona: ModelPersona,
   settings: AISettings,
-  knowledgeBase: KnowledgeItem[],
   userMemories: UserMemory[],
   callbacks: GenerationCallbacks,
   abortSignal?: AbortSignal,
@@ -77,6 +75,10 @@ export async function generateAIResponse(
     let webSearchResults: WebSearchResult[] = [];
     let webSearchExecuted = false;
     let serverThoughtSteps: ThoughtStep[] = [];
+    // Sourced from the server's own already-computed matchedDocuments (title only — see the
+    // Attention Visualizer usage below, which never reads anything else) instead of holding the
+    // entire client-side knowledge base in memory just to re-derive the same titles locally.
+    let matchedDocumentTitles: { title: string }[] = [];
 
     if (imageUrl && isRaidShieldPersona) {
       // RaidShield's image scan is a distinct security-classification flow with its own response
@@ -127,6 +129,9 @@ export async function generateAIResponse(
       const data = await resp.json();
       responseText = data.response || data.text || '';
       knowledgeHits = Array.isArray(data.knowledgeHits) ? data.knowledgeHits : [];
+      matchedDocumentTitles = Array.isArray(data.matchedDocuments)
+        ? data.matchedDocuments.map((m: any) => ({ title: m.title }))
+        : [];
       webSearchResults = Array.isArray(data.webSources) ? data.webSources : [];
       webSearchExecuted = Boolean(data.webSearched);
       serverThoughtSteps = Array.isArray(data.thoughtSteps)
@@ -154,17 +159,14 @@ export async function generateAIResponse(
 
     // Compute multi-head attention distribution client-side — this is a local visualization aid
     // (see AttentionVisualizerModal.tsx), not part of the real generation, so it stays here rather
-    // than adding another field to the API response. The "[KB: ...]" tokens need to come from the
-    // real citations (knowledgeHits) so the visualizer shows what the response actually drew from,
-    // not just the first 2 entries of the raw knowledge base array.
-    const citedKnowledge =
-      knowledgeHits.length > 0
-        ? knowledgeBase.filter((k) => knowledgeHits.includes(k.title) || knowledgeHits.includes(k.id))
-        : [];
+    // than adding another field to the API response. calculateAttentionMatrix only ever reads
+    // `.title` off each item (confirmed in semanticEngine.ts), so matchedDocumentTitles — sourced
+    // directly from the server's own already-computed matchedDocuments field — is sufficient; no
+    // need to hold or filter the entire client-side knowledge base just for this.
     const attentionMatrix = calculateAttentionMatrix(
       userPrompt || 'Visual Input Matrix',
       persona.systemPrompt,
-      citedKnowledge,
+      matchedDocumentTitles,
       settings.attentionHeads
     );
 

@@ -959,7 +959,10 @@ export function searchKnowledgeGraph(
 export function calculateAttentionMatrix(
   prompt: string,
   systemPrompt: string,
-  topKnowledge: KnowledgeItem[],
+  // Only ever reads `.title` off each item below — narrowed from the full KnowledgeItem[] so
+  // callers (generator.ts) don't need to hold or filter the entire client-side knowledge base
+  // just to call this local visualization helper.
+  topKnowledge: { title: string }[],
   numHeads: number = 4
 ): AttentionScore[] {
   const promptTokens = tokenize(prompt);
