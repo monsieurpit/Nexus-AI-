@@ -500,6 +500,7 @@ import { WATCHES_HOROLOGY_COMPARISONS_GAPS } from './corpus/watchesHorologyCompa
 import { PRACTICAL_DEV_CONCEPTS_CORPUS } from './corpus/practicalDevConceptsCorpus';
 import { DISTRIBUTED_SYSTEMS_AND_CS_BASICS_CORPUS } from './corpus/distributedSystemsAndCsBasicsCorpus';
 import { CODING_TOOLING_ERRORS_GAPS } from './corpus/codingToolingErrorsGaps';
+import { CODING_BUILD_DEPLOY_DATA_GAPS } from './corpus/codingBuildDeployDataGaps';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1514,6 +1515,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...PRACTICAL_DEV_CONCEPTS_CORPUS,
   ...DISTRIBUTED_SYSTEMS_AND_CS_BASICS_CORPUS,
   ...CODING_TOOLING_ERRORS_GAPS,
+  ...CODING_BUILD_DEPLOY_DATA_GAPS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
