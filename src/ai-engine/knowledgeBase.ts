@@ -490,6 +490,7 @@ import { OTHER_LANGUAGES_CORPUS } from './corpus/otherLanguagesCorpus';
 import { ALGORITHMS_DATA_STRUCTURES_CORPUS } from './corpus/algorithmsDataStructuresCorpus';
 import { COFFEE_TEA_COMPARISONS_GAPS } from './corpus/coffeeTeaComparisonsGaps';
 import { SOFTWARE_ENGINEERING_CONCEPTS_CORPUS } from './corpus/softwareEngineeringConceptsCorpus';
+import { ADDITIONAL_LANGUAGES_CORPUS } from './corpus/additionalLanguagesCorpus';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1493,6 +1494,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // Batch 298 corpus fixes (2026-09-14): coffee/tea brewing "difference between X and Y" gaps.
   ...COFFEE_TEA_COMPARISONS_GAPS,
   ...SOFTWARE_ENGINEERING_CONCEPTS_CORPUS,
+  ...ADDITIONAL_LANGUAGES_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
