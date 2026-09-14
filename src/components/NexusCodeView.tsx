@@ -117,15 +117,24 @@ export const NexusCodeView: React.FC = () => {
   }
 
   function handleReject() {
-    setError('');
-    fetch('/api/codeedit/cancel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestId: proposal?.requestId }),
-    }).catch(() => {});
+    const requestId = proposal?.requestId;
     setProposal(null);
     setResult(null);
     setStep('form');
+    fetch('/api/codeedit/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setError('');
+      })
+      .catch(() => {
+        // The reject already went through locally; this just means the server-side lock
+        // may not have released, which would surface as a "busy" error on the next propose.
+        setError('Reject sent locally, but the server may not have released the edit lock — if your next proposal fails as busy, wait a moment and retry.');
+      });
   }
 
   function handleStartOver() {
