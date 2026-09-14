@@ -279,6 +279,7 @@ import { LITERATURE_LANGUAGE_GAPS } from './corpus/literatureLanguageGaps';
 import { SPORTS_CONCEPTS_GAPS_4 } from './corpus/sportsConceptsGaps4';
 import { ENVIRONMENTAL_SCIENCE_GAPS } from './corpus/environmentalScienceGaps';
 import { CONSUMER_TECH_SOCIAL_GAPS } from './corpus/consumerTechSocialGaps';
+import { FILM_MUSIC_INDUSTRY_GAPS } from './corpus/filmMusicIndustryGaps';
 import { SOCCER_KNOWLEDGE_GAPS } from './corpus/soccerKnowledgeGaps';
 import { CELL_BIOLOGY_CORE_GAPS } from './corpus/cellBiologyCoreGaps';
 import { PSYCHOLOGY_DEEP_GAPS } from './corpus/psychologyDeepGaps';
@@ -1257,6 +1258,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...SPORTS_CONCEPTS_GAPS_4,
   ...ENVIRONMENTAL_SCIENCE_GAPS,
   ...CONSUMER_TECH_SOCIAL_GAPS,
+  ...FILM_MUSIC_INDUSTRY_GAPS,
   ...SOCCER_KNOWLEDGE_GAPS,
   ...CELL_BIOLOGY_CORE_GAPS,
   ...PSYCHOLOGY_DEEP_GAPS,
