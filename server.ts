@@ -1594,6 +1594,7 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
       }
       return res.end();
     }
+    console.error('[api/v1/nexus] unhandled error:', err?.stack || err);
     return res.status(500).json({ error: 'Internal AI processing error', message: err?.message || String(err) });
   }
 });

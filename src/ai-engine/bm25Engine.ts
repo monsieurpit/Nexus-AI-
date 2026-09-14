@@ -260,7 +260,14 @@ const RAW_SYNONYM_MAP: Record<string, string[]> = {
 };
 
 export const SYNONYM_MAP: Record<string, string[]> = (() => {
-  const normalized: Record<string, string[]> = {};
+  // Object.create(null) rather than {} — same prototype-collision class as expandQuerySynonyms'
+  // own fix below: a raw synonym key that happens to STEM to "constructor" (or another
+  // Object.prototype property name) would otherwise make `normalized[key] || []` resolve the
+  // built-in Object constructor function via the prototype chain instead of undefined, crashing
+  // the spread below at module load (server startup) the moment such an entry is ever added. A
+  // null-prototype object has no inherited properties at all, so every lookup is a real own-key
+  // check with no possible collision, for any current or future synonym.
+  const normalized: Record<string, string[]> = Object.create(null);
   for (const [rawKey, rawValues] of Object.entries(RAW_SYNONYM_MAP)) {
     const key = stem(rawKey);
     const values = rawValues.flatMap((v) => v.split(/\s+/).map((w) => stem(w)));
@@ -400,7 +407,14 @@ export function processForSearch(text: string): string[] {
 export function expandQuerySynonyms(terms: string[]): string[] {
   const result = new Set<string>(terms);
   for (const t of terms) {
-    if (SYNONYM_MAP[t]) {
+    // A query containing the word "constructor" (or any other Object.prototype property name —
+    // toString, valueOf, hasOwnProperty, etc.) used to crash this with "{} is not iterable":
+    // SYNONYM_MAP is a plain object literal, so SYNONYM_MAP['constructor'] resolves via the
+    // PROTOTYPE CHAIN to the built-in Object constructor function even though 'constructor' was
+    // never actually added as a real key — that's truthy, so the `if` passed, and `for...of` on a
+    // non-iterable function then threw. hasOwnProperty guards against every such prototype
+    // collision at once, not just this one specific word.
+    if (Object.prototype.hasOwnProperty.call(SYNONYM_MAP, t)) {
       for (const syn of SYNONYM_MAP[t]) {
         result.add(syn);
       }
