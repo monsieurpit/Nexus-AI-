@@ -199,6 +199,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
+    // dragleave fires every time the pointer crosses onto a CHILD element too, not just when it
+    // actually leaves the container — without this check the overlay flickered on/off while
+    // dragging across message bubbles/avatars inside it. relatedTarget is the element the pointer
+    // is entering; only actually clear the state once that's outside this container.
+    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsDraggingOver(false);
   };
   const handleDrop = (e: React.DragEvent) => {
@@ -222,7 +227,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // isComposing is true while an IME (CJK input) candidate is still being composed — without
+    // this check, pressing Enter to confirm/commit a candidate word prematurely sent the message
+    // instead of just finishing composition.
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSubmit();
     }
@@ -339,8 +347,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
       )}
 
-      {/* Transcript */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:px-8">
+      {/* Transcript — role="log" + aria-live so screen readers get told when a new message
+          lands, instead of silently sitting on stale content. Deliberately "polite" (queued, not
+          interrupting) and on the whole list rather than a per-message live region — the
+          "streaming" effect here is a client-side typewriter replay of an already-complete
+          response (see calculateTypingDuration elsewhere), not real token-by-token generation, so
+          announcing per-chunk would just spam a screen reader with word fragments. */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:px-8" role="log" aria-live="polite" aria-busy={isGenerating}>
         <div className="mx-auto max-w-[var(--nx-content-max)] space-y-1">
           {messages.length === 0 && (
             <div className="nx-animate-in space-y-8 py-8 sm:py-12">
@@ -463,6 +476,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         onClick={() => toggleThought(message.id)}
                         className="inline-flex items-center gap-2 rounded-md bg-[var(--nx-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--nx-text-muted)] transition hover:bg-[var(--nx-elevated-hover)]"
                         title="Toggle reasoning trace"
+                        aria-label="Toggle reasoning trace"
                       >
                         <BrainCircuit className="h-3.5 w-3.5 text-[var(--nx-accent-hover)]" />
                         <span>
@@ -657,6 +671,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           onClick={() => onOpenAttentionForMessage(message)}
                           className="rounded p-1 text-[var(--nx-text-faint)] transition hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-accent-hover)]"
                           title="Inspect attention matrix"
+                          aria-label="Inspect attention matrix"
                         >
                           <BrainCircuit className="h-3.5 w-3.5" />
                         </button>
@@ -664,6 +679,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           onClick={() => copyToClipboard(message.content, message.id)}
                           className="rounded p-1 text-[var(--nx-text-faint)] transition hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-text)]"
                           title="Copy message"
+                          aria-label="Copy message"
                         >
                           {copiedMsgId === message.id ? (
                             <Check className="h-3.5 w-3.5 text-[var(--nx-success)]" />
@@ -746,6 +762,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   onClick={onRegenerate}
                   className="flex items-center gap-1 text-[var(--nx-text-muted)] transition hover:text-[var(--nx-text)]"
                   title="Regenerate last response"
+                  aria-label="Regenerate last response"
                 >
                   <RotateCw className="h-3 w-3" />
                   <span>Regenerate</span>
@@ -773,6 +790,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 onClick={() => setAttachedImage(null)}
                 className="rounded-[var(--nx-r-sm)] p-1 text-[var(--nx-text-faint)] transition hover:bg-white/5 hover:text-[var(--nx-danger)]"
                 title="Remove attached image"
+                aria-label="Remove attached image"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -798,6 +816,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               onClick={() => fileInputRef.current?.click()}
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--nx-r-lg)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] text-[var(--nx-text-muted)] transition hover:bg-[var(--nx-elevated-hover)] hover:text-[var(--nx-accent-hover)]"
               title="Upload image or screenshot"
+              aria-label="Upload image or screenshot"
             >
               <ImageIcon className="h-4 w-4" />
             </button>
@@ -808,6 +827,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 onClick={onStopGeneration}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--nx-r-lg)] bg-[var(--nx-danger)] text-white transition hover:brightness-110"
                 title="Stop generation"
+                aria-label="Stop generation"
               >
                 <Square className="h-4 w-4 fill-current" />
               </button>
@@ -817,6 +837,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 disabled={!inputText.trim() && !attachedImage}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--nx-r-lg)] bg-[var(--nx-accent)] text-white transition hover:bg-[var(--nx-accent-hover)] disabled:opacity-30 disabled:hover:bg-[var(--nx-accent)]"
                 title="Send message"
+                aria-label="Send message"
               >
                 <Send className="h-4 w-4" />
               </button>

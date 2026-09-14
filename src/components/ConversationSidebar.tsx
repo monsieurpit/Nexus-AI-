@@ -208,6 +208,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                         type="button"
                         onClick={commitEdit}
                         title="Save"
+                        aria-label="Save"
                         className="p-1 text-[var(--nx-text-faint)] hover:text-[var(--nx-success)]"
                       >
                         <Check className="h-3.5 w-3.5" />
@@ -216,6 +217,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                         type="button"
                         onClick={() => setEditingId(null)}
                         title="Cancel"
+                        aria-label="Cancel"
                         className="p-1 text-[var(--nx-text-faint)] hover:text-[var(--nx-danger)]"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -230,7 +232,10 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                         </div>
                       </div>
 
-                      <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+                      {/* focus-within alongside group-hover — the hover-only reveal left these
+                          actions completely unreachable by keyboard (tab focus never triggers
+                          :hover) and by touch/mobile (no hover state at all). */}
+                      <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex group-focus-within:flex">
                         {[
                           { title: 'Rename', icon: Pencil, run: () => startEdit(c) },
                           { title: 'Export', icon: Download, run: () => onExportConversation(c.id) },
@@ -244,6 +249,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                             key={title}
                             type="button"
                             title={title}
+                            aria-label={title}
                             onClick={(e) => {
                               e.stopPropagation();
                               run();
@@ -256,6 +262,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                         <button
                           type="button"
                           title="Delete"
+                          aria-label="Delete conversation"
                           onClick={(e) => {
                             e.stopPropagation();
                             onDeleteConversation(c.id);
