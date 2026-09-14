@@ -26,6 +26,7 @@ import {
 } from './src/ai-engine/localLlmClient';
 import { ROLEPLAY_PERSONAS, buildRoleplayPrompt } from './src/ai-engine/roleplayPersonas';
 import { BANC_HTML } from './src/bancHtml';
+import { PRIVACY_POLICY_HTML, DISCLAIMER_HTML } from './src/legalPagesHtml';
 import { postToDiscordLog } from './src/ai-engine/discordLogWebhook';
 import {
   BUILTIN_KNOWLEDGE,
@@ -2347,6 +2348,16 @@ app.post('/api/codeedit/cancel', async (req, res) => {
 // the endpoint same-origin. Plain HTML string, see src/bancHtml.ts.
 app.get('/banc', (_req, res) => {
   res.type('html').send(BANC_HTML);
+});
+
+// Legal pages — plain static HTML, no React/SPA state involved, so they're stable, directly
+// linkable URLs (e.g. for anyone asking "where's your privacy policy") independent of whatever
+// view the chat app itself is in. See src/legalPagesHtml.ts.
+app.get('/privacy', (_req, res) => {
+  res.type('html').send(PRIVACY_POLICY_HTML);
+});
+app.get('/disclaimer', (_req, res) => {
+  res.type('html').send(DISCLAIMER_HTML);
 });
 
 app.get('/api/v1/corpus', (req, res) => {

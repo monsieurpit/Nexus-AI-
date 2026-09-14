@@ -273,6 +273,11 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
           </div>
         ))}
       </div>
+      <div className="shrink-0 flex items-center justify-center gap-3 px-3 py-2.5 border-t border-[var(--nx-border-subtle)] text-[10px] text-[var(--nx-text-faint)]">
+        <a href="/privacy" className="hover:text-[var(--nx-text-muted)]">Privacy</a>
+        <span>·</span>
+        <a href="/disclaimer" className="hover:text-[var(--nx-text-muted)]">Disclaimer</a>
+      </div>
     </aside>
   );
 };
