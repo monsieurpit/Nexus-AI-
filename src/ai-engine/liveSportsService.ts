@@ -109,6 +109,39 @@ const LEAGUE_MAP: Record<string, LeagueEntry> = {
   'saudi pro league': { sport: 'soccer', league: 'ksa.1', label: 'Saudi Pro League' },
   'copa libertadores': { sport: 'soccer', league: 'conmebol.libertadores', label: 'Copa Libertadores' },
   libertadores: { sport: 'soccer', league: 'conmebol.libertadores', label: 'Copa Libertadores' },
+  'copa sudamericana': { sport: 'soccer', league: 'conmebol.sudamericana', label: 'Copa Sudamericana' },
+  sudamericana: { sport: 'soccer', league: 'conmebol.sudamericana', label: 'Copa Sudamericana' },
+  'nations league': { sport: 'soccer', league: 'uefa.nations', label: 'UEFA Nations League' },
+  'concacaf champions cup': { sport: 'soccer', league: 'concacaf.champions', label: 'CONCACAF Champions Cup' },
+  'world cup': { sport: 'soccer', league: 'fifa.world', label: 'FIFA World Cup' },
+  'fa cup': { sport: 'soccer', league: 'eng.fa', label: 'FA Cup' },
+  'efl cup': { sport: 'soccer', league: 'eng.league_cup', label: 'EFL Cup' },
+  'league cup': { sport: 'soccer', league: 'eng.league_cup', label: 'EFL Cup' },
+  'league one': { sport: 'soccer', league: 'eng.3', label: 'EFL League One' },
+  'league two': { sport: 'soccer', league: 'eng.4', label: 'EFL League Two' },
+  'la liga 2': { sport: 'soccer', league: 'esp.2', label: 'LaLiga 2' },
+  'segunda division': { sport: 'soccer', league: 'esp.2', label: 'LaLiga 2' },
+  'serie b': { sport: 'soccer', league: 'ita.2', label: 'Serie B' },
+  '2. bundesliga': { sport: 'soccer', league: 'ger.2', label: '2. Bundesliga' },
+  'ligue 2': { sport: 'soccer', league: 'fra.2', label: 'Ligue 2' },
+  'belgian pro league': { sport: 'soccer', league: 'bel.1', label: 'Belgian Pro League' },
+  'jupiler pro league': { sport: 'soccer', league: 'bel.1', label: 'Belgian Pro League' },
+  'austrian bundesliga': { sport: 'soccer', league: 'aut.1', label: 'Austrian Bundesliga' },
+  'swiss super league': { sport: 'soccer', league: 'sui.1', label: 'Swiss Super League' },
+  'greek super league': { sport: 'soccer', league: 'gre.1', label: 'Greek Super League' },
+  'russian premier league': { sport: 'soccer', league: 'rus.1', label: 'Russian Premier League' },
+  'danish superliga': { sport: 'soccer', league: 'den.1', label: 'Danish Superliga' },
+  allsvenskan: { sport: 'soccer', league: 'swe.1', label: 'Allsvenskan' },
+  eliteserien: { sport: 'soccer', league: 'nor.1', label: 'Eliteserien' },
+  'categoria primera a': { sport: 'soccer', league: 'col.1', label: 'Categoría Primera A' },
+  'chilean primera division': { sport: 'soccer', league: 'chi.1', label: 'Chilean Primera División' },
+  'peruvian primera division': { sport: 'soccer', league: 'per.1', label: 'Liga 1 Perú' },
+  'uruguayan primera division': { sport: 'soccer', league: 'uru.1', label: 'Uruguayan Primera División' },
+  'ecuadorian serie a': { sport: 'soccer', league: 'ecu.1', label: 'Ecuadorian Serie A' },
+  'south african premier division': { sport: 'soccer', league: 'rsa.1', label: 'South African Premier Division' },
+  'j1 league': { sport: 'soccer', league: 'jpn.1', label: 'J1 League' },
+  'chinese super league': { sport: 'soccer', league: 'chn.1', label: 'Chinese Super League' },
+  'a-league': { sport: 'soccer', league: 'aus.1', label: 'A-League' },
   nba: { sport: 'basketball', league: 'nba', label: 'NBA' },
   'ncaa basketball': { sport: 'basketball', league: 'mens-college-basketball', label: 'NCAA Basketball' },
   'college basketball': { sport: 'basketball', league: 'mens-college-basketball', label: 'NCAA Basketball' },
@@ -370,11 +403,16 @@ export async function getF1DriverStandings(): Promise<DriverStandingRow[]> {
 // matter which call site uses it.
 
 
-/** Renders a compact, LLM-groundable text block for F1 driver standings. */
+/**
+ * Renders a compact, LLM-groundable text block for F1 driver standings. No bracketed header (see
+ * renderMatchContext's comment) — Patrick caught this leaking verbatim into a live Discord reply
+ * even after the header text was shortened once already, so every render function here now uses a
+ * plain sentence lead-in instead of a "[LIVE DATA — ...]" bracket.
+ */
 export function renderF1StandingsContext(rows: DriverStandingRow[]): string {
-  if (rows.length === 0) return '[LIVE DATA — Formula 1: driver standings unavailable right now.]';
+  if (rows.length === 0) return 'Formula 1 driver standings are unavailable right now.';
   const lines = rows.slice(0, 10).map((r) => `${r.rank}. ${r.driver}${r.points !== null ? ` — ${r.points} pts` : ''}`);
-  return `[LIVE DATA — Formula 1 Driver Championship standings, fetched just now from ESPN]\n${lines.join('\n')}`;
+  return `Formula 1 Driver Championship standings, from live ESPN data just fetched:\n${lines.join('\n')}`;
 }
 
 function formatMatchLine(m: LiveMatch): string {
@@ -418,19 +456,19 @@ export function renderMatchContext(m: LiveMatch, leagueLabel: string): string {
 
 /** Renders a compact, LLM-groundable text block for a league's current scoreboard (multiple matches). */
 export function renderScoreboardContext(matches: LiveMatch[], leagueLabel: string): string {
-  if (matches.length === 0) return `[LIVE DATA — ${leagueLabel}: no matches found right now (likely no fixtures today).]`;
+  if (matches.length === 0) return `${leagueLabel} has no matches found right now (likely no fixtures today).`;
   const lines = matches.slice(0, 10).map(formatMatchLine);
-  return `[LIVE DATA — ${leagueLabel} scoreboard, fetched just now from ESPN]\n${lines.join('\n')}`;
+  return `${leagueLabel} scoreboard, from live ESPN data just fetched:\n${lines.join('\n')}`;
 }
 
 /** Renders a compact, LLM-groundable text block for a league table. */
 export function renderStandingsContext(rows: StandingsRow[], leagueLabel: string): string {
-  if (rows.length === 0) return `[LIVE DATA — ${leagueLabel}: standings unavailable right now.]`;
+  if (rows.length === 0) return `${leagueLabel} standings are unavailable right now.`;
   const lines = rows.slice(0, 12).map((r) => {
     const record = r.draws !== null ? `${r.wins}W-${r.draws}D-${r.losses}L` : `${r.wins}W-${r.losses}L`;
     return `${r.rank}. ${r.team} — ${record}${r.points !== null ? `, ${r.points} pts` : ''}${r.gamesPlayed !== null ? ` (${r.gamesPlayed} played)` : ''}`;
   });
-  return `[LIVE DATA — ${leagueLabel} standings, fetched just now from ESPN]\n${lines.join('\n')}`;
+  return `${leagueLabel} standings, from live ESPN data just fetched:\n${lines.join('\n')}`;
 }
 
 // ─── Query intent detection ─────────────────────────────────────────────────
