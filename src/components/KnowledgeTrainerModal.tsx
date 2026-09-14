@@ -181,16 +181,16 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
       subtitle="Teach Nexus new facts, private memories, and verified reference documents"
       maxWidth="max-w-4xl"
       footer={
-        <button type="button" onClick={onClose} className="nx-btn nx-btn-secondary">
+        <button type="button" onClick={onClose} className="glass-btn glass-btn-secondary">
           Done
         </button>
       }
     >
         <div className="space-y-6">
           {syncError && (
-            <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-rose-500/30 bg-rose-500/10 text-xs text-rose-300">
+            <div className="flex items-center justify-between gap-3 p-3 rounded-[var(--glass-r-md)] border border-[var(--glass-danger)]/30 bg-[var(--glass-danger-soft)] text-xs text-[var(--glass-danger)]">
               <span>{syncError}</span>
-              <button type="button" onClick={() => setSyncError(null)} className="shrink-0 hover:text-rose-100">
+              <button type="button" onClick={() => setSyncError(null)} className="shrink-0 hover:opacity-80">
                 Dismiss
               </button>
             </div>
@@ -199,13 +199,13 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
           {/* Top Bar: Add Button & Test Query */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Live Retrieval Test */}
-            <div className="p-4 rounded-xl bg-[var(--nx-accent-soft)]/60 border border-[var(--nx-accent)]/20 flex flex-col justify-between">
+            <div className="p-4 rounded-[var(--glass-r-lg)] bg-[var(--glass-accent-soft)] border border-[var(--glass-accent)]/20 flex flex-col justify-between">
               <div>
-                <div className="flex items-center gap-2 text-xs font-bold text-[var(--nx-text)] mb-1.5">
-                  <Zap className="w-3.5 h-3.5 text-[var(--nx-accent-hover)]" />
+                <div className="flex items-center gap-2 text-xs font-bold text-[var(--glass-text)] mb-1.5">
+                  <Zap className="w-3.5 h-3.5 text-[var(--glass-accent-hover)]" />
                   <span>Test Neural Knowledge Retrieval</span>
                 </div>
-                <p className="text-xs text-[var(--nx-accent-hover)] mb-2.5">
+                <p className="text-xs text-[var(--glass-accent-hover)] mb-2.5">
                   Enter a phrase to test vector similarity and keyword triggering.
                 </p>
                 <div className="relative">
@@ -214,24 +214,24 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
                     value={testQuery}
                     onChange={(e) => handleRunTestQuery(e.target.value)}
                     placeholder="e.g. self-attention, my custom project, quantum mechanics..."
-                    className="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-[var(--nx-accent)]/30 bg-[var(--nx-elevated)] text-[var(--nx-text)]"
+                    className="glass-input pl-8"
                   />
-                  <Search className="w-3.5 h-3.5 text-[var(--nx-accent-hover)] absolute left-2.5 top-2.5" />
+                  <Search className="w-3.5 h-3.5 text-[var(--glass-accent-hover)] absolute left-2.5 top-2.5" />
                 </div>
               </div>
 
               {testResults.length > 0 && (
-                <div className="mt-3 space-y-1.5 pt-2 border-t border-[var(--nx-accent)]/30">
-                  <div className="text-[11px] font-semibold text-[var(--nx-text)]">Retrieved Vectors:</div>
+                <div className="mt-3 space-y-1.5 pt-2 border-t border-[var(--glass-accent)]/30">
+                  <div className="text-[11px] font-semibold text-[var(--glass-text)]">Retrieved Vectors:</div>
                   {testResults.map((r) => (
                     <div
                       key={r.id}
-                      className="flex items-center justify-between text-xs bg-[var(--nx-elevated)]/80 px-2.5 py-1.5 rounded border border-[var(--nx-accent)]/20"
+                      className="flex items-center justify-between text-xs bg-[var(--glass-panel-elevated)]/80 px-2.5 py-1.5 rounded-[var(--glass-r-sm)] border border-[var(--glass-accent)]/20"
                     >
-                      <span className="font-medium text-[var(--nx-text)] truncate max-w-[200px]">{r.title}</span>
+                      <span className="font-medium text-[var(--glass-text)] truncate max-w-[200px]">{r.title}</span>
                       <span
-                        className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                          r.score > 0.6 ? 'bg-emerald-500/15 text-[var(--nx-success)]' : 'bg-[var(--nx-warn)]/15 text-[var(--nx-warn)]'
+                        className={`text-[11px] font-mono font-bold px-1.5 py-0.5 rounded-full ${
+                          r.score > 0.6 ? 'bg-[var(--glass-success-soft)] text-[var(--glass-success)]' : 'bg-[var(--glass-warn-soft)] text-[var(--glass-warn)]'
                         }`}
                       >
                         {(r.score * 100).toFixed(0)}% Match
@@ -243,25 +243,26 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
             </div>
 
             {/* Quick Stats & Teach Trigger */}
-            <div className="p-4 rounded-xl bg-[var(--nx-surface)] border border-[var(--nx-border)] flex flex-col justify-between">
+            <div className="glass-card p-4 flex flex-col justify-between">
               <div>
-                <div className="text-xs font-bold text-[var(--nx-text)] mb-1">Knowledge Index Overview</div>
-                <div className="flex items-center gap-4 my-2 text-xs text-[var(--nx-text-muted)]">
+                <div className="text-xs font-bold text-[var(--glass-text)] mb-1">Knowledge Index Overview</div>
+                <div className="flex items-center gap-4 my-2 text-xs text-[var(--glass-text-muted)]">
                   <div>
-                    <span className="font-bold text-[var(--nx-text)] text-base">{totalDocuments}</span> Total Documents
+                    <span className="font-bold text-[var(--glass-text)] text-base">{totalDocuments}</span> Total Documents
                   </div>
                   <div>
-                    <span className="font-bold text-[var(--nx-success)] text-base">{userTaughtCount}</span> User-Taught
+                    <span className="font-bold text-[var(--glass-success)] text-base">{userTaughtCount}</span> User-Taught
                   </div>
                 </div>
-                <p className="text-xs text-[var(--nx-text-faint)]">
+                <p className="text-xs text-[var(--glass-text-faint)]">
                   All vector embeddings are synthesized locally with zero external API calls.
                 </p>
               </div>
 
               <button
                 onClick={() => setShowAddForm(!showAddForm)}
-                className="mt-3 w-full py-2 px-3 rounded-lg text-xs font-semibold bg-[var(--nx-success)] hover:brightness-110 text-black flex items-center justify-center gap-1.5 transition"
+                className="glass-btn mt-3 w-full"
+                style={{ background: 'var(--glass-success)', color: '#04140d' }}
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>{showAddForm ? 'Close Add Form' : 'Teach AI New Knowledge'}</span>
@@ -273,31 +274,31 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
           {showAddForm && (
             <form
               onSubmit={handleAddKnowledge}
-              className="p-5 rounded-xl border border-[var(--nx-success)]/30 bg-[var(--nx-success-soft)] space-y-3 animate-in fade-in duration-150"
+              className="p-5 rounded-[var(--glass-r-lg)] border border-[var(--glass-success)]/30 bg-[var(--glass-success-soft)] space-y-3 glass-fade-in"
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[var(--nx-success)] flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-[var(--nx-success)]" />
+                <span className="text-xs font-bold text-[var(--glass-success)] flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4 text-[var(--glass-success)]" />
                   <span>Teach AI Knowledge Unit</span>
                 </span>
-                <span className="text-[11px] text-[var(--nx-success)]">Auto-Embedded on Submit</span>
+                <span className="text-[11px] text-[var(--glass-success)]">Auto-Embedded on Submit</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-[var(--nx-text-muted)] block mb-1">Document Title</label>
+                  <label className="text-xs font-medium text-[var(--glass-text-muted)] block mb-1">Document Title</label>
                   <input
                     type="text"
                     required
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="e.g. My Company Architecture or Project Rules"
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)]"
+                    className="glass-input"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-[var(--nx-text-muted)] block mb-1">
+                  <label className="text-xs font-medium text-[var(--glass-text-muted)] block mb-1">
                     Trigger Keywords (Comma separated)
                   </label>
                   <input
@@ -305,20 +306,20 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
                     value={keywords}
                     onChange={(e) => setKeywords(e.target.value)}
                     placeholder="e.g. project x, auth flow, guidelines"
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)]"
+                    className="glass-input"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-[var(--nx-text-muted)] block mb-1">Content / Knowledge Body</label>
+                <label className="text-xs font-medium text-[var(--glass-text-muted)] block mb-1">Content / Knowledge Body</label>
                 <textarea
                   rows={4}
                   required
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="Provide facts, rules, background information, or structured instructions..."
-                  className="w-full text-xs p-3 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)]"
+                  className="glass-input"
                 />
               </div>
 
@@ -326,13 +327,14 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
-                  className="px-3 py-1.5 text-xs text-[var(--nx-text-muted)] hover:bg-[var(--nx-elevated-hover)] rounded-lg"
+                  className="glass-btn glass-btn-ghost"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 text-xs font-bold bg-[var(--nx-success)] hover:brightness-110 text-black rounded-lg flex items-center gap-1.5 shadow-sm"
+                  className="glass-btn shadow-[var(--glass-shadow-sm)]"
+                  style={{ background: 'var(--glass-success)', color: '#04140d' }}
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Index into Neural Graph</span>
@@ -344,16 +346,16 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
             {/* Knowledge List */}
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <span className="text-xs font-bold text-[var(--nx-text)]">
+              <span className="text-xs font-bold text-[var(--glass-text)]">
                 Document Corpus ({items.length} of {totalDocuments} loaded)
               </span>
               <div className="flex flex-wrap gap-1 text-xs max-h-24 overflow-y-auto pr-1">
                 <button
                   onClick={() => setFilterCategory('all')}
-                  className={`px-2 py-0.5 rounded-lg text-[11px] whitespace-nowrap transition ${
+                  className={`px-2 py-0.5 rounded-full text-[11px] whitespace-nowrap transition ${
                     filterCategory === 'all'
-                      ? 'bg-[var(--nx-elevated-hover)] text-white font-medium'
-                      : 'bg-[var(--nx-elevated)] text-[var(--nx-text-muted)] hover:bg-[var(--nx-elevated-hover)]'
+                      ? 'bg-[var(--glass-panel-elevated-hover)] text-[var(--glass-text)] font-medium'
+                      : 'bg-[var(--glass-panel-elevated)] text-[var(--glass-text-muted)] hover:bg-[var(--glass-panel-elevated-hover)]'
                   }`}
                 >
                   All
@@ -362,10 +364,10 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
                   <button
                     key={cat}
                     onClick={() => setFilterCategory(cat)}
-                    className={`px-2 py-0.5 rounded-lg text-[11px] whitespace-nowrap transition ${
+                    className={`px-2 py-0.5 rounded-full text-[11px] whitespace-nowrap transition ${
                       filterCategory === cat
-                        ? 'bg-[var(--nx-elevated-hover)] text-white font-medium'
-                        : 'bg-[var(--nx-elevated)] text-[var(--nx-text-muted)] hover:bg-[var(--nx-elevated-hover)]'
+                        ? 'bg-[var(--glass-panel-elevated-hover)] text-[var(--glass-text)] font-medium'
+                        : 'bg-[var(--glass-panel-elevated)] text-[var(--glass-text-muted)] hover:bg-[var(--glass-panel-elevated-hover)]'
                     }`}
                   >
                     {cat}
@@ -378,17 +380,17 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
               {items.map((item) => (
                 <div
                   key={item.id}
-                  className="p-4 rounded-[var(--nx-r-md)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] hover:border-[var(--nx-border-strong)] transition flex flex-col justify-between"
+                  className="glass-card glass-card-interactive p-4 flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-[var(--nx-text)] text-xs">{item.title}</span>
+                        <span className="font-bold text-[var(--glass-text)] text-xs">{item.title}</span>
                         <span
                           className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${
                             item.category === 'custom-user'
-                              ? 'bg-emerald-500/15 text-[var(--nx-success)]'
-                              : 'bg-[var(--nx-elevated)] text-[var(--nx-text-muted)]'
+                              ? 'bg-[var(--glass-success-soft)] text-[var(--glass-success)]'
+                              : 'bg-[var(--glass-panel-elevated)] text-[var(--glass-text-muted)]'
                           }`}
                         >
                           {item.category}
@@ -397,7 +399,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
                       {item.category === 'custom-user' && (
                         <button
                           onClick={() => handleDeleteItem(item.id)}
-                          className="p-1 text-[var(--nx-text-faint)] hover:text-rose-400 rounded transition"
+                          className="p-1 text-[var(--glass-text-faint)] hover:text-[var(--glass-danger)] rounded-[var(--glass-r-xs)] transition"
                           title="Delete knowledge item"
                           aria-label="Delete knowledge item"
                         >
@@ -405,12 +407,12 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
                         </button>
                       )}
                     </div>
-                    <p className="text-xs text-[var(--nx-text-muted)] line-clamp-3 leading-relaxed">{item.contentSnippet}</p>
+                    <p className="text-xs text-[var(--glass-text-muted)] line-clamp-3 leading-relaxed">{item.contentSnippet}</p>
                   </div>
 
-                  <div className="mt-2.5 pt-2 border-t border-[var(--nx-border-subtle)] flex items-center justify-between text-[11px] text-[var(--nx-text-faint)]">
+                  <div className="mt-2.5 pt-2 border-t border-[var(--glass-border-subtle)] flex items-center justify-between text-[11px] text-[var(--glass-text-faint)]">
                     <div className="flex items-center gap-1.5 truncate max-w-[400px]">
-                      <Tag className="w-3 h-3 text-[var(--nx-text-faint)]" />
+                      <Tag className="w-3 h-3 text-[var(--glass-text-faint)]" />
                       <span className="truncate">{item.keywords.join(', ')}</span>
                     </div>
                     <span>{new Date(item.createdAt).toLocaleDateString()}</span>
@@ -424,7 +426,7 @@ export const KnowledgeTrainerModal: React.FC<KnowledgeTrainerModalProps> = ({ is
                 type="button"
                 onClick={() => fetchPage(nextOffset, true)}
                 disabled={loading}
-                className="w-full py-2 text-xs font-medium text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] border border-[var(--nx-border)] rounded-lg hover:bg-[var(--nx-elevated-hover)] transition disabled:opacity-50"
+                className="glass-btn glass-btn-secondary w-full disabled:opacity-50"
               >
                 {loading ? 'Loading…' : 'Load more'}
               </button>

@@ -41,11 +41,11 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
   const semanticVec = computeEmbedding(inputText);
 
   const getHeatmapColor = (score: number) => {
-    if (score > 0.8) return 'bg-[var(--nx-accent)] text-white font-bold';
-    if (score > 0.6) return 'bg-[var(--nx-accent)]/70 text-white font-medium';
-    if (score > 0.4) return 'bg-[var(--nx-accent)]/35 text-[var(--nx-text)]';
-    if (score > 0.2) return 'bg-[var(--nx-accent-soft)] text-[var(--nx-text)]';
-    return 'bg-[var(--nx-elevated)] text-[var(--nx-text-muted)]';
+    if (score > 0.8) return 'bg-[var(--glass-accent)] text-white font-bold';
+    if (score > 0.6) return 'bg-[var(--glass-accent)]/70 text-white font-medium';
+    if (score > 0.4) return 'bg-[var(--glass-accent)]/35 text-[var(--glass-text)]';
+    if (score > 0.2) return 'bg-[var(--glass-accent-soft)] text-[var(--glass-text)]';
+    return 'bg-[var(--glass-panel-elevated)] text-[var(--glass-text-muted)]';
   };
 
   return (
@@ -57,7 +57,7 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
       subtitle="Multi-head self-attention weights (Q·Kᵀ), token entropy, and vector projection"
       maxWidth="max-w-4xl"
       footer={
-        <button type="button" onClick={onClose} className="nx-btn nx-btn-secondary">
+        <button type="button" onClick={onClose} className="glass-btn glass-btn-secondary">
           Close inspector
         </button>
       }
@@ -66,8 +66,8 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
         {/* Prompt inspector */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="nx-eyebrow">Input sequence for attention analysis</span>
-            <span className="font-mono text-[11px] text-[var(--nx-text-faint)]">
+            <span className="glass-eyebrow">Input sequence for attention analysis</span>
+            <span className="font-mono text-[11px] text-[var(--glass-text-faint)]">
               {tokens.length} tok · {entropy} bits · {attentionHeads} heads
             </span>
           </div>
@@ -75,29 +75,29 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
             rows={2}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            className="nx-input resize-y text-xs"
+            className="glass-input resize-y text-xs"
             placeholder="Type any prompt to test attention and token activation…"
           />
         </div>
 
         {/* Token heatmap */}
-        <div className="nx-card space-y-3 p-4">
+        <div className="glass-card space-y-3 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-bold text-[var(--nx-text)]">
-              <Layers className="h-4 w-4 text-[var(--nx-accent-hover)]" />
+            <div className="flex items-center gap-2 text-xs font-bold text-[var(--glass-text)]">
+              <Layers className="h-4 w-4 text-[var(--glass-accent-hover)]" />
               <span>Self-attention token heatmap</span>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--nx-text-faint)]">
+            <div className="flex items-center gap-1.5 text-[10px] font-medium text-[var(--glass-text-faint)]">
               <span>low</span>
-              <span className="inline-block h-3 w-3 rounded bg-[var(--nx-elevated-hover)]" />
-              <span className="inline-block h-3 w-3 rounded bg-[var(--nx-accent)]/35" />
-              <span className="inline-block h-3 w-3 rounded bg-[var(--nx-accent)]/70" />
-              <span className="inline-block h-3 w-3 rounded bg-[var(--nx-accent)]" />
+              <span className="inline-block h-3 w-3 rounded bg-[var(--glass-panel-elevated-hover)]" />
+              <span className="inline-block h-3 w-3 rounded bg-[var(--glass-accent)]/35" />
+              <span className="inline-block h-3 w-3 rounded bg-[var(--glass-accent)]/70" />
+              <span className="inline-block h-3 w-3 rounded bg-[var(--glass-accent)]" />
               <span>high</span>
             </div>
           </div>
 
-          <div className="flex min-h-[60px] flex-wrap gap-1.5 rounded-[var(--nx-r-sm)] border border-[var(--nx-border)] bg-[var(--nx-bg)]/50 p-3">
+          <div className="flex min-h-[60px] flex-wrap gap-1.5 rounded-[var(--glass-r-sm)] border border-[var(--glass-border)] bg-[var(--glass-base)]/50 p-3">
             {tokens
               .filter((token) => token.type !== 'whitespace' && token.text.trim().length > 0)
               .map((token, idx) => {
@@ -107,7 +107,7 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
                     key={`${token.id}-${idx}`}
                     onClick={() => setSelectedToken(token.text)}
                     className={`rounded px-2 py-1 text-xs transition ${getHeatmapColor(token.weight)} ${
-                      isSelected ? 'ring-2 ring-[var(--nx-accent)]' : 'hover:opacity-90'
+                      isSelected ? 'ring-2 ring-[var(--glass-accent)]' : 'hover:opacity-90'
                     }`}
                     title={`Token ID: ${token.id} · weight ${(token.weight * 100).toFixed(0)}%`}
                   >
@@ -118,11 +118,11 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
           </div>
 
           {selectedToken && (
-            <div className="flex items-center justify-between rounded-[var(--nx-r-sm)] border border-[var(--nx-accent)]/30 bg-[var(--nx-accent-soft)] p-2.5 text-xs text-[var(--nx-accent-hover)]">
+            <div className="flex items-center justify-between rounded-[var(--glass-r-sm)] border border-[var(--glass-accent)]/30 bg-[var(--glass-accent-soft)] p-2.5 text-xs text-[var(--glass-accent-hover)]">
               <span>
                 Inspected token: <strong className="font-mono">{selectedToken}</strong>
               </span>
-              <span className="text-[11px] text-[var(--nx-text-faint)]">
+              <span className="text-[11px] text-[var(--glass-text-faint)]">
                 Click any token to inspect
               </span>
             </div>
@@ -130,13 +130,13 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
         </div>
 
         {/* Semantic vector */}
-        <div className="nx-card space-y-3 p-4">
+        <div className="glass-card space-y-3 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-bold text-[var(--nx-text)]">
-              <BarChart3 className="h-4 w-4 text-[var(--nx-success)]" />
+            <div className="flex items-center gap-2 text-xs font-bold text-[var(--glass-text)]">
+              <BarChart3 className="h-4 w-4 text-[var(--glass-success)]" />
               <span>{SEMANTIC_DIMENSIONS.length}-dimensional latent semantic projection</span>
             </div>
-            <span className="font-mono text-[11px] text-[var(--nx-text-faint)]">
+            <span className="font-mono text-[11px] text-[var(--glass-text-faint)]">
               normalized vector space
             </span>
           </div>
@@ -147,17 +147,17 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
               return (
                 <div
                   key={dim}
-                  className="space-y-1 rounded-[var(--nx-r-sm)] border border-[var(--nx-border)] bg-[var(--nx-elevated)] p-2.5"
+                  className="space-y-1 rounded-[var(--glass-r-sm)] border border-[var(--glass-border)] bg-[var(--glass-panel-elevated)] p-2.5"
                 >
-                  <div className="flex justify-between text-[11px] font-medium text-[var(--nx-text-muted)]">
+                  <div className="flex justify-between text-[11px] font-medium text-[var(--glass-text-muted)]">
                     <span className="truncate">{SEMANTIC_DIMENSION_LABELS[dim] || dim}</span>
-                    <span className="font-mono font-bold text-[var(--nx-text)]">
+                    <span className="font-mono font-bold text-[var(--glass-text)]">
                       {(val * 100).toFixed(0)}%
                     </span>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--nx-bg)]">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--glass-base)]">
                     <div
-                      className="h-full rounded-full bg-[var(--nx-accent)] transition-all duration-300"
+                      className="h-full rounded-full bg-[var(--glass-accent)] transition-all duration-300"
                       style={{ width: `${Math.min(100, val * 100)}%` }}
                     />
                   </div>
@@ -167,7 +167,7 @@ export const AttentionVisualizerModal: React.FC<AttentionVisualizerModalProps> =
           </div>
         </div>
 
-        <div className="flex items-start gap-2.5 rounded-[var(--nx-r-md)] border border-[var(--nx-warn)]/30 bg-[var(--nx-warn)]/10 p-3.5 text-[11px] leading-relaxed text-[var(--nx-warn)]">
+        <div className="flex items-start gap-2.5 rounded-[var(--glass-r-md)] border border-[var(--glass-warn)]/30 bg-[var(--glass-warn)]/10 p-3.5 text-[11px] leading-relaxed text-[var(--glass-warn)]">
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
             This visualizer showcases the token projections and attention routing mechanics that let
