@@ -307,14 +307,21 @@ export async function findTeamMatch(leagueEntry: LeagueEntry, teamQuery: string)
 }
 
 /**
- * Looks for a team's match across several of the most relevant competitions at once — used when
- * the user just says "the Barça game" without naming a competition (a club plays in its domestic
- * league AND continental competitions across a season, so a single-league lookup would often miss).
+ * Looks for a team's match across several competitions at once — used when the user names a team
+ * without naming a competition (a club plays in its domestic league AND continental competitions
+ * across a season, so a single-league lookup would often miss). Fetches every candidate league's
+ * scoreboard IN PARALLEL (Promise.all) rather than one at a time — searching all ~30 supported
+ * soccer leagues sequentially could take many seconds; in parallel the wall time stays bounded by
+ * the single slowest request, not the total count of leagues checked. Returns the first match found
+ * in `leagueEntries`' original order (deterministic — e.g. a club's domestic league is checked
+ * before continental competitions when both happen to have a hit) even though the underlying
+ * fetches don't necessarily resolve in that order.
  */
 export async function findTeamMatchAcrossLeagues(teamQuery: string, leagueEntries: LeagueEntry[]): Promise<{ match: LiveMatch; league: LeagueEntry } | null> {
-  for (const entry of leagueEntries) {
-    const match = await findTeamMatch(entry, teamQuery);
-    if (match) return { match, league: entry };
+  const results = await Promise.all(leagueEntries.map((entry) => findTeamMatch(entry, teamQuery)));
+  for (let i = 0; i < results.length; i++) {
+    const match = results[i];
+    if (match) return { match, league: leagueEntries[i] };
   }
   return null;
 }
@@ -326,6 +333,25 @@ export const BARCELONA_LEAGUE_SEARCH_ORDER: LeagueEntry[] = [
   LEAGUE_MAP['europa league'],
   LEAGUE_MAP['copa del rey'],
 ];
+
+// Every soccer league/cup this file knows about, deduplicated by ESPN league code (several keys in
+// LEAGUE_MAP point at the same competition — "barca"-style aliases aren't leagues, but "la liga" /
+// "laliga" both point at esp.1, for instance). Used to find ANY team's match when the user names a
+// team ESPN doesn't have a hardcoded alias for (e.g. "the Vancouver Whitecaps game") — rather than
+// only ever searching Barcelona's specific competitions, search every supported soccer competition
+// in parallel and return whichever one actually has that team playing.
+const ALL_SOCCER_LEAGUES: LeagueEntry[] = (() => {
+  const seen = new Set<string>();
+  const out: LeagueEntry[] = [];
+  for (const entry of Object.values(LEAGUE_MAP)) {
+    if (entry.sport !== 'soccer') continue;
+    const key = `${entry.sport}/${entry.league}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+  return out;
+})();
 
 /**
  * Fetches full league standings/table for a resolved league.
@@ -394,6 +420,57 @@ export async function getF1DriverStandings(): Promise<DriverStandingRow[]> {
     };
   });
   return rows.sort((a, b) => a.rank - b.rank);
+}
+
+export interface F1RaceResult {
+  raceName: string;
+  isCompleted: boolean;
+  order: { position: number; driver: string }[];
+}
+
+/**
+ * Fetches a specific F1 race's RESULT (who actually won that Grand Prix) — a completely different
+ * question from getF1DriverStandings (season-long championship points). Found live: ESPN's own
+ * `winner` flag on each competitor is unreliable (came back `false` for every driver, including the
+ * one who actually won), so finishing position is read from `order` instead, which was consistently
+ * correct in testing (order 1 = race winner).
+ *
+ * `gpQuery` is an optional substring to match against the race name ("spanish" -> "Spanish Grand
+ * Prix") — when omitted, returns the most recent event ESPN's default scoreboard call returns
+ * (typically the latest completed or upcoming race).
+ */
+export async function getF1RaceResult(gpQuery?: string): Promise<F1RaceResult | null> {
+  const url = 'https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard';
+  const data = await espnFetch(url);
+  if (!data || !Array.isArray(data.events) || data.events.length === 0) return null;
+  const wanted = gpQuery ? normalize(gpQuery) : null;
+  const event = wanted
+    ? data.events.find((ev: any) => normalize(ev.name || '').includes(wanted) || normalize(ev.shortName || '').includes(wanted))
+    : data.events[0];
+  if (!event) return null;
+  const comp = event.competitions?.[0];
+  const competitors = comp?.competitors;
+  if (!Array.isArray(competitors)) return null;
+  const order = competitors
+    .map((c: any) => ({ position: Number(c.order) || 999, driver: c.athlete?.displayName || 'Unknown' }))
+    .sort((a: { position: number }, b: { position: number }) => a.position - b.position);
+  return {
+    raceName: event.name || event.shortName || 'the race',
+    isCompleted: !!comp?.status?.type?.completed,
+    order,
+  };
+}
+
+/** Renders a compact, LLM-groundable text block for a specific F1 race's result. */
+export function renderF1RaceResultContext(result: F1RaceResult): string {
+  if (result.order.length === 0) return `Result for ${result.raceName} is unavailable right now.`;
+  if (!result.isCompleted) return `${result.raceName} hasn't finished yet — no result available right now.`;
+  const winner = result.order[0];
+  const top5 = result.order
+    .slice(0, 5)
+    .map((r) => `${r.position}. ${r.driver}`)
+    .join(', ');
+  return `${result.raceName} result, from live ESPN data just fetched: the winner was ${winner.driver}. Full top 5: ${top5}.`;
 }
 
 // Patrick reported team names coming back garbled in the actual reply ("bretford" instead of
@@ -474,10 +551,23 @@ export function renderStandingsContext(rows: StandingsRow[], leagueLabel: string
 // ─── Query intent detection ─────────────────────────────────────────────────
 
 export interface LiveSportsIntent {
-  kind: 'team_score' | 'league_scoreboard' | 'standings';
+  kind: 'team_score' | 'league_scoreboard' | 'standings' | 'f1_race_result';
   team?: string;
   league?: LeagueEntry;
+  gpQuery?: string;
 }
+
+// "did Lewis Hamilton win the Spanish GP" / "who won the last F1 race" — a RACE result question,
+// completely different from the season-long championship standings above (getF1DriverStandings).
+// Verified live: this kind of question wasn't covered by SCORE_TRIGGER_RE at all (no "score/result/
+// playing/winning" — "win"/"won" weren't in it) and fell all the way through to a static trivia
+// answer that just described the driver's career and the Grand Prix's history without ever actually
+// answering who won. "grand prix"/"gp" is close to an unambiguous F1 signal on its own.
+const F1_RACE_TRIGGER_RE = /\b(?:grand\s+prix|\bgp\b)\b/i;
+// Captures the country/name adjective right before "grand prix"/"gp" — "the 2026 Spanish GP" -> ties
+// this optional leading year, then "spanish", to search ESPN's race name for. Optional: a query with
+// no adjective ("who won the last race") just returns the most recent event instead.
+const GP_NAME_RE = /\b(?:\d{4}\s+)?([a-z]+)\s+(?:grand\s+prix|gp)\b/i;
 
 const SCORE_TRIGGER_RE = /\b(?:score|scoreline|result|playing|live|winning|losing|tied|game\s+(?:right\s+)?now|today'?s?\s+(?:game|match))\b/i;
 // Was `who'?s?\s+(?:top|first|leading|...)` — that only ever matched the contraction "who's", not
@@ -499,6 +589,14 @@ export function detectLiveSportsIntent(prompt: string): LiveSportsIntent | null 
   const lower = prompt.toLowerCase();
   const league = resolveLeague(lower);
 
+  // Checked before the generic standings/league branches below — "the 2026 Spanish GP" would
+  // otherwise resolve `league` to nothing (no league name in the query) and fall through to a
+  // dead end, or worse, get misread by a broader future trigger.
+  if (F1_RACE_TRIGGER_RE.test(lower)) {
+    const gpMatch = lower.match(GP_NAME_RE);
+    return { kind: 'f1_race_result', gpQuery: gpMatch ? gpMatch[1] : undefined };
+  }
+
   if (STANDINGS_TRIGGER_RE.test(lower) && league) {
     return { kind: 'standings', league };
   }
@@ -511,8 +609,40 @@ export function detectLiveSportsIntent(prompt: string): LiveSportsIntent | null 
     const teamHit = Object.keys(TEAM_ALIASES).find((alias) => lower.includes(alias));
     if (teamHit) return { kind: 'team_score', team: teamHit };
     if (/\bbarcelona\b/.test(lower)) return { kind: 'team_score', team: 'barcelona' };
+
+    // Neither an alias nor Barcelona — but the phrasing still clearly names SOME team ("the
+    // Vancouver Whitecaps game", "score of the Real Salt Lake match"). Extracted generically and
+    // searched across every supported soccer league in parallel (see ALL_SOCCER_LEAGUES) rather than
+    // giving up just because it's not a team this file happens to have a hardcoded alias for.
+    const genericTeam = extractGenericTeamName(prompt);
+    if (genericTeam) return { kind: 'team_score', team: genericTeam };
   }
 
+  return null;
+}
+
+// Captures a team-shaped phrase out of an ordinary sentence — "what's the live score of the
+// Vancouver Whitecaps game?" -> "Vancouver Whitecaps", "how's the Real Salt Lake match going" ->
+// "Real Salt Lake". Deliberately requires "game"/"match" (or "score of the X") right next to the
+// captured phrase so it doesn't grab an unrelated noun phrase from a longer sentence; a query this
+// specific-shaped is exactly the case a fixed alias list can't cover but a bare regex safely can.
+function extractGenericTeamName(prompt: string): string | null {
+  const patterns = [
+    /\b(?:score|result)\s+of\s+the\s+([a-z0-9à-ÿ' .-]{3,40}?)\s+(?:game|match)\b/i,
+    /\bthe\s+([a-z0-9à-ÿ' .-]{3,40}?)\s+(?:game|match)\b/i,
+    /\bis\s+the\s+([a-z0-9à-ÿ' .-]{3,40}?)\s+(?:game|match)\b/i,
+  ];
+  for (const re of patterns) {
+    const m = prompt.match(re);
+    if (m && m[1]) {
+      const candidate = m[1].trim();
+      // Reject anything that's clearly not a team name (too short, or a generic word like "next"/
+      // "big" that happened to precede "game"/"match" in an unrelated sentence).
+      if (candidate.length >= 3 && !/^(the|this|that|next|last|big|whole|entire|first|second)$/i.test(candidate)) {
+        return candidate;
+      }
+    }
+  }
   return null;
 }
 
@@ -522,6 +652,12 @@ export function detectLiveSportsIntent(prompt: string): LiveSportsIntent | null 
  * rather than presenting a broken/empty live-data block as if it were a real answer).
  */
 export async function resolveLiveSportsContext(intent: LiveSportsIntent): Promise<string | null> {
+  if (intent.kind === 'f1_race_result') {
+    const result = await getF1RaceResult(intent.gpQuery);
+    if (!result) return null;
+    return renderF1RaceResultContext(result);
+  }
+
   if (intent.kind === 'standings' && intent.league) {
     // F1's standings are driver-shaped (name + championship points), not team-shaped (W/L/D/pts) —
     // routed to its own fetch/render pair rather than forcing it through getLeagueStandings, whose
@@ -543,7 +679,12 @@ export async function resolveLiveSportsContext(intent: LiveSportsIntent): Promis
   }
 
   if (intent.kind === 'team_score' && intent.team) {
-    const found = await findTeamMatchAcrossLeagues(intent.team, BARCELONA_LEAGUE_SEARCH_ORDER);
+    // Barcelona's own competitions checked first (fastest, most common case for Patrick
+    // specifically), then every other supported soccer league/cup in parallel if that comes up
+    // empty — covers any team ESPN carries, not just the ones this file has a hardcoded alias for.
+    const found =
+      (await findTeamMatchAcrossLeagues(intent.team, BARCELONA_LEAGUE_SEARCH_ORDER)) ||
+      (await findTeamMatchAcrossLeagues(intent.team, ALL_SOCCER_LEAGUES));
     if (!found) return null;
     return renderMatchContext(found.match, found.league.label);
   }

@@ -4967,7 +4967,16 @@ export async function generateReasoningPath(
     (PERSONAL_QUESTION_REGEX.test(effectivePrompt.toLowerCase()) ||
       PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase()) ||
       PERSONAL_QUESTION_REGEX_FR.test(effectivePrompt.toLowerCase()));
-  if (intent === 'conversational' || isPersonalQuestionOverride) {
+  // Found live: "what's the live score of the Vancouver Whitecaps game" got classified `intent ===
+  // 'conversational'` (an unfamiliar team name reads as small talk to the classifier) and exited
+  // right here, never reaching the actual Live Sports Data step (5.5, much further down this
+  // function) at all — it fell into this free-form reply instead and just made up a score. Same
+  // "an early, over-eager check preempts a later, correct one" anti-pattern already fixed once for
+  // football/Champions-League comparisons in generalIntelligence.ts — guarded the same way here: a
+  // detected live-sports question always skips this conversational shortcut so it can reach the
+  // real live-data lookup below.
+  const hasLiveSportsIntent = !!(detectLiveSportsIntent(effectivePrompt) || detectLiveSportsIntent(prompt));
+  if ((intent === 'conversational' || isPersonalQuestionOverride) && !hasLiveSportsIntent) {
     thoughtSteps.push({
       id: 'step-conv-reply',
       type: 'synthesis',
