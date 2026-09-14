@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Sparkles,
   Sliders,
@@ -79,42 +80,70 @@ const RailButton: React.FC<RailButtonProps> = ({
   subtitle,
   children,
   variant = 'persona',
-}) => (
-  <div className="relative flex items-center justify-center group w-full">
-    {/* Active / hover indicator pill, Discord-server-list style */}
-    <span
-      className={`absolute left-0 rounded-r-full bg-[var(--nx-text)] transition-all duration-150 ${
-        active ? 'h-7 w-[3px]' : 'h-2 w-[3px] opacity-0 group-hover:opacity-100 group-hover:h-4'
-      }`}
-    />
-    <button
-      type="button"
-      onClick={onClick}
-      title={`${title}${subtitle ? ` — ${subtitle}` : ''}`}
-      aria-label={title}
-      aria-pressed={active}
-      className={`w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-150 ${
-        active
-          ? 'rounded-[14px] bg-[var(--nx-accent)] text-[var(--nx-on-accent)] shadow-[var(--nx-shadow-glow)]'
-          : variant === 'tool'
-          ? 'rounded-[18px] hover:rounded-[14px] bg-transparent text-[var(--nx-text-faint)] hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-text)]'
-          : 'rounded-[18px] hover:rounded-[14px] bg-[var(--nx-elevated)] text-[var(--nx-text-muted)] hover:bg-[var(--nx-accent)] hover:text-[var(--nx-on-accent)]'
-      }`}
-    >
-      {children}
-    </button>
+}) => {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  // Was a CSS-only `absolute` tooltip living inside the persona rail's `overflow-y-auto` scroll
+  // container. An element with overflow-y set clips overflow-x too (browsers compute the other
+  // axis as `auto` the moment one axis isn't `visible`), so the tooltip — positioned to the RIGHT
+  // of the button, past the rail's own width — got clipped by that container, and its layout box
+  // silently grew the container's scrollable area, which is exactly the stray horizontal
+  // scrollbar Patrick kept seeing. Rendering it through a portal straight into <body>, positioned
+  // from the button's actual screen coordinates, escapes that scroll container entirely.
+  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number } | null>(null);
 
-    {/* Tooltip */}
-    <div className="pointer-events-none absolute left-[52px] z-50 origin-left scale-95 rounded-lg bg-[var(--nx-elevated-2)] border border-[var(--nx-border)] px-3 py-2 opacity-0 shadow-[var(--nx-shadow-md)] transition-all duration-100 group-hover:scale-100 group-hover:opacity-100">
-      <div className="whitespace-nowrap text-xs font-semibold text-[var(--nx-text)]">{title}</div>
-      {subtitle && (
-        <div className="mt-0.5 max-w-[200px] whitespace-normal text-[11px] leading-snug text-[var(--nx-text-muted)]">
-          {subtitle}
-        </div>
-      )}
+  const showTooltip = () => {
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (rect) setTooltipPos({ top: rect.top + rect.height / 2, left: rect.right + 12 });
+  };
+  const hideTooltip = () => setTooltipPos(null);
+
+  return (
+    <div className="relative flex items-center justify-center group w-full">
+      {/* Active / hover indicator pill, Discord-server-list style */}
+      <span
+        className={`absolute left-0 rounded-r-full bg-[var(--nx-text)] transition-all duration-150 ${
+          active ? 'h-7 w-[3px]' : 'h-2 w-[3px] opacity-0 group-hover:opacity-100 group-hover:h-4'
+        }`}
+      />
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={onClick}
+        onMouseEnter={showTooltip}
+        onMouseLeave={hideTooltip}
+        onFocus={showTooltip}
+        onBlur={hideTooltip}
+        aria-label={title}
+        aria-pressed={active}
+        className={`w-11 h-11 flex items-center justify-center cursor-pointer transition-all duration-150 ${
+          active
+            ? 'rounded-[14px] bg-[var(--nx-accent)] text-[var(--nx-on-accent)] shadow-[var(--nx-shadow-glow)]'
+            : variant === 'tool'
+            ? 'rounded-[18px] hover:rounded-[14px] bg-transparent text-[var(--nx-text-faint)] hover:bg-[var(--nx-elevated)] hover:text-[var(--nx-text)]'
+            : 'rounded-[18px] hover:rounded-[14px] bg-[var(--nx-elevated)] text-[var(--nx-text-muted)] hover:bg-[var(--nx-accent)] hover:text-[var(--nx-on-accent)]'
+        }`}
+      >
+        {children}
+      </button>
+
+      {tooltipPos &&
+        createPortal(
+          <div
+            className="pointer-events-none fixed z-[100] -translate-y-1/2 rounded-lg bg-[var(--nx-elevated-2)] border border-[var(--nx-border)] px-3 py-2 shadow-[var(--nx-shadow-md)]"
+            style={{ top: tooltipPos.top, left: tooltipPos.left }}
+          >
+            <div className="whitespace-nowrap text-xs font-semibold text-[var(--nx-text)]">{title}</div>
+            {subtitle && (
+              <div className="mt-0.5 max-w-[200px] whitespace-normal text-[11px] leading-snug text-[var(--nx-text-muted)]">
+                {subtitle}
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
-  </div>
-);
+  );
+};
 
 const RailDivider: React.FC = () => (
   <div className="my-1 h-px w-7 shrink-0 rounded-full bg-[var(--nx-border)]" />

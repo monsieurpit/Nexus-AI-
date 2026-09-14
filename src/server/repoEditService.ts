@@ -33,6 +33,7 @@ interface PendingRequest {
   newContent: string;
   diffText: string;
   createdAt: number;
+  committed: boolean;
 }
 
 const pendingRequests = new Map<string, PendingRequest>();
@@ -199,6 +200,7 @@ export async function proposeEdit(opts: { repoUrl: string; filePath: string; ins
       newContent,
       diffText: patch,
       createdAt: Date.now(),
+      committed: false,
     });
 
     return { requestId, filePath: safeFilePath, patch, lineDiff, changed };
@@ -212,38 +214,55 @@ export async function applyEdit(opts: { requestId: string; githubToken: string }
   const req = pendingRequests.get(opts.requestId);
   if (!req) throw new Error('This proposed change has expired or was already resolved.');
 
-  try {
-    await writeFile(join(req.dir, req.filePath), req.newContent, 'utf8');
-
-    const git = simpleGit({ baseDir: req.dir, timeout: { block: CLONE_TIMEOUT_MS } });
-    await git.addConfig('user.name', 'Nexus Code');
-    await git.addConfig('user.email', 'nexus-code@noreply.local');
-    await git.add(req.filePath);
-    await git.commit(`Nexus Code: ${req.instruction}`.slice(0, 200));
-
-    const authedUrl = req.repoUrl.replace('https://', `https://x-access-token:${encodeURIComponent(opts.githubToken)}@`);
+  // Write + commit locally only once per request. If a PREVIOUS attempt on this same requestId
+  // already got this far and only the push failed (bad/expired token, no write access), the local
+  // commit is still sitting there — re-running writeFile/add/commit against an unchanged working
+  // tree would fail with git's own "nothing to commit". This lets the user just fix their token
+  // and hit Approve again without redoing the clone + AI generation from scratch.
+  if (!req.committed) {
     try {
-      await git.push(authedUrl, 'HEAD');
+      await writeFile(join(req.dir, req.filePath), req.newContent, 'utf8');
+
+      const git = simpleGit({ baseDir: req.dir, timeout: { block: CLONE_TIMEOUT_MS } });
+      await git.addConfig('user.name', 'Nexus Code');
+      await git.addConfig('user.email', 'nexus-code@noreply.local');
+      await git.add(req.filePath);
+      await git.commit(`Nexus Code: ${req.instruction}`.slice(0, 200));
+      req.committed = true;
     } catch (err: any) {
-      const msg = String(err?.message || err);
-      if (/authentication|403|could not read/i.test(msg)) {
-        throw new Error('Push rejected — check that the token has write access to this repo.');
-      }
-      if (/protected branch|rejected/i.test(msg)) {
-        throw new Error('Push rejected by the remote (branch protection or a stale ref) — pull the latest changes and try again.');
-      }
-      throw new Error(`Push failed: ${msg}`);
+      // Unlike a push failure below, a local write/commit failure isn't something retyping the
+      // token fixes — it's a genuine unexpected error, so this one DOES tear the request down.
+      await cleanup(opts.requestId);
+      throw new Error(`Could not commit locally: ${err.message}`);
     }
-
-    const log = await git.log({ maxCount: 1 });
-    const commitSha = log.latest?.hash || null;
-    const { owner, repo } = validateRepoUrl(req.repoUrl);
-    const commitUrl = commitSha ? `https://github.com/${owner}/${repo}/commit/${commitSha}` : null;
-
-    return { commitSha, commitUrl };
-  } finally {
-    await cleanup(opts.requestId);
   }
+
+  const git = simpleGit({ baseDir: req.dir, timeout: { block: CLONE_TIMEOUT_MS } });
+  const authedUrl = req.repoUrl.replace('https://', `https://x-access-token:${encodeURIComponent(opts.githubToken)}@`);
+  try {
+    await git.push(authedUrl, 'HEAD');
+  } catch (err: any) {
+    // Deliberately does NOT cleanup here — the local commit already succeeded, so the pending
+    // request stays alive (still holding the concurrency lock, same as an unresolved diff review
+    // already does) and a retried apply with a corrected token can push the exact same commit
+    // instead of erroring with "expired" the moment the user tries again.
+    const msg = String(err?.message || err);
+    if (/authentication|403|could not read/i.test(msg)) {
+      throw new Error('Push rejected — check that the token has write access to this repo.');
+    }
+    if (/protected branch|rejected/i.test(msg)) {
+      throw new Error('Push rejected by the remote (branch protection or a stale ref) — pull the latest changes and try again.');
+    }
+    throw new Error(`Push failed: ${msg}`);
+  }
+
+  const log = await git.log({ maxCount: 1 });
+  const commitSha = log.latest?.hash || null;
+  const { owner, repo } = validateRepoUrl(req.repoUrl);
+  const commitUrl = commitSha ? `https://github.com/${owner}/${repo}/commit/${commitSha}` : null;
+
+  await cleanup(opts.requestId); // only on real success — see the push catch above
+  return { commitSha, commitUrl };
 }
 
 export async function rejectEdit(requestId: string) {
