@@ -120,6 +120,12 @@ const LEAGUE_MAP: Record<string, LeagueEntry> = {
   brasileirao: { sport: 'soccer', league: 'bra.1', label: 'Brasileirão Série A' },
   'brasileirão': { sport: 'soccer', league: 'bra.1', label: 'Brasileirão Série A' },
   'serie a brazil': { sport: 'soccer', league: 'bra.1', label: 'Brasileirão Série A' },
+  // Found in review (verified live): "what is the brazil serie a standings" still resolved to
+  // ITALIAN Serie A even after the length-sort fix, because 'serie a brazil' (word order: sport
+  // first, country second) never matches "brazil serie a" (country first) as a substring at all —
+  // it's not a length/priority problem, it's a word-order mismatch. Added the reversed phrasing
+  // explicitly rather than trying to make the matcher order-independent for one pair of words.
+  'brazil serie a': { sport: 'soccer', league: 'bra.1', label: 'Brasileirão Série A' },
   'liga profesional argentina': { sport: 'soccer', league: 'arg.1', label: 'Liga Profesional Argentina' },
   'argentine primera division': { sport: 'soccer', league: 'arg.1', label: 'Liga Profesional Argentina' },
   'scottish premiership': { sport: 'soccer', league: 'sco.1', label: 'Scottish Premiership' },
@@ -199,13 +205,34 @@ function normalize(s: string): string {
   return s.toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+// Found in review (verified live): a plain first-match substring loop over LEAGUE_MAP resolved
+// "what is the brazil serie a standings" to ITALIAN Serie A, not Brasileirão — because the shorter
+// key 'serie a' happened to come earlier in the object than the more specific 'serie a brazil' /
+// 'brasileirao' keys, and a first-match loop stops as soon as ANY substring hits, regardless of
+// whether a more specific key would have matched too. Sorting candidates by DESCENDING key length
+// before scanning means a longer, more specific match ("serie a brazil") is always preferred over a
+// shorter, more generic one ("serie a") whenever both appear in the same query — computed once at
+// module load, not per call.
+const LEAGUE_MAP_BY_LENGTH: Array<[string, LeagueEntry]> = Object.entries(LEAGUE_MAP).sort((a, b) => b[0].length - a[0].length);
+
+// This file has zero support for rugby, cricket, hockey, handball, or netball — but "world cup" is
+// a generic term used across all of those sports, not just soccer. Verified live: resolveLeague on
+// "what is the score of the rugby world cup final" and "who is winning the cricket world cup" both
+// wrongly returned the FIFA soccer World Cup, purely because "world cup" is a substring of both
+// queries. Guarded here so a competing sport's own "world cup" doesn't get silently answered with
+// unrelated soccer data — better to return null (falls through to the normal answer path) than to
+// confidently answer the wrong sport's question with a live score.
+const WORLD_CUP_SPORT_CONFLICT_RE = /\b(?:rugby|cricket|hockey|handball|netball|volleyball|basketball)\b/i;
+
 /** Resolves a free-text league name ("la liga", "the champions league", "prem") to an ESPN code. */
 export function resolveLeague(text: string): LeagueEntry | null {
   const t = normalize(text);
   // Exact key match first, then substring — "who's top of la liga right now" contains extra words.
   if (LEAGUE_MAP[t]) return LEAGUE_MAP[t];
-  for (const [key, entry] of Object.entries(LEAGUE_MAP)) {
-    if (t.includes(key)) return entry;
+  for (const [key, entry] of LEAGUE_MAP_BY_LENGTH) {
+    if (!t.includes(key)) continue;
+    if (key === 'world cup' && WORLD_CUP_SPORT_CONFLICT_RE.test(t)) continue;
+    return entry;
   }
   // A few loose single-word aliases that would otherwise need every phrasing spelled out.
   if (/\bprem\b/.test(t)) return LEAGUE_MAP['premier league'];
@@ -641,8 +668,29 @@ export interface LiveSportsIntent {
 // Verified live: this kind of question wasn't covered by SCORE_TRIGGER_RE at all (no "score/result/
 // playing/winning" — "win"/"won" weren't in it) and fell all the way through to a static trivia
 // answer that just described the driver's career and the Grand Prix's history without ever actually
-// answering who won. "grand prix"/"gp" is close to an unambiguous F1 signal on its own.
-const F1_RACE_TRIGGER_RE = /\b(?:grand\s+prix|\bgp\b)\b/i;
+// answering who won.
+//
+// "grand prix" (the full phrase) is essentially unambiguous on its own and always triggers. Bare
+// "gp", though, is NOT safe alone — found in review (verified live): "i need to see my gp about this
+// rash tomorrow" (GP = family doctor, extremely common British/Commonwealth usage) matched this
+// trigger and was routed into an F1 lookup, adding a wasted network round-trip before falling
+// through. Bare "gp" now requires an actual co-occurring F1 signal word before it counts.
+const GRAND_PRIX_RE = /\bgrand\s+prix\b/i;
+const BARE_GP_RE = /\bgp\b/i;
+const F1_CONTEXT_RE = /\b(?:f1|formula\s*1|formula\s+one|racing|driver|qualif(?:y|ying)|pole\s+position)\b/i;
+// The first fix here (requiring F1_CONTEXT_RE) was too strict and broke the exact case this trigger
+// exists for — verified live: "did lewis hamilton win the 2026 spanish gp" regressed to no match at
+// all, since a plain "[country] gp" phrasing has no "f1"/"formula"/"racing" word anywhere in it.
+// Real Grand Prix questions almost always name the race by its host country/city right before "gp"
+// ("spanish gp", "hungarian gp"), so a bare "gp" is ALSO allowed through when preceded by one of
+// those — a closed, known set (only ever a location on the current F1 calendar), unlike "my gp"
+// which names no location at all. Sourced from the actual 2026 season calendar fetched live earlier
+// in this session; add a new season's host country here if one isn't already covered.
+const GP_LOCATION_WORDS_RE =
+  /\b(?:australian|chinese|japanese|bahrain|saudi|miami|canadian|monaco|monegasque|spanish|barcelona|austrian|british|belgian|hungarian|dutch|italian|azerbaijani?|malaysian?|singaporean?|american|mexican|brazilian|s[aã]o\s+paulo|vegas|qatari?|emirati|emirates|abu\s+dhabi)\b/i;
+function isF1RaceTrigger(lower: string): boolean {
+  return GRAND_PRIX_RE.test(lower) || (BARE_GP_RE.test(lower) && (F1_CONTEXT_RE.test(lower) || GP_LOCATION_WORDS_RE.test(lower)));
+}
 // Captures the country/name adjective right before "grand prix"/"gp" — "the 2026 Spanish GP" -> ties
 // this optional leading year, then "spanish", to search ESPN's race name for. Optional: a query with
 // no adjective ("who won the last race") just returns the most recent event instead.
@@ -693,18 +741,28 @@ export function detectLiveSportsIntent(prompt: string): LiveSportsIntent | null 
   const currentYear = new Date().getFullYear();
   const isStaleYear = mentionedYear !== null && mentionedYear < currentYear;
 
-  // Checked before the generic standings/league branches below — "the 2026 Spanish GP" would
-  // otherwise resolve `league` to nothing (no league name in the query) and fall through to a
-  // dead end, or worse, get misread by a broader future trigger. A past-year GP result isn't
-  // covered by this file's F1 scoreboard call (only returns the current/most-recent race), so a
-  // stale year here still bails out rather than confidently answering the wrong race.
-  if (F1_RACE_TRIGGER_RE.test(lower) && !isStaleYear) {
-    const gpMatch = lower.match(GP_NAME_RE);
-    return { kind: 'f1_race_result', gpQuery: gpMatch ? gpMatch[1] : undefined };
-  }
-
+  // Standings checked BEFORE the race-result trigger below — found in review (verified live):
+  // "who is leading the f1 grand prix championship this year" contains "grand prix" (which used to
+  // unconditionally win here) AND "championship" (a standings signal) AND resolves `league` to F1 —
+  // it's genuinely a standings question that happens to also mention "grand prix," but the race-
+  // result path would search for a race literally named after whatever word preceded "grand prix,"
+  // find nothing, and silently fall through to stale static trivia instead of the live standings
+  // this question actually wants. Checking standings first means a question that satisfies BOTH
+  // triggers is resolved as the (correct) standings lookup; the race-result trigger below still
+  // catches everything that ISN'T also standings-shaped ("did Hamilton win the Spanish GP" has no
+  // standings signal word, so it reaches the race-result branch exactly as before).
   if (STANDINGS_TRIGGER_RE.test(lower) && league) {
     return { kind: 'standings', league, season: isStaleYear ? mentionedYear! : undefined };
+  }
+
+  // "the 2026 Spanish GP" resolves `league` to nothing (no league name in the query) and would
+  // otherwise fall through to a dead end, or worse, get misread by a broader future trigger. A
+  // past-year GP result isn't covered by this file's F1 scoreboard call (only returns the
+  // current/most-recent race), so a stale year here still bails out rather than confidently
+  // answering the wrong race.
+  if (isF1RaceTrigger(lower) && !isStaleYear) {
+    const gpMatch = lower.match(GP_NAME_RE);
+    return { kind: 'f1_race_result', gpQuery: gpMatch ? gpMatch[1] : undefined };
   }
 
   if (SCORE_TRIGGER_RE.test(lower) && !isStaleYear) {
