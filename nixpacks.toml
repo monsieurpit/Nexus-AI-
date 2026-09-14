@@ -1,0 +1,7 @@
+# Railway builds this repo with Nixpacks (no Dockerfile here). Its default Node/Bun build image
+# doesn't include the `git` binary — confirmed via a live "spawn git ENOENT" error from
+# src/server/repoEditService.ts, which shells out to real git (via simple-git) to clone, commit,
+# and push to a user's repo for the "Nexus Code" feature. Without this, every clone attempt fails
+# outright in production despite working fine locally.
+[phases.setup]
+nixPkgs = ["...", "git"]

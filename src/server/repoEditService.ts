@@ -95,9 +95,7 @@ async function cloneAndReadFile(opts: { repoUrl: string; filePath: string; githu
   } catch (err: any) {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
     const msg = String(err?.message || err);
-    // Temporary diagnostic — narrowing down a "could not clone" failure on Railway (Nixpacks
-    // build, no Dockerfile here, so git's presence in that image was never actually confirmed).
-    console.error('[repoEditService] clone failed, raw error:', msg);
+    console.error('[repoEditService] clone failed:', msg);
     if (/authentication|403|could not read/i.test(msg)) {
       throw new Error('Could not clone the repo — check the repo URL and that the token has access to it.');
     }
