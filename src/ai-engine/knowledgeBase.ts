@@ -488,6 +488,8 @@ import { JVM_AND_CSHARP_CORPUS } from './corpus/jvmAndCSharpCorpus';
 import { WEB_AND_DATA_LANGUAGES_CORPUS } from './corpus/webAndDataLanguagesCorpus';
 import { OTHER_LANGUAGES_CORPUS } from './corpus/otherLanguagesCorpus';
 import { ALGORITHMS_DATA_STRUCTURES_CORPUS } from './corpus/algorithmsDataStructuresCorpus';
+import { COFFEE_TEA_COMPARISONS_GAPS } from './corpus/coffeeTeaComparisonsGaps';
+import { SOFTWARE_ENGINEERING_CONCEPTS_CORPUS } from './corpus/softwareEngineeringConceptsCorpus';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1488,6 +1490,9 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...WEB_AND_DATA_LANGUAGES_CORPUS,
   ...OTHER_LANGUAGES_CORPUS,
   ...ALGORITHMS_DATA_STRUCTURES_CORPUS,
+  // Batch 298 corpus fixes (2026-09-14): coffee/tea brewing "difference between X and Y" gaps.
+  ...COFFEE_TEA_COMPARISONS_GAPS,
+  ...SOFTWARE_ENGINEERING_CONCEPTS_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
