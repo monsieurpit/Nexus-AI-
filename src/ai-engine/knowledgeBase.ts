@@ -481,6 +481,7 @@ import { HISTORICAL_FIGURES_AND_DISCOVERIES_EXPANSION_CORPUS } from './corpus/hi
 import { WEATHER_AND_EARTH_PHENOMENA_EXPANSION_CORPUS } from './corpus/weatherAndEarthPhenomenaExpansion';
 import { SCIENCE_AND_NATURE_FINAL_EXPANSION_CORPUS } from './corpus/scienceAndNatureFinalExpansion';
 import { PYTHON_FUNDAMENTALS_CORPUS } from './corpus/pythonFundamentalsCorpus';
+import { JAVASCRIPT_TYPESCRIPT_CORPUS } from './corpus/javascriptTypescriptCorpus';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1473,6 +1474,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // Code corpus expansion (2026-09-14): Programming fundamentals across many languages, requested
   // by Patrick to make the model much better at coding help. Split into per-language/theme files.
   ...PYTHON_FUNDAMENTALS_CORPUS,
+  ...JAVASCRIPT_TYPESCRIPT_CORPUS,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API
