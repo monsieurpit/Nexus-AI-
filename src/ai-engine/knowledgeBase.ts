@@ -408,6 +408,7 @@ import { MAJOR_WARS_AND_CONFLICTS_CORPUS } from './corpus/majorWarsAndConflicts'
 import { CLASSICAL_COMPOSERS_DEEP_CORPUS } from './corpus/classicalComposersDeep';
 import { DANCE_STYLES_AROUND_THE_WORLD_CORPUS } from './corpus/danceStylesAroundTheWorld';
 import { DANCE_STYLES_COMPARISONS_GAPS } from './corpus/danceStylesComparisonsGaps';
+import { CODING_WEB_DEV_CONCEPTS_GAPS } from './corpus/codingWebDevConceptsGaps';
 import { WORLD_GEOGRAPHY_LANDMARKS_DEEP_CORPUS } from './corpus/worldGeographyLandmarksDeep';
 import { ARCHITECTURE_STYLES_CORPUS } from './corpus/architectureStyles';
 import { FASHION_HISTORY_BASICS_CORPUS } from './corpus/fashionHistoryBasics';
@@ -1413,6 +1414,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...CLASSICAL_COMPOSERS_DEEP_CORPUS,
   ...DANCE_STYLES_AROUND_THE_WORLD_CORPUS,
   ...DANCE_STYLES_COMPARISONS_GAPS,
+  ...CODING_WEB_DEV_CONCEPTS_GAPS,
   ...WORLD_GEOGRAPHY_LANDMARKS_DEEP_CORPUS,
   ...ARCHITECTURE_STYLES_CORPUS,
   ...FASHION_HISTORY_BASICS_CORPUS,
