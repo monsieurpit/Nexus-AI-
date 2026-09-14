@@ -108,6 +108,11 @@ export interface ChatMessage {
   sources?: any[];
   webSources?: WebSearchResult[];
   isStreaming?: boolean;
+  // Set on a synthetic assistant message committed when generation fails outright (network error,
+  // aborted fetch, server error) — before this existed, a failed generation just made the typing
+  // indicator vanish with zero trace in the transcript, so a failed request looked identical to
+  // the app silently ignoring you. Rendered with distinct (red-tinted) styling in ChatView.
+  isError?: boolean;
   // Wave 8: speaker-aware channel "brain". Before this, a multi-speaker Discord channel's history
   // reached the engine as undifferentiated text — the bot side worked around having no real author
   // field by string-prefixing "Username: " directly into `content`, which the engine could only

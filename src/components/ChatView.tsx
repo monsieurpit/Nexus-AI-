@@ -525,7 +525,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                   )}
 
-                  <div className="markdown-content mt-0.5">
+                  <div
+                    className={`markdown-content mt-0.5 ${
+                      message.isError ? 'rounded-[var(--nx-r-md)] border border-[var(--nx-danger)]/30 bg-[var(--nx-danger)]/10 px-3 py-2 text-[var(--nx-danger)]' : ''
+                    }`}
+                  >
                     <ReactMarkdown
                       components={{
                         code({ className, children, ...props }) {

@@ -392,6 +392,18 @@ export default function App() {
           },
           onError: (err) => {
             console.error('Generation failed', err);
+            // A deliberate Stop click also throws (AbortError) through this same path — that's
+            // not a failure, so it gets no error bubble, just a normal silent stop.
+            if (err.name !== 'AbortError') {
+              const errorMsg: ChatMessage = {
+                id: `msg-${Date.now()}-error`,
+                role: 'assistant',
+                content: "Something went wrong generating a response — the request failed or the server didn't respond. Try sending your message again.",
+                timestamp: Date.now(),
+                isError: true,
+              };
+              commitConversation(targetConversationId, { messages: [...updatedMessages, errorMsg] });
+            }
             setGeneratingFor(targetConversationId, false);
             setStreamingChunkFor(targetConversationId, '');
             setProgressStageFor(targetConversationId, '');
