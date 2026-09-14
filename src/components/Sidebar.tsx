@@ -14,13 +14,19 @@ import {
   Bot,
   Zap,
   Smile,
+  MessageSquare,
+  GitBranch,
 } from 'lucide-react';
 import { AISettings, ModelPersona, ModelPersonaId } from '../types';
 import { DEFAULT_PERSONAS } from '../ai-engine/memoryStore';
 
+export type AppView = 'chat' | 'code';
+
 interface SidebarProps {
   settings: AISettings;
   activePersona: ModelPersona;
+  view: AppView;
+  onSelectView: (view: AppView) => void;
   onSelectPersona: (id: ModelPersonaId) => void;
   onOpenCustomizer: () => void;
   onOpenKnowledge: () => void;
@@ -117,6 +123,8 @@ const RailDivider: React.FC = () => (
 export const Sidebar: React.FC<SidebarProps> = ({
   settings,
   activePersona,
+  view,
+  onSelectView,
   onSelectPersona,
   onOpenCustomizer,
   onOpenKnowledge,
@@ -135,6 +143,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         <Sparkles className="h-5 w-5" />
       </div>
+
+      <RailDivider />
+
+      {/* Chat / Code — top-level view switch, same idea as claude.ai's Chats/Code split */}
+      <RailButton variant="tool" active={view === 'chat'} onClick={() => onSelectView('chat')} title="Chat">
+        <MessageSquare className="h-5 w-5" />
+      </RailButton>
+      <RailButton variant="tool" active={view === 'code'} onClick={() => onSelectView('code')} title="Nexus Code" subtitle="Edit your own GitHub repo">
+        <GitBranch className="h-5 w-5" />
+      </RailButton>
 
       <RailDivider />
 

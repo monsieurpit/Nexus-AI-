@@ -3,6 +3,12 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
+import {
+  proposeEdit as proposeCodeEdit,
+  applyEdit as applyCodeEdit,
+  rejectEdit as rejectCodeEdit,
+  getPendingRequest as getPendingCodeEditRequest,
+} from './src/server/repoEditService';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS, extractMemorableFact } from './src/ai-engine/memoryStore';
 import {
   evaluateStrictDirectives,
@@ -2293,6 +2299,47 @@ app.post('/api/v1/swear', (req, res) => {
     intensity: intensity || 'heavy',
     language: language || 'english',
   });
+});
+
+// "Nexus Code" — the repo-editing feature, native to this website (a "Code" toggle next to the
+// normal chat view). No auth beyond the GitHub token the user pastes in on every request (never
+// stored) — same posture as the rest of this site's API. See src/server/repoEditService.ts for
+// the clone/diff/commit/push mechanics and the single global concurrency lock.
+app.post('/api/codeedit/propose', aiComputeLimiter, async (req, res) => {
+  const { repoUrl, filePath, instruction, githubToken } = req.body || {};
+  if (!githubToken || typeof githubToken !== 'string') {
+    return res.status(400).json({ error: 'A GitHub token is required.' });
+  }
+  try {
+    const result = await proposeCodeEdit({ repoUrl, filePath, instruction, githubToken });
+    res.json(result);
+  } catch (err: any) {
+    if (err.code === 'BUSY') return res.status(409).json({ error: err.message });
+    res.status(400).json({ error: err.message || 'Something went wrong proposing this edit.' });
+  }
+});
+
+app.post('/api/codeedit/apply', aiComputeLimiter, async (req, res) => {
+  const { requestId, githubToken } = req.body || {};
+  if (!requestId) return res.status(400).json({ error: 'Missing requestId.' });
+  if (!githubToken || typeof githubToken !== 'string') {
+    return res.status(400).json({ error: 'A GitHub token is required to push.' });
+  }
+  if (!getPendingCodeEditRequest(requestId)) {
+    return res.status(410).json({ error: 'This proposed change has expired or was already resolved — propose it again.' });
+  }
+  try {
+    const result = await applyCodeEdit({ requestId, githubToken });
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Something went wrong applying this edit.' });
+  }
+});
+
+app.post('/api/codeedit/cancel', async (req, res) => {
+  const { requestId } = req.body || {};
+  if (requestId) await rejectCodeEdit(requestId);
+  res.json({ ok: true });
 });
 
 // Test bench for /api/v1/roleplay — served here (not as a Claude Artifact) so the browser calls

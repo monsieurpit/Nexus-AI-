@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Sidebar } from './components/Sidebar';
+import { Sidebar, AppView } from './components/Sidebar';
 import { ConversationSidebar } from './components/ConversationSidebar';
 import { ChatView } from './components/ChatView';
+import { NexusCodeView } from './components/NexusCodeView';
 import { ModelCustomizerModal } from './components/ModelCustomizerModal';
 import { KnowledgeTrainerModal } from './components/KnowledgeTrainerModal';
 import { AttentionVisualizerModal } from './components/AttentionVisualizerModal';
@@ -39,6 +40,7 @@ function initConversations(): Conversation[] {
 }
 
 export default function App() {
+  const [view, setView] = useState<AppView>('chat');
   const [settings, setSettings] = useState<AISettings>(loadSettings);
   const [knowledgeList, setKnowledgeList] = useState<KnowledgeItem[]>(loadKnowledge);
   const [memories, setMemories] = useState<UserMemory[]>(loadMemories);
@@ -448,6 +450,8 @@ export default function App() {
       <Sidebar
         settings={settings}
         activePersona={activePersona}
+        view={view}
+        onSelectView={setView}
         onSelectPersona={handleSelectPersona}
         onOpenCustomizer={() => setIsCustomizerOpen(true)}
         onOpenKnowledge={() => setIsKnowledgeOpen(true)}
@@ -458,61 +462,71 @@ export default function App() {
         onOpenApiIntegration={() => setIsApiModalOpen(true)}
       />
 
-      {/* Conversation list — static column on md+, slide-in drawer below */}
-      <div
-        className={`fixed inset-y-0 left-0 z-40 transition-transform duration-[var(--nx-dur-slow)] md:static md:z-10 md:translate-x-0 ${
-          isConvoDrawerOpen ? 'translate-x-[var(--nx-rail-w)] md:translate-x-0' : '-translate-x-full md:translate-x-0'
-        }`}
-      >
-        <ConversationSidebar
-          conversations={conversations}
-          activeConversationId={activeConversationId}
-          onNewChat={handleNewChatMobile}
-          onSelectConversation={handleSelectConversationMobile}
-          onRenameConversation={handleRenameConversation}
-          onDeleteConversation={handleDeleteConversation}
-          onExportConversation={handleExportConversation}
-          onShareConversation={handleShareConversation}
-        />
-      </div>
-      {isConvoDrawerOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/50 md:hidden"
-          onClick={() => setIsConvoDrawerOpen(false)}
-          aria-hidden="true"
-        />
+      {view === 'chat' && (
+        <>
+          {/* Conversation list — static column on md+, slide-in drawer below */}
+          <div
+            className={`fixed inset-y-0 left-0 z-40 transition-transform duration-[var(--nx-dur-slow)] md:static md:z-10 md:translate-x-0 ${
+              isConvoDrawerOpen ? 'translate-x-[var(--nx-rail-w)] md:translate-x-0' : '-translate-x-full md:translate-x-0'
+            }`}
+          >
+            <ConversationSidebar
+              conversations={conversations}
+              activeConversationId={activeConversationId}
+              onNewChat={handleNewChatMobile}
+              onSelectConversation={handleSelectConversationMobile}
+              onRenameConversation={handleRenameConversation}
+              onDeleteConversation={handleDeleteConversation}
+              onExportConversation={handleExportConversation}
+              onShareConversation={handleShareConversation}
+            />
+          </div>
+          {isConvoDrawerOpen && (
+            <div
+              className="fixed inset-0 z-30 bg-black/50 md:hidden"
+              onClick={() => setIsConvoDrawerOpen(false)}
+              aria-hidden="true"
+            />
+          )}
+
+          {/* Main chat */}
+          <main className="flex min-w-0 flex-1 flex-col">
+            <ChatView
+              onToggleConversations={() => setIsConvoDrawerOpen((v) => !v)}
+              // Forces a full remount whenever the active conversation changes, resetting every piece
+              // of ChatView's own local state (attachedImage, inputText, expandedThoughts, etc.) —
+              // found by a dedicated review: without this, ChatView is a single persistent component
+              // instance reused across every conversation, so none of its local state was scoped per
+              // conversation at all. Concretely: drag an image into the input box in Conversation A,
+              // switch to Conversation B before sending, type a message and hit Enter — A's stale
+              // attachedImage was still there and got silently sent into B's history. Same problem for
+              // an unsent draft in the input box bleeding into whichever conversation you switch to.
+              // This is the identical class of bug this session already fixed in App.tsx itself
+              // (generation state not scoped per conversation) — same root cause, different component.
+              key={activeConversationId}
+              messages={messages}
+              isGenerating={isGenerating}
+              streamingChunk={streamingChunk}
+              progressStage={progressStage}
+              activePersona={activePersona}
+              settings={settings}
+              onSendMessage={handleSendMessage}
+              onStopGeneration={handleStopGeneration}
+              onRegenerate={handleRegenerate}
+              onOpenAttentionForMessage={handleOpenAttentionForMessage}
+              onOpenCustomizer={() => setIsCustomizerOpen(true)}
+              onOpenKnowledge={() => setIsKnowledgeOpen(true)}
+              onOpenApiIntegration={() => setIsApiModalOpen(true)}
+            />
+          </main>
+        </>
       )}
 
-      {/* Main chat */}
-      <main className="flex min-w-0 flex-1 flex-col">
-        <ChatView
-          onToggleConversations={() => setIsConvoDrawerOpen((v) => !v)}
-          // Forces a full remount whenever the active conversation changes, resetting every piece
-          // of ChatView's own local state (attachedImage, inputText, expandedThoughts, etc.) —
-          // found by a dedicated review: without this, ChatView is a single persistent component
-          // instance reused across every conversation, so none of its local state was scoped per
-          // conversation at all. Concretely: drag an image into the input box in Conversation A,
-          // switch to Conversation B before sending, type a message and hit Enter — A's stale
-          // attachedImage was still there and got silently sent into B's history. Same problem for
-          // an unsent draft in the input box bleeding into whichever conversation you switch to.
-          // This is the identical class of bug this session already fixed in App.tsx itself
-          // (generation state not scoped per conversation) — same root cause, different component.
-          key={activeConversationId}
-          messages={messages}
-          isGenerating={isGenerating}
-          streamingChunk={streamingChunk}
-          progressStage={progressStage}
-          activePersona={activePersona}
-          settings={settings}
-          onSendMessage={handleSendMessage}
-          onStopGeneration={handleStopGeneration}
-          onRegenerate={handleRegenerate}
-          onOpenAttentionForMessage={handleOpenAttentionForMessage}
-          onOpenCustomizer={() => setIsCustomizerOpen(true)}
-          onOpenKnowledge={() => setIsKnowledgeOpen(true)}
-          onOpenApiIntegration={() => setIsApiModalOpen(true)}
-        />
-      </main>
+      {view === 'code' && (
+        <main className="flex min-w-0 flex-1 flex-col bg-[var(--nx-surface)]">
+          <NexusCodeView />
+        </main>
+      )}
 
       {/* Customizer Modal */}
       <ModelCustomizerModal
