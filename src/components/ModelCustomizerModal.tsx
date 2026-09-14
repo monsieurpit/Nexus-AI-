@@ -227,15 +227,15 @@ Tone guidelines:
       padBody={false}
       footer={
         <div className="flex w-full items-center justify-between">
-          <button onClick={handleResetToDefaults} className="nx-btn nx-btn-ghost">
+          <button onClick={handleResetToDefaults} className="glass-btn glass-btn-ghost">
             <RotateCcw className="h-3.5 w-3.5" />
             Reset to defaults
           </button>
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="nx-btn nx-btn-ghost">
+            <button onClick={onClose} className="glass-btn glass-btn-ghost">
               Cancel
             </button>
-            <button id="save-customizer-btn" onClick={handleSave} className="nx-btn nx-btn-primary">
+            <button id="save-customizer-btn" onClick={handleSave} className="glass-btn glass-btn-primary">
               {savedToast ? <Check className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
               <span>{savedToast ? 'Saved!' : 'Apply settings'}</span>
             </button>
@@ -245,13 +245,13 @@ Tone guidelines:
     >
       <div className="flex min-h-0 flex-1 flex-col">
         {/* Tab Navigation */}
-        <div className="flex gap-2 overflow-x-auto border-b border-[var(--nx-border-subtle)] bg-[var(--nx-elevated)] px-5 text-xs font-medium">
+        <div className="flex gap-2 overflow-x-auto border-b border-[var(--glass-border-subtle)] bg-[var(--glass-panel-elevated)] px-5 text-xs font-medium">
           <button
             onClick={() => setActiveTab('persona')}
             className={`py-3 px-3 border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'persona'
-                ? 'border-[var(--nx-accent)] text-[var(--nx-accent-hover)] font-semibold'
-                : 'border-transparent text-[var(--nx-text-muted)] hover:text-[var(--nx-text)]'
+                ? 'border-[var(--glass-accent)] text-[var(--glass-accent-hover)] font-semibold'
+                : 'border-transparent text-[var(--glass-text-muted)] hover:text-[var(--glass-text)]'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -261,8 +261,8 @@ Tone guidelines:
             onClick={() => setActiveTab('parameters')}
             className={`py-3 px-3 border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'parameters'
-                ? 'border-[var(--nx-accent)] text-[var(--nx-accent-hover)] font-semibold'
-                : 'border-transparent text-[var(--nx-text-muted)] hover:text-[var(--nx-text)]'
+                ? 'border-[var(--glass-accent)] text-[var(--glass-accent-hover)] font-semibold'
+                : 'border-transparent text-[var(--glass-text-muted)] hover:text-[var(--glass-text)]'
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
@@ -272,8 +272,8 @@ Tone guidelines:
             onClick={() => setActiveTab('tone')}
             className={`py-3 px-3 border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'tone'
-                ? 'border-[var(--nx-accent)] text-[var(--nx-accent-hover)] font-semibold'
-                : 'border-transparent text-[var(--nx-text-muted)] hover:text-[var(--nx-text)]'
+                ? 'border-[var(--glass-accent)] text-[var(--glass-accent-hover)] font-semibold'
+                : 'border-transparent text-[var(--glass-text-muted)] hover:text-[var(--glass-text)]'
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
@@ -283,8 +283,8 @@ Tone guidelines:
             onClick={() => setActiveTab('system')}
             className={`py-3 px-3 border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'system'
-                ? 'border-[var(--nx-accent)] text-[var(--nx-accent-hover)] font-semibold'
-                : 'border-transparent text-[var(--nx-text-muted)] hover:text-[var(--nx-text)]'
+                ? 'border-[var(--glass-accent)] text-[var(--glass-accent-hover)] font-semibold'
+                : 'border-transparent text-[var(--glass-text-muted)] hover:text-[var(--glass-text)]'
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
@@ -297,7 +297,7 @@ Tone guidelines:
           {/* Persona Tab */}
           {activeTab === 'persona' && (
             <div className="space-y-4">
-              <div className="text-xs text-[var(--nx-text-faint)] font-medium">
+              <div className="text-xs text-[var(--glass-text-faint)] font-medium">
                 Choose a cognitive archetype from Nexus's own autonomous reasoning engine:
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -307,26 +307,26 @@ Tone guidelines:
                     <div
                       key={persona.id}
                       onClick={() => handlePersonaChange(persona.id)}
-                      className={`cursor-pointer p-4 rounded-xl border transition flex flex-col justify-between ${
+                      className={`glass-card cursor-pointer p-4 transition flex flex-col justify-between ${
                         isSelected
-                          ? 'border-[var(--nx-accent)] bg-[var(--nx-accent-soft)]/50 ring-1 ring-[var(--nx-accent-hover)]'
-                          : 'border-[var(--nx-border)] bg-[var(--nx-surface)]/40 hover:bg-[var(--nx-elevated)]/60'
+                          ? 'border-[var(--glass-accent)] bg-[var(--glass-accent-soft)] ring-1 ring-[var(--glass-accent-hover)]'
+                          : 'glass-card-interactive'
                       }`}
                     >
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="font-bold text-[var(--nx-text)] text-sm">{persona.name}</span>
+                          <span className="font-bold text-[var(--glass-text)] text-sm">{persona.name}</span>
                           {isSelected && (
-                            <span className="px-2 py-0.5 rounded-full bg-[var(--nx-accent)] text-white text-[10px] font-semibold">
+                            <span className="px-2 py-0.5 rounded-full bg-[image:var(--glass-accent-gradient)] text-[var(--glass-on-accent)] text-[10px] font-semibold">
                               Active
                             </span>
                           )}
                         </div>
-                        <p className="text-xs font-medium text-[var(--nx-accent-hover)] mb-1">{persona.tagline}</p>
-                        <p className="text-xs text-[var(--nx-text-muted)] line-clamp-2">{persona.description}</p>
+                        <p className="text-xs font-medium text-[var(--glass-accent-hover)] mb-1">{persona.tagline}</p>
+                        <p className="text-xs text-[var(--glass-text-muted)] line-clamp-2">{persona.description}</p>
                       </div>
 
-                      <div className="mt-3 pt-2 border-t border-[var(--nx-border)]/60 flex items-center justify-between text-[11px] text-[var(--nx-text-faint)]">
+                      <div className="mt-3 pt-2 border-t border-[var(--glass-border)]/60 flex items-center justify-between text-[11px] text-[var(--glass-text-faint)]">
                         <span>Temp: {persona.defaultTemperature}</span>
                         <span className="capitalize">{persona.reasoningMode} Mode</span>
                       </div>
@@ -336,28 +336,28 @@ Tone guidelines:
               </div>
 
               {localSettings.activePersonaId === 'custom' && (
-                <div className="p-4 rounded-xl bg-[var(--nx-warn)]/10 border border-[var(--nx-warn)]/30 space-y-3 mt-4">
-                  <div className="text-xs font-semibold text-[var(--nx-warn)] flex items-center gap-1.5">
+                <div className="p-4 rounded-xl bg-[var(--glass-warn)]/10 border border-[var(--glass-warn)]/30 space-y-3 mt-4">
+                  <div className="text-xs font-semibold text-[var(--glass-warn)] flex items-center gap-1.5">
                     <Sliders className="w-3.5 h-3.5" />
                     <span>Custom Persona Configuration</span>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-[var(--nx-text-muted)] block mb-1">Persona Name</label>
+                    <label className="text-xs font-medium text-[var(--glass-text-muted)] block mb-1">Persona Name</label>
                     <input
                       type="text"
                       value={localSettings.customPersona.name}
                       onChange={(e) => handleCustomPersonaUpdate({ name: e.target.value })}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)]"
+                      className="glass-input text-xs"
                       placeholder="e.g. Quantum Physics Tutor"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-[var(--nx-text-muted)] block mb-1">Tagline</label>
+                    <label className="text-xs font-medium text-[var(--glass-text-muted)] block mb-1">Tagline</label>
                     <input
                       type="text"
                       value={localSettings.customPersona.tagline}
                       onChange={(e) => handleCustomPersonaUpdate({ tagline: e.target.value })}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)]"
+                      className="glass-input text-xs"
                       placeholder="e.g. Specializes in advanced particle dynamics"
                     />
                   </div>
@@ -373,10 +373,10 @@ Tone guidelines:
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-1.5">
-                    <label className="font-semibold text-[var(--nx-text)] text-xs">Temperature (Randomness)</label>
-                    <Info className="w-3.5 h-3.5 text-[var(--nx-text-faint)]" />
+                    <label className="font-semibold text-[var(--glass-text)] text-xs">Temperature (Randomness)</label>
+                    <Info className="w-3.5 h-3.5 text-[var(--glass-text-faint)]" />
                   </div>
-                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-[var(--nx-elevated)] font-medium">
+                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-[var(--glass-panel-elevated)] font-medium">
                     {localSettings.temperature}
                   </span>
                 </div>
@@ -389,9 +389,9 @@ Tone guidelines:
                   onChange={(e) =>
                     setLocalSettings((prev) => ({ ...prev, temperature: parseFloat(e.target.value) }))
                   }
-                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
+                  className="w-full accent-[var(--glass-accent)] cursor-pointer"
                 />
-                <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
+                <div className="flex justify-between text-[11px] text-[var(--glass-text-faint)]">
                   <span>0.0 (Deterministic & Logical)</span>
                   <span>0.7 (Balanced)</span>
                   <span>1.5 (High Entropy & Creative)</span>
@@ -401,8 +401,8 @@ Tone guidelines:
               {/* Top-P (Nucleus Sampling) */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <label className="font-semibold text-[var(--nx-text)] text-xs">Top-P (Nucleus Sampling)</label>
-                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-[var(--nx-elevated)] font-medium">
+                  <label className="font-semibold text-[var(--glass-text)] text-xs">Top-P (Nucleus Sampling)</label>
+                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-[var(--glass-panel-elevated)] font-medium">
                     {localSettings.topP}
                   </span>
                 </div>
@@ -415,19 +415,19 @@ Tone guidelines:
                   onChange={(e) =>
                     setLocalSettings((prev) => ({ ...prev, topP: parseFloat(e.target.value) }))
                   }
-                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
+                  className="w-full accent-[var(--glass-accent)] cursor-pointer"
                 />
-                <p className="text-[11px] text-[var(--nx-text-faint)]">
+                <p className="text-[11px] text-[var(--glass-text-faint)]">
                   Cumulative probability threshold for candidate token selection during decoding.
                 </p>
               </div>
 
               {/* Reasoning Mode */}
               <div className="space-y-2">
-                <label className="font-semibold text-[var(--nx-text)] text-xs block">
+                <label className="font-semibold text-[var(--glass-text)] text-xs block">
                   System 2 Reasoning Depth
                 </label>
-                <p className="text-[11px] text-[var(--nx-text-faint)] -mt-1">
+                <p className="text-[11px] text-[var(--glass-text-faint)] -mt-1">
                   How much the model thinks before answering. Higher depth means a slower reply in
                   exchange for a more carefully worked-through one — pick based on what the question needs.
                 </p>
@@ -444,12 +444,12 @@ Tone guidelines:
                       onClick={() => setLocalSettings((prev) => ({ ...prev, reasoningMode: mode.id }))}
                       className={`p-2.5 rounded-xl border text-left transition ${
                         localSettings.reasoningMode === mode.id
-                          ? 'border-[var(--nx-accent)] bg-[var(--nx-accent-soft)] text-[var(--nx-text)] font-bold'
-                          : 'border-[var(--nx-border)] hover:bg-[var(--nx-surface)] text-[var(--nx-text-muted)]'
+                          ? 'border-[var(--glass-accent)] bg-[var(--glass-accent-soft)] text-[var(--glass-text)] font-bold'
+                          : 'border-[var(--glass-border)] hover:bg-[var(--glass-panel)] text-[var(--glass-text-muted)]'
                       }`}
                     >
                       <div className="text-xs">{mode.label}</div>
-                      <div className="text-[9px] text-[var(--nx-text-faint)] font-normal leading-tight mt-0.5 line-clamp-2">
+                      <div className="text-[9px] text-[var(--glass-text-faint)] font-normal leading-tight mt-0.5 line-clamp-2">
                         {mode.desc}
                       </div>
                     </button>
@@ -460,8 +460,8 @@ Tone guidelines:
               {/* Multi-Head Attention Channels */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <label className="font-semibold text-[var(--nx-text)] text-xs">Multi-Head Attention Channels</label>
-                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-[var(--nx-elevated)] font-medium">
+                  <label className="font-semibold text-[var(--glass-text)] text-xs">Multi-Head Attention Channels</label>
+                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-[var(--glass-panel-elevated)] font-medium">
                     {localSettings.attentionHeads} Heads
                   </span>
                 </div>
@@ -474,14 +474,14 @@ Tone guidelines:
                   onChange={(e) =>
                     setLocalSettings((prev) => ({ ...prev, attentionHeads: parseInt(e.target.value, 10) }))
                   }
-                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
+                  className="w-full accent-[var(--glass-accent)] cursor-pointer"
                 />
               </div>
 
               {/* Streaming Speed */}
               <div className="space-y-2">
-                <label className="font-semibold text-[var(--nx-text)] text-xs block">Reply Typing Effect</label>
-                <p className="text-[11px] text-[var(--nx-text-faint)] -mt-1">
+                <label className="font-semibold text-[var(--glass-text)] text-xs block">Reply Typing Effect</label>
+                <p className="text-[11px] text-[var(--glass-text-faint)] -mt-1">
                   Purely visual — how fast the already-finished reply appears to type out. Does not
                   change how long the model actually takes to think; use Reasoning Depth above for that.
                 </p>
@@ -499,12 +499,12 @@ Tone guidelines:
                       onClick={() => setLocalSettings((prev) => ({ ...prev, streamingSpeed: speed.id }))}
                       className={`p-2 rounded-lg border text-left transition ${
                         localSettings.streamingSpeed === speed.id
-                          ? 'border-[var(--nx-accent)] bg-[var(--nx-accent-soft)] text-[var(--nx-text)] font-semibold'
-                          : 'border-[var(--nx-border)] hover:bg-[var(--nx-surface)] text-[var(--nx-text-muted)]'
+                          ? 'border-[var(--glass-accent)] bg-[var(--glass-accent-soft)] text-[var(--glass-text)] font-semibold'
+                          : 'border-[var(--glass-border)] hover:bg-[var(--glass-panel)] text-[var(--glass-text-muted)]'
                       }`}
                     >
                       <div className="text-xs capitalize">{speed.id}</div>
-                      <div className="text-[9px] text-[var(--nx-text-faint)] font-normal leading-tight mt-0.5 line-clamp-1">
+                      <div className="text-[9px] text-[var(--glass-text-faint)] font-normal leading-tight mt-0.5 line-clamp-1">
                         {speed.desc}
                       </div>
                     </button>
@@ -513,20 +513,20 @@ Tone guidelines:
               </div>
 
               {/* 🌐 Autonomous Web Search & Google Grounding */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-br from-[var(--nx-info)]/10 via-[var(--nx-info)]/10 to-[var(--nx-accent-hover)]/10 border border-[var(--nx-info)]/30 space-y-3">
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-[var(--glass-info)]/10 via-[var(--glass-info)]/10 to-[var(--glass-accent-hover)]/10 border border-[var(--glass-info)]/30 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-[var(--nx-info)] text-white flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-md bg-[var(--glass-info)] text-white flex items-center justify-center">
                       <Globe className="w-3.5 h-3.5" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-[var(--nx-text)] flex items-center gap-1.5">
+                      <div className="text-xs font-bold text-[var(--glass-text)] flex items-center gap-1.5">
                         <span>Autonomous Live Web Search</span>
-                        <span className="px-1.5 py-0.2 bg-[var(--nx-success)]/15 text-[var(--nx-success)] text-[10px] rounded font-semibold">
+                        <span className="px-1.5 py-0.2 bg-[var(--glass-success)]/15 text-[var(--glass-success)] text-[10px] rounded font-semibold">
                           Infinite Free Quota
                         </span>
                       </div>
-                      <p className="text-[11px] text-[var(--nx-text-faint)]">
+                      <p className="text-[11px] text-[var(--glass-text-faint)]">
                         Zero-API-Key live search across Google, DuckDuckGo & Wikipedia with swear synthesis
                       </p>
                     </div>
@@ -543,13 +543,13 @@ Tone guidelines:
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-[var(--nx-elevated-hover)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--nx-elevated)] after:border-[var(--nx-border)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--nx-info)]"></div>
+                    <div className="w-9 h-5 bg-[var(--glass-panel-elevated-hover)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--glass-panel-elevated)] after:border-[var(--glass-border)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--glass-info)]"></div>
                   </label>
                 </div>
 
                 {/* Trigger Mode */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-[var(--nx-text-muted)] block">
+                  <label className="text-[11px] font-semibold text-[var(--glass-text-muted)] block">
                     Trigger Mode:
                   </label>
                   <div className="grid grid-cols-3 gap-1.5">
@@ -570,12 +570,12 @@ Tone guidelines:
                         }
                         className={`p-2 rounded-lg border text-left transition ${
                           (localSettings.webSearchMode || 'auto') === m.id
-                            ? 'border-[var(--nx-info)] bg-[var(--nx-info)]/15 text-[var(--nx-info)] font-bold shadow-sm'
-                            : 'border-[var(--nx-border)]/80 bg-[var(--nx-elevated)]/80 hover:bg-[var(--nx-elevated)] text-[var(--nx-text-muted)]'
+                            ? 'border-[var(--glass-info)] bg-[var(--glass-info)]/15 text-[var(--glass-info)] font-bold shadow-sm'
+                            : 'border-[var(--glass-border)]/80 bg-[var(--glass-panel-elevated)]/80 hover:bg-[var(--glass-panel-elevated)] text-[var(--glass-text-muted)]'
                         }`}
                       >
                         <div className="text-xs">{m.label}</div>
-                        <div className="text-[9px] text-[var(--nx-text-faint)] line-clamp-1">{m.desc}</div>
+                        <div className="text-[9px] text-[var(--glass-text-faint)] line-clamp-1">{m.desc}</div>
                       </button>
                     ))}
                   </div>
@@ -583,7 +583,7 @@ Tone guidelines:
 
                 {/* Search Provider Selection */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-[var(--nx-text-muted)] block">
+                  <label className="text-[11px] font-semibold text-[var(--glass-text-muted)] block">
                     Primary Search Engine:
                   </label>
                   <div className="grid grid-cols-4 gap-1.5">
@@ -604,8 +604,8 @@ Tone guidelines:
                         }
                         className={`p-1.5 rounded-lg border text-center text-xs transition ${
                           (localSettings.webSearchEngine || 'all') === eng.id
-                            ? 'border-[var(--nx-info)] bg-[var(--nx-info)]/15 text-[var(--nx-info)] font-semibold'
-                            : 'border-[var(--nx-border)]/80 bg-[var(--nx-elevated)]/80 hover:bg-[var(--nx-elevated)] text-[var(--nx-text-muted)]'
+                            ? 'border-[var(--glass-info)] bg-[var(--glass-info)]/15 text-[var(--glass-info)] font-semibold'
+                            : 'border-[var(--glass-border)]/80 bg-[var(--glass-panel-elevated)]/80 hover:bg-[var(--glass-panel-elevated)] text-[var(--glass-text-muted)]'
                         }`}
                       >
                         {eng.label}
@@ -620,15 +620,15 @@ Tone guidelines:
           {/* Tone Sliders Tab */}
           {activeTab === 'tone' && (
             <div className="space-y-5">
-              <div className="text-xs text-[var(--nx-text-faint)]">
+              <div className="text-xs text-[var(--glass-text-faint)]">
                 Adjust the personality and stylistic delivery spectrum of the AI:
               </div>
 
               {/* Warmth Slider */}
               <div className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold text-[var(--nx-text)]">
+                <div className="flex justify-between text-xs font-semibold text-[var(--glass-text)]">
                   <span>Warmth & Empathy</span>
-                  <span className="text-[var(--nx-accent-hover)]">{currentPersona.toneSettings.warmth}%</span>
+                  <span className="text-[var(--glass-accent-hover)]">{currentPersona.toneSettings.warmth}%</span>
                 </div>
                 <input
                   type="range"
@@ -636,9 +636,9 @@ Tone guidelines:
                   max="100"
                   value={currentPersona.toneSettings.warmth}
                   onChange={(e) => handleToneUpdate({ warmth: parseInt(e.target.value, 10) })}
-                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
+                  className="w-full accent-[var(--glass-accent)] cursor-pointer"
                 />
-                <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
+                <div className="flex justify-between text-[11px] text-[var(--glass-text-faint)]">
                   <span>Clinical & Direct</span>
                   <span>Empathetic & Friendly</span>
                 </div>
@@ -646,9 +646,9 @@ Tone guidelines:
 
               {/* Technicality Slider */}
               <div className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold text-[var(--nx-text)]">
+                <div className="flex justify-between text-xs font-semibold text-[var(--glass-text)]">
                   <span>Technical Depth & Jargon</span>
-                  <span className="text-[var(--nx-accent-hover)]">{currentPersona.toneSettings.technicality}%</span>
+                  <span className="text-[var(--glass-accent-hover)]">{currentPersona.toneSettings.technicality}%</span>
                 </div>
                 <input
                   type="range"
@@ -656,9 +656,9 @@ Tone guidelines:
                   max="100"
                   value={currentPersona.toneSettings.technicality}
                   onChange={(e) => handleToneUpdate({ technicality: parseInt(e.target.value, 10) })}
-                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
+                  className="w-full accent-[var(--glass-accent)] cursor-pointer"
                 />
-                <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
+                <div className="flex justify-between text-[11px] text-[var(--glass-text-faint)]">
                   <span>Plain Language</span>
                   <span>Rigorous Academic / Spec</span>
                 </div>
@@ -666,9 +666,9 @@ Tone guidelines:
 
               {/* Verbosity Slider */}
               <div className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold text-[var(--nx-text)]">
+                <div className="flex justify-between text-xs font-semibold text-[var(--glass-text)]">
                   <span>Verbosity & Elaboration</span>
-                  <span className="text-[var(--nx-accent-hover)]">{currentPersona.toneSettings.verbosity}%</span>
+                  <span className="text-[var(--glass-accent-hover)]">{currentPersona.toneSettings.verbosity}%</span>
                 </div>
                 <input
                   type="range"
@@ -676,9 +676,9 @@ Tone guidelines:
                   max="100"
                   value={currentPersona.toneSettings.verbosity}
                   onChange={(e) => handleToneUpdate({ verbosity: parseInt(e.target.value, 10) })}
-                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
+                  className="w-full accent-[var(--glass-accent)] cursor-pointer"
                 />
-                <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
+                <div className="flex justify-between text-[11px] text-[var(--glass-text-faint)]">
                   <span>Ultra-Concise</span>
                   <span>Comprehensive & Detailed</span>
                 </div>
@@ -686,9 +686,9 @@ Tone guidelines:
 
               {/* Creativity Slider */}
               <div className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold text-[var(--nx-text)]">
+                <div className="flex justify-between text-xs font-semibold text-[var(--glass-text)]">
                   <span>Creativity & Metaphor</span>
-                  <span className="text-[var(--nx-accent-hover)]">{currentPersona.toneSettings.creativity}%</span>
+                  <span className="text-[var(--glass-accent-hover)]">{currentPersona.toneSettings.creativity}%</span>
                 </div>
                 <input
                   type="range"
@@ -696,22 +696,22 @@ Tone guidelines:
                   max="100"
                   value={currentPersona.toneSettings.creativity}
                   onChange={(e) => handleToneUpdate({ creativity: parseInt(e.target.value, 10) })}
-                  className="w-full accent-[var(--nx-accent)] cursor-pointer"
+                  className="w-full accent-[var(--glass-accent)] cursor-pointer"
                 />
-                <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
+                <div className="flex justify-between text-[11px] text-[var(--glass-text-faint)]">
                   <span>Strictly Factual</span>
                   <span>Poetic & Conceptual</span>
                 </div>
               </div>
 
               {/* Roast & Banter Slider */}
-              <div className="space-y-1.5 pt-2 border-t border-[var(--nx-border)]">
-                <div className="flex justify-between text-xs font-semibold text-[var(--nx-text)]">
+              <div className="space-y-1.5 pt-2 border-t border-[var(--glass-border)]">
+                <div className="flex justify-between text-xs font-semibold text-[var(--glass-text)]">
                   <span className="flex items-center gap-1">
-                    <Flame className="w-3.5 h-3.5 text-[var(--nx-warn)]" />
+                    <Flame className="w-3.5 h-3.5 text-[var(--glass-warn)]" />
                     <span>Roast & Savage Banter Intensity</span>
                   </span>
-                  <span className="text-[var(--nx-warn)] font-bold">{localSettings.roastIntensity ?? 75}%</span>
+                  <span className="text-[var(--glass-warn)] font-bold">{localSettings.roastIntensity ?? 75}%</span>
                 </div>
                 <input
                   type="range"
@@ -722,29 +722,29 @@ Tone guidelines:
                     const val = parseInt(e.target.value, 10);
                     setLocalSettings((prev) => ({ ...prev, roastIntensity: val }));
                   }}
-                  className="w-full accent-[var(--nx-warn)] cursor-pointer"
+                  className="w-full accent-[var(--glass-warn)] cursor-pointer"
                 />
-                <div className="flex justify-between text-[11px] text-[var(--nx-text-faint)]">
+                <div className="flex justify-between text-[11px] text-[var(--glass-text-faint)]">
                   <span>Gentle & Polite</span>
                   <span>High-Octane Savage Banter & Roasts</span>
                 </div>
               </div>
 
               {/* Swear Engine & Expressive Profanity Pipeline */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-br from-[var(--nx-danger)]/10 via-[var(--nx-warn)]/10 to-orange-500/10 border border-[var(--nx-danger)]/30 space-y-3">
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-[var(--glass-danger)]/10 via-[var(--glass-warn)]/10 to-orange-500/10 border border-[var(--glass-danger)]/30 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-md bg-[var(--nx-danger)] text-white flex items-center justify-center text-xs font-black">
+                    <div className="w-6 h-6 rounded-md bg-[var(--glass-danger)] text-white flex items-center justify-center text-xs font-black">
                       #!
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-[var(--nx-text)] flex items-center gap-1.5">
+                      <div className="text-xs font-bold text-[var(--glass-text)] flex items-center gap-1.5">
                         <span>Autonomous Swear Engine</span>
-                        <span className="px-1.5 py-0.2 bg-[var(--nx-danger)]/15 text-[var(--nx-danger)] text-[10px] rounded font-semibold">
+                        <span className="px-1.5 py-0.2 bg-[var(--glass-danger)]/15 text-[var(--glass-danger)] text-[10px] rounded font-semibold">
                           Active
                         </span>
                       </div>
-                      <p className="text-[11px] text-[var(--nx-text-faint)]">
+                      <p className="text-[11px] text-[var(--glass-text-faint)]">
                         Context-aware profanity, authentic punchlines, and Discord gaming banter
                       </p>
                     </div>
@@ -761,13 +761,13 @@ Tone guidelines:
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-[var(--nx-elevated-hover)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--nx-elevated)] after:border-[var(--nx-border)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--nx-danger)]"></div>
+                    <div className="w-9 h-5 bg-[var(--glass-panel-elevated-hover)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--glass-panel-elevated)] after:border-[var(--glass-border)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--glass-danger)]"></div>
                   </label>
                 </div>
 
                 {/* Swear Intensity Levels */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-[var(--nx-text-muted)] block">
+                  <label className="text-[11px] font-semibold text-[var(--glass-text-muted)] block">
                     Profanity Level & Frequency:
                   </label>
                   <div className="grid grid-cols-4 gap-1.5">
@@ -788,12 +788,12 @@ Tone guidelines:
                         }
                         className={`p-2 rounded-lg border text-left transition ${
                           (localSettings.swearIntensity || 'heavy') === tier.id
-                            ? 'border-[var(--nx-danger)] bg-[var(--nx-danger)]/15 text-[var(--nx-danger)] font-bold shadow-sm'
-                            : 'border-[var(--nx-border)]/80 bg-[var(--nx-elevated)]/80 hover:bg-[var(--nx-elevated)] text-[var(--nx-text-muted)]'
+                            ? 'border-[var(--glass-danger)] bg-[var(--glass-danger)]/15 text-[var(--glass-danger)] font-bold shadow-sm'
+                            : 'border-[var(--glass-border)]/80 bg-[var(--glass-panel-elevated)]/80 hover:bg-[var(--glass-panel-elevated)] text-[var(--glass-text-muted)]'
                         }`}
                       >
                         <div className="text-xs">{tier.label}</div>
-                        <div className="text-[9px] text-[var(--nx-text-faint)] line-clamp-1">{tier.desc}</div>
+                        <div className="text-[9px] text-[var(--glass-text-faint)] line-clamp-1">{tier.desc}</div>
                       </button>
                     ))}
                   </div>
@@ -806,149 +806,149 @@ Tone guidelines:
           {activeTab === 'system' && (
             <div className="space-y-5">
               {/* Discord Bot Quick Presets */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-br from-[var(--nx-accent-hover)]/10 to-[var(--nx-accent-hover)]/10 border border-[var(--nx-accent)]/20 space-y-2.5">
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-[var(--glass-accent-hover)]/10 to-[var(--glass-accent-hover)]/10 border border-[var(--glass-accent)]/20 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--nx-accent-hover)]">
-                    <Bot className="w-4 h-4 text-[var(--nx-accent-hover)]" />
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--glass-accent-hover)]">
+                    <Bot className="w-4 h-4 text-[var(--glass-accent-hover)]" />
                     <span>Discord Bot & Rule Engine Presets</span>
                   </div>
-                  <span className="text-[10px] text-[var(--nx-accent-hover)] font-medium px-2 py-0.5 bg-[var(--nx-elevated)] rounded-full border border-[var(--nx-accent)]/30">
+                  <span className="text-[10px] text-[var(--glass-accent-hover)] font-medium px-2 py-0.5 bg-[var(--glass-panel-elevated)] rounded-full border border-[var(--glass-accent)]/30">
                     1-Click Load
                   </span>
                 </div>
-                <p className="text-[11px] text-[var(--nx-text-muted)]">
+                <p className="text-[11px] text-[var(--glass-text-muted)]">
                   Quickly configure rules for Discord server moderation, 0-1 threat scoring, community help, or roast mode:
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('nexus')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-hover)]/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--glass-panel-elevated)] border border-[var(--glass-border)] text-left hover:border-[var(--glass-accent-hover)] hover:bg-[var(--glass-accent-hover)]/10 transition flex flex-col gap-0.5"
                   >
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Bot className="w-3 h-3 text-[var(--nx-accent-hover)]" />
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--glass-text)]">
+                      <Bot className="w-3 h-3 text-[var(--glass-accent-hover)]" />
                       <span>Nexus (Discord Homie)</span>
                     </div>
-                    <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">Swearing, Roasts & Facts</span>
+                    <span className="text-[10px] text-[var(--glass-text-faint)] line-clamp-1">Swearing, Roasts & Facts</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('nexus_superchill')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-success)] hover:bg-[var(--nx-success)]/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--glass-panel-elevated)] border border-[var(--glass-border)] text-left hover:border-[var(--glass-success)] hover:bg-[var(--glass-success)]/10 transition flex flex-col gap-0.5"
                   >
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Smile className="w-3 h-3 text-[var(--nx-success)]" />
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--glass-text)]">
+                      <Smile className="w-3 h-3 text-[var(--glass-success)]" />
                       <span>Nexus (Super Chill Homie)</span>
                     </div>
-                    <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">User ID 1394001641899954368</span>
+                    <span className="text-[10px] text-[var(--glass-text-faint)] line-clamp-1">User ID 1394001641899954368</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('raidshield')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-success)] hover:bg-[var(--nx-success)]/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--glass-panel-elevated)] border border-[var(--glass-border)] text-left hover:border-[var(--glass-success)] hover:bg-[var(--glass-success)]/10 transition flex flex-col gap-0.5"
                   >
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <ShieldCheck className="w-3 h-3 text-[var(--nx-success)]" />
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--glass-text)]">
+                      <ShieldCheck className="w-3 h-3 text-[var(--glass-success)]" />
                       <span>RaidShield AI</span>
                     </div>
-                    <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">21 Hard Rules JSON</span>
+                    <span className="text-[10px] text-[var(--glass-text-faint)] line-clamp-1">21 Hard Rules JSON</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('discord_safety')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-soft)]/40 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--glass-panel-elevated)] border border-[var(--glass-border)] text-left hover:border-[var(--glass-accent-hover)] hover:bg-[var(--glass-accent-soft)]/40 transition flex flex-col gap-0.5"
                   >
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <ShieldAlert className="w-3 h-3 text-[var(--nx-success)]" />
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--glass-text)]">
+                      <ShieldAlert className="w-3 h-3 text-[var(--glass-success)]" />
                       <span>Safety & Helper Bot</span>
                     </div>
-                    <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">0-1 Score + Help Handler</span>
+                    <span className="text-[10px] text-[var(--glass-text-faint)] line-clamp-1">0-1 Score + Help Handler</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('discord_json')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-soft)]/40 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--glass-panel-elevated)] border border-[var(--glass-border)] text-left hover:border-[var(--glass-accent-hover)] hover:bg-[var(--glass-accent-soft)]/40 transition flex flex-col gap-0.5"
                   >
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Terminal className="w-3 h-3 text-[var(--nx-accent-hover)]" />
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--glass-text)]">
+                      <Terminal className="w-3 h-3 text-[var(--glass-accent-hover)]" />
                       <span>Strict JSON Format</span>
                     </div>
-                    <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">Exact JSON safety payload</span>
+                    <span className="text-[10px] text-[var(--glass-text-faint)] line-clamp-1">Exact JSON safety payload</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('roast')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-warn)] hover:bg-[var(--nx-warn)]/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--glass-panel-elevated)] border border-[var(--glass-border)] text-left hover:border-[var(--glass-warn)] hover:bg-[var(--glass-warn)]/10 transition flex flex-col gap-0.5"
                   >
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Flame className="w-3 h-3 text-[var(--nx-warn)]" />
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--glass-text)]">
+                      <Flame className="w-3 h-3 text-[var(--glass-warn)]" />
                       <span>Savage Roast Bot</span>
                     </div>
-                    <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">Banter, swearing & burns</span>
+                    <span className="text-[10px] text-[var(--glass-text-faint)] line-clamp-1">Banter, swearing & burns</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('crashout')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-danger)] hover:bg-[var(--nx-danger)]/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--glass-panel-elevated)] border border-[var(--glass-border)] text-left hover:border-[var(--glass-danger)] hover:bg-[var(--glass-danger)]/10 transition flex flex-col gap-0.5"
                   >
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Zap className="w-3 h-3 text-[var(--nx-danger)]" />
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--glass-text)]">
+                      <Zap className="w-3 h-3 text-[var(--glass-danger)]" />
                       <span>Crashout & Rage</span>
                     </div>
-                    <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">All-caps frantic chaos</span>
+                    <span className="text-[10px] text-[var(--glass-text-faint)] line-clamp-1">All-caps frantic chaos</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('chill')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-success)] hover:bg-[var(--nx-success)]/10 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--glass-panel-elevated)] border border-[var(--glass-border)] text-left hover:border-[var(--glass-success)] hover:bg-[var(--glass-success)]/10 transition flex flex-col gap-0.5"
                   >
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Smile className="w-3 h-3 text-[var(--nx-success)]" />
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--glass-text)]">
+                      <Smile className="w-3 h-3 text-[var(--glass-success)]" />
                       <span>Chill Zen Mod</span>
                     </div>
-                    <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">Relaxed wholesome vibes</span>
+                    <span className="text-[10px] text-[var(--glass-text-faint)] line-clamp-1">Relaxed wholesome vibes</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleApplyPreset('strict_only')}
-                    className="p-2 rounded-lg bg-[var(--nx-elevated)] border border-[var(--nx-border)] text-left hover:border-[var(--nx-accent-hover)] hover:bg-[var(--nx-accent-soft)]/40 transition flex flex-col gap-0.5"
+                    className="p-2 rounded-lg bg-[var(--glass-panel-elevated)] border border-[var(--glass-border)] text-left hover:border-[var(--glass-accent-hover)] hover:bg-[var(--glass-accent-soft)]/40 transition flex flex-col gap-0.5"
                   >
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--nx-text)]">
-                      <Check className="w-3 h-3 text-[var(--nx-accent-hover)]" />
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--glass-text)]">
+                      <Check className="w-3 h-3 text-[var(--glass-accent-hover)]" />
                       <span>Strict Constraint</span>
                     </div>
-                    <span className="text-[10px] text-[var(--nx-text-faint)] line-clamp-1">'Only answer X' adherence</span>
+                    <span className="text-[10px] text-[var(--glass-text-faint)] line-clamp-1">'Only answer X' adherence</span>
                   </button>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-[var(--nx-text)] block mb-1">
+                  <label className="text-xs font-semibold text-[var(--glass-text)] block mb-1">
                     User Name / Call Sign
                   </label>
                   <input
                     type="text"
                     value={localSettings.userName}
                     onChange={(e) => setLocalSettings((prev) => ({ ...prev, userName: e.target.value }))}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)]"
+                    className="glass-input text-xs"
                     placeholder="e.g. Alex"
                   />
-                  <p className="text-[11px] text-[var(--nx-text-faint)] mt-1">
+                  <p className="text-[11px] text-[var(--glass-text-faint)] mt-1">
                     The AI will address you naturally with this name.
                   </p>
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-[var(--nx-text)] block mb-1">
+                  <label className="text-xs font-semibold text-[var(--glass-text)] block mb-1">
                     Discord User ID / Super Chill Mode
                   </label>
                   <div className="flex items-center gap-2">
@@ -962,7 +962,7 @@ Tone guidelines:
                           isSuperChillUser: e.target.value === '1394001641899954368' || prev.isSuperChillUser,
                         }))
                       }
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)] font-mono"
+                      className="glass-input text-xs font-mono"
                       placeholder="e.g. 1394001641899954368"
                     />
                     <button
@@ -976,21 +976,21 @@ Tone guidelines:
                       }
                       className={`px-3 py-2 text-xs font-semibold rounded-lg whitespace-nowrap border transition ${
                         localSettings.isSuperChillUser
-                          ? 'bg-[var(--nx-success)] text-white border-[var(--nx-success)]'
-                          : 'bg-[var(--nx-elevated)] text-[var(--nx-text-muted)] border-[var(--nx-border)] hover:bg-[var(--nx-elevated-hover)]'
+                          ? 'bg-[var(--glass-success)] text-white border-[var(--glass-success)]'
+                          : 'bg-[var(--glass-panel-elevated)] text-[var(--glass-text-muted)] border-[var(--glass-border)] hover:bg-[var(--glass-panel-elevated-hover)]'
                       }`}
                     >
                       {localSettings.isSuperChillUser ? '🌟 Super Chill ON' : 'Chill OFF'}
                     </button>
                   </div>
-                  <p className="text-[11px] text-[var(--nx-text-faint)] mt-1">
+                  <p className="text-[11px] text-[var(--glass-text-faint)] mt-1">
                     ID 1394001641899954368 activates VIP favorite-homie status (ultra supportive, wholesome swearing).
                   </p>
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-[var(--nx-text)] block mb-1">
+                <label className="text-xs font-semibold text-[var(--glass-text)] block mb-1">
                   System Persona Prompt
                 </label>
                 <textarea
@@ -1006,17 +1006,17 @@ Tone guidelines:
                     }
                   }}
                   disabled={localSettings.activePersonaId !== 'custom'}
-                  className="w-full text-xs font-mono p-3 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-surface)] disabled:text-[var(--nx-text-faint)]"
+                  className="glass-input text-xs font-mono disabled:text-[var(--glass-text-faint)] disabled:opacity-70"
                 />
                 {localSettings.activePersonaId !== 'custom' && (
-                  <p className="text-[11px] text-[var(--nx-warn)] mt-1">
+                  <p className="text-[11px] text-[var(--glass-warn)] mt-1">
                     Select "Custom Persona" in the Personas tab to write arbitrary system instructions.
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-[var(--nx-text)] block mb-1">
+                <label className="text-xs font-semibold text-[var(--glass-text)] block mb-1">
                   Custom User Directives & Rules (Always Applied)
                 </label>
                 <textarea
@@ -1025,7 +1025,7 @@ Tone guidelines:
                   onChange={(e) =>
                     setLocalSettings((prev) => ({ ...prev, userCustomDirectives: e.target.value }))
                   }
-                  className="w-full text-xs p-3 rounded-lg border border-[var(--nx-border)] bg-[var(--nx-elevated)] font-mono"
+                  className="glass-input text-xs font-mono"
                   placeholder="e.g. Rule 1: Only output JSON. Rule 2: If message is scam return safety 0.05. Rule 3: If user needs help give direct steps."
                 />
               </div>
