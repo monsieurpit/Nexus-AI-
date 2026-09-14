@@ -399,8 +399,16 @@ export function splitSentences(text: string): string[] {
 
 export function processForSearch(text: string): string[] {
   const words = tokenizeWords(text);
+  // Used to also drop EVERY purely-numeric token outright (`!/^\d+$/.test(w)`) — at both corpus
+  // index time and live-query time, so "HTTP 401 vs 403", "IPv6 vs IPv4"-shaped numeric
+  // distinctions, protocol/language version numbers (TLS 1.2 vs 1.3, Python 2 vs 3) could never
+  // match on the exact number that actually disambiguates the question, on either side. The
+  // `w.length > 1` check just above already drops single-digit tokens on its own (same as it
+  // drops any other single-character word), so removing the digit-specific exclusion only
+  // affects genuinely meaningful multi-digit numbers (401, 403, 16, 64, 2026) — it doesn't
+  // reintroduce noise from bare single-digit list markers like "1." / "2.".
   return words
-    .filter((w) => !STOP_WORDS.has(w) && w.length > 1 && !/^\d+$/.test(w))
+    .filter((w) => !STOP_WORDS.has(w) && w.length > 1)
     .map((w) => stem(w));
 }
 

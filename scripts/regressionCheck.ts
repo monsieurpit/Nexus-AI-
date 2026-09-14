@@ -24,6 +24,7 @@ import { trySolveMath } from '../src/ai-engine/mathSolver';
 import { trySolveCategoryClassification } from '../src/ai-engine/categorySolver';
 import { detectSubjectiveDebate, pickDebateSide } from '../src/ai-engine/argumentEngine';
 import { detectHumanTells, hasListFormatting } from '../src/ai-engine/humanTellDetector';
+import { processForSearch } from '../src/ai-engine/bm25Engine';
 
 let passed = 0;
 let failed = 0;
@@ -89,6 +90,26 @@ async function runDeterministicChecks() {
         'a train leaves station A at 60 mph, a second train leaves station B (180 miles away) at 90 mph heading toward the first train at the same time. how long until they meet?'
       )?.result || ''
     )
+  );
+
+  console.log('\nBM25 tokenization (numeric tokens):');
+  // processForSearch() used to strip EVERY purely-numeric token outright, so a query like "HTTP
+  // 401 vs 403" could never match on the number that actually disambiguates the question, at
+  // either corpus-index time or live-query time. Fixed by removing the digit-specific exclusion
+  // and relying on the pre-existing `w.length > 1` filter alone — verified this still correctly
+  // drops single-digit noise (bare "1"/"2" list markers) while keeping meaningful multi-digit
+  // numbers (401, 403, 2026).
+  check(
+    '"HTTP 401 error" retains the numeric token "401"',
+    processForSearch('HTTP 401 error').includes('401')
+  );
+  check(
+    '"403 forbidden access" retains the numeric token "403"',
+    processForSearch('403 forbidden access').includes('403')
+  );
+  check(
+    'a bare single-digit token ("item 1") is still dropped (no regression from the length>1 filter)',
+    !processForSearch('item 1 on the list').includes('1')
   );
 
   console.log('\nCategory classification:');
