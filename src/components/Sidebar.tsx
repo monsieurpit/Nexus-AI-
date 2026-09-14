@@ -108,7 +108,13 @@ const RailButton: React.FC<RailButtonProps> = ({
       <button
         ref={btnRef}
         type="button"
-        onClick={onClick}
+        onClick={() => {
+          // The tooltip is shown on hover/focus and rendered through a portal at a higher
+          // z-index than the modal overlay, so without this it stayed stuck on screen, on top
+          // of whatever modal just opened, until the mouse happened to move off the button.
+          hideTooltip();
+          onClick();
+        }}
         onMouseEnter={showTooltip}
         onMouseLeave={hideTooltip}
         onFocus={showTooltip}

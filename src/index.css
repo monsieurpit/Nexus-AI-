@@ -22,6 +22,11 @@
   --glass-panel-elevated-hover: rgba(255, 255, 255, 0.12);
   --glass-panel-solid-fallback: #131318;
   --glass-panel-elevated-solid-fallback: #1a1a21;
+  /* Modals/sheets need to stay readable over whatever busy content sits behind them, unlike the
+     ambient panels (rail, sidebar, cards) which can stay very translucent — so they get their
+     own much less transparent background rather than reusing --glass-panel-elevated. */
+  --glass-modal-bg: rgba(14, 14, 19, 0.92);
+  --glass-modal-bg-solid-fallback: #16161c;
 
   /* ---- borders / highlights ---- */
   --glass-border: rgba(255, 255, 255, 0.09);
@@ -381,7 +386,7 @@ body::after {
   }
   .glass-modal-panel {
     width: 100%;
-    background: var(--glass-panel-elevated);
+    background: var(--glass-modal-bg);
     backdrop-filter: blur(var(--glass-blur-lg)) saturate(200%);
     -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(200%);
     border: 1px solid var(--glass-border-strong);
@@ -395,7 +400,7 @@ body::after {
   }
   @supports not (backdrop-filter: blur(1px)) {
     .glass-modal-panel {
-      background: var(--glass-panel-elevated-solid-fallback);
+      background: var(--glass-modal-bg-solid-fallback);
     }
   }
   .glass-modal-header {
