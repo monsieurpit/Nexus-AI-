@@ -283,6 +283,7 @@ import { FILM_MUSIC_INDUSTRY_GAPS } from './corpus/filmMusicIndustryGaps';
 import { LAW_GAPS } from './corpus/lawGaps';
 import { EARTH_WEATHER_SCIENCE_GAPS } from './corpus/earthWeatherScienceGaps';
 import { ANIMAL_IDENTIFICATION_GAPS } from './corpus/animalIdentificationGaps';
+import { FINANCE_ECONOMICS_GAPS } from './corpus/financeEconomicsGaps';
 import { SOCCER_KNOWLEDGE_GAPS } from './corpus/soccerKnowledgeGaps';
 import { CELL_BIOLOGY_CORE_GAPS } from './corpus/cellBiologyCoreGaps';
 import { PSYCHOLOGY_DEEP_GAPS } from './corpus/psychologyDeepGaps';
@@ -1265,6 +1266,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...LAW_GAPS,
   ...EARTH_WEATHER_SCIENCE_GAPS,
   ...ANIMAL_IDENTIFICATION_GAPS,
+  ...FINANCE_ECONOMICS_GAPS,
   ...SOCCER_KNOWLEDGE_GAPS,
   ...CELL_BIOLOGY_CORE_GAPS,
   ...PSYCHOLOGY_DEEP_GAPS,
