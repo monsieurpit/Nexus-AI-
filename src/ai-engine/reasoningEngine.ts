@@ -3356,6 +3356,47 @@ function buildReasoningModeInstruction(reasoningMode: AISettings['reasoningMode'
   return '';
 }
 
+// Patrick asked to actually SEE the model's real internal reasoning in the reasoning-trace panel
+// instead of only the synthetic pipeline steps (intent detection, retrieval, etc.). This is the
+// opposite instruction from buildReasoningModeInstruction above (reveal instead of hide) — kept as
+// a SEPARATE function rather than a flag on that one, and wired through buildSystemPrompt's own
+// separate revealThinking parameter, specifically so it only ever reaches llmGroundedOrFallback's
+// system prompt (the one non-streaming call site that actually extracts and strips the tagged
+// block via extractRawThinking() before anything else sees it). llmSituationalReplyOrFallback
+// deliberately keeps the original hide instruction: it's also used for token-streamed replies
+// (see its onToken param), where a streamed chunk would leak the raw <thinking> tag straight into
+// the visible message live, before any extraction could ever run. Kept to one plain tag pair, not
+// a numbered/structured format, for the same reason this whole file avoids long structured
+// instructions on a small model: it echoes the structure back instead of following it.
+function buildRevealThinkingInstruction(reasoningMode: AISettings['reasoningMode']): string {
+  if (reasoningMode === 'deep-cot') {
+    return "\n\nReasoning directive: before answering, write out your real reasoning wrapped in <thinking></thinking> tags — work through this from a couple of different angles, what's actually being asked, what could be easy to get wrong or overlook, whether there's a more complete way to answer than the first thing that comes to mind. Keep it genuine and brief, not a performance. Then, AFTER the closing </thinking> tag, give ONE clear final answer that reflects that thinking.";
+  }
+  if (reasoningMode === 'thorough') {
+    return "\n\nReasoning directive: before answering, write out your real reasoning wrapped in <thinking></thinking> tags — work through the actual steps or facts it takes to get this right, check whether the obvious first answer is correct or is missing something. Keep it genuine and brief, not a performance. Then, AFTER the closing </thinking> tag, give one clear, correct final answer.";
+  }
+  return '';
+}
+
+/**
+ * Splits a raw LLM response into its <thinking>...</thinking> block (if present) and the actual
+ * reply that should ship as the visible message. Only ever called on a fully-buffered response
+ * (never the streaming conversational path — a streamed chunk would leak the raw tag into the
+ * visible reply live, before this extraction ever runs). Deliberately strict: requires BOTH a
+ * genuine opening and closing tag and a non-empty reply left over, so a small model imperfectly
+ * attempting the format (forgetting the closing tag, wrapping the whole answer in it) falls back
+ * to treating the ENTIRE text as the normal reply — exactly today's behavior — rather than risking
+ * an empty or truncated message.
+ */
+export function extractRawThinking(text: string): { thinking: string | null; reply: string } {
+  const match = text.match(/<thinking>([\s\S]*?)<\/thinking>/i);
+  if (!match || match.index === undefined) return { thinking: null, reply: text };
+  const thinking = match[1].trim();
+  const reply = (text.slice(0, match.index) + text.slice(match.index + match[0].length)).trim();
+  if (!thinking || !reply) return { thinking: null, reply: text };
+  return { thinking, reply };
+}
+
 // Condensed again for gemma3 (was ~5x this for the original narrative version, then trimmed once
 // for the qwen latency pass). gemma3:4b follows a plain instruction the first time — it does not
 // need each rule spelled out with a worked example and restated framing the way qwen2.5:3b did.
@@ -3363,10 +3404,10 @@ function buildReasoningModeInstruction(reasoningMode: AISettings['reasoningMode'
 // cut here is latency saved on every reply. Every rule is still present, just stated once.
 // Re-verify against regressionCheck.ts (esp. the list-flattening and language-routing live
 // checks) after any further edit here.
-function buildLlmKnowledgeInstruction(reasoningMode: AISettings['reasoningMode']): string {
+function buildLlmKnowledgeInstruction(reasoningMode: AISettings['reasoningMode'], revealThinking: boolean = false): string {
   return (
     "\n\nAnswer accurately and specifically — never vague, never dodge a real question with a joke instead of answering it. If you genuinely don't know something current, say so briefly in character and stop, don't invent a tangent to fill space. For an abstract/technical topic, one concrete everyday analogy is fine if it helps." +
-    buildReasoningModeInstruction(reasoningMode) +
+    (revealThinking ? buildRevealThinkingInstruction(reasoningMode) : buildReasoningModeInstruction(reasoningMode)) +
     "\n\nWrite it as one flowing chat message, not a report: no bullet points, no numbered lines, no \"**Word** - explanation\" breakdowns, no essay transitions (\"furthermore\", \"in conclusion\"), and don't restate their question back — pick the core point and stop. Reply entirely in the language the user wrote in, the whole way through. Never describe your own model/database/technique even if asked — deflect in character; use earlier context freely but don't announce it (\"I remember you said...\") unless asked. Roughly 1 reply in 4 (never on fast casual back-and-forth), end with ONE genuine question specific to what they asked, never a generic \"what do you think?\"."
   );
 }
@@ -3429,12 +3470,13 @@ function buildSystemPrompt(
   triggered: boolean,
   suppressSwearing: boolean,
   usePolish: boolean,
-  useFrench: boolean
+  useFrench: boolean,
+  revealThinking: boolean = false
 ): string {
   if (suppressSwearing) return buildCleanDraftSystemPrompt(settings);
   if (usePolish) return buildPolishSystemPrompt(isCrashout);
   if (useFrench) return buildFrenchSystemPrompt(isCrashout);
-  return persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, triggered, suppressSwearing);
+  return persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode, revealThinking) + buildFinalDirective(settings, isCrashout, triggered, suppressSwearing);
 }
 
 // Wave 9 (automated "sounds human" watchdog): the exact prompt-bloat problem that cost the earlier
@@ -3994,7 +4036,9 @@ async function llmGroundedOrFallback(
       : factualPin ? 0.25 : confident ? 0.5 : 0.7) - reasoningDrop
   );
   const llmResult = await localLlmClient.generate(groundedPrompt, {
-    system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
+    // revealThinking: true — this is the one non-streaming call site with extractRawThinking()
+    // wired up right below to pull the <thinking> block back out before anything else sees it.
+    system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench, true),
     temperature: usedTemperature,
     maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
     preferPolish: usePolish,
@@ -4013,7 +4057,20 @@ async function llmGroundedOrFallback(
     // with no guaranteed swear floor, whenever the LLM call itself failed.
     return topUpLlmSwearing(templateFallback, settings, isCrashout, undefined, suppressSwearing);
   }
-  if (containsSlurOrHateSpeech(llmResult.text)) {
+  // Pulled out before anything else (safety check, verification, swear floor) ever sees the text —
+  // see extractRawThinking's own comment. groundedRawText, not llmResult.text, is what every check
+  // below actually operates on from here on.
+  const { thinking: rawThinking, reply: groundedRawText } = extractRawThinking(llmResult.text);
+  if (rawThinking) {
+    thoughtSteps.push({
+      id: 'step-llm-raw-thinking',
+      type: 'reasoning',
+      title: '🧠 What the model actually thought (raw, unedited)',
+      description: rawThinking,
+      data: { reasoningMode: settings.reasoningMode },
+    });
+  }
+  if (containsSlurOrHateSpeech(groundedRawText)) {
     thoughtSteps.push({
       id: 'step-llm-safety-blocked',
       type: 'verification',
@@ -4034,13 +4091,13 @@ async function llmGroundedOrFallback(
       data: {
         language: groundedLanguageTag,
         temperature: usedTemperature,
-        swearFloorTriggered: getSwearCount(llmResult.text) < swearFloorForIntensity(settings.swearIntensity || 'unhinged', isCrashout),
+        swearFloorTriggered: getSwearCount(groundedRawText) < swearFloorForIntensity(settings.swearIntensity || 'unhinged', isCrashout),
       },
     });
-    return topUpLlmSwearing(llmResult.text, settings, isCrashout, prompt, suppressSwearing);
+    return topUpLlmSwearing(groundedRawText, settings, isCrashout, prompt, suppressSwearing);
   }
-  let llmVerification = verifyAnswer(llmResult.text, intent, queryTerms, entities, prompt);
-  let finalText = llmResult.text;
+  let llmVerification = verifyAnswer(groundedRawText, intent, queryTerms, entities, prompt);
+  let finalText = groundedRawText;
   let finalLatency = llmResult.latencyMs;
   let retryAttempted = false;
   let retryFixed = false;
@@ -4064,7 +4121,7 @@ async function llmGroundedOrFallback(
       ? `\n\nTa réponse précédente avait un problème : ${issueSummary} Corrige ça et réponds à nouveau, précisément à la question : ${prompt}`
       : `\n\nYour previous answer had a problem: ${issueSummary} Fix that and answer again, specifically addressing: ${prompt}`;
     const retryResult = await localLlmClient.generate(groundedPrompt + correctionNote, {
-      system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
+      system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench, true),
       temperature: usedTemperature,
       maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
       preferPolish: usePolish,
@@ -4072,15 +4129,29 @@ async function llmGroundedOrFallback(
       model: localLlmClient.modelForReasoningMode(settings.reasoningMode),
     });
     // The retry attempt goes through the exact same safety gate as the first — a corrective
-    // regeneration is not exempt from anything the original response had to pass.
-    if (retryResult.status === 'success' && !containsSlurOrHateSpeech(retryResult.text)) {
-      const retryVerification = verifyAnswer(retryResult.text, intent, queryTerms, entities, prompt);
-      if (retryVerification.passed) {
-        llmVerification = retryVerification;
-        finalText = retryResult.text;
-        finalLatency = retryResult.latencyMs;
-        retryFixed = true;
-        retryTelemetry.retryFixedCount++;
+    // regeneration is not exempt from anything the original response had to pass. Same
+    // extraction as the first attempt — a second <thinking> block, if the model produces one
+    // again, gets its own step rather than leaking into the retried answer text.
+    if (retryResult.status === 'success') {
+      const { thinking: retryThinking, reply: retryRawText } = extractRawThinking(retryResult.text);
+      if (retryThinking) {
+        thoughtSteps.push({
+          id: 'step-llm-raw-thinking-retry',
+          type: 'reasoning',
+          title: '🧠 What the model actually thought (retry, raw/unedited)',
+          description: retryThinking,
+          data: { reasoningMode: settings.reasoningMode },
+        });
+      }
+      if (!containsSlurOrHateSpeech(retryRawText)) {
+        const retryVerification = verifyAnswer(retryRawText, intent, queryTerms, entities, prompt);
+        if (retryVerification.passed) {
+          llmVerification = retryVerification;
+          finalText = retryRawText;
+          finalLatency = retryResult.latencyMs;
+          retryFixed = true;
+          retryTelemetry.retryFixedCount++;
+        }
       }
     }
   }

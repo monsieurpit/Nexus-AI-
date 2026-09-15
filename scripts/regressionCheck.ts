@@ -12,7 +12,7 @@
 //        bun run scripts/regressionCheck.ts --live-only   (skip the deterministic tier)
 //        bun run scripts/regressionCheck.ts --det-only    (skip live generation, fast/offline)
 
-import { generateReasoningPath, getSystemPromptCharCount, buildSpeakerAwareWindow, classifyBotMetaQuestion } from '../src/ai-engine/reasoningEngine';
+import { generateReasoningPath, getSystemPromptCharCount, buildSpeakerAwareWindow, classifyBotMetaQuestion, extractRawThinking } from '../src/ai-engine/reasoningEngine';
 import { looksFrench } from '../src/ai-engine/localLlmClient';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore';
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
@@ -98,6 +98,25 @@ async function runDeterministicChecks() {
   check('classifyBotMetaQuestion("hey nexus, who made you") === creator', classifyBotMetaQuestion('hey nexus, who made you') === 'creator');
   check('classifyBotMetaQuestion("who created you") still === creator (no regression)', classifyBotMetaQuestion('who created you') === 'creator');
   check('shouldTriggerLiveWebSearch("Nexus, who created you?") stays false', shouldTriggerLiveWebSearch('Nexus, who created you?', undefined, 0) === false);
+
+  console.log('\nRaw model thinking extraction (<thinking> tag, reasoning-trace panel):');
+  {
+    const wellFormed = extractRawThinking('<thinking>the user wants X, so Y</thinking>The actual answer is Y.');
+    check('well-formed <thinking> block extracted', wellFormed.thinking === 'the user wants X, so Y');
+    check('reply has the tag stripped', wellFormed.reply === 'The actual answer is Y.');
+  }
+  check('no tag at all -> thinking null, reply unchanged', (() => {
+    const r = extractRawThinking('Just a normal answer, no tags.');
+    return r.thinking === null && r.reply === 'Just a normal answer, no tags.';
+  })());
+  check('unclosed tag (model forgot </thinking>) -> falls back to whole text as reply, no crash', (() => {
+    const r = extractRawThinking('<thinking>started reasoning but never closed it, answer follows');
+    return r.thinking === null && r.reply.includes('<thinking>');
+  })());
+  check('empty thinking block -> falls back rather than an empty ThoughtStep', (() => {
+    const r = extractRawThinking('<thinking></thinking>The answer.');
+    return r.thinking === null;
+  })());
 
   console.log('\nGotcha / logic solver:');
   check('"how many months have 28 days" -> all 12', trySolveLogic('how many months have 28 days')?.verdict === 'All 12 of them.');
