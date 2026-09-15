@@ -122,8 +122,25 @@ export function modelForReasoningMode(reasoningMode: 'fast' | 'thorough' | 'deep
   // 16GB Mac Mini that also hosts the server, the bot and the tunnel: ~4x the latency ("l'IA
   // prend des années") and sustained memory thrashing that lagged the whole machine. 'thorough'
   // still adds its step-by-step prompt directive (buildReasoningModeInstruction), just on the fast
-  // model. The big model stays one explicit "deep think" away.
+  // model. This function still exists purely for server.ts's "Nexus Code" repo-editing call site
+  // (a direct generateLlmText() call, requested explicitly by name) — see chatModel() below for
+  // regular chat generation, which no longer calls this at all.
   return reasoningMode === 'deep-cot' ? OLLAMA_MODEL_DEEP : OLLAMA_MODEL;
+}
+
+// Regular chat generation (reasoningEngine.ts's llmGroundedOrFallback/llmSituationalReplyOrFallback)
+// always uses the small model now, REGARDLESS of reasoningMode — even 'deep-cot'. Observed live
+// (reported directly): even with 'thorough' already pinned to the small model, an explicit
+// deep-cot chat reply (a persona default, or manually picked) still periodically swapped the 12B
+// model in for one reply and back out for the next, and that swap itself — several seconds to
+// load ~8GB into GPU memory — was making EVERY reasoning mode feel slow, not just deep-cot's own
+// replies. The 12B model is now reserved exclusively for "Nexus Code" (server.ts calls
+// modelForReasoningMode('deep-cot') directly for that, not this function), so it only ever loads
+// for that one deliberate, infrequent feature instead of thrashing in and out of memory on
+// ordinary chat traffic. Deep-cot chat replies lean on buildRevealThinkingInstruction/
+// buildReasoningModeInstruction's own deeper reasoning text to make up the quality gap instead.
+export function chatModel(): string {
+  return OLLAMA_MODEL;
 }
 
 // How long Ollama keeps a model resident after a response. The host is a 16GB M4 Mac Mini also

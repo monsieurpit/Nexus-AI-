@@ -3233,7 +3233,11 @@ function estimateResponseBudget(prompt: string, reasoningMode?: AISettings['reas
   // actual answer (see buildReasoningModeInstruction), so give them headroom or the answer gets
   // cut off mid-sentence right after the thinking.
   if (reasoningMode === 'thorough') budget = Math.round(budget * 1.5);
-  else if (reasoningMode === 'deep-cot') budget = Math.round(budget * 1.9);
+  // Bumped from 1.9x — deep-cot's own reasoning instruction was made noticeably more extensive
+  // (multiple angles, actively checked) now that it runs on the small model instead of escalating
+  // to the 12B one, so it needs more room to actually finish that fuller thinking pass before the
+  // final answer, not just the same headroom a shorter directive needed.
+  else if (reasoningMode === 'deep-cot') budget = Math.round(budget * 2.3);
   return Math.min(budget, 1600);
 }
 
@@ -3348,7 +3352,12 @@ function looksFrenchWithContext(prompt: string, history: ChatMessage[]): boolean
 // comment for the same lesson learned the hard way on the Polish path).
 function buildReasoningModeInstruction(reasoningMode: AISettings['reasoningMode']): string {
   if (reasoningMode === 'deep-cot') {
-    return "\n\nReasoning directive: before answering, briefly work through this from a couple of different angles in your head — what's actually being asked, what could be easy to get wrong or overlook, whether there's a more complete way to answer than the first thing that comes to mind — then give ONE clear final answer that reflects that. Don't show this thinking process or number it out loud, just let the final answer be better for having done it.";
+    // deep-cot used to mean "run this on the 12B model" — chatModel() (localLlmClient.ts) now
+    // pins ALL chat generation to the small model regardless of reasoningMode, so this instruction
+    // is what deep-cot actually IS now: noticeably more extensive reasoning than 'thorough' below,
+    // to make up the quality gap a bigger model used to cover. Genuinely more steps, not just
+    // longer wording for the same amount of thinking.
+    return "\n\nReasoning directive: before answering, really work through this in your head — state what's actually being asked in your own terms, consider at least two or three genuinely different angles or possible answers (not just one obvious one), actively look for a reason each one could be wrong or incomplete, check whether two similar-sounding facts are being confused, then reconcile all of that into ONE clear final answer. This deserves more real thought than a quick take. Don't show this thinking process or number it out loud, just let the final answer be visibly better for having done the fuller work.";
   }
   if (reasoningMode === 'thorough') {
     return "\n\nReasoning directive: think this through properly before you answer. In your head, work through the actual steps or facts it takes to get this right, check whether the obvious first answer is actually correct or is missing something, and consider whether two similar-looking facts are being confused. THEN give one clear, correct final answer. Don't show or number the thinking out loud — just make the answer genuinely better for having done the work, not a guess.";
@@ -3370,7 +3379,10 @@ function buildReasoningModeInstruction(reasoningMode: AISettings['reasoningMode'
 // instructions on a small model: it echoes the structure back instead of following it.
 function buildRevealThinkingInstruction(reasoningMode: AISettings['reasoningMode']): string {
   if (reasoningMode === 'deep-cot') {
-    return "\n\nReasoning directive: before answering, write out your real reasoning wrapped in <thinking></thinking> tags — work through this from a couple of different angles, what's actually being asked, what could be easy to get wrong or overlook, whether there's a more complete way to answer than the first thing that comes to mind. Keep it genuine and brief, not a performance. Then, AFTER the closing </thinking> tag, give ONE clear final answer that reflects that thinking.";
+    // Same "make up for no longer using the 12B model" reasoning as buildReasoningModeInstruction's
+    // deep-cot branch above — genuinely more thinking steps than 'thorough' below, not just more
+    // words for the same depth.
+    return "\n\nReasoning directive: before answering, write out your real reasoning wrapped in <thinking></thinking> tags — state what's actually being asked in your own terms, consider at least two or three genuinely different angles or possible answers, actively look for a reason each one could be wrong or incomplete, check whether two similar-sounding facts are being confused. Keep it genuine, not a performance, but let it actually be thorough. Then, AFTER the closing </thinking> tag, give ONE clear final answer that reflects that fuller thinking.";
   }
   if (reasoningMode === 'thorough') {
     return "\n\nReasoning directive: before answering, write out your real reasoning wrapped in <thinking></thinking> tags — work through the actual steps or facts it takes to get this right, check whether the obvious first answer is correct or is missing something. Keep it genuine and brief, not a performance. Then, AFTER the closing </thinking> tag, give one clear, correct final answer.";
@@ -3869,7 +3881,7 @@ async function llmSituationalReplyOrFallback(
     maxTokens: Math.round(Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier()),
     preferPolish: usePolish,
     preferFrench: useFrench,
-    model: localLlmClient.modelForReasoningMode(settings.reasoningMode),
+    model: localLlmClient.chatModel(),
   };
   const llmResult = onToken
     ? await localLlmClient.generateStream(llmPrompt, onToken, generateOptions)
@@ -4043,7 +4055,7 @@ async function llmGroundedOrFallback(
     maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
     preferPolish: usePolish,
     preferFrench: useFrench,
-    model: localLlmClient.modelForReasoningMode(settings.reasoningMode),
+    model: localLlmClient.chatModel(),
   });
   if (llmResult.status !== 'success') {
     thoughtSteps.push({
@@ -4126,7 +4138,7 @@ async function llmGroundedOrFallback(
       maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
       preferPolish: usePolish,
       preferFrench: useFrench,
-      model: localLlmClient.modelForReasoningMode(settings.reasoningMode),
+      model: localLlmClient.chatModel(),
     });
     // The retry attempt goes through the exact same safety gate as the first — a corrective
     // regeneration is not exempt from anything the original response had to pass. Same
