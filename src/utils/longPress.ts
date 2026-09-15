@@ -18,8 +18,11 @@ export interface LongPressHandlers {
  *
  * onClickCapture cancels the click iOS/Android synthesize right after touchend whenever the
  * long-press actually fired, so triggering the action sheet never ALSO runs the element's normal
- * tap behavior (selecting a conversation, zooming an image). style suppresses iOS Safari's own
- * native text-selection/callout menu, which would otherwise pop up alongside ours.
+ * tap behavior (selecting a conversation, zooming an image). style disables iOS Safari's native
+ * text-selection highlight AND its callout menu — WebkitTouchCallout alone (the original version
+ * of this file) only suppressed the popup menu, not the blue text-selection highlight itself,
+ * which is the actual visible bug a long press triggers by default; userSelect: 'none' is the one
+ * that stops the highlight.
  */
 export function makeLongPressHandlers(onLongPress: () => void, thresholdMs = 480): LongPressHandlers {
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -59,6 +62,10 @@ export function makeLongPressHandlers(onLongPress: () => void, thresholdMs = 480
         fired = false;
       }
     },
-    style: { WebkitTouchCallout: 'none' },
+    style: {
+      WebkitTouchCallout: 'none',
+      WebkitUserSelect: 'none',
+      userSelect: 'none',
+    },
   };
 }
