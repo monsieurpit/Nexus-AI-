@@ -6,33 +6,42 @@ interface EntryAnimationProps {
 
 // Choreographed shard configs — hand-tuned rather than Math.random() per mount so the sequence
 // always reads as a deliberate assembly converging on the portal core, never a random scatter
-// that might clump or overlap awkwardly on a given load.
+// that might clump or overlap awkwardly on a given load. Spread across a much wider delay range
+// now that the whole sequence is longer, so shards keep arriving throughout instead of all being
+// done in the first second.
 const SHARDS = [
-  { x: -60, y: -40, z: -900, rz: -35, delay: 0 },
-  { x: 55, y: -55, z: -700, rz: 40, delay: 0.04 },
-  { x: -70, y: 35, z: -1100, rz: -60, delay: 0.08 },
-  { x: 65, y: 45, z: -800, rz: 55, delay: 0.03 },
-  { x: 0, y: -70, z: -1000, rz: 20, delay: 0.1 },
-  { x: 0, y: 65, z: -650, rz: -20, delay: 0.06 },
-  { x: -85, y: 0, z: -950, rz: -80, delay: 0.12 },
-  { x: 85, y: 5, z: -750, rz: 75, delay: 0.02 },
-  { x: -40, y: -75, z: -1200, rz: -15, delay: 0.14 },
-  { x: 45, y: 75, z: -900, rz: 30, delay: 0.09 },
-  { x: -55, y: 60, z: -1050, rz: -50, delay: 0.16 },
-  { x: 60, y: -60, z: -1150, rz: 65, delay: 0.05 },
+  { x: -60, y: -40, z: -1000, rz: -35, delay: 0 },
+  { x: 55, y: -55, z: -800, rz: 40, delay: 0.18 },
+  { x: -70, y: 35, z: -1250, rz: -60, delay: 0.36 },
+  { x: 65, y: 45, z: -900, rz: 55, delay: 0.1 },
+  { x: 0, y: -78, z: -1100, rz: 20, delay: 0.5 },
+  { x: 0, y: 72, z: -750, rz: -20, delay: 0.26 },
+  { x: -90, y: 0, z: -1050, rz: -80, delay: 0.64 },
+  { x: 90, y: 5, z: -850, rz: 75, delay: 0.06 },
+  { x: -42, y: -80, z: -1350, rz: -15, delay: 0.78 },
+  { x: 48, y: 80, z: -1000, rz: 30, delay: 0.44 },
+  { x: -58, y: 65, z: -1150, rz: -50, delay: 0.92 },
+  { x: 62, y: -65, z: -1300, rz: 65, delay: 0.32 },
+  { x: -30, y: -55, z: -1400, rz: 45, delay: 1.06 },
+  { x: 35, y: 58, z: -1200, rz: -45, delay: 0.58 },
 ] as const;
 
-const TOTAL_MS = 2900;
+// 6.4s — long enough for the hypercube + ring spectacle to actually register instead of flashing
+// by, short enough to never feel like it's holding the app hostage.
+const TOTAL_MS = 6400;
+const LEAVE_MS = 900;
 
 /**
- * The site's entry animation — a full-viewport 3D portal made of counter-rotating glass rings
- * (each spinning a different direction/speed, at increasing depth, which is the part that reads
- * as physically "impossible" for solid glass) with shards flying in from deep 3D space to
- * assemble around a pulsing core, then an aperture-open reveal into the actual app. Pure CSS
- * (transform-style: preserve-3d + keyframes) — no animation library, so it costs nothing in
- * bundle size and never needs a JS render loop. Plays once per page load; skippable by click/key,
- * and never rendered at all when the user has disabled it or the OS requests reduced motion (both
- * checked by the caller before this component is even mounted).
+ * The site's entry animation — a full-viewport 3D portal. A hypercube (two cubes built from real
+ * `transform-style: preserve-3d` faces, tumbling independently on different axes at different
+ * speeds so they visibly rotate *through* each other) sits inside six counter-rotating glass rings
+ * at increasing depth, while shards fly in from deep 3D space and dissolve into a pulsing core
+ * that eventually flashes and reveals the app. Every animated property here is `transform`,
+ * `opacity`, or `filter` — the only three properties a browser can composite on the GPU without
+ * re-running layout/paint — specifically so a dozen-plus simultaneously animating elements stays
+ * smooth; the very first version of this animated `clip-path` across the whole viewport for its
+ * reveal, which is NOT compositor-friendly and was the main source of visible jank. No animation
+ * library, no JS render loop — pure CSS keyframes.
  */
 export const EntryAnimation: React.FC<EntryAnimationProps> = ({ onDone }) => {
   const [leaving, setLeaving] = useState(false);
@@ -42,9 +51,7 @@ export const EntryAnimation: React.FC<EntryAnimationProps> = ({ onDone }) => {
     if (doneRef.current) return;
     doneRef.current = true;
     setLeaving(true);
-    // Matches the reveal keyframe's own duration below — gives the aperture-open transition time
-    // to actually play instead of hard-cutting the overlay away.
-    setTimeout(onDone, 550);
+    setTimeout(onDone, LEAVE_MS);
   };
 
   useEffect(() => {
@@ -72,6 +79,22 @@ export const EntryAnimation: React.FC<EntryAnimationProps> = ({ onDone }) => {
         {[0, 1, 2, 3, 4, 5].map((i) => (
           <div key={i} className={`entry-anim__ring entry-anim__ring--${i}`} />
         ))}
+
+        {/* The hypercube: an outer and inner cube, each independently tumbling on its own axis
+            and speed, occupying the same 3D space — two solid objects visibly passing through
+            each other is the actual "impossible" geometry here, not an illusion that only reads
+            from one exact angle, so it holds up correctly under continuous rotation. */}
+        <div className="entry-anim__hypercube entry-anim__hypercube--outer">
+          {['front', 'back', 'right', 'left', 'top', 'bottom'].map((face) => (
+            <div key={face} className={`entry-anim__face entry-anim__face--outer entry-anim__face--${face}`} />
+          ))}
+        </div>
+        <div className="entry-anim__hypercube entry-anim__hypercube--inner">
+          {['front', 'back', 'right', 'left', 'top', 'bottom'].map((face) => (
+            <div key={face} className={`entry-anim__face entry-anim__face--inner entry-anim__face--${face}`} />
+          ))}
+        </div>
+
         {SHARDS.map((s, i) => (
           <div
             key={i}

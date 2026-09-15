@@ -671,11 +671,15 @@ body::after {
 /* =========================================================================
  * ENTRY ANIMATION
  * -------------------------------------------------------------------------
- * A 3D glass portal: six rings at increasing depth, each spinning a
- * different direction/speed (the part that reads as physically impossible
- * for solid glass), shards flying in from deep 3D space to converge on a
- * pulsing core, then an iris-close reveal into the app. Pure CSS — no
- * animation library, no JS render loop.
+ * A 3D glass portal: a hypercube (two cubes built from real preserve-3d
+ * faces, tumbling independently on different axes/speeds so they visibly
+ * rotate through each other — solid objects occupying the same space is
+ * the actual "impossible" geometry, not a one-angle illusion) sits inside
+ * six counter-rotating rings at increasing depth, while shards converge on
+ * a breathing, eventually-flashing core. Every animated property is
+ * transform/opacity/filter — the only GPU-compositable properties — so a
+ * few dozen simultaneously animating elements stays smooth; nothing here
+ * animates layout-triggering properties like clip-path, width, or margin.
  * ===================================================================== */
 .entry-anim {
   position: fixed;
@@ -688,13 +692,17 @@ body::after {
   background: var(--glass-base);
   cursor: pointer;
   overflow: hidden;
-  perspective: 1600px;
-  clip-path: circle(150% at 50% 50%);
-  transition: clip-path 0.55s cubic-bezier(0.7, 0, 0.3, 1), opacity 0.5s ease 0.15s;
+  perspective: 1800px;
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0px);
+  transition: opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1), transform 0.9s cubic-bezier(0.4, 0, 0.2, 1),
+    filter 0.9s ease;
 }
 .entry-anim--leaving {
-  clip-path: circle(0% at 50% 50%);
   opacity: 0;
+  transform: scale(1.14);
+  filter: blur(22px);
 }
 
 .entry-anim__scene {
@@ -710,22 +718,69 @@ body::after {
   left: 50%;
   border-radius: 50%;
   border: 1.5px solid var(--glass-border-strong);
-  box-shadow: 0 0 40px -6px var(--glass-accent-soft), inset 0 0 30px -10px var(--glass-accent-soft);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  box-shadow: 0 0 40px -6px var(--glass-accent-soft);
   opacity: 0;
-  animation: entry-ring-in 0.5s var(--glass-ease) both;
+  will-change: transform;
+  animation: entry-ring-in 0.7s var(--glass-ease) both;
 }
-/* --tz feeds the spin keyframes below (a transform-driving animation replaces the element's whole
-   computed transform while it runs, so a plain static `transform: translateZ()` on the rule itself
-   would get silently clobbered the moment the spin animation starts — routing the depth through a
-   custom property the keyframes read via var() keeps it alive for the animation's full duration). */
-.entry-anim__ring--0 { width: 46vmin; height: 46vmin; margin: -23vmin 0 0 -23vmin; --tz: 0px; border-color: var(--glass-accent-a); animation: entry-ring-in 0.5s var(--glass-ease) both, entry-spin-cw 5.5s linear infinite; }
-.entry-anim__ring--1 { width: 38vmin; height: 38vmin; margin: -19vmin 0 0 -19vmin; --tz: -140px; animation: entry-ring-in 0.5s var(--glass-ease) 0.05s both, entry-spin-ccw 4.2s linear infinite; }
-.entry-anim__ring--2 { width: 31vmin; height: 31vmin; margin: -15.5vmin 0 0 -15.5vmin; --tz: -280px; border-color: var(--glass-accent-b); animation: entry-ring-in 0.5s var(--glass-ease) 0.1s both, entry-spin-cw 3.2s linear infinite; }
-.entry-anim__ring--3 { width: 25vmin; height: 25vmin; margin: -12.5vmin 0 0 -12.5vmin; --tz: -420px; animation: entry-ring-in 0.5s var(--glass-ease) 0.15s both, entry-spin-ccw 2.4s linear infinite; }
-.entry-anim__ring--4 { width: 20vmin; height: 20vmin; margin: -10vmin 0 0 -10vmin; --tz: -560px; border-color: var(--glass-accent-a); animation: entry-ring-in 0.5s var(--glass-ease) 0.2s both, entry-spin-cw 1.7s linear infinite; }
-.entry-anim__ring--5 { width: 15vmin; height: 15vmin; margin: -7.5vmin 0 0 -7.5vmin; --tz: -700px; animation: entry-ring-in 0.5s var(--glass-ease) 0.25s both, entry-spin-ccw 1.1s linear infinite; }
+.entry-anim__ring--0 { width: 46vmin; height: 46vmin; margin: -23vmin 0 0 -23vmin; --tz: 0px; border-color: var(--glass-accent-a); animation: entry-ring-in 0.7s var(--glass-ease) both, entry-spin-cw 7.5s linear infinite; }
+.entry-anim__ring--1 { width: 38vmin; height: 38vmin; margin: -19vmin 0 0 -19vmin; --tz: -140px; animation: entry-ring-in 0.7s var(--glass-ease) 0.08s both, entry-spin-ccw 6s linear infinite; }
+.entry-anim__ring--2 { width: 31vmin; height: 31vmin; margin: -15.5vmin 0 0 -15.5vmin; --tz: -280px; border-color: var(--glass-accent-b); animation: entry-ring-in 0.7s var(--glass-ease) 0.16s both, entry-spin-cw 4.6s linear infinite; }
+.entry-anim__ring--3 { width: 25vmin; height: 25vmin; margin: -12.5vmin 0 0 -12.5vmin; --tz: -420px; animation: entry-ring-in 0.7s var(--glass-ease) 0.24s both, entry-spin-ccw 3.4s linear infinite; }
+.entry-anim__ring--4 { width: 20vmin; height: 20vmin; margin: -10vmin 0 0 -10vmin; --tz: -560px; border-color: var(--glass-accent-a); animation: entry-ring-in 0.7s var(--glass-ease) 0.32s both, entry-spin-cw 2.4s linear infinite; }
+.entry-anim__ring--5 { width: 15vmin; height: 15vmin; margin: -7.5vmin 0 0 -7.5vmin; --tz: -700px; animation: entry-ring-in 0.7s var(--glass-ease) 0.4s both, entry-spin-ccw 1.6s linear infinite; }
+
+/* ---- hypercube: two independently-tumbling cubes sharing the same center ---- */
+.entry-anim__hypercube {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  opacity: 0;
+  will-change: transform;
+}
+.entry-anim__hypercube--outer {
+  animation: entry-hc-in 0.8s var(--glass-ease) 0.1s both, entry-cube-spin-a 9s linear 0.1s infinite;
+}
+.entry-anim__hypercube--inner {
+  animation: entry-hc-in 0.8s var(--glass-ease) 0.3s both, entry-cube-spin-b 5.5s linear 0.3s infinite reverse;
+}
+
+.entry-anim__face {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: color-mix(in srgb, var(--glass-accent-a) 8%, transparent);
+}
+.entry-anim__face--outer {
+  width: 30vmin;
+  height: 30vmin;
+  margin: -15vmin 0 0 -15vmin;
+  border: 1px solid var(--glass-accent-a);
+  box-shadow: 0 0 22px -6px var(--glass-accent-soft);
+}
+.entry-anim__face--inner {
+  width: 15vmin;
+  height: 15vmin;
+  margin: -7.5vmin 0 0 -7.5vmin;
+  border: 1px solid var(--glass-accent-b);
+  background: color-mix(in srgb, var(--glass-accent-b) 10%, transparent);
+  box-shadow: 0 0 16px -4px var(--glass-accent-soft);
+}
+.entry-anim__face--outer.entry-anim__face--front  { transform: translateZ(15vmin); }
+.entry-anim__face--outer.entry-anim__face--back   { transform: rotateY(180deg) translateZ(15vmin); }
+.entry-anim__face--outer.entry-anim__face--right  { transform: rotateY(90deg) translateZ(15vmin); }
+.entry-anim__face--outer.entry-anim__face--left   { transform: rotateY(-90deg) translateZ(15vmin); }
+.entry-anim__face--outer.entry-anim__face--top    { transform: rotateX(90deg) translateZ(15vmin); }
+.entry-anim__face--outer.entry-anim__face--bottom { transform: rotateX(-90deg) translateZ(15vmin); }
+.entry-anim__face--inner.entry-anim__face--front  { transform: translateZ(7.5vmin); }
+.entry-anim__face--inner.entry-anim__face--back   { transform: rotateY(180deg) translateZ(7.5vmin); }
+.entry-anim__face--inner.entry-anim__face--right  { transform: rotateY(90deg) translateZ(7.5vmin); }
+.entry-anim__face--inner.entry-anim__face--left   { transform: rotateY(-90deg) translateZ(7.5vmin); }
+.entry-anim__face--inner.entry-anim__face--top    { transform: rotateX(90deg) translateZ(7.5vmin); }
+.entry-anim__face--inner.entry-anim__face--bottom { transform: rotateX(-90deg) translateZ(7.5vmin); }
 
 .entry-anim__shard {
   position: absolute;
@@ -735,12 +790,11 @@ body::after {
   height: 5vmin;
   margin: -2.5vmin 0 0 -1.6vmin;
   border-radius: var(--glass-r-xs);
-  background: var(--glass-panel-elevated);
+  background: color-mix(in srgb, var(--glass-accent-hover) 16%, var(--glass-base) 60%);
   border: 1px solid var(--glass-border-strong);
-  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 18px -4px var(--glass-accent-soft);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  animation: entry-shard-fly 1.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  box-shadow: 0 0 14px -4px var(--glass-accent-soft);
+  will-change: transform, opacity;
+  animation: entry-shard-fly 3.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .entry-anim__core {
@@ -752,7 +806,8 @@ body::after {
   margin: -3vmin 0 0 -3vmin;
   border-radius: 50%;
   background: radial-gradient(circle, #fff 0%, var(--glass-accent-a) 35%, var(--glass-accent-b) 70%, transparent 100%);
-  animation: entry-core-pulse 2.9s var(--glass-ease) both;
+  will-change: transform, opacity, filter;
+  animation: entry-core-pulse 6.4s var(--glass-ease) both;
 }
 
 .entry-anim__brand {
@@ -765,7 +820,7 @@ body::after {
   color: var(--glass-text);
   text-shadow: 0 0 24px var(--glass-accent-soft);
   opacity: 0;
-  animation: entry-brand-in 0.9s var(--glass-ease) 0.9s both;
+  animation: entry-brand-in 1.1s var(--glass-ease) 1.3s both;
 }
 
 .entry-anim__skip {
@@ -778,13 +833,17 @@ body::after {
   color: var(--glass-text-faint);
   letter-spacing: 0.04em;
   opacity: 0;
-  animation: entry-fade-in-slow 1s ease 1.4s both;
+  animation: entry-fade-in-slow 1s ease 2s both;
   pointer-events: none;
 }
 
 @keyframes entry-ring-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+@keyframes entry-hc-in {
+  from { opacity: 0; }
+  to { opacity: 0.95; }
 }
 @keyframes entry-spin-cw {
   from { transform: translateZ(var(--tz, 0)) rotate(0deg); }
@@ -794,26 +853,47 @@ body::after {
   from { transform: translateZ(var(--tz, 0)) rotate(0deg); }
   to { transform: translateZ(var(--tz, 0)) rotate(-540deg); }
 }
+@keyframes entry-cube-spin-a {
+  from { transform: rotateX(0deg) rotateY(0deg); }
+  to { transform: rotateX(360deg) rotateY(360deg); }
+}
+@keyframes entry-cube-spin-b {
+  from { transform: rotateX(0deg) rotateZ(0deg); }
+  to { transform: rotateX(360deg) rotateZ(360deg); }
+}
 @keyframes entry-shard-fly {
   0% {
     opacity: 0;
     transform: translate3d(var(--sx), var(--sy), var(--sz)) rotateZ(var(--srz)) scale(0.4);
   }
-  55% {
+  18% {
+    opacity: 0.9;
+  }
+  62% {
     opacity: 0.95;
     transform: translate3d(0, 0, 0) rotateZ(0deg) scale(1);
   }
+  78% {
+    opacity: 0.85;
+    transform: translate3d(0, 0, 0) rotateZ(0deg) scale(1.08);
+  }
   100% {
     opacity: 0;
-    transform: translate3d(0, 0, 60px) rotateZ(0deg) scale(0.15);
+    transform: translate3d(0, 0, 90px) rotateZ(0deg) scale(0.1);
   }
 }
 @keyframes entry-core-pulse {
-  0% { opacity: 0; transform: scale(0.15); filter: brightness(1); }
-  50% { opacity: 0.85; transform: scale(1); filter: brightness(1); }
-  78% { opacity: 1; transform: scale(1.15); filter: brightness(1.1); }
-  86% { opacity: 1; transform: scale(2.6); filter: brightness(2.2); }
-  100% { opacity: 1; transform: scale(3.4); filter: brightness(2.6); }
+  0%   { opacity: 0;    transform: scale(0.1);  filter: brightness(1); }
+  8%   { opacity: 0.6;  transform: scale(0.55); }
+  20%  { opacity: 0.85; transform: scale(0.85); filter: brightness(1); }
+  35%  { transform: scale(0.95); filter: brightness(0.95); }
+  45%  { transform: scale(1.05); filter: brightness(1.05); }
+  55%  { transform: scale(0.97); filter: brightness(0.97); }
+  65%  { transform: scale(1.05); filter: brightness(1.05); }
+  80%  { opacity: 1;    transform: scale(1.15); filter: brightness(1.15); }
+  92%  { opacity: 1;    transform: scale(1.4);  filter: brightness(1.4); }
+  97%  { opacity: 1;    transform: scale(3.0);  filter: brightness(2.4); }
+  100% { opacity: 1;    transform: scale(3.8);  filter: brightness(2.8); }
 }
 @keyframes entry-brand-in {
   from { opacity: 0; letter-spacing: 0.9em; }
