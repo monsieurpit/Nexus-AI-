@@ -71,6 +71,15 @@ async function runDeterministicChecks() {
   // is exactly the failure mode here).
   check('FR "Yo mec" now correctly detected as French (mec/yo fix)', looksFrench('Yo mec'));
   check('EN "yo, what\'s up bro" still correctly detected as English (mec/yo fix)', !looksFrench("yo, what's up bro"));
+  // Teen/SMS-speak coverage requested live and researched on the web (Sept 2026) — "oe" (ouais),
+  // "chuis"/"j'suis" (je suis), plus common French texting slang.
+  check('FR "oe" (ouais) detected as French (teen slang)', looksFrench('oe'));
+  check('FR "j\'suis fatigué" detected as French (teen slang)', looksFrench("j'suis fatigué"));
+  check('FR "askip t\'es malade" detected as French (teen slang)', looksFrench("askip t'es malade"));
+  check('FR "c\'est relou" detected as French (teen slang)', looksFrench("c'est relou"));
+  check('FR "osef" detected as French (teen slang)', looksFrench('osef'));
+  check('EN "thank god it\'s over" NOT misdetected as French (tg collision guard)', !looksFrench("thank god it's over"));
+  check('EN "cc the email please" NOT misdetected as French (cc collision guard)', !looksFrench('cc the email please'));
 
   console.log('\nWeb search 429-guard (should NOT trigger a search):');
   check('EN "do u wana see smth"', shouldTriggerLiveWebSearch('do u wana see smth', undefined, 0) === false);

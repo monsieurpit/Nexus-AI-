@@ -238,6 +238,19 @@ const FRENCH_SIGNAL_WORDS = new Set([
   'tabarnak', 'câlisse', 'calisse', 'ostie', 'crisse', 'criss', 'tabarnouche',
   'voyons', 'coudonc', 'enweille', 'correc', 'niaiseux',
   'quétaine', 'ketaine', 'dépanneur', 'magané', 'jaser', 'achaler', 'niaiser',
+  // Teen/SMS-speak (Patrick asked specifically for "oe"/"chuis"/"j'suis" plus "everything else
+  // teens use" — researched live rather than guessed, September 2026). "suis" covers "j'suis" —
+  // the apostrophe splits it into "j" (too short/ambiguous to ever add alone) and "suis" as two
+  // separate tokens once punctuation is stripped, so "suis" is what actually needs to be here.
+  // Each of these is checked against ENGLISH_SIGNAL_WORDS for collisions the same way as every
+  // other entry in this list — none of them is an English word, so none of them can ever cause a
+  // genuinely English message to misfire as French; a couple of the riskier two-letter texting
+  // abbreviations ("tg", "bg", "cc") were deliberately left out since they're common enough as
+  // real English shorthand ("thank god", "carbon copy") to risk exactly that.
+  'oe', 'suis', 'oklm', 'osef', 'wsh', 'pcq', 'slt', 'tlm', 'tmtc', 'trkl',
+  'pécho', 'pecho', 'relou', 'reuf', 'seum', 'enjailler', 'tkt', 'jpp', 'askip', 'pnj',
+  'bref', 'chelou', 'khey', 'frero', 'frerot', 'dsl', 'bjr', 'bsr', 'bcp', 'auj', 'stp',
+  'dispo', 'meuf', 'daron', 'daronne',
 ]);
 const FRENCH_DIACRITIC_REGEX = /[àâçéèêëîïôùûüÿœæ]/i;
 
