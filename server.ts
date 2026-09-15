@@ -16,13 +16,13 @@ import {
   parseSdkRules,
   enforceStrictSdkRules,
 } from './src/ai-engine/ruleEngine';
-import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommendReasoningMode } from './src/ai-engine/reasoningEngine';
+import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommendReasoningMode, generateCodeEditWithReview } from './src/ai-engine/reasoningEngine';
 import { getMoodDisplay } from './src/ai-engine/moodEngine';
 import {
   checkAvailability as checkLocalLlmAvailability,
   generate as generateLlmText,
   generateVision,
-  modelForReasoningMode,
+  chatModel as localLlmChatModel,
 } from './src/ai-engine/localLlmClient';
 import { ROLEPLAY_PERSONAS, buildRoleplayPrompt } from './src/ai-engine/roleplayPersonas';
 import { BANC_HTML } from './src/bancHtml';
@@ -1036,6 +1036,10 @@ app.post('/api/v1/title', aiComputeLimiter, async (req, res) => {
       temperature: 0.3,
       maxTokens: 20,
       timeoutMs: 12000,
+      // A 20-token budget is exactly the shape of call that silently returns empty if the
+      // model's native thinking channel eats it first — see the `think` field's own comment on
+      // OllamaGenerateOptions.
+      think: false,
     });
     if (result.status !== 'success') {
       return res.status(200).json({ title: null });
@@ -1230,6 +1234,9 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
   if (isCodeEdit) persona = DEFAULT_PERSONAS['code-architect'];
 
   try {
+    // "Nexus Code" needs more than the default 45s: generateCodeEditWithReview's own budget is
+    // ~58s (up to 3 generation passes + up to 2 self-review passes) — the default queue timeout
+    // would have killed it mid-loop before Patrick's own 1-minute ceiling was ever reached.
     const queuedExecution = await globalRequestQueue.enqueue('nexus', async () => {
       const allKnowledge = getAllKnowledge();
 
@@ -1259,14 +1266,17 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
             // present — every other Discord-bot request is completely unaffected.
             activePersonaId: (isCodeEdit ? 'code-architect' : isCrash ? 'crashout-bot' : persona.id) as ModelPersonaId,
             // Requested directly: was hardcoded to 'thorough' (or 'deep-cot' when explicitly
-            // asked) for every single message, meaning the qwen2.5:7b reasoning escalation (see
-            // modelForReasoningMode, localLlmClient.ts) fired on every reply regardless of how
+            // asked) for every single message, meaning the old model-escalation tier (since
+            // removed — see chatModel(), localLlmClient.ts) fired on every reply regardless of how
             // simple the question was — real latency cost on ordinary small talk for no benefit.
             // Now defaults to 'fast' and only escalates for signals that actually warrant it:
             // math questions (explicit ask) and genuinely broad/hard questions, via
             // recommendReasoningMode (reasoningEngine.ts) — an explicit deepThink/deep-cot request
-            // still always wins, same as before. isCodeEdit also always escalates to deep-cot,
-            // which is what routes to OLLAMA_MODEL_DEEP (nexus-12b) via modelForReasoningMode.
+            // still always wins, same as before. 'deep-cot' no longer changes which MODEL runs
+            // (chatModel() is the only chat tier now) — it changes how much the prompt asks the
+            // model to reason before answering. isCodeEdit always escalates to deep-cot too, though
+            // "Nexus Code" actually bypasses this reasoningMode field entirely in favor of its own
+            // generateCodeEditWithReview() multi-pass self-review loop (reasoningEngine.ts).
             reasoningMode: isCodeEdit || isDeep ? ('deep-cot' as ReasoningMode) : (recommendReasoningMode(userText) as ReasoningMode),
             userName: username || '',
             discordUserId: effectiveAuthorId,
@@ -1350,17 +1360,13 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
         // answered directly. A direct generate() call with code-architect's own system prompt is
         // both simpler and more reliable for this task shape — the caller (dashboard/server) sends
         // the full file content + instruction as the prompt itself, no retrieval needed at all.
-        const codeGenResult = await generateLlmText(promptToEvaluate, {
-          system: persona.systemPrompt,
-          temperature: persona.defaultTemperature,
-          topP: persona.defaultTopP,
-          model: modelForReasoningMode('deep-cot'),
-          maxTokens: 2000,
-          timeoutMs: 90000,
-          // Verified live: without this, a correct one-line TypeScript function got rejected as
-          // "wrong_language" by the English-prose density heuristic (see localLlmClient.ts).
-          skipLanguageCheck: true,
-        });
+        // Was a single one-shot generate() on the 12B "deep" model. Patrick asked to drop the 12B
+        // entirely (freed the memory it needed) and instead have the small model genuinely review
+        // its own code change — write it, critique it, rewrite if the critique found a real
+        // problem — up to 3 passes, hard-capped at ~1 minute wall-clock total regardless of how
+        // many passes that allows for. See generateCodeEditWithReview's own comment for exactly
+        // how the time budget is split across passes.
+        const codeGenResult = await generateCodeEditWithReview(promptToEvaluate, persona);
         outputText =
           codeGenResult.status === 'success'
             ? codeGenResult.text
@@ -1368,8 +1374,8 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
         thoughtStepsResult = [
           {
             type: 'reasoning',
-            title: '🧑‍💻 Code Architect (direct generation)',
-            description: `Bypassed corpus/reasoning pipeline — generated directly with code-architect persona on ${modelForReasoningMode('deep-cot')}.`,
+            title: '🧑‍💻 Code Architect (self-reviewed generation)',
+            description: `Bypassed corpus/reasoning pipeline — generated directly with code-architect persona on ${localLlmChatModel()}, ${codeGenResult.passes} pass(es).${codeGenResult.notes.length ? '\n' + codeGenResult.notes.join('\n') : ''}`,
           },
         ];
       } else {
@@ -1533,7 +1539,7 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
         tokens: countTokens(outputText),
         timestamp: new Date().toISOString(),
       };
-    });
+    }, isCodeEdit ? 65000 : 45000);
 
     // Only safe to set headers here on the non-streaming path — a streaming request may already
     // have written token lines via res.write() during generateReasoningPath above, and Node throws
@@ -1629,6 +1635,9 @@ app.post('/api/v1/roleplay', aiComputeLimiter, async (req, res) => {
         maxTokens: personaKey === 'noemie' && !override ? 90 : 220,
         preferFrench: french,
         model: roleplayModel,
+        // See the `think` field's own comment on OllamaGenerateOptions — a roleplay reply has no
+        // budget or use for the model's native thinking channel.
+        think: false,
       })
     );
     const out = queued.data;

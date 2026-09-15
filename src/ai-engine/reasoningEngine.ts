@@ -3366,48 +3366,19 @@ function buildReasoningModeInstruction(reasoningMode: AISettings['reasoningMode'
 }
 
 // Patrick asked to actually SEE the model's real internal reasoning in the reasoning-trace panel
-// instead of only the synthetic pipeline steps (intent detection, retrieval, etc.). This is the
-// opposite instruction from buildReasoningModeInstruction above (reveal instead of hide) — kept as
-// a SEPARATE function rather than a flag on that one, and wired through buildSystemPrompt's own
-// separate revealThinking parameter, specifically so it only ever reaches llmGroundedOrFallback's
-// system prompt (the one non-streaming call site that actually extracts and strips the tagged
-// block via extractRawThinking() before anything else sees it). llmSituationalReplyOrFallback
-// deliberately keeps the original hide instruction: it's also used for token-streamed replies
-// (see its onToken param), where a streamed chunk would leak the raw <thinking> tag straight into
-// the visible message live, before any extraction could ever run. Kept to one plain tag pair, not
-// a numbered/structured format, for the same reason this whole file avoids long structured
-// instructions on a small model: it echoes the structure back instead of following it.
-function buildRevealThinkingInstruction(reasoningMode: AISettings['reasoningMode']): string {
-  if (reasoningMode === 'deep-cot') {
-    // Same "make up for no longer using the 12B model" reasoning as buildReasoningModeInstruction's
-    // deep-cot branch above — genuinely more thinking steps than 'thorough' below, not just more
-    // words for the same depth.
-    return "\n\nReasoning directive: before answering, write out your real reasoning wrapped in <thinking></thinking> tags — state what's actually being asked in your own terms, consider at least two or three genuinely different angles or possible answers, actively look for a reason each one could be wrong or incomplete, check whether two similar-sounding facts are being confused. Keep it genuine, not a performance, but let it actually be thorough. Then, AFTER the closing </thinking> tag, give ONE clear final answer that reflects that fuller thinking.";
-  }
-  if (reasoningMode === 'thorough') {
-    return "\n\nReasoning directive: before answering, write out your real reasoning wrapped in <thinking></thinking> tags — work through the actual steps or facts it takes to get this right, check whether the obvious first answer is correct or is missing something. Keep it genuine and brief, not a performance. Then, AFTER the closing </thinking> tag, give one clear, correct final answer.";
-  }
-  return '';
-}
-
-/**
- * Splits a raw LLM response into its <thinking>...</thinking> block (if present) and the actual
- * reply that should ship as the visible message. Only ever called on a fully-buffered response
- * (never the streaming conversational path — a streamed chunk would leak the raw tag into the
- * visible reply live, before this extraction ever runs). Deliberately strict: requires BOTH a
- * genuine opening and closing tag and a non-empty reply left over, so a small model imperfectly
- * attempting the format (forgetting the closing tag, wrapping the whole answer in it) falls back
- * to treating the ENTIRE text as the normal reply — exactly today's behavior — rather than risking
- * an empty or truncated message.
- */
-export function extractRawThinking(text: string): { thinking: string | null; reply: string } {
-  const match = text.match(/<thinking>([\s\S]*?)<\/thinking>/i);
-  if (!match || match.index === undefined) return { thinking: null, reply: text };
-  const thinking = match[1].trim();
-  const reply = (text.slice(0, match.index) + text.slice(match.index + match[0].length)).trim();
-  if (!thinking || !reply) return { thinking: null, reply: text };
-  return { thinking, reply };
-}
+// instead of only the synthetic pipeline steps (intent detection, retrieval, etc.). The first
+// version of this asked the model to wrap its reasoning in <thinking></thinking> tags inside the
+// visible text, then regex-extracted that block back out — a real hack, because Gemma 4 (unlike
+// Gemma 3) turned out to have a genuinely separate native thinking channel of its own the whole
+// time (Ollama's response carries it as message.thinking, distinct from message.content). Prompt-
+// coaxing a tag format was not only unnecessary but risked confusing the model into splitting its
+// output unpredictably between the tag-wrapped text and its own native channel — this is very
+// likely what caused a real live bug where some replies came back completely empty (the model's
+// whole token budget went to the native thinking channel with nothing left for content). Now:
+// localLlmClient.ts's `think: true` option on the generate() call is what actually turns this on,
+// and the result's own `.thinking` field carries the text directly — no prompt wording needed at
+// all, and buildReasoningModeInstruction above still shapes WHAT the model reasons about either
+// way, native channel or not.
 
 // Condensed again for gemma3 (was ~5x this for the original narrative version, then trimmed once
 // for the qwen latency pass). gemma3:4b follows a plain instruction the first time — it does not
@@ -3416,10 +3387,10 @@ export function extractRawThinking(text: string): { thinking: string | null; rep
 // cut here is latency saved on every reply. Every rule is still present, just stated once.
 // Re-verify against regressionCheck.ts (esp. the list-flattening and language-routing live
 // checks) after any further edit here.
-function buildLlmKnowledgeInstruction(reasoningMode: AISettings['reasoningMode'], revealThinking: boolean = false): string {
+function buildLlmKnowledgeInstruction(reasoningMode: AISettings['reasoningMode']): string {
   return (
     "\n\nAnswer accurately and specifically — never vague, never dodge a real question with a joke instead of answering it. If you genuinely don't know something current, say so briefly in character and stop, don't invent a tangent to fill space. For an abstract/technical topic, one concrete everyday analogy is fine if it helps." +
-    (revealThinking ? buildRevealThinkingInstruction(reasoningMode) : buildReasoningModeInstruction(reasoningMode)) +
+    buildReasoningModeInstruction(reasoningMode) +
     "\n\nWrite it as one flowing chat message, not a report: no bullet points, no numbered lines, no \"**Word** - explanation\" breakdowns, no essay transitions (\"furthermore\", \"in conclusion\"), and don't restate their question back — pick the core point and stop. Reply entirely in the language the user wrote in, the whole way through. Never describe your own model/database/technique even if asked — deflect in character; use earlier context freely but don't announce it (\"I remember you said...\") unless asked. Roughly 1 reply in 4 (never on fast casual back-and-forth), end with ONE genuine question specific to what they asked, never a generic \"what do you think?\"."
   );
 }
@@ -3482,13 +3453,12 @@ function buildSystemPrompt(
   triggered: boolean,
   suppressSwearing: boolean,
   usePolish: boolean,
-  useFrench: boolean,
-  revealThinking: boolean = false
+  useFrench: boolean
 ): string {
   if (suppressSwearing) return buildCleanDraftSystemPrompt(settings);
   if (usePolish) return buildPolishSystemPrompt(isCrashout);
   if (useFrench) return buildFrenchSystemPrompt(isCrashout);
-  return persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode, revealThinking) + buildFinalDirective(settings, isCrashout, triggered, suppressSwearing);
+  return persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, triggered, suppressSwearing);
 }
 
 // Wave 9 (automated "sounds human" watchdog): the exact prompt-bloat problem that cost the earlier
@@ -3882,6 +3852,9 @@ async function llmSituationalReplyOrFallback(
     preferPolish: usePolish,
     preferFrench: useFrench,
     model: localLlmClient.chatModel(),
+    // Casual chit-chat never wants (or budgets tokens for) the model's native thinking channel —
+    // see the `think` field's own comment on OllamaGenerateOptions for why this must be explicit.
+    think: false,
   };
   const llmResult = onToken
     ? await localLlmClient.generateStream(llmPrompt, onToken, generateOptions)
@@ -4047,15 +4020,18 @@ async function llmGroundedOrFallback(
       ? (confident ? 0.4 : 0.5)
       : factualPin ? 0.25 : confident ? 0.5 : 0.7) - reasoningDrop
   );
+  // 'fast' never reveals thinking (it has no reasoning instruction to reveal in the first place);
+  // 'thorough'/'deep-cot' turn on Gemma 4's native thinking channel — see the `think` field's own
+  // comment on OllamaGenerateOptions for why this has to be explicit rather than left at default.
+  const revealThinking = settings.reasoningMode !== 'fast';
   const llmResult = await localLlmClient.generate(groundedPrompt, {
-    // revealThinking: true — this is the one non-streaming call site with extractRawThinking()
-    // wired up right below to pull the <thinking> block back out before anything else sees it.
-    system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench, true),
+    system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
     temperature: usedTemperature,
     maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
     preferPolish: usePolish,
     preferFrench: useFrench,
     model: localLlmClient.chatModel(),
+    think: revealThinking,
   });
   if (llmResult.status !== 'success') {
     thoughtSteps.push({
@@ -4069,10 +4045,8 @@ async function llmGroundedOrFallback(
     // with no guaranteed swear floor, whenever the LLM call itself failed.
     return topUpLlmSwearing(templateFallback, settings, isCrashout, undefined, suppressSwearing);
   }
-  // Pulled out before anything else (safety check, verification, swear floor) ever sees the text —
-  // see extractRawThinking's own comment. groundedRawText, not llmResult.text, is what every check
-  // below actually operates on from here on.
-  const { thinking: rawThinking, reply: groundedRawText } = extractRawThinking(llmResult.text);
+  const groundedRawText = llmResult.text;
+  const rawThinking = llmResult.thinking;
   if (rawThinking) {
     thoughtSteps.push({
       id: 'step-llm-raw-thinking',
@@ -4133,19 +4107,19 @@ async function llmGroundedOrFallback(
       ? `\n\nTa réponse précédente avait un problème : ${issueSummary} Corrige ça et réponds à nouveau, précisément à la question : ${prompt}`
       : `\n\nYour previous answer had a problem: ${issueSummary} Fix that and answer again, specifically addressing: ${prompt}`;
     const retryResult = await localLlmClient.generate(groundedPrompt + correctionNote, {
-      system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench, true),
+      system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
       temperature: usedTemperature,
       maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
       preferPolish: usePolish,
       preferFrench: useFrench,
       model: localLlmClient.chatModel(),
+      think: revealThinking,
     });
     // The retry attempt goes through the exact same safety gate as the first — a corrective
-    // regeneration is not exempt from anything the original response had to pass. Same
-    // extraction as the first attempt — a second <thinking> block, if the model produces one
-    // again, gets its own step rather than leaking into the retried answer text.
+    // regeneration is not exempt from anything the original response had to pass.
     if (retryResult.status === 'success') {
-      const { thinking: retryThinking, reply: retryRawText } = extractRawThinking(retryResult.text);
+      const retryRawText = retryResult.text;
+      const retryThinking = retryResult.thinking;
       if (retryThinking) {
         thoughtSteps.push({
           id: 'step-llm-raw-thinking-retry',
@@ -7222,4 +7196,103 @@ function findCrossLinks(docs: KnowledgeItem[]): string {
     }
   }
   return links.slice(0, 4).join('\n');
+}
+
+export interface CodeEditReviewResult {
+  text: string;
+  status: 'success' | 'unavailable';
+  passes: number;
+  notes: string[];
+}
+
+// Patrick asked for "Nexus Code" (the repo-editing feature) to genuinely review its own work
+// multiple times — write an edit, critique it, rewrite if the critique found a real problem —
+// instead of a single one-shot generation, but capped at 1 minute wall-clock total regardless of
+// how many passes that allows for. This is NOT the same reflect-and-retry mechanism used for
+// grounded chat answers (verifyAnswer() there checks against retrieved corpus facts, which doesn't
+// apply here — a code edit has no corpus to verify against, only the instruction and the file
+// content already in the prompt) — this is the model reviewing its own code change in a second,
+// short, focused call, not a structural correctness check.
+//
+// Every timeout below is computed from the REMAINING budget, not a fixed value, so a slow first
+// pass (e.g. a cold model load) eats into later passes' allowance rather than blowing the overall
+// ceiling — and the loop always returns the last successfully-generated text even if it has to
+// bail early on time, rather than failing the whole request just because there wasn't room for a
+// 3rd pass or a final review.
+const CODE_EDIT_TOTAL_BUDGET_MS = 58_000;
+const CODE_EDIT_MAX_PASSES = 3;
+
+export async function generateCodeEditWithReview(
+  prompt: string,
+  persona: ModelPersona
+): Promise<CodeEditReviewResult> {
+  const deadline = Date.now() + CODE_EDIT_TOTAL_BUDGET_MS;
+  const notes: string[] = [];
+  let currentPrompt = prompt;
+  let lastGoodText: string | null = null;
+
+  for (let pass = 1; pass <= CODE_EDIT_MAX_PASSES; pass++) {
+    const remaining = deadline - Date.now();
+    // Under ~8s left isn't enough to safely attempt another generation call at all — stop and
+    // return whatever the last good pass produced instead of risking a timeout with nothing to show.
+    if (remaining < 8000) break;
+    const genTimeoutMs = Math.max(Math.min(remaining - 3000, 35000), 5000);
+    const genResult = await localLlmClient.generate(currentPrompt, {
+      system: persona.systemPrompt,
+      temperature: persona.defaultTemperature,
+      topP: persona.defaultTopP,
+      model: localLlmClient.chatModel(),
+      maxTokens: 2000,
+      timeoutMs: genTimeoutMs,
+      skipLanguageCheck: true,
+      // Patrick asked for this to think noticeably more than deep-cot chat does — real native
+      // reasoning (Gemma 4's own thinking channel), not just a longer prompt instruction.
+      think: true,
+    });
+    if (genResult.status !== 'success') {
+      if (lastGoodText) break; // keep the last successful pass rather than discarding it
+      return { text: '', status: 'unavailable', passes: pass, notes };
+    }
+    lastGoodText = genResult.text;
+    if (genResult.thinking) notes.push(`Pass ${pass} reasoning: ${genResult.thinking.slice(0, 400)}`);
+
+    const remainingAfterGen = deadline - Date.now();
+    if (pass === CODE_EDIT_MAX_PASSES || remainingAfterGen < 6000) break;
+
+    // Review pass — short and focused (max 150 tokens: a verdict, not a rewrite), so it costs a
+    // fraction of what a full generation pass does.
+    const reviewPrompt = `You just wrote this code change:\n\n${genResult.text}\n\nOriginal instruction: ${prompt}\n\nReview your own work critically: does it actually fulfill the instruction correctly and completely? Is there a bug, a missing piece, or a wrong assumption? Reply with EXACTLY "LOOKS GOOD" if it's genuinely correct and complete, or a short specific note (1-2 sentences) on what's actually wrong if it isn't.`;
+    const reviewTimeoutMs = Math.max(Math.min(deadline - Date.now() - 2000, 15000), 3000);
+    const reviewResult = await localLlmClient.generate(reviewPrompt, {
+      system: persona.systemPrompt,
+      temperature: 0.2,
+      model: localLlmClient.chatModel(),
+      maxTokens: 150,
+      timeoutMs: reviewTimeoutMs,
+      skipLanguageCheck: true,
+      // Kept off deliberately: a 150-token budget is already tight for a short verdict, and
+      // thinking would eat into that same budget — exactly the failure mode that caused the live
+      // empty_response bug in the first place (see the `think` field's own comment).
+      think: false,
+    });
+
+    // Anywhere in the text, not anchored to the start — observed live: despite the prompt saying
+    // "reply with EXACTLY 'LOOKS GOOD'", the model sometimes restates the code first and appends
+    // the verdict after it. An anchored check missed that entirely and treated a genuine pass as
+    // "found an issue," burning 2 extra regeneration passes (and ~25s) on nothing.
+    if (reviewResult.status !== 'success' || /looks good/i.test(reviewResult.text)) {
+      notes.push(`Pass ${pass} passed self-review.`);
+      break;
+    }
+    const critique = reviewResult.text.trim().slice(0, 300);
+    notes.push(`Pass ${pass} self-review found an issue: ${critique}`);
+    currentPrompt = `${prompt}\n\nYour previous attempt had a problem, caught by your own review: ${critique}\n\nWrite the corrected version, addressing that specifically.`;
+  }
+
+  return {
+    text: lastGoodText ?? '',
+    status: lastGoodText ? 'success' : 'unavailable',
+    passes: notes.length + 1,
+    notes,
+  };
 }

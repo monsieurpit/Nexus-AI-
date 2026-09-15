@@ -63,13 +63,10 @@ async function resolveModel(requested: string): Promise<string> {
   const names = await pulledModelNames();
   if (names.size === 0) return requested; // couldn't check — don't second-guess
 
-  // Deep-cot has a graceful degradation chain (Patrick's spec):
-  //   OLLAMA_MODEL_DEEP (e.g. nexus-12b) -> gemma3:12b -> OLLAMA_MODEL (nexus-4b) -> OLLAMA_MODEL_FALLBACK (gemma3:4b)
-  // Any other request just falls back to OLLAMA_MODEL_FALLBACK.
-  const isDeepRequest = requested === OLLAMA_MODEL_DEEP || requested === 'gemma3:12b';
-  const chain = isDeepRequest
-    ? [OLLAMA_MODEL_DEEP, 'gemma3:12b', OLLAMA_MODEL, OLLAMA_MODEL_FALLBACK]
-    : [requested, OLLAMA_MODEL_FALLBACK];
+  // The old deep-cot degradation chain (OLLAMA_MODEL_DEEP -> gemma3:12b -> ...) is gone along with
+  // the 12B model itself — every caller now requests either the base model or OLLAMA_MODEL_FALLBACK
+  // directly, so a plain two-step chain is all that's needed.
+  const chain = [requested, OLLAMA_MODEL_FALLBACK];
 
   const seen = new Set<string>();
   for (const candidate of chain) {
@@ -95,62 +92,28 @@ async function resolveModel(requested: string): Promise<string> {
 // and coherently every time. So Polish now stays on the one default model with a leaner prompt,
 // same as English — no separate model routing.
 //
-// A DIFFERENT kind of model routing was added later and is not the Bielik mistake repeating: a
-// same-family, larger qwen2.5 variant used only as an opt-in escalation, not a blanket swap or a
-// per-language split. Live A/B testing (regressionCheck.ts, run against both models with the same
-// prompts) found qwen2.5:7b meaningfully improves multi-step reasoning — it solved a two-train
-// relative-rate word problem the 3b default got wrong outright — at a real, measured cost: roughly
-// 2.5-3x the latency (e.g. a plain greeting went from ~1.2s to ~12s) and materially higher memory
-// pressure (a live 4-request concurrent burst against 7b left the Mac Mini host with only ~110-150MB
-// of free memory, vs. comfortable headroom on 3b — tight enough to be a real thrashing risk once the
-// Node server, Discord bot process, and Cloudflare tunnel are also running on the same machine, not
-// just "slower"). That's not a "clearly wins, adopt outright" result, so 7b is used selectively via
-// modelForReasoningMode() below — the reasoning modes (fast/thorough/deep-cot) already exist as an
-// effort dial the persona/settings can turn up for a specific query, so escalating the model itself
-// on that same dial reuses existing infrastructure instead of adding a new setting.
-// Escalation model (thorough / deep-cot only), swapped qwen2.5:7b -> gemma3:12b
-// — same family as the new default, same tradeoff profile the comment above
-// describes (roughly 3-4x the latency, ~8GB resident, tight on a 16GB host once
-// the Node server + tunnel are also running), so still opt-in via
-// modelForReasoningMode(), never a blanket default.
-const OLLAMA_MODEL_DEEP = process.env.OLLAMA_MODEL_DEEP || 'gemma3:12b';
-
-export function modelForReasoningMode(reasoningMode: 'fast' | 'thorough' | 'deep-cot'): string {
-  // Only an EXPLICIT deep-cot request escalates to the ~8GB model now. 'thorough' used to escalate
-  // too, but recommendReasoningMode() returns 'thorough' for any broad or multi-part question —
-  // i.e. a large share of ordinary Discord traffic — so in practice the 12B ran constantly on a
-  // 16GB Mac Mini that also hosts the server, the bot and the tunnel: ~4x the latency ("l'IA
-  // prend des années") and sustained memory thrashing that lagged the whole machine. 'thorough'
-  // still adds its step-by-step prompt directive (buildReasoningModeInstruction), just on the fast
-  // model. This function still exists purely for server.ts's "Nexus Code" repo-editing call site
-  // (a direct generateLlmText() call, requested explicitly by name) — see chatModel() below for
-  // regular chat generation, which no longer calls this at all.
-  return reasoningMode === 'deep-cot' ? OLLAMA_MODEL_DEEP : OLLAMA_MODEL;
-}
-
-// Regular chat generation (reasoningEngine.ts's llmGroundedOrFallback/llmSituationalReplyOrFallback)
-// always uses the small model now, REGARDLESS of reasoningMode — even 'deep-cot'. Observed live
-// (reported directly): even with 'thorough' already pinned to the small model, an explicit
-// deep-cot chat reply (a persona default, or manually picked) still periodically swapped the 12B
-// model in for one reply and back out for the next, and that swap itself — several seconds to
-// load ~8GB into GPU memory — was making EVERY reasoning mode feel slow, not just deep-cot's own
-// replies. The 12B model is now reserved exclusively for "Nexus Code" (server.ts calls
-// modelForReasoningMode('deep-cot') directly for that, not this function), so it only ever loads
-// for that one deliberate, infrequent feature instead of thrashing in and out of memory on
-// ordinary chat traffic. Deep-cot chat replies lean on buildRevealThinkingInstruction/
+// A DIFFERENT kind of model routing was tried later and is not the Bielik mistake repeating: a
+// same-family, larger model (qwen2.5:7b, then gemma3:12b) used as an opt-in "deep-cot"/Nexus-Code
+// escalation, not a blanket swap or a per-language split — roughly 3-4x the latency and ~8GB
+// resident, tight on a 16GB host once the Node server + tunnel are also running. That escalation
+// tier is GONE now: every generation call (chat and "Nexus Code" alike) uses chatModel() below —
+// the 12B model was removed entirely (freeing its memory permanently) once Nexus Code got its own
+// self-review loop (generateCodeEditWithReview, reasoningEngine.ts) instead of leaning on a bigger
+// model for quality. deep-cot chat replies lean on buildRevealThinkingInstruction/
 // buildReasoningModeInstruction's own deeper reasoning text to make up the quality gap instead.
 export function chatModel(): string {
   return OLLAMA_MODEL;
 }
 
 // How long Ollama keeps a model resident after a response. The host is a 16GB M4 Mac Mini also
-// running the Node server, the Discord bot process and a Cloudflare tunnel, so a large model
-// sitting in memory for a long idle stretch is exactly what makes the whole machine lag long
-// after a reply finished (reported live). The small default model fits comfortably and stays
-// warm for realistic chat gaps; the ~8GB escalation model and the vision model are opt-in and
-// rare, so they unload almost immediately instead of thrashing memory for half an hour.
+// running the Node server, the Discord bot process and a Cloudflare tunnel. The old ~8GB
+// escalation model got its own short keep-alive here specifically because it was rare/opt-in and
+// large; now that it's gone (chatModel() is the only tier left besides vision), that distinction
+// no longer applies — the base model stays warm for realistic chat gaps regardless of which
+// feature (chat or Nexus Code) requested it. The vision model is still rare enough to unload fast
+// rather than sit warm for a feature most replies never touch.
 function keepAliveFor(model: string | undefined): string {
-  if (model && (model === OLLAMA_MODEL_DEEP || model === OLLAMA_VISION_MODEL)) return '90s';
+  if (model && model === OLLAMA_VISION_MODEL) return '90s';
   return '10m';
 }
 
@@ -373,10 +336,21 @@ export interface OllamaGenerateOptions {
   // than widening preferPolish into an enum, so every existing call site (which only ever checks
   // `options.preferPolish`) keeps working unchanged; French-aware call sites set this one instead.
   preferFrench?: boolean;
-  // Overrides OLLAMA_MODEL for this one call — set via modelForReasoningMode() by callers that
-  // want the thorough/deep-cot escalation tier to use the larger model. Left undefined by default
-  // so every existing call site keeps using the fast, default-sized model unchanged.
+  // Overrides OLLAMA_MODEL for this one call. Left undefined by default so every existing call
+  // site keeps using chatModel()'s default model unchanged.
   model?: string;
+  // Gemma 4 (unlike Gemma 3) has a genuinely separate native "thinking" channel — Ollama's
+  // response carries it as message.thinking, distinct from message.content — and thinking is ON
+  // BY DEFAULT for models that support it. Observed live: with a tight maxTokens budget (as small
+  // as 20, for a chat title), the model can spend its ENTIRE budget on the thinking channel and
+  // never produce any content at all, which processRawGenerateOutput then correctly reports as
+  // empty_response — not a bug in that check, a real empty reply caused by an unbudgeted-for
+  // channel silently eating the token budget. Every call site must now set this explicitly:
+  // `false` for anything content-budget-sensitive (which is most calls — titles, casual replies,
+  // roleplay), `true` only where the caller actually wants the thinking text (reasoningEngine.ts's
+  // llmGroundedOrFallback when revealThinking is on, and generateCodeEditWithReview's main
+  // generation passes) and reads it back via the result's own `thinking` field below.
+  think?: boolean;
   // The English/Polish/French word-density check below exists to catch a small model drifting
   // into an unrelated language mid-response — but it fires on legitimate CODE output too, since
   // code (variable names, syntax, punctuation) naturally has very low "English signal word"
@@ -389,7 +363,7 @@ export interface OllamaGenerateOptions {
 }
 
 export type LocalLlmResult =
-  | { status: 'success'; text: string; latencyMs: number }
+  | { status: 'success'; text: string; latencyMs: number; thinking?: string }
   | {
       status: 'unavailable';
       reason:
@@ -571,6 +545,9 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
         model,
         messages,
         stream: false,
+        // See the `think` field's own comment on OllamaGenerateOptions — explicit every time,
+        // never left to Ollama's own default (which is enabled for models that support it).
+        think: options.think ?? false,
         // See keepAliveFor(): the small default model stays warm ~10m for realistic chat gaps;
         // the large escalation / vision models unload within ~90s so an 8GB model doesn't pin
         // memory on a 16GB host long after the reply finished (the source of the "Mac lags for
@@ -780,7 +757,13 @@ async function processRawGenerateOutput(
       }
     }
 
-    return { status: 'success', text, latencyMs: Date.now() - startedAt };
+    const thinking = typeof data?.message?.thinking === 'string' ? data.message.thinking.trim() : '';
+    return {
+      status: 'success',
+      text,
+      latencyMs: Date.now() - startedAt,
+      ...(thinking ? { thinking } : {}),
+    };
   }
 }
 
@@ -825,6 +808,13 @@ export async function generateStream(
         model,
         messages,
         stream: true,
+        // See the `think` field's own comment on OllamaGenerateOptions. Also: this streaming path
+        // is only ever used for the plain conversational catch-all (llmSituationalReplyOrFallback's
+        // onToken param), which always calls with think left at its default false — a streamed
+        // thinking delta would need its own separate handling in the reader loop below to avoid
+        // leaking into onToken's assembled content, which isn't implemented, so `true` is
+        // deliberately not supported on this path.
+        think: options.think ?? false,
         keep_alive: keepAliveFor(model),
         // Sampling tuned for gemma3 (Google's published recommendation is
         // temperature 1.0 / top_k 64 / top_p 0.95 / repeat_penalty ~1.0).
