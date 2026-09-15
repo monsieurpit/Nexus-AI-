@@ -66,6 +66,12 @@ export function makeLongPressHandlers(onLongPress: () => void, thresholdMs = 480
       WebkitTouchCallout: 'none',
       WebkitUserSelect: 'none',
       userSelect: 'none',
+      // Separate from user-select: this is WebKit's default gray tap-highlight overlay that
+      // flashes across the WHOLE element on tap/hold — on a long press held for ~480ms, that
+      // overlay just sits there visibly the entire time, reading as "the whole row highlights."
+      // Not related to text selection at all, easy to miss since it has no visible effect on a
+      // quick tap.
+      WebkitTapHighlightColor: 'transparent',
     },
   };
 }

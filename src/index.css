@@ -98,6 +98,11 @@
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--glass-panel-elevated-hover) transparent;
+  /* WebKit's default gray tap-highlight flash clashes with the app's own hover/active states
+     (and, held down long enough on a long-press target, just sits there looking like the whole
+     element got highlighted) — every interactive element here already has its own transition, so
+     the default overlay is pure noise on mobile Safari. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
