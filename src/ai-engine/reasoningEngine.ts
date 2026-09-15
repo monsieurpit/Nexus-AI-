@@ -4353,10 +4353,16 @@ async function handleLocationAwareQuery(
       "Couldn't find anything real nearby right now."
     );
   }
+  // Live-tested (2026-09-15): the earlier wording here got real place names right but the model
+  // sometimes ALSO complained "tell me where you are first" in the same reply — its own persona's
+  // habit of griping about vague requests firing even though the location question was already
+  // answered by this instruction. Made explicit and blunt (matching the same imperative style
+  // proven to hold for mood/swearing directives this session) that the location is KNOWN, not
+  // missing, so there is nothing left to ask for.
   const placesList = places.slice(0, 8).map((p) => `${p.name} (${p.type}, ${p.distanceM}m away)`).join('; ');
   const instruction = isFrenchQuery
-    ? `L'utilisateur veut des endroits réels à proximité : "${prompt}". Voici de VRAIS endroits proches — utilise SEULEMENT ceux-ci, n'en invente pas d'autres : ${placesList}. Suggère-lui 2-3 options dans tes propres mots, dans ton style.`
-    : `The user wants real nearby places to go: "${prompt}". Here are REAL nearby places — use ONLY these, never invent others: ${placesList}. Suggest 2-3 of them in your own words, in character.`;
+    ? `L'utilisateur veut des endroits réels à proximité : "${prompt}". Sa position est DÉJÀ connue — ne lui demande PAS où il est, ne dis PAS que tu ne sais pas où il est, cette question est déjà réglée. Voici de VRAIS endroits proches de lui — utilise SEULEMENT ceux-ci, n'en invente pas d'autres : ${placesList}. Suggère-lui directement 2-3 options dans tes propres mots, dans ton style.`
+    : `The user wants real nearby places to go: "${prompt}". Their location is ALREADY known — do NOT ask them where they are, do NOT say you don't know their location, that question is already settled. Here are REAL nearby places near them — use ONLY these, never invent others: ${placesList}. Suggest 2-3 of them directly, in your own words, in character.`;
   return finish(instruction, '📍 Real nearby places (OpenStreetMap)', `Nearby: ${places.slice(0, 3).map((p) => p.name).join(', ')}.`);
 }
 
