@@ -17,6 +17,18 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
 // failing every request. Set OLLAMA_MODEL_FALLBACK=gemma3:4b on Railway.
 const OLLAMA_MODEL_FALLBACK = process.env.OLLAMA_MODEL_FALLBACK || 'gemma3:4b';
 const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
+// Explicit context window, sent on every generate()/generateStream() call. Found live (2026-09-15):
+// a real production request came back http_error with no visible cause locally, traced to Ollama's
+// own server log showing `n_ctx_slot = 2048` — with OLLAMA_NUM_PARALLEL=2 set on the host (see
+// ~/.nexus-tunnel/com.nexus.ollamaserve.plist) and no num_ctx ever sent by this client, Ollama was
+// silently splitting its own default context window across the 2 parallel slots instead of giving
+// each request the model's actual supported window (131072 for nexus2:4b). The crashout persona's
+// system prompt alone is now ~9300 chars (~2300+ tokens) after the few-shot voice examples added
+// this session, before history/grounding/the user's own prompt even get counted — comfortably over
+// 2048, so some requests started overflowing context outright. Set well above any realistic need
+// (system prompt + history + grounding + THINKING_TOKEN_HEADROOM-inflated output) rather than tuned
+// tight, matching Patrick's explicit "I don't care about prompt size" stance from this same session.
+const OLLAMA_NUM_CTX = Number(process.env.OLLAMA_NUM_CTX) || 8192;
 
 // Cache the set of pulled model names for a minute so resolveModel() doesn't hit /api/tags
 // on every generate call.
@@ -526,7 +538,13 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
 
   const release = await acquireOllamaSlot();
   const controller = new AbortController();
-  const timeoutMs = options.timeoutMs ?? 30000;
+  // Bumped from 30000 — see OLLAMA_NUM_CTX's comment above: a properly-sized context window means
+  // even an uncontended casual reply now regularly takes ~28-30s (more prefill work than the old,
+  // silently-truncated 2048-token context), so 30s was already right at the edge before any queue
+  // wait is added on top. Patrick's explicit stance this session: latency doesn't matter, quality
+  // does — so this default errs generous. Callers with their own real time budget (e.g. the Nexus
+  // Code self-review loop) already pass an explicit timeoutMs and are unaffected by this default.
+  const timeoutMs = options.timeoutMs ?? 60000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
 
@@ -568,6 +586,10 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
           stop: options.stopSequences,
           repeat_penalty: 1.1,
           repeat_last_n: 64,
+          // Never left unset — see OLLAMA_NUM_CTX's own comment below for why an unset num_ctx
+          // silently truncated/errored real production requests once the system prompt grew past
+          // the server's own default per-slot context window.
+          num_ctx: OLLAMA_NUM_CTX,
         },
       }),
     });
@@ -789,7 +811,8 @@ export async function generateStream(
 
   const release = await acquireOllamaSlot();
   const controller = new AbortController();
-  const timeoutMs = options.timeoutMs ?? 30000;
+  // See generate()'s matching comment above — same reasoning, same new default.
+  const timeoutMs = options.timeoutMs ?? 60000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
 
@@ -830,6 +853,7 @@ export async function generateStream(
           stop: options.stopSequences,
           repeat_penalty: 1.1,
           repeat_last_n: 64,
+          num_ctx: OLLAMA_NUM_CTX,
         },
       }),
     });
