@@ -24,6 +24,7 @@ import {
 } from './weatherEngine';
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
 import { registerMoodEvent, getMoodDirective, getMoodPrimacyPrefix, getMoodResponseLengthMultiplier } from './moodEngine';
+import { retrieveVoiceExamples, formatVoiceExamplesBlock } from './voiceExampleRetrieval';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
 import * as localLlmClient from './localLlmClient';
 import {
@@ -3202,7 +3203,13 @@ const LLM_MAX_TOKENS_CASUAL = 220;
 function thinkingHeadroomFor(reasoningMode: AISettings['reasoningMode']): number {
   if (reasoningMode === 'deep-cot') return 1200;
   if (reasoningMode === 'thorough') return 700;
-  return 280;
+  // Bumped 280 -> 450 — found live: 280 was tuned before voiceExampleRetrieval.ts existed, against
+  // a lighter prompt with no injected few-shot block. Once retrieval started appending 2-3 real
+  // examples (voiceExamples.ts, some of them long, heavily-sworn Québécois French), a French 'fast'
+  // reply reliably hit the exact empty_response bug this headroom exists to prevent — the model's
+  // thinking pass now has genuinely more material to reference/emulate and needs a bit more room,
+  // even for 'fast'. Still a fraction of the old flat 1200 that made every casual reply slow.
+  return 450;
 }
 
 const BROAD_QUESTION_PATTERN =
@@ -3477,23 +3484,36 @@ function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggere
 // first attempt and its retry, plus a fourth simplified copy in getSystemPromptCharCount) — easy
 // to have one of them drift out of sync with the others when a directive gets added. Same
 // language/draft-suppression priority as before: suppressSwearing > Polish > French > English.
-function buildSystemPrompt(
+//
+// Async now (was sync) — the "HOW A REAL PERSON ANSWERS" few-shot block used to be hardcoded
+// verbatim into persona.systemPrompt (same 3 examples every reply, see memoryStore.ts's history);
+// it's now retrieved dynamically per the actual `prompt` here via voiceExampleRetrieval.ts, from
+// an 80+ example bank spanning far more topics than 3 fixed examples ever could. `prompt` is
+// optional and retrieval is skipped entirely when it's empty (getSystemPromptCharCount's size-
+// budget test doesn't have a real user message to retrieve against, and doesn't need one — a
+// worst-case size estimate is what that test actually cares about, not real relevance).
+async function buildSystemPrompt(
   persona: ModelPersona,
   settings: AISettings,
   isCrashout: boolean,
   triggered: boolean,
   suppressSwearing: boolean,
   usePolish: boolean,
-  useFrench: boolean
-): string {
+  useFrench: boolean,
+  prompt: string = ''
+): Promise<string> {
   if (suppressSwearing) return buildCleanDraftSystemPrompt(settings);
   if (usePolish) return getMoodPrimacyPrefix('pl') + buildPolishSystemPrompt(isCrashout);
-  if (useFrench) return getMoodPrimacyPrefix('fr') + buildFrenchSystemPrompt(isCrashout);
+  const voiceExamplesBlock = prompt
+    ? formatVoiceExamplesBlock(await retrieveVoiceExamples(prompt, 3))
+    : '';
+  if (useFrench) return getMoodPrimacyPrefix('fr') + buildFrenchSystemPrompt(isCrashout) + voiceExamplesBlock;
   return (
     getMoodPrimacyPrefix('en') +
     persona.systemPrompt +
     buildLlmKnowledgeInstruction(settings.reasoningMode) +
-    buildFinalDirective(settings, isCrashout, triggered, suppressSwearing)
+    buildFinalDirective(settings, isCrashout, triggered, suppressSwearing) +
+    voiceExamplesBlock
   );
 }
 
@@ -3504,8 +3524,8 @@ function buildSystemPrompt(
 // just as easily. Exposes the same system-prompt size a real generate() call would send, purely for
 // regressionCheck.ts to assert a ceiling against, without needing a live Ollama call. Mirrors the
 // exact concatenation llmSituationalReplyOrFallback/llmGroundedOrFallback build inline.
-export function getSystemPromptCharCount(persona: ModelPersona, settings: AISettings, isCrashout: boolean): number {
-  return buildSystemPrompt(persona, settings, isCrashout, false, false, false, false).length;
+export async function getSystemPromptCharCount(persona: ModelPersona, settings: AISettings, isCrashout: boolean): Promise<number> {
+  return (await buildSystemPrompt(persona, settings, isCrashout, false, false, false, false)).length;
 }
 
 function buildFinalDirectiveBody(settings: AISettings, isCrashout: boolean, triggered: boolean): string {
@@ -3862,8 +3882,9 @@ async function llmSituationalReplyOrFallback(
   // multilingually, so raised toward the English value; re-check FR/PL output
   // if it starts drifting.
   const temperature = usePolish || useFrench ? 0.55 : 0.8;
+  const systemPrompt = await buildSystemPrompt(persona, settings, isCrashout, triggered, suppressSwearing, usePolish, useFrench, llmPrompt);
   const generateOptions = {
-    system: buildSystemPrompt(persona, settings, isCrashout, triggered, suppressSwearing, usePolish, useFrench),
+    system: systemPrompt,
     // 0.75 is tuned for creative, varied English swearing/tangents, but the model is far less
     // stable in Polish/French (weaker secondary languages for it) at that temperature — observed
     // live, two separate real users got genuinely garbled Polish output ("Jak sieMaszc?", words
@@ -4078,8 +4099,9 @@ async function llmGroundedOrFallback(
   // instruction telling it to think, so there was no headroom budgeted for a thinking pass it might
   // still spontaneously produce — see the `think` field's own comment on OllamaGenerateOptions).
   const revealThinking = true;
+  const groundedSystemPrompt = await buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench, prompt);
   const llmResult = await localLlmClient.generate(groundedPrompt, {
-    system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
+    system: groundedSystemPrompt,
     temperature: usedTemperature,
     maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + thinkingHeadroomFor(settings.reasoningMode),
     preferPolish: usePolish,
@@ -4161,7 +4183,9 @@ async function llmGroundedOrFallback(
       ? `\n\nTa réponse précédente avait un problème : ${issueSummary} Corrige ça et réponds à nouveau, précisément à la question : ${prompt}`
       : `\n\nYour previous answer had a problem: ${issueSummary} Fix that and answer again, specifically addressing: ${prompt}`;
     const retryResult = await localLlmClient.generate(groundedPrompt + correctionNote, {
-      system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
+      // Reuses the same systemPrompt computed for the first attempt above (same persona/settings/
+      // language/prompt combo — retrieval would return identical examples, no need to re-run it).
+      system: groundedSystemPrompt,
       temperature: usedTemperature,
       maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + thinkingHeadroomFor(settings.reasoningMode),
       preferPolish: usePolish,

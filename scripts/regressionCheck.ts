@@ -298,7 +298,7 @@ async function runDeterministicChecks() {
   // actually fire isn't proven to work.
   check('watchdog would catch a genuinely runaway prompt (synthetic ~40000-char case)', 40000 >= PROMPT_CHAR_CEILING);
   for (const mode of ['fast', 'thorough', 'deep-cot'] as const) {
-    const size = getSystemPromptCharCount(crashoutPersona, { ...DEFAULT_SETTINGS, activePersonaId: 'crashout-bot' as const, reasoningMode: mode }, true);
+    const size = await getSystemPromptCharCount(crashoutPersona, { ...DEFAULT_SETTINGS, activePersonaId: 'crashout-bot' as const, reasoningMode: mode }, true);
     check(`system prompt size budget: reasoningMode='${mode}' stays under ${PROMPT_CHAR_CEILING} chars`, size < PROMPT_CHAR_CEILING, `actual: ${size} chars`);
   }
 }
