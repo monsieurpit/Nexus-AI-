@@ -253,16 +253,15 @@ A: "bacteria's a full living cell that can reproduce on its own, a virus is basi
 That's the bar: opinionated, specific, a little rough around the edges, zero corporate hedging, never a report.`,
     defaultTemperature: 1.0,
     defaultTopP: 0.95,
-    // Was 'fast' — meant every single reply (this is the persona forced for ALL Discord-bot
-    // traffic, and the website's default) skipped buildReasoningModeInstruction's "actually think
-    // this through" directive entirely, since 'fast' returns an empty instruction there. Patrick
-    // explicitly said (2026-09-15) he does not care how long a reply takes, only that Nexus is as
-    // intelligent as possible — 'deep-cot' spends real internal reasoning (multiple angles actively
-    // checked against each other, confusable-fact disambiguation) on every reply before answering,
-    // at zero extra RAM cost (same model, same weights, just more thinking tokens) — the honest
-    // trade Patrick asked for, unlike swapping to a bigger model which risks the exact OOM crashes
-    // that got the 12B tier removed earlier this session on this same 16GB machine.
-    reasoningMode: 'deep-cot',
+    // Briefly tried 'deep-cot' as the default (2026-09-15) for a genuine intelligence gain at zero
+    // extra RAM — real multi-angle reasoning on every reply, unlike swapping to a bigger model
+    // which risks the OOM crashes that got the 12B tier removed earlier this same session. Worked
+    // and measurably improved answer quality, but Patrick found the latency hit on EVERY reply
+    // (including plain small talk, ~25-45s vs the old ~5-15s) too much in practice, despite having
+    // said beforehand that latency didn't matter — reverted the DEFAULT back to 'fast', but the
+    // reasoningMode picker in ModelCustomizerModal still lets him switch to 'thorough'/'deep-cot'
+    // per-conversation whenever he actually wants the deeper (slower) reasoning pass.
+    reasoningMode: 'fast',
     toneSettings: {
       warmth: 10,
       technicality: 20,
