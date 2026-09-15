@@ -23,7 +23,7 @@ import {
   findNearbyPlaces,
 } from './weatherEngine';
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
-import { registerMoodEvent, getMoodDirective, getMoodResponseLengthMultiplier } from './moodEngine';
+import { registerMoodEvent, getMoodDirective, getMoodPrimacyPrefix, getMoodResponseLengthMultiplier } from './moodEngine';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
 import * as localLlmClient from './localLlmClient';
 import {
@@ -3464,9 +3464,14 @@ function buildSystemPrompt(
   useFrench: boolean
 ): string {
   if (suppressSwearing) return buildCleanDraftSystemPrompt(settings);
-  if (usePolish) return buildPolishSystemPrompt(isCrashout);
-  if (useFrench) return buildFrenchSystemPrompt(isCrashout);
-  return persona.systemPrompt + buildLlmKnowledgeInstruction(settings.reasoningMode) + buildFinalDirective(settings, isCrashout, triggered, suppressSwearing);
+  if (usePolish) return getMoodPrimacyPrefix('pl') + buildPolishSystemPrompt(isCrashout);
+  if (useFrench) return getMoodPrimacyPrefix('fr') + buildFrenchSystemPrompt(isCrashout);
+  return (
+    getMoodPrimacyPrefix('en') +
+    persona.systemPrompt +
+    buildLlmKnowledgeInstruction(settings.reasoningMode) +
+    buildFinalDirective(settings, isCrashout, triggered, suppressSwearing)
+  );
 }
 
 // Wave 9 (automated "sounds human" watchdog): the exact prompt-bloat problem that cost the earlier

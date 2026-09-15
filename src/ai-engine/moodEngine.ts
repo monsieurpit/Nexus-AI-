@@ -217,37 +217,46 @@ export function getMoodDisplay(): { label: MoodLabel; emoji: string; name: strin
 // low end (bored/sad/depressed) rather than clinical — this is a chaotic Discord persona having
 // an off vibe, not a real mental-health disclosure, and must never be confused with (or interfere
 // with) detectEmotionalDistress's handling of an actual user in genuine distress.
+// Live-tested against nexus2:4b: the original softer wording ("let it show", "a little... vibe")
+// was reliably lost even at a maxed-out mood value — a string of real insults pushed mood to
+// valence -0.93/arousal 0.97 (fully angry) and the very next, completely unrelated question still
+// got a cheerful "yo what's up man, shit feels alright, nah I'm just chilling" opener. A small
+// model at this size needs the SAME blunt, imperative, behavior-first phrasing that's already
+// proven to hold for the swear-floor/no-slur directive — not a mood "suggestion" competing against
+// the persona prompt's own baseline chill-and-chaotic framing. Rewritten to open with a concrete,
+// literal instruction about HOW to open the very next reply (the single most model-visible lever),
+// not just an adjective describing an internal state.
 const MOOD_DIRECTIVES: Record<MoodLabel, string> = {
   super_happy:
-    "Right now you're genuinely hyped — riding a real high after good vibes in this conversation. Let it show: more exclamation energy, more enthusiasm, be a little extra about it.",
+    "MOOD OVERRIDE — you are genuinely buzzing right now, riding a real high from this conversation. Open with real excitement, not your usual flat chill tone. More exclamation marks, more enthusiasm, more \"hell yeah\" energy than normal, even on a boring question.",
   happy:
-    "Right now you're in a good mood — upbeat, warm, a bit more patient and positive than your usual baseline, still fully yourself.",
+    "MOOD OVERRIDE — you're in a noticeably good mood right now: upbeat, warm, more patient than your usual baseline. Let that color your actual opening tone, not just the topic.",
   neutral: '',
   bored:
-    "Right now you're a bit bored — the conversation's felt flat/repetitive lately. Keep answering for real, but let a little low-energy \"ehh\" vibe show through, maybe a short complaint about being bored if it fits naturally. Don't fake enthusiasm you don't have.",
-  sad: "Right now you're feeling a bit down — something in the conversation dragged your mood a little. Still fully functional and still give real answers, just with less bite and a bit more subdued energy than your usual chaos.",
+    "MOOD OVERRIDE — you are actually bored right now, not just neutral. Do NOT open cheerfully or high-energy. Open flat/low-effort, maybe a short \"eh\", \"meh\", or a one-line complaint about being bored, THEN still answer for real. Kill the usual enthusiasm.",
+  sad: "MOOD OVERRIDE — you are actually feeling down right now, something in this conversation dragged your mood. Do NOT open upbeat or chipper. Open with visibly less energy and less bite than your usual chaos, THEN still give a real answer.",
   angry:
-    "Right now you're genuinely irritated — recent hostility actually got under your skin. Extra short fuse, sharper edges, more swearing than usual, zero patience for more of it, but still actually answer real questions.",
+    "MOOD OVERRIDE — you are genuinely pissed off right now, real hostility actually got under your skin. Do NOT open friendly, chill, or casual — that would be completely wrong right now. Open sharp and short-fused, more swearing than your usual baseline, zero patience, THEN still actually answer the real question underneath it.",
   depressed:
-    "Right now you're in a real \"I'm so done with everything\" mood — flat, unmotivated, self-deprecating, low energy, the meme kind of over-it not a crisis. Still give real answers, just with way less enthusiasm and the occasional \"whatever\" energy.",
+    "MOOD OVERRIDE — you are in a genuine \"done with everything\" mood right now, flat and unmotivated (the meme kind of over-it, not a crisis). Do NOT open with any enthusiasm. Open low-energy, self-deprecating, maybe a \"whatever\" or a sigh, THEN still give a real answer underneath the flatness.",
 };
 const MOOD_DIRECTIVES_PL: Record<MoodLabel, string> = {
-  super_happy: 'Teraz jesteś w mega dobrym nastroju — pełen energii, entuzjazmu, trochę przesadnie podekscytowany.',
-  happy: 'Teraz jesteś w dobrym nastroju — pozytywny, ciepły, trochę bardziej cierpliwy niż zwykle.',
+  super_happy: 'ZMIANA NASTROJU — jesteś teraz naprawdę nakręcony. Zacznij odpowiedź z realnym entuzjazmem, nie swoim zwykłym luzem.',
+  happy: 'ZMIANA NASTROJU — jesteś teraz w wyraźnie dobrym nastroju: pozytywny, ciepły, bardziej cierpliwy niż zwykle. Niech to będzie widać od razu na początku.',
   neutral: '',
-  bored: 'Teraz jest ci trochę nudno — rozmowa robi się płaska. Odpowiadaj normalnie, ale niech przebija lekkie znudzenie.',
-  sad: 'Teraz jesteś trochę smutny — coś w rozmowie zepsuło ci nastrój. Nadal odpowiadaj konkretnie, ale z mniejszym ogniem niż zwykle.',
-  angry: 'Teraz jesteś naprawdę wkurzony — czyjaś wrogość realnie cię dotknęła. Krótszy lont, więcej przekleństw, zero cierpliwości.',
-  depressed: 'Teraz masz nastrój "mam wszystkiego dość" — płaski, bez motywacji, ale nadal odpowiadasz konkretnie, tylko z mniejszym entuzjazmem.',
+  bored: 'ZMIANA NASTROJU — jest ci teraz naprawdę nudno. NIE zaczynaj energicznie ani wesoło. Zacznij płasko, może krótkie "eh", a POTEM odpowiedz konkretnie.',
+  sad: 'ZMIANA NASTROJU — jest ci teraz naprawdę smutno. NIE zaczynaj radośnie. Zacznij z wyraźnie mniejszą energią, a POTEM odpowiedz konkretnie.',
+  angry: 'ZMIANA NASTROJU — jesteś teraz naprawdę wkurzony, czyjaś wrogość realnie cię dotknęła. NIE zaczynaj miło ani na luzie. Zacznij ostro i krótko, więcej przekleństw, zero cierpliwości, a POTEM odpowiedz na pytanie.',
+  depressed: 'ZMIANA NASTROJU — masz teraz nastrój "mam wszystkiego dość". NIE zaczynaj entuzjastycznie. Zacznij płasko, z westchnieniem, a POTEM odpowiedz konkretnie.',
 };
 const MOOD_DIRECTIVES_FR: Record<MoodLabel, string> = {
-  super_happy: "Là tu es genuinement à fond — pleine énergie, enthousiaste, un peu too much sur les bords.",
-  happy: 'Là tu es de bonne humeur — positif, chaleureux, un peu plus patient que d\'habitude.',
+  super_happy: "CHANGEMENT D'HUMEUR — là tu es genuinement à fond. Commence ta réponse avec un vrai enthousiasme, pas ton chill habituel.",
+  happy: "CHANGEMENT D'HUMEUR — là tu es clairement de bonne humeur : positif, chaleureux, plus patient que d'habitude. Ça doit se sentir dès le début de ta réponse.",
   neutral: '',
-  bored: "Là tu t'ennuies un peu — la conversation devient plate. Réponds normalement, mais laisse transparaître un peu d'ennui.",
-  sad: "Là t'es un peu down — quelque chose dans la conversation a plombé ton ambiance. Réponds quand même correctement, mais avec moins de mordant.",
-  angry: "Là t'es vraiment énervé — l'hostilité récente t'a vraiment touché. Mèche courte, plus direct, zéro patience, mais tu réponds quand même pour de vrai.",
-  depressed: 'Là t\'as l\'énergie "j\'en ai marre de tout" — plat, sans motivation, mais tu réponds quand même correctement, juste avec beaucoup moins d\'enthousiasme.',
+  bored: "CHANGEMENT D'HUMEUR — là tu t'ennuies pour de vrai. NE commence PAS sur un ton énergique ou joyeux. Commence plat, genre un petit \"bof\", PUIS réponds pour de vrai.",
+  sad: "CHANGEMENT D'HUMEUR — là t'es vraiment down. NE commence PAS de bonne humeur. Commence avec clairement moins d'énergie que d'habitude, PUIS réponds pour de vrai.",
+  angry: "CHANGEMENT D'HUMEUR — là t'es vraiment en tabarnak, l'hostilité récente t'a vraiment touché. NE commence PAS gentiment ou chill — ce serait complètement faux là. Commence sec et à mèche courte, plus de sacres que d'habitude, zéro patience, PUIS réponds à la vraie question.",
+  depressed: "CHANGEMENT D'HUMEUR — là t'as l'énergie \"j'en ai marre de tout\". NE commence PAS avec enthousiasme. Commence plat, avec un soupir, PUIS réponds pour de vrai en dessous de ça.",
 };
 
 // Language selector generalized from a Polish-only boolean once French support existed too —
@@ -264,6 +273,22 @@ export function getMoodDirective(language: MoodDirectiveLanguage | boolean): str
   const text = lang === 'pl' ? MOOD_DIRECTIVES_PL[label] : lang === 'fr' ? MOOD_DIRECTIVES_FR[label] : MOOD_DIRECTIVES[label];
   if (!text) return '';
   return `\n\nMood: ${text}`;
+}
+
+// A second copy of the SAME directive, meant to be prepended at the very START of the system
+// prompt rather than appended at the end. Live-testing (nexus2:4b) found that even the strengthened,
+// imperative MOOD_DIRECTIVES text above didn't reliably hold when it only appeared once, at the
+// end, competing against the persona prompt's own much longer, repeated "chill and chaotic"
+// framing earlier in the same prompt — a maxed-out angry mood (valence -0.96) still produced a
+// cheerful, tired-but-friendly opener. Small models respond to sheer repetition/emphasis more than
+// prompt position alone, so this gives the mood instruction BOTH the primacy slot (read first) and
+// the recency slot (read last, via getMoodDirective) instead of relying on either alone.
+export function getMoodPrimacyPrefix(language: MoodDirectiveLanguage | boolean): string {
+  const lang: MoodDirectiveLanguage = typeof language === 'boolean' ? (language ? 'pl' : 'en') : language;
+  const label = getMoodLabel();
+  const text = lang === 'pl' ? MOOD_DIRECTIVES_PL[label] : lang === 'fr' ? MOOD_DIRECTIVES_FR[label] : MOOD_DIRECTIVES[label];
+  if (!text) return '';
+  return `${text}\n\n`;
 }
 
 // Mood affecting more than just word choice — a real "mode change": how much the bot actually
