@@ -216,6 +216,35 @@ async function run() {
     } else {
       check('regenerate button produces a new reply', false, 'button not found');
     }
+    // Voice-over button — real functional check: click it and confirm the Web Speech API actually
+    // fires its onstart callback (button flips to "Stop reading aloud" / aria-pressed via label
+    // change), not just that the button exists and does nothing when clicked.
+    const speakBtn = page.locator('button[aria-label="Read message aloud"]').last();
+    if (await speakBtn.count() > 0) {
+      await speakBtn.click();
+      const stoppedLabelAppeared = await page
+        .locator('button[aria-label="Stop reading aloud"]')
+        .last()
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .then(() => true)
+        .catch(() => false);
+      check('voice-over button actually starts speech (onstart fires)', stoppedLabelAppeared);
+      if (stoppedLabelAppeared) {
+        await page.locator('button[aria-label="Stop reading aloud"]').last().click();
+        const backToPlay = await page
+          .locator('button[aria-label="Read message aloud"]')
+          .last()
+          .waitFor({ state: 'visible', timeout: 3000 })
+          .then(() => true)
+          .catch(() => false);
+        check('voice-over stop button actually stops speech', backToPlay);
+      } else {
+        check('voice-over stop button actually stops speech', false, 'never started, nothing to stop');
+      }
+    } else {
+      check('voice-over button actually starts speech (onstart fires)', false, 'button not found — browser may not support speechSynthesis');
+      check('voice-over stop button actually stops speech', false, 'button not found');
+    }
   });
 
   // Scenario 2: the location button exists, is clickable, and flips to the "granted" visual state

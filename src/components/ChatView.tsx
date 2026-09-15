@@ -21,12 +21,15 @@ import {
   ExternalLink,
   PanelLeft,
   MapPin,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { AISettings, ChatMessage, ModelPersona } from '../types';
 import { countTokens } from '../ai-engine/tokenizer';
 import { makeLongPressHandlers } from '../utils/longPress';
 import { MobileActionSheet } from './MobileActionSheet';
 import { getCachedClientLocation, isGeolocationSupported, requestClientLocation } from '../utils/geolocation';
+import { isSpeechSupported, speakText, stopSpeaking, looksFrenchForSpeech } from '../utils/textToSpeech';
 
 interface ChatViewProps {
   messages: ChatMessage[];
@@ -114,6 +117,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'granted' | 'denied'>(
     () => (getCachedClientLocation() ? 'granted' : 'idle')
   );
+  // Voice-over playback (Web Speech API) — at most one message can be "speaking" at a time, since
+  // speakText() itself cancels any prior utterance before starting a new one.
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -159,6 +165,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
       )}px`;
     }
   }, [inputText]);
+
+  // Stop any in-progress voice-over when navigating away (view switch, conversation switch) —
+  // otherwise speech keeps reading a message the user can no longer even see.
+  useEffect(() => {
+    return () => stopSpeaking();
+  }, []);
 
   const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 
@@ -245,6 +257,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setLocationStatus('loading');
     const loc = await requestClientLocation();
     setLocationStatus(loc ? 'granted' : 'denied');
+  };
+
+  const handleToggleSpeak = (message: ChatMessage) => {
+    if (speakingMsgId === message.id) {
+      stopSpeaking();
+      setSpeakingMsgId(null);
+      return;
+    }
+    speakText(message.content, {
+      preferFrench: looksFrenchForSpeech(message.content),
+      onStart: () => setSpeakingMsgId(message.id),
+      onEnd: () => setSpeakingMsgId((prev) => (prev === message.id ? null : prev)),
+      onError: () => setSpeakingMsgId((prev) => (prev === message.id ? null : prev)),
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -718,6 +744,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             <Copy className="h-3.5 w-3.5" />
                           )}
                         </button>
+                        {isSpeechSupported() && (
+                          <button
+                            onClick={() => handleToggleSpeak(message)}
+                            className={`rounded p-1 transition hover:bg-[var(--glass-panel-elevated)] ${
+                              speakingMsgId === message.id
+                                ? 'text-[var(--glass-accent-hover)]'
+                                : 'text-[var(--glass-text-faint)] hover:text-[var(--glass-text)]'
+                            }`}
+                            title={speakingMsgId === message.id ? 'Stop reading aloud' : 'Read message aloud'}
+                            aria-label={speakingMsgId === message.id ? 'Stop reading aloud' : 'Read message aloud'}
+                          >
+                            {speakingMsgId === message.id ? (
+                              <VolumeX className="h-3.5 w-3.5 animate-pulse" />
+                            ) : (
+                              <Volume2 className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
