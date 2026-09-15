@@ -12,22 +12,32 @@
  * scenario saves a screenshot to scripts/e2e-screenshots/ so a human (or Claude, via Read) can
  * actually LOOK at the result, not just trust a DOM assertion.
  *
- * Run: bun run scripts/e2eBrowserCheck.ts [--base-url http://localhost:3000] [--headed]
+ * Run: bun run scripts/e2eBrowserCheck.ts [--base-url http://localhost:3000] [--headed] [--record]
  *
  * Requires a running server at --base-url (default http://localhost:3000). Scenarios that send a
  * real chat message need a real Ollama connection (same requirement as regressionCheck.ts's live
  * tier); pure-UI scenarios (opening modals, the sidebar, mobile layout) do not.
+ *
+ * --record additionally captures a full video (.webm) of the "walkthrough" scenario — typing to
+ * the AI, clicking around modals/buttons/panels, the whole interactive sequence in one continuous
+ * clip — saved to scripts/e2e-videos/. Since there is no way to actually play a video back here,
+ * pair it with `bun run scripts/extractVideoFrames.ts <path-to.webm>`, which uses Playwright's own
+ * bundled ffmpeg to pull one frame per second into scripts/e2e-frames/ — a filmstrip that can then
+ * genuinely be watched, frame by frame, via the Read tool.
  */
 import { chromium, type Browser, type Page } from 'playwright';
-import { mkdirSync } from 'fs';
+import { mkdirSync, renameSync, existsSync } from 'fs';
 import path from 'path';
 
 const args = process.argv.slice(2);
 const baseUrlArg = args.indexOf('--base-url');
 const BASE_URL = baseUrlArg !== -1 ? args[baseUrlArg + 1] : 'http://localhost:3000';
 const HEADED = args.includes('--headed');
+const RECORD = args.includes('--record');
 const SCREENSHOT_DIR = path.join(process.cwd(), 'scripts', 'e2e-screenshots');
+const VIDEO_DIR = path.join(process.cwd(), 'scripts', 'e2e-videos');
 mkdirSync(SCREENSHOT_DIR, { recursive: true });
+if (RECORD) mkdirSync(VIDEO_DIR, { recursive: true });
 
 let passed = 0;
 let failed = 0;
@@ -52,15 +62,16 @@ async function shot(page: Page, name: string) {
 
 async function withFreshPage(
   browser: Browser,
-  opts: { viewport?: { width: number; height: number }; geolocation?: boolean },
+  opts: { viewport?: { width: number; height: number }; geolocation?: boolean; video?: string },
   fn: (page: Page) => Promise<void>
 ) {
   // Fresh context per scenario, not just a fresh page — a shared context would let localStorage
   // (conversation history, cached geolocation, dismissed-modal flags) leak between scenarios and
   // make one test's outcome depend on execution order, exactly the kind of flake this exists to
   // avoid in the API-level suite too.
+  const viewport = opts.viewport ?? { width: 1440, height: 900 };
   const context = await browser.newContext({
-    viewport: opts.viewport ?? { width: 1440, height: 900 },
+    viewport,
     geolocation: { latitude: 45.5017, longitude: -73.5673 },
     permissions: opts.geolocation ? ['geolocation'] : [],
     // The site's own EntryAnimation (App.tsx) takes ~7.3s and plays on every fresh session (no
@@ -69,19 +80,39 @@ async function withFreshPage(
     // screenshot only ever captured the boot animation because every scenario uses a fresh context
     // with no storage. Skips the animation entirely rather than adding a long fixed wait everywhere.
     reducedMotion: 'reduce',
+    recordVideo: RECORD && opts.video ? { dir: VIDEO_DIR, size: viewport } : undefined,
   });
   const page = await context.newPage();
   try {
     await fn(page);
   } finally {
+    const video = page.video();
     await context.close();
+    // Playwright only finishes writing the file once the context that owns it is closed, and
+    // names it with a random hash — renamed here to something identifiable so extractVideoFrames.ts
+    // (and a human) don't have to guess which recording is which.
+    if (video && opts.video) {
+      const randomPath = await video.path();
+      const target = path.join(VIDEO_DIR, `${opts.video}.webm`);
+      if (existsSync(randomPath) && randomPath !== target) {
+        renameSync(randomPath, target);
+        console.log(`     🎥 ${path.relative(process.cwd(), target)}`);
+      }
+    }
   }
 }
 
-async function sendMessage(page: Page, text: string, timeoutMs = 90000): Promise<void> {
+async function sendMessage(page: Page, text: string, timeoutMs = 90000, opts: { humanTyping?: boolean } = {}): Promise<void> {
   const textarea = page.locator('textarea').first();
   await textarea.click();
-  await textarea.fill(text);
+  if (opts.humanTyping) {
+    // pressSequentially fires real keystrokes (visible letter-by-letter in a recording) instead of
+    // fill()'s instant value-set — only worth the extra time in the recorded walkthrough scenario,
+    // where the point is to actually SHOW typing happening, not just assert on the end state.
+    await textarea.pressSequentially(text, { delay: 35 });
+  } else {
+    await textarea.fill(text);
+  }
   await page.locator('button[aria-label="Send message"]').click();
   // Wait for generation to actually finish (Stop button reverts back to Send) rather than a fixed
   // sleep — replies now legitimately take 25-45s (see the OLLAMA_NUM_CTX fix), so a fixed wait
@@ -92,6 +123,58 @@ async function sendMessage(page: Page, text: string, timeoutMs = 90000): Promise
 async function run() {
   console.log(`\n=== Browser E2E checks (Playwright, against ${BASE_URL}) ===\n`);
   const browser = await chromium.launch({ headless: !HEADED });
+
+  // Scenario 0 (only with --record): one continuous, deliberately broad walkthrough — typing a
+  // real message to the AI, sending it, expanding the reasoning panel, granting location and
+  // asking about the weather, opening and closing every modal, switching to Nexus Code and back —
+  // captured as a single video instead of isolated screenshots, so the actual FLOW between actions
+  // can be watched (via extractVideoFrames.ts), not just each individual end-state.
+  if (RECORD) {
+    await withFreshPage(browser, { video: '00-full-walkthrough', geolocation: true }, async (page) => {
+      await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(500);
+
+      await sendMessage(page, 'yo hows it going, whats a good beginner language to learn coding', 90000, { humanTyping: true });
+      const toggle = page.locator('button[aria-label="Toggle reasoning trace"]').last();
+      if (await toggle.count() > 0) {
+        await toggle.click();
+        await page.waitForTimeout(1500);
+        await toggle.click();
+      }
+
+      const locationBtn = page.locator('button[aria-label="Share your location"]');
+      if (await locationBtn.count() > 0) {
+        await locationBtn.click();
+        await page.waitForTimeout(1500);
+      }
+      await sendMessage(page, 'whats the weather like right now', 90000, { humanTyping: true });
+      await page.waitForTimeout(1000);
+
+      for (const rail of ['Customize', 'Knowledge base', 'Bot API & SDK', 'Attention visualizer']) {
+        const railBtn = page.locator(`button[aria-label="${rail}"]`);
+        if (await railBtn.count() > 0) {
+          await railBtn.click();
+          await page.waitForTimeout(1200);
+          const closeBtn = page.locator('button[aria-label="Close"]');
+          if (await closeBtn.count() > 0) {
+            await closeBtn.click();
+            await page.waitForTimeout(500);
+          }
+        }
+      }
+
+      const codeBtn = page.locator('button[aria-label="Nexus Code"]');
+      if (await codeBtn.count() > 0) {
+        await codeBtn.click();
+        await page.waitForTimeout(1500);
+        const chatBtn = page.locator('button[aria-label="Chat"]');
+        if (await chatBtn.count() > 0) {
+          await chatBtn.click();
+          await page.waitForTimeout(500);
+        }
+      }
+    });
+  }
 
   // Scenario 1: casual chat produces a real, non-empty reply and a reasoning-trace panel that
   // actually expands to show a real thinking step — the exact thing the 2026-09-15 bug report was
