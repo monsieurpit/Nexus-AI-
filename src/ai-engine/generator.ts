@@ -10,6 +10,7 @@ import {
 import { generateReasoningPath } from './reasoningEngine';
 import { calculateAttentionMatrix } from './semanticEngine';
 import { countTokens, tokenize } from './tokenizer';
+import { ClientLocation } from '../utils/geolocation';
 
 export interface GenerationCallbacks {
   onReasoningStart?: () => void;
@@ -52,7 +53,8 @@ export async function generateAIResponse(
   userMemories: UserMemory[],
   callbacks: GenerationCallbacks,
   abortSignal?: AbortSignal,
-  imageUrl?: string
+  imageUrl?: string,
+  clientLocation?: ClientLocation
 ): Promise<ChatMessage> {
   const startTime = performance.now();
   callbacks.onReasoningStart?.();
@@ -120,6 +122,10 @@ export async function generateAIResponse(
           // See the module comment above — tells the endpoint to honor this exact persona/settings
           // selection instead of resolveRequestedPersona's Discord-bot-only crashout-bot forcing.
           clientSettings: settings,
+          // Browser geolocation (opt-in, via the composer's location button) — only used server-side
+          // when the user asks about weather/time/nearby places without naming a city. Undefined
+          // when the user never granted it, which the server treats identically to "not shared".
+          clientLocation: clientLocation || undefined,
         }),
         signal: abortSignal,
       });

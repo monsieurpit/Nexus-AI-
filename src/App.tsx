@@ -32,6 +32,7 @@ import {
 } from './ai-engine/memoryStore';
 import { generateAIResponse, generateConversationTitle } from './ai-engine/generator';
 import { analyzePromptIntent } from './ai-engine/semanticEngine';
+import { getCachedClientLocation } from './utils/geolocation';
 
 function initConversations(): Conversation[] {
   const loaded = loadConversations();
@@ -423,7 +424,8 @@ export default function App() {
           },
         },
         controller.signal,
-        image?.dataUrl
+        image?.dataUrl,
+        getCachedClientLocation() || undefined
       );
     } catch (e) {
       console.error(e);

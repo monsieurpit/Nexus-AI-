@@ -20,11 +20,13 @@ import {
   Globe,
   ExternalLink,
   PanelLeft,
+  MapPin,
 } from 'lucide-react';
 import { AISettings, ChatMessage, ModelPersona } from '../types';
 import { countTokens } from '../ai-engine/tokenizer';
 import { makeLongPressHandlers } from '../utils/longPress';
 import { MobileActionSheet } from './MobileActionSheet';
+import { getCachedClientLocation, isGeolocationSupported, requestClientLocation } from '../utils/geolocation';
 
 interface ChatViewProps {
   messages: ChatMessage[];
@@ -105,6 +107,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [previewModalImage, setPreviewModalImage] = useState<string | null>(null);
   const [waitEscalation, setWaitEscalation] = useState<string | null>(null);
+  // Weather/time/nearby-places grounding (see handleLocationAwareQuery in reasoningEngine.ts) only
+  // works without a named city when the browser has shared a location — this button is the opt-in
+  // trigger for that permission prompt (Safari included). 'granted' also covers a still-fresh
+  // cached fix from an earlier visit, so returning users don't get re-prompted every session.
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'granted' | 'denied'>(
+    () => (getCachedClientLocation() ? 'granted' : 'idle')
+  );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -229,6 +238,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setAttachedImage(null);
     if (textareaRef.current) textareaRef.current.style.height = '48px';
     onSendMessage(text, img);
+  };
+
+  const handleRequestLocation = async () => {
+    if (locationStatus === 'loading' || !isGeolocationSupported()) return;
+    setLocationStatus('loading');
+    const loc = await requestClientLocation();
+    setLocationStatus(loc ? 'granted' : 'denied');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -838,6 +854,30 @@ export const ChatView: React.FC<ChatViewProps> = ({
             >
               <ImageIcon className="h-4 w-4" />
             </button>
+
+            {isGeolocationSupported() && (
+              <button
+                type="button"
+                onClick={handleRequestLocation}
+                disabled={locationStatus === 'loading'}
+                className={`glass-btn !h-12 !w-12 shrink-0 !rounded-[var(--glass-r-lg)] !p-0 ${
+                  locationStatus === 'granted'
+                    ? 'glass-btn-primary'
+                    : 'glass-btn-secondary hover:!text-[var(--glass-accent-hover)]'
+                }`}
+                title={
+                  locationStatus === 'granted'
+                    ? 'Location shared — weather/time/nearby-place questions work without naming a city'
+                    : locationStatus === 'denied'
+                    ? 'Location blocked — enable it in your browser settings to use it, or just name a city instead'
+                    : 'Share your location so Nexus can answer weather/time/nearby-place questions without you naming a city'
+                }
+                aria-label="Share your location"
+                aria-pressed={locationStatus === 'granted'}
+              >
+                <MapPin className={`h-4 w-4 ${locationStatus === 'loading' ? 'animate-pulse' : ''}`} />
+              </button>
+            )}
 
             {isGenerating ? (
               <button

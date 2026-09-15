@@ -14,6 +14,14 @@ import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
 import { trySolveCategoryClassification } from './categorySolver';
 import { trySolveDate } from './dateSolver';
+import {
+  geocodeCity,
+  getWeather,
+  detectWeatherIntent,
+  detectTimeIntent,
+  detectNearbyPlacesIntent,
+  findNearbyPlaces,
+} from './weatherEngine';
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
 import { registerMoodEvent, getMoodDirective, getMoodResponseLengthMultiplier } from './moodEngine';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
@@ -4179,6 +4187,148 @@ async function llmGroundedOrFallback(
   );
 }
 
+// Weather/time/nearby-places — real external facts (Open-Meteo + OpenStreetMap Overpass, both
+// free/keyless, see weatherEngine.ts's own header) handed to the LLM to phrase in character,
+// exactly the same "here are the real facts, answer using ONLY them" pattern the creator-question
+// branch below already uses for a simple fact. Checked early in generateReasoningPath, before
+// corpus retrieval, so a real weather question never gets mistaken for a knowledge-base lookup —
+// the corpus has zero live weather data and would either hallucinate or (worse) confidently ground
+// an answer in some unrelated document that merely mentions the word "weather".
+async function handleLocationAwareQuery(
+  prompt: string,
+  persona: ModelPersona,
+  settings: AISettings,
+  isCrashout: boolean,
+  isSuperChill: boolean,
+  thoughtSteps: ThoughtStep[],
+  clientLocation: { lat: number; lon: number } | undefined
+): Promise<ReasoningResult | null> {
+  const weatherIntent = detectWeatherIntent(prompt);
+  const timeIntent = !weatherIntent ? detectTimeIntent(prompt) : null;
+  const nearbyIntent = !weatherIntent && !timeIntent && detectNearbyPlacesIntent(prompt);
+  if (!weatherIntent && !timeIntent && !nearbyIntent) return null;
+
+  const isFrenchQuery = looksFrench(prompt);
+
+  const finish = async (instruction: string, title: string, fallback: string): Promise<ReasoningResult> => {
+    thoughtSteps.push({ id: 'step-location-aware', type: 'reasoning', title, description: instruction.slice(0, 220) });
+    const reply = await llmSituationalReplyOrFallback(instruction, persona, settings, isCrashout, thoughtSteps, fallback, title);
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(reply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
+      }),
+      knowledgeHits: [],
+    };
+  };
+
+  const askForLocation = (topic: 'weather' | 'time' | 'places'): Promise<ReasoningResult> => {
+    const instruction =
+      topic === 'places'
+        ? `The user asked: "${prompt}" — they want nearby real-world place suggestions, but no location was shared and there's no city name in the message. Tell them, in character, that you need them to share their location on the website (there's a location button) before you can suggest anything real nearby — don't invent fake places.`
+        : `The user asked: "${prompt}" — they want the ${topic} but didn't name a city and no location was shared. Tell them, in character, to name a city or share their location on the website so you can actually answer for real instead of guessing.`;
+    return finish(instruction, `📍 Need a city or location for ${topic}`, `I need a city name or your location to actually answer that.`);
+  };
+
+  if (weatherIntent) {
+    let lat: number;
+    let lon: number;
+    let label: string;
+    if (weatherIntent.city) {
+      const geo = await geocodeCity(weatherIntent.city);
+      if (!geo) {
+        return finish(
+          `The user asked for the weather in "${weatherIntent.city}" but that place couldn't be found. Tell them, in character, you couldn't find that city — ask them to check the spelling or try a bigger nearby city.`,
+          '🌦️ City not found',
+          "Couldn't find that city — check the spelling?"
+        );
+      }
+      lat = geo.lat;
+      lon = geo.lon;
+      label = geo.admin1 ? `${geo.name}, ${geo.admin1}` : geo.name;
+    } else if (clientLocation) {
+      lat = clientLocation.lat;
+      lon = clientLocation.lon;
+      label = 'your location';
+    } else {
+      return askForLocation('weather');
+    }
+    const weather = await getWeather(lat, lon, label);
+    if (!weather) {
+      return finish(
+        `The user asked about the weather but the live weather lookup failed. Tell them, in character, the weather service isn't responding right now and to try again in a moment.`,
+        '🌦️ Weather service unavailable',
+        "Weather lookup's not responding right now — try again in a bit?"
+      );
+    }
+    const facts = `Real current weather for ${weather.locationLabel} (local time there: ${weather.localTime}): ${weather.temperatureC}°C, feels like ${weather.feelsLikeC}°C, ${weather.condition}, ${weather.humidity}% humidity, wind ${weather.windKph} km/h, currently ${weather.isDay ? 'daytime' : 'nighttime'} there.`;
+    const instruction = isFrenchQuery
+      ? `L'utilisateur demande la météo : "${prompt}". Voici les VRAIES données météo actuelles — n'invente rien d'autre : ${facts}. Réponds dans tes propres mots, dans ton style, en te basant UNIQUEMENT sur ces faits.`
+      : `The user is asking about the weather: "${prompt}". Here is the REAL current weather data — don't invent anything beyond it: ${facts}. Answer in your own words, in character, based ONLY on these facts.`;
+    return finish(instruction, '🌦️ Live weather (Open-Meteo)', `Right now in ${weather.locationLabel}: ${weather.temperatureC}°C, ${weather.condition}.`);
+  }
+
+  if (timeIntent) {
+    let lat: number;
+    let lon: number;
+    let label: string;
+    if (timeIntent.city) {
+      const geo = await geocodeCity(timeIntent.city);
+      if (!geo) {
+        return finish(
+          `The user asked what time it is in "${timeIntent.city}" but that place couldn't be found. Tell them, in character, you couldn't find that city.`,
+          '🕐 City not found',
+          "Couldn't find that city."
+        );
+      }
+      lat = geo.lat;
+      lon = geo.lon;
+      label = geo.name;
+    } else if (clientLocation) {
+      lat = clientLocation.lat;
+      lon = clientLocation.lon;
+      label = 'your location';
+    } else {
+      return askForLocation('time');
+    }
+    // Reused purely for its timezone/localTime fields — no need for a second, separate API.
+    const weather = await getWeather(lat, lon, label);
+    if (!weather) {
+      return finish(
+        `The user asked what time it is but the lookup failed. Tell them, in character, the time lookup isn't working right now.`,
+        '🕐 Time lookup unavailable',
+        "Couldn't look that up right now."
+      );
+    }
+    const facts = `The real current local time in ${weather.locationLabel} is ${weather.localTime} (timezone: ${weather.timezone}).`;
+    const instruction = isFrenchQuery
+      ? `L'utilisateur demande l'heure qu'il est : "${prompt}". Vraie donnée à utiliser : ${facts}. Réponds dans tes propres mots, dans ton style.`
+      : `The user is asking what time it is: "${prompt}". Real data to use: ${facts}. Answer in your own words, in character.`;
+    return finish(instruction, '🕐 Live local time', `It's ${weather.localTime} there right now.`);
+  }
+
+  // nearbyIntent — no city-based equivalent makes sense for "near me", so this one hard-requires
+  // clientLocation rather than falling back to asking for a city name.
+  if (!clientLocation) return askForLocation('places');
+  const places = await findNearbyPlaces(clientLocation.lat, clientLocation.lon);
+  if (places.length === 0) {
+    return finish(
+      `The user asked for nearby places to go: "${prompt}" but no real places were found nearby (or the lookup failed). Tell them, in character, you couldn't find anything real nearby right now — don't invent fake places.`,
+      '📍 No nearby places found',
+      "Couldn't find anything real nearby right now."
+    );
+  }
+  const placesList = places.slice(0, 8).map((p) => `${p.name} (${p.type}, ${p.distanceM}m away)`).join('; ');
+  const instruction = isFrenchQuery
+    ? `L'utilisateur veut des endroits réels à proximité : "${prompt}". Voici de VRAIS endroits proches — utilise SEULEMENT ceux-ci, n'en invente pas d'autres : ${placesList}. Suggère-lui 2-3 options dans tes propres mots, dans ton style.`
+    : `The user wants real nearby places to go: "${prompt}". Here are REAL nearby places — use ONLY these, never invent others: ${placesList}. Suggest 2-3 of them in your own words, in character.`;
+  return finish(instruction, '📍 Real nearby places (OpenStreetMap)', `Nearby: ${places.slice(0, 3).map((p) => p.name).join(', ')}.`);
+}
+
 export async function generateReasoningPath(
   prompt: string,
   history: ChatMessage[],
@@ -4193,7 +4343,13 @@ export async function generateReasoningPath(
   // corpus-grounded, or safety-refusal branch — see llmSituationalReplyOrFallback's own comment on
   // this same parameter for why those need the complete, verified text before they're trustworthy
   // to show, not a raw progressive stream.
-  onToken?: (chunk: string) => void
+  onToken?: (chunk: string) => void,
+  // Browser geolocation coordinates, sent up only when the user explicitly granted permission on
+  // the website (see App.tsx) — used for weather/time when no city is named, and is REQUIRED for
+  // "what's near me" (there's no city-based equivalent of that one). Optional and additive; every
+  // existing caller that doesn't pass it just gets the same "ask for a city instead" behavior as
+  // before this feature existed.
+  clientLocation?: { lat: number; lon: number }
 ): Promise<ReasoningResult> {
   const thoughtSteps: ThoughtStep[] = [];
   const isCrashout =
@@ -4330,6 +4486,13 @@ export async function generateReasoningPath(
       knowledgeHits: [],
     };
   }
+
+  // Weather/time/nearby-places — checked before corpus retrieval for the same reason bot-meta
+  // questions are (right below): the corpus has zero live data for any of these and would either
+  // hallucinate or wrongly ground on an unrelated document. See handleLocationAwareQuery's own
+  // comment for the full design.
+  const locationResult = await handleLocationAwareQuery(prompt, persona, settings, isCrashout, isSuperChill, thoughtSteps, clientLocation);
+  if (locationResult) return locationResult;
 
   // Genuine meta-questions about the bot ("what are your rules", "what model are you", "how do you
   // work"). Answered from what the engine actually knows about itself rather than corpus search,

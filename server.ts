@@ -218,6 +218,19 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // protection instead. Trade-off: a caller can trivially bypass this by omitting/rotating the id
 // field, since nothing here authenticates it — acceptable given the explicit no-IP-tracking
 // requirement; revisit if that's ever actually exploited.
+// Validates a client-supplied `clientLocation` field (browser geolocation, website only — see
+// handleLocationAwareQuery() in reasoningEngine.ts) into the shape generateReasoningPath expects,
+// or undefined if it's missing/malformed. Shared by all three chat endpoints below.
+function parseClientLocation(raw: any): { lat: number; lon: number } | undefined {
+  return raw &&
+    typeof raw.lat === 'number' &&
+    typeof raw.lon === 'number' &&
+    Number.isFinite(raw.lat) &&
+    Number.isFinite(raw.lon)
+    ? { lat: raw.lat, lon: raw.lon }
+    : undefined;
+}
+
 function discordUserRateLimitKey(req: express.Request): string {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const idFromBody = body.authorId || body.userId || body.discordUserId;
@@ -1110,8 +1123,14 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
     // rather than a separate route: reuses every line of request-parsing/persona-resolution logic
     // below unchanged instead of risking a second, subtly-diverging copy of it.
     stream: streamRequested,
+    // Browser geolocation (Safari "Share Location" prompt on the website only — the Discord bot
+    // never sends this). Used only when the user asks about weather/time/nearby-places without
+    // naming a city — see handleLocationAwareQuery() in reasoningEngine.ts. Trusted as-is (same
+    // trust level as every other client-supplied field on this endpoint); never persisted.
+    clientLocation: rawClientLocation,
   } = req.body;
   const userText = prompt || content || text || message || '';
+  const clientLocation = parseClientLocation(rawClientLocation);
   // Headers must be set before any res.write()/res.json() call — done here, immediately, since
   // nothing has written to the response yet at this point in the handler.
   if (streamRequested) {
@@ -1435,7 +1454,8 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
           allKnowledge,
           userMemories,
           webSearchResults,
-          onToken
+          onToken,
+          clientLocation
         );
         outputText = reasoningResult.content;
         hits = reasoningResult.knowledgeHits;
@@ -1995,7 +2015,9 @@ app.post('/api/v1/generate', aiComputeLimiter, async (req, res) => {
           settings,
           allKnowledge,
           [],
-          webSearchResults
+          webSearchResults,
+          undefined,
+          parseClientLocation(body.clientLocation)
         );
         outputText = reasoningResult.content;
       }
@@ -2111,7 +2133,9 @@ app.post('/api/v1/chat/completions', aiComputeLimiter, async (req, res) => {
           settings,
           allKnowledge,
           [],
-          webSearchResults
+          webSearchResults,
+          undefined,
+          parseClientLocation(req.body.clientLocation)
         );
         outputText = reasoningResult.content;
       }
