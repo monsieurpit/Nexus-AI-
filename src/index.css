@@ -330,6 +330,15 @@ body::after {
     border-color: var(--glass-accent);
     box-shadow: 0 0 0 3px var(--glass-accent-soft);
   }
+  /* iOS Safari force-zooms the whole page on focusing any input/textarea whose computed
+     font-size is under 16px — every .glass-input consumer that doesn't already set its own
+     larger mobile font-size (a Tailwind text-* utility overrides this, per Tailwind's layer
+     order) gets bumped here instead of fixing every call site individually. */
+  @media (max-width: 767px) {
+    .glass-input {
+      font-size: 16px;
+    }
+  }
 
   /* ---- pills / badges ---- */
   .glass-badge {

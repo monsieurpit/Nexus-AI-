@@ -811,7 +811,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 placeholder={`Message ${activePersona.name}…  (Enter to send · Shift+Enter for newline · paste or drop an image)`}
-                className="max-h-44 w-full resize-none bg-transparent px-4 py-3 text-sm text-[var(--glass-text)] placeholder:text-[var(--glass-text-faint)] focus:outline-none"
+                // text-base (16px) below sm: iOS Safari force-zooms the page on focusing any
+                // input/textarea with a computed font-size under 16px — text-sm here would zoom
+                // in on every phone tap and never zoom back out on its own.
+                className="max-h-44 w-full resize-none bg-transparent px-4 py-3 text-base text-[var(--glass-text)] placeholder:text-[var(--glass-text-faint)] focus:outline-none sm:text-sm"
               />
             </div>
 

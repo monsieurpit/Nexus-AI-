@@ -348,7 +348,7 @@ Tone guidelines:
                       type="text"
                       value={localSettings.customPersona.name}
                       onChange={(e) => handleCustomPersonaUpdate({ name: e.target.value })}
-                      className="glass-input text-xs"
+                      className="glass-input text-base sm:text-xs"
                       placeholder="e.g. Quantum Physics Tutor"
                     />
                   </div>
@@ -358,7 +358,7 @@ Tone guidelines:
                       type="text"
                       value={localSettings.customPersona.tagline}
                       onChange={(e) => handleCustomPersonaUpdate({ tagline: e.target.value })}
-                      className="glass-input text-xs"
+                      className="glass-input text-base sm:text-xs"
                       placeholder="e.g. Specializes in advanced particle dynamics"
                     />
                   </div>
@@ -971,7 +971,7 @@ Tone guidelines:
                     type="text"
                     value={localSettings.userName}
                     onChange={(e) => setLocalSettings((prev) => ({ ...prev, userName: e.target.value }))}
-                    className="glass-input text-xs"
+                    className="glass-input text-base sm:text-xs"
                     placeholder="e.g. Alex"
                   />
                   <p className="text-[11px] text-[var(--glass-text-faint)] mt-1">
@@ -994,7 +994,7 @@ Tone guidelines:
                           isSuperChillUser: e.target.value === '1394001641899954368' || prev.isSuperChillUser,
                         }))
                       }
-                      className="glass-input text-xs font-mono"
+                      className="glass-input text-base sm:text-xs font-mono"
                       placeholder="e.g. 1394001641899954368"
                     />
                     <button
@@ -1038,7 +1038,7 @@ Tone guidelines:
                     }
                   }}
                   disabled={localSettings.activePersonaId !== 'custom'}
-                  className="glass-input text-xs font-mono disabled:text-[var(--glass-text-faint)] disabled:opacity-70"
+                  className="glass-input text-base sm:text-xs font-mono disabled:text-[var(--glass-text-faint)] disabled:opacity-70"
                 />
                 {localSettings.activePersonaId !== 'custom' && (
                   <p className="text-[11px] text-[var(--glass-warn)] mt-1">
@@ -1057,7 +1057,7 @@ Tone guidelines:
                   onChange={(e) =>
                     setLocalSettings((prev) => ({ ...prev, userCustomDirectives: e.target.value }))
                   }
-                  className="glass-input text-xs font-mono"
+                  className="glass-input text-base sm:text-xs font-mono"
                   placeholder="e.g. Rule 1: Only output JSON. Rule 2: If message is scam return safety 0.05. Rule 3: If user needs help give direct steps."
                 />
               </div>

@@ -129,7 +129,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search conversations"
-            className="glass-input py-1.5 pl-8 pr-7 text-xs"
+            className="glass-input py-1.5 pl-8 pr-7 text-base sm:text-xs"
           />
           {query && (
             <button
@@ -202,7 +202,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                           if (e.key === 'Enter') commitEdit();
                           if (e.key === 'Escape') setEditingId(null);
                         }}
-                        className="glass-input min-w-0 flex-1 px-1.5 py-0.5 text-xs"
+                        className="glass-input min-w-0 flex-1 px-1.5 py-0.5 text-base sm:text-xs"
                       />
                       <button
                         type="button"

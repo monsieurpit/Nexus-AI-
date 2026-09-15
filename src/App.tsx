@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Menu } from 'lucide-react';
 import { Sidebar, AppView } from './components/Sidebar';
 import { ConversationSidebar } from './components/ConversationSidebar';
 import { ChatView } from './components/ChatView';
@@ -124,8 +125,11 @@ export default function App() {
   const isApiModalOpen = openModal === 'api';
   const closeModal = () => setOpenModal(null);
 
-  // On narrow screens the conversation list collapses into an overlay drawer
-  // toggled from the chat header; on md+ it's always a static column.
+  // On narrow screens (phones — this drives Safari/iOS behavior specifically since that's
+  // Patrick's actual daily driver) BOTH the icon rail and the conversation list collapse into one
+  // overlay drawer, toggled from a menu button, instead of permanently eating ~90px of a ~375px
+  // screen; on md+ they're always static columns. Same single boolean drives both panels so one
+  // tap reveals the whole nav rather than needing two separate toggles.
   const [isConvoDrawerOpen, setIsConvoDrawerOpen] = useState(false);
   useEffect(() => {
     if (!isConvoDrawerOpen) return;
@@ -465,28 +469,42 @@ export default function App() {
   };
 
   return (
-    <div className="relative flex h-screen gap-3 overflow-hidden bg-[var(--glass-base)] p-3 text-[var(--glass-text)]">
-      {/* Icon rail — a floating glass panel, not an edge-to-edge column */}
-      <Sidebar
-        settings={settings}
-        activePersona={activePersona}
-        view={view}
-        onSelectView={setView}
-        onSelectPersona={handleSelectPersona}
-        onOpenCustomizer={() => setOpenModal('customizer')}
-        onOpenKnowledge={() => setOpenModal('knowledge')}
-        onOpenAttention={() => {
-          setActiveAttentionMsg(null);
-          setOpenModal('attention');
-        }}
-        onOpenApiIntegration={() => setOpenModal('api')}
-      />
+    <div
+      className="relative flex h-dvh gap-3 overflow-hidden bg-[var(--glass-base)] p-3 text-[var(--glass-text)]"
+      style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+    >
+      {/* Icon rail — a floating glass panel, not an edge-to-edge column. On phones it's hidden
+          off-screen by default (same drawer toggle as the conversation list below) rather than
+          permanently reserving ~90px of a screen that might only be 375px wide; md+ keeps it as a
+          static column exactly as before. */}
+      <div
+        className={`fixed inset-y-0 left-0 z-40 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] transition-transform duration-[var(--glass-dur-slow)] md:static md:z-10 md:translate-x-0 md:p-0 ${
+          isConvoDrawerOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        <Sidebar
+          settings={settings}
+          activePersona={activePersona}
+          view={view}
+          onSelectView={setView}
+          onSelectPersona={handleSelectPersona}
+          onOpenCustomizer={() => setOpenModal('customizer')}
+          onOpenKnowledge={() => setOpenModal('knowledge')}
+          onOpenAttention={() => {
+            setActiveAttentionMsg(null);
+            setOpenModal('attention');
+          }}
+          onOpenApiIntegration={() => setOpenModal('api')}
+        />
+      </div>
 
       {view === 'chat' && (
         <>
-          {/* Conversation list — floating glass panel, static on md+, slide-in drawer below */}
+          {/* Conversation list — floating glass panel, static on md+, slide-in drawer below.
+              Offset by the rail's own width + gap so the two mobile drawers sit side by side
+              instead of stacking on top of each other. */}
           <div
-            className={`fixed inset-y-0 left-0 z-40 py-3 pl-3 transition-transform duration-[var(--glass-dur-slow)] md:static md:z-10 md:translate-x-0 md:p-0 ${
+            className={`fixed inset-y-0 left-0 z-40 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] transition-transform duration-[var(--glass-dur-slow)] md:static md:z-10 md:translate-x-0 md:p-0 ${
               isConvoDrawerOpen ? 'translate-x-[calc(var(--glass-rail-w)_+_1.5rem)] md:translate-x-0' : '-translate-x-full md:translate-x-0'
             }`}
           >
@@ -543,9 +561,29 @@ export default function App() {
       )}
 
       {view === 'code' && (
-        <main className="glass-panel flex min-w-0 flex-1 flex-col overflow-hidden">
-          <NexusCodeView />
-        </main>
+        <>
+          {/* NexusCodeView has no header of its own to host a menu button, unlike ChatView — a
+              small floating one here is the mobile entry point back to the rail in this view. */}
+          <button
+            type="button"
+            onClick={() => setIsConvoDrawerOpen((v) => !v)}
+            aria-label="Open menu"
+            className="glass-panel fixed left-3 top-3 z-40 flex h-10 w-10 items-center justify-center text-[var(--glass-text-muted)] transition hover:text-[var(--glass-text)] md:hidden"
+            style={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          {isConvoDrawerOpen && (
+            <div
+              className="fixed inset-0 z-30 bg-black/50 md:hidden"
+              onClick={() => setIsConvoDrawerOpen(false)}
+              aria-hidden="true"
+            />
+          )}
+          <main className="glass-panel flex min-w-0 flex-1 flex-col overflow-hidden">
+            <NexusCodeView />
+          </main>
+        </>
       )}
 
       {/* Customizer Modal */}
