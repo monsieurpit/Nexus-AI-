@@ -283,18 +283,20 @@ async function runDeterministicChecks() {
   // extremely common comma-after-"So" phrasing entirely.
   check('watchdog catches "So, you\'re asking..." (comma-after-so regex fix)', detectHumanTells("So, you're asking about how vaccines work?").tells.includes('question-restating'));
 
-  // Real prompt-size budget check — turns the earlier latency-bloat discovery (see
-  // localLlmClient.ts's LATENCY_DEBUG comment: a confident-grounded prompt had grown to ~4000
-  // tokens before that fix) into a standing guardrail instead of a one-time fix. Ceiling set with
-  // real headroom above the current measured size (~4900 chars at its largest, deep-cot) so
-  // ordinary small additions don't false-positive, but a genuine regression back toward the
-  // pre-fix bloat (~9900 chars) would still be caught well before it got that bad.
+  // Prompt-size sanity ceiling — NOT a latency-optimization target anymore. Patrick explicitly
+  // said (2026-09-15) he does not care how long the system prompt is; response quality (heavy
+  // swearing, realism, intelligence, sounding non-robotic, knowing its creator) comes first, full
+  // stop — so this is no longer tuned to catch "prompt got a bit bigger than before." It still
+  // exists purely as a sanity backstop against a genuine runaway bug (e.g. a directive getting
+  // concatenated in a loop, or duplicated content), set with generous headroom above the current
+  // real size (~9300 chars at its largest, deep-cot, after the few-shot voice examples added
+  // alongside this change) rather than against the old, since-abandoned ~5500 latency target.
   const crashoutPersona = DEFAULT_PERSONAS['crashout-bot'];
-  const PROMPT_CHAR_CEILING = 5500;
-  // Self-test the ceiling logic itself against a synthetic bloated size (matching the actual
-  // pre-fix measured size, ~9900 chars) before trusting it against the real, current-good values
-  // below — a budget check that's never been proven to actually fire isn't proven to work.
-  check('watchdog would catch a genuinely bloated prompt (synthetic ~9900-char case)', 9900 >= PROMPT_CHAR_CEILING);
+  const PROMPT_CHAR_CEILING = 25000;
+  // Self-test the ceiling logic itself against a synthetic genuinely-runaway size before trusting
+  // it against the real, current-good values below — a budget check that's never been proven to
+  // actually fire isn't proven to work.
+  check('watchdog would catch a genuinely runaway prompt (synthetic ~40000-char case)', 40000 >= PROMPT_CHAR_CEILING);
   for (const mode of ['fast', 'thorough', 'deep-cot'] as const) {
     const size = getSystemPromptCharCount(crashoutPersona, { ...DEFAULT_SETTINGS, activePersonaId: 'crashout-bot' as const, reasoningMode: mode }, true);
     check(`system prompt size budget: reasoningMode='${mode}' stays under ${PROMPT_CHAR_CEILING} chars`, size < PROMPT_CHAR_CEILING, `actual: ${size} chars`);
