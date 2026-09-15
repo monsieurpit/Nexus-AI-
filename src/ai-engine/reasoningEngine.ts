@@ -3183,18 +3183,27 @@ const LLM_MAX_TOKENS_BROAD = 900;
 const LLM_MAX_TOKENS_CASUAL = 220;
 
 // Extra token room added on top of the CONTENT budget whenever `think: true` is set — Gemma 4's
-// native thinking channel draws from the same overall token budget the API call is given, so
-// handing it only the content-sized budget starves it of room to think before starting content
-// (this exact mechanism caused the empty_response bug fixed earlier: a tight budget spent entirely
-// on thinking left literally nothing for message.content). Patrick explicitly wants the real,
-// unedited thinking visible in the reasoning-trace panel on every reply now, not gated behind
-// reasoningMode, and said latency doesn't matter to him — so this is deliberately generous rather
-// than tuned tight. Raised again (500 -> 1200) alongside crashout-bot's default reasoningMode
-// switching to 'deep-cot' (see memoryStore.ts) — deep-cot's directive explicitly asks for
-// multiple-angle reasoning and active fact-disambiguation, which genuinely needs more thinking
-// tokens than the lighter 'thorough' pass this headroom was originally sized for; 500 left real
-// risk of the same empty_response starvation resurfacing on a longer, more thorough thinking pass.
-const THINKING_TOKEN_HEADROOM = 1200;
+// native thinking channel draws from the SAME overall token budget (num_predict) as the visible
+// reply, so handing it only the content-sized budget starves it of room to think before starting
+// content (this exact mechanism caused the empty_response bug fixed earlier: a tight budget spent
+// entirely on thinking left literally nothing for message.content).
+//
+// Scaled by reasoningMode rather than one flat constant — found live (2026-09-15) via Ollama's own
+// server timing logs that generation speed on this hardware is a fixed ~26 tokens/sec REGARDLESS
+// of prompt size (prefill/prompt-eval was only ~2-3.5s even at the largest prompts; the entire
+// 25-45s wall-clock cost was eval/generation time), and a flat 1200-token headroom meant even a
+// trivial "yo whats up" in 'fast' mode was measured actually generating 600-800+ total tokens
+// (mostly thinking) — i.e. the ceiling wasn't just headroom, the model was using most of it every
+// time. 'fast' has no reasoning directive telling it to deliberate at all (buildReasoningModeInstruction
+// returns '' for 'fast'), so its undirected thinking is naturally short — capping it tightly is what
+// actually makes 'fast' fast, without turning off the now-always-on thinking channel Patrick asked
+// to see. 'thorough'/'deep-cot' keep generous room since their whole point is a longer, directed
+// reasoning pass and a user picking those has already accepted the latency tradeoff.
+function thinkingHeadroomFor(reasoningMode: AISettings['reasoningMode']): number {
+  if (reasoningMode === 'deep-cot') return 1200;
+  if (reasoningMode === 'thorough') return 700;
+  return 280;
+}
 
 const BROAD_QUESTION_PATTERN =
   /\b(explain|compare|difference between|pros and cons|walk me through|breakdown|in detail|everything about|all the|list (?:all|every)|how does .+ work|why (?:does|is|do)|what are the)\b/i;
@@ -3874,19 +3883,21 @@ async function llmSituationalReplyOrFallback(
     // Mood scales this further — a bored/depressed mood genuinely has less to say, angry is short
     // and cutting rather than chatty, happy has more to say. Deliberately only applied here, never
     // to a factual-answer budget, so mood can color small talk without ever truncating a real
-    // answer to a genuine question. THINKING_TOKEN_HEADROOM is added on top (not scaled by mood)
-    // so even a bored/depressed reply's tighter reply budget still gets full room to think first.
+    // answer to a genuine question. thinkingHeadroomFor()'s result is added on top (not scaled by
+    // mood) so even a bored/depressed reply's tighter reply budget still gets full room to think
+    // first — see thinkingHeadroomFor's own comment for why this is scaled by reasoningMode rather
+    // than one flat value.
     maxTokens:
       Math.round(Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier()) +
-      THINKING_TOKEN_HEADROOM,
+      thinkingHeadroomFor(settings.reasoningMode),
     preferPolish: usePolish,
     preferFrench: useFrench,
     model: localLlmClient.chatModel(),
     // Patrick wants the model's real, unedited thinking visible in the reasoning-trace panel on
     // every reply, including plain casual chit-chat (this is the highest-traffic path, so leaving
     // it off here — as before — meant thinking almost never showed up at all). Safe now that
-    // maxTokens above includes THINKING_TOKEN_HEADROOM specifically to prevent the empty_response
-    // bug this used to cause when thinking ate a too-tight budget.
+    // maxTokens above includes thinkingHeadroomFor()'s result specifically to prevent the
+    // empty_response bug this used to cause when thinking ate a too-tight budget.
     think: true,
   };
   const llmResult = onToken
@@ -4062,15 +4073,15 @@ async function llmGroundedOrFallback(
       : factualPin ? 0.25 : confident ? 0.5 : 0.7) - reasoningDrop
   );
   // Always on now — Patrick wants the real, unedited thinking visible in the reasoning-trace panel
-  // on every reply, not just 'thorough'/'deep-cot'. THINKING_TOKEN_HEADROOM below is what makes
-  // this safe in 'fast' mode too (previously excluded specifically because 'fast' has no reasoning
+  // on every reply, not just 'thorough'/'deep-cot'. thinkingHeadroomFor() below is what makes this
+  // safe in 'fast' mode too (previously excluded specifically because 'fast' has no reasoning
   // instruction telling it to think, so there was no headroom budgeted for a thinking pass it might
   // still spontaneously produce — see the `think` field's own comment on OllamaGenerateOptions).
   const revealThinking = true;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
     temperature: usedTemperature,
-    maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + THINKING_TOKEN_HEADROOM,
+    maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + thinkingHeadroomFor(settings.reasoningMode),
     preferPolish: usePolish,
     preferFrench: useFrench,
     model: localLlmClient.chatModel(),
@@ -4152,7 +4163,7 @@ async function llmGroundedOrFallback(
     const retryResult = await localLlmClient.generate(groundedPrompt + correctionNote, {
       system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
       temperature: usedTemperature,
-      maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + THINKING_TOKEN_HEADROOM,
+      maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + thinkingHeadroomFor(settings.reasoningMode),
       preferPolish: usePolish,
       preferFrench: useFrench,
       model: localLlmClient.chatModel(),
