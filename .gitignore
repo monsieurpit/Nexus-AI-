@@ -14,3 +14,11 @@ CORPUS_NIGHT_LOG.md
 scripts/e2e-screenshots/
 scripts/e2e-videos/
 scripts/e2e-frames/
+# Local voice-cloning TTS service (tts-service/server.py, Coqui XTTS-v2) — the venv is a huge
+# (multi-GB) local Python environment that never belongs in git, and voices/*.wav is Patrick's own
+# personal voice recording, which stays local to his machine, never committed (see
+# tts-service/voices/README.md).
+tts-service/venv/
+tts-service/voices/*.wav
+tts-service/__pycache__/
+tts-service/*.pyc

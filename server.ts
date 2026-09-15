@@ -58,6 +58,14 @@ import {
 const app = express();
 const PORT = 3000;
 
+// Local voice-cloning TTS microservice (tts-service/, Coqui XTTS-v2) — same pattern as
+// OLLAMA_BASE_URL: a separate local process on Patrick's own Mac, not bundled into this Node
+// server (Python/PyTorch, a completely different runtime). Defaults to localhost since local dev
+// reaches it directly; a production deploy needs its own cloudflared tunnel pointed at this port,
+// same as ~/.nexus-tunnel/ already does for Ollama, with TTS_SERVICE_BASE_URL set to that tunnel
+// URL on Railway.
+const TTS_SERVICE_BASE_URL = (process.env.TTS_SERVICE_BASE_URL || 'http://127.0.0.1:5050').replace(/\/+$/, '');
+
 // Generous for a real photo/screenshot, nowhere near enough to threaten memory on a host running
 // alongside a local LLM — this is the hard ceiling on any single remote "image" this server will
 // ever pull fully into memory.
@@ -1065,6 +1073,48 @@ app.post('/api/v1/title', aiComputeLimiter, async (req, res) => {
     return res.json({ title: title || null });
   } catch (err: any) {
     return res.status(200).json({ title: null });
+  }
+});
+
+// Proxies to the local voice-cloning TTS microservice (tts-service/server.py, Coqui XTTS-v2) —
+// Patrick's own cloned voice reading a reply aloud on demand. Deliberately a thin proxy, not
+// reimplemented here: TTS inference is Python/PyTorch, a different runtime than this Node server,
+// same reasoning as why Ollama itself is a separate local process rather than embedded here.
+// Never auto-triggered — this endpoint is only ever called by an explicit click on the client's
+// speak button (see src/utils/textToSpeech.ts), matching Patrick's explicit "only when I press
+// the button, never automatically" instruction.
+app.post('/api/v1/speak', aiComputeLimiter, async (req, res) => {
+  const { text, language } = req.body || {};
+  const cleanText = typeof text === 'string' ? text.trim() : '';
+  if (!cleanText) {
+    return res.status(400).json({ error: 'text is required' });
+  }
+  const controller = new AbortController();
+  // Generous — a long reply chunked into several XTTS-v2 passes can genuinely take a while on
+  // this hardware, same "latency doesn't matter, don't kill a slow-but-working request" stance
+  // already applied to Ollama's own timeouts this session.
+  const timer = setTimeout(() => controller.abort(), 120000);
+  try {
+    const ttsRes = await fetch(`${TTS_SERVICE_BASE_URL}/speak`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: cleanText, language: typeof language === 'string' ? language : 'en' }),
+      signal: controller.signal,
+    });
+    if (!ttsRes.ok) {
+      const detail = await ttsRes.text().catch(() => '');
+      // 412 from tts-service/server.py specifically means "no reference voice recorded yet" —
+      // surfaced as-is so the client can show a clear, specific message instead of a generic error.
+      return res.status(ttsRes.status === 412 ? 412 : 502).json({ error: detail || 'TTS service error' });
+    }
+    const audioBuffer = Buffer.from(await ttsRes.arrayBuffer());
+    res.setHeader('Content-Type', 'audio/wav');
+    return res.send(audioBuffer);
+  } catch (err: any) {
+    const reason = err?.name === 'AbortError' ? 'timeout' : 'connection_error';
+    return res.status(503).json({ error: `TTS service unavailable (${reason})` });
+  } finally {
+    clearTimeout(timer);
   }
 });
 

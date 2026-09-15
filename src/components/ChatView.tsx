@@ -34,6 +34,10 @@ import { isSpeechSupported, speakText, stopSpeaking, looksFrenchForSpeech } from
 interface ChatViewProps {
   messages: ChatMessage[];
   isGenerating: boolean;
+  // Whether ANY conversation anywhere is currently generating — gates voice-over playback (see
+  // handleToggleSpeak below), distinct from `isGenerating` which is scoped to just this view's
+  // active conversation.
+  isAnyGenerating: boolean;
   streamingChunk: string;
   progressStage?: string;
   activePersona: ModelPersona;
@@ -83,6 +87,7 @@ const SAMPLE_PROMPTS: { title: string; prompt: string }[] = [
 export const ChatView: React.FC<ChatViewProps> = ({
   messages,
   isGenerating,
+  isAnyGenerating,
   streamingChunk,
   progressStage,
   activePersona,
@@ -117,9 +122,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'granted' | 'denied'>(
     () => (getCachedClientLocation() ? 'granted' : 'idle')
   );
-  // Voice-over playback (Web Speech API) — at most one message can be "speaking" at a time, since
-  // speakText() itself cancels any prior utterance before starting a new one.
+  // Voice-over playback — at most one message can be "speaking" at a time, since speakText()
+  // itself cancels any prior playback before starting a new one. `pendingSpeakMsgId` holds a
+  // request made while ANY conversation was still generating (see isAnyGenerating) — Patrick's
+  // explicit ask: playback must never start mid-generation, anywhere, since the local voice model
+  // competes with Ollama for the same limited RAM/CPU. The request is queued, not dropped, and
+  // fires automatically the moment every in-flight generation finishes (see the effect below).
   const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+  const [pendingSpeakMsgId, setPendingSpeakMsgId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -259,19 +269,52 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setLocationStatus(loc ? 'granted' : 'denied');
   };
 
+  const startSpeaking = (message: ChatMessage) => {
+    speakText(message.content, {
+      preferFrench: looksFrenchForSpeech(message.content),
+      onStart: () => setSpeakingMsgId(message.id),
+      onEnd: () => setSpeakingMsgId((prev) => (prev === message.id ? null : prev)),
+      onError: (reason) => {
+        setSpeakingMsgId((prev) => (prev === message.id ? null : prev));
+        // Not surfaced as a UI error toast (no such mechanism exists here yet) — logged so the
+        // failure is at least visible in devtools rather than a silent, unexplained no-op click,
+        // e.g. reason 412 ("no reference voice recorded yet") before Patrick's sample is added.
+        console.warn('Voice-over failed:', reason);
+      },
+    });
+  };
+
   const handleToggleSpeak = (message: ChatMessage) => {
     if (speakingMsgId === message.id) {
       stopSpeaking();
       setSpeakingMsgId(null);
       return;
     }
-    speakText(message.content, {
-      preferFrench: looksFrenchForSpeech(message.content),
-      onStart: () => setSpeakingMsgId(message.id),
-      onEnd: () => setSpeakingMsgId((prev) => (prev === message.id ? null : prev)),
-      onError: () => setSpeakingMsgId((prev) => (prev === message.id ? null : prev)),
-    });
+    if (pendingSpeakMsgId === message.id) {
+      // Clicked again while queued, waiting on generation to finish — cancel the queue instead of
+      // re-queueing the same message.
+      setPendingSpeakMsgId(null);
+      return;
+    }
+    if (isAnyGenerating) {
+      // Never start playback while anything is still generating, anywhere — queue it instead of
+      // dropping the request; the effect below fires it automatically once free.
+      setPendingSpeakMsgId(message.id);
+      return;
+    }
+    startSpeaking(message);
   };
+
+  // Fires a queued voice-over request the moment every in-flight generation finishes. Deliberately
+  // keyed on the message's live content (not a stale closure) — the queued message could still be
+  // mid-stream when queued and only fully settled by the time generation actually stops.
+  useEffect(() => {
+    if (isAnyGenerating || !pendingSpeakMsgId) return;
+    const target = messages.find((m) => m.id === pendingSpeakMsgId);
+    setPendingSpeakMsgId(null);
+    if (target) startSpeaking(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAnyGenerating, pendingSpeakMsgId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // isComposing is true while an IME (CJK input) candidate is still being composed — without
@@ -748,15 +791,29 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           <button
                             onClick={() => handleToggleSpeak(message)}
                             className={`rounded p-1 transition hover:bg-[var(--glass-panel-elevated)] ${
-                              speakingMsgId === message.id
+                              speakingMsgId === message.id || pendingSpeakMsgId === message.id
                                 ? 'text-[var(--glass-accent-hover)]'
                                 : 'text-[var(--glass-text-faint)] hover:text-[var(--glass-text)]'
                             }`}
-                            title={speakingMsgId === message.id ? 'Stop reading aloud' : 'Read message aloud'}
-                            aria-label={speakingMsgId === message.id ? 'Stop reading aloud' : 'Read message aloud'}
+                            title={
+                              speakingMsgId === message.id
+                                ? 'Stop reading aloud'
+                                : pendingSpeakMsgId === message.id
+                                ? 'Queued — will read aloud once every reply finishes generating'
+                                : 'Read message aloud'
+                            }
+                            aria-label={
+                              speakingMsgId === message.id
+                                ? 'Stop reading aloud'
+                                : pendingSpeakMsgId === message.id
+                                ? 'Queued to read aloud'
+                                : 'Read message aloud'
+                            }
                           >
                             {speakingMsgId === message.id ? (
                               <VolumeX className="h-3.5 w-3.5 animate-pulse" />
+                            ) : pendingSpeakMsgId === message.id ? (
+                              <Volume2 className="h-3.5 w-3.5 animate-pulse" />
                             ) : (
                               <Volume2 className="h-3.5 w-3.5" />
                             )}

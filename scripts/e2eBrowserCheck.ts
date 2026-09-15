@@ -216,16 +216,18 @@ async function run() {
     } else {
       check('regenerate button produces a new reply', false, 'button not found');
     }
-    // Voice-over button — real functional check: click it and confirm the Web Speech API actually
-    // fires its onstart callback (button flips to "Stop reading aloud" / aria-pressed via label
-    // change), not just that the button exists and does nothing when clicked.
+    // Voice-over button — real functional check: click it and confirm the local XTTS-v2 voice
+    // service actually returns audio and starts playing (button flips to "Stop reading aloud"),
+    // not just that the button exists and does nothing when clicked. 20s timeout since this now
+    // hits a real local TTS microservice (network fetch + model inference), not the old instant
+    // browser Web Speech API.
     const speakBtn = page.locator('button[aria-label="Read message aloud"]').last();
     if (await speakBtn.count() > 0) {
       await speakBtn.click();
       const stoppedLabelAppeared = await page
         .locator('button[aria-label="Stop reading aloud"]')
         .last()
-        .waitFor({ state: 'visible', timeout: 5000 })
+        .waitFor({ state: 'visible', timeout: 90000 })
         .then(() => true)
         .catch(() => false);
       check('voice-over button actually starts speech (onstart fires)', stoppedLabelAppeared);
@@ -242,8 +244,46 @@ async function run() {
         check('voice-over stop button actually stops speech', false, 'never started, nothing to stop');
       }
     } else {
-      check('voice-over button actually starts speech (onstart fires)', false, 'button not found — browser may not support speechSynthesis');
+      check('voice-over button actually starts speech (onstart fires)', false, 'button not found');
       check('voice-over stop button actually stops speech', false, 'button not found');
+    }
+
+    // Voice-over generation-gating — Patrick's explicit requirement: clicking speak while ANY
+    // reply is still generating must NOT start playback immediately; it queues, and fires
+    // automatically the instant generation finishes. Send a second message without awaiting
+    // completion, click the FIRST message's speak button while the second is still generating,
+    // and confirm it shows the queued state (not playing) — then confirm it auto-starts once the
+    // second message's generation completes, with no further click needed.
+    const firstMsgSpeakBtn = page.locator('button[aria-label="Read message aloud"]').first();
+    if (await firstMsgSpeakBtn.count() > 0) {
+      const textarea2 = page.locator('textarea').first();
+      await textarea2.click();
+      await textarea2.fill('whats a good movie to watch tonight');
+      await page.locator('button[aria-label="Send message"]').click();
+      // Don't await completion — click speak while this is still in flight.
+      await page.waitForTimeout(800);
+      await firstMsgSpeakBtn.click();
+      const queuedWhileGenerating = await page
+        .locator('button[aria-label="Queued to read aloud"]')
+        .first()
+        .isVisible()
+        .catch(() => false);
+      check('voice-over queues instead of playing while a reply is still generating', queuedWhileGenerating);
+
+      await page.locator('button[aria-label="Send message"]').waitFor({ state: 'visible', timeout: 180000 });
+      const autoStartedAfterGeneration = await page
+        .locator('button[aria-label="Stop reading aloud"]')
+        .first()
+        .waitFor({ state: 'visible', timeout: 90000 })
+        .then(() => true)
+        .catch(() => false);
+      check('voice-over auto-starts the queued playback once generation finishes', autoStartedAfterGeneration);
+      if (autoStartedAfterGeneration) {
+        await page.locator('button[aria-label="Stop reading aloud"]').first().click();
+      }
+    } else {
+      check('voice-over queues instead of playing while a reply is still generating', false, 'button not found');
+      check('voice-over auto-starts the queued playback once generation finishes', false, 'button not found');
     }
   });
 

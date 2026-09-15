@@ -102,6 +102,12 @@ export default function App() {
   const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
   const isGenerating = !!generatingIds[activeConversationId];
+  // Whether ANY conversation, anywhere, is currently generating a reply — not just the one on
+  // screen. Used to gate the voice-over feature: Patrick's explicit ask is that playback never
+  // starts while a request is in flight anywhere, since the local TTS model competes for the same
+  // limited RAM/CPU as Ollama on this machine, and overlapping the two risks exactly the kind of
+  // resource contention that caused real OOM crashes earlier this session.
+  const isAnyConversationGenerating = Object.values(generatingIds).some(Boolean);
   const streamingChunk = streamingChunks[activeConversationId] || '';
   const progressStage = progressStages[activeConversationId] || '';
 
@@ -546,6 +552,7 @@ export default function App() {
               key={activeConversationId}
               messages={messages}
               isGenerating={isGenerating}
+              isAnyGenerating={isAnyConversationGenerating}
               streamingChunk={streamingChunk}
               progressStage={progressStage}
               activePersona={activePersona}
