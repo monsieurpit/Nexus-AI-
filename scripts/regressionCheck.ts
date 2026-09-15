@@ -17,7 +17,7 @@ import { looksFrench } from '../src/ai-engine/localLlmClient';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore';
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/moodEngine';
-import { detectUserInsult, detectEmotionalDistress } from '../src/ai-engine/swearEngine';
+import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare } from '../src/ai-engine/swearEngine';
 import { shouldTriggerLiveWebSearch } from '../src/ai-engine/webSearchEngine';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
 import { trySolveMath } from '../src/ai-engine/mathSolver';
@@ -103,6 +103,34 @@ async function runDeterministicChecks() {
   // hack it parsed was replaced by Gemma 4's genuinely native thinking channel (message.thinking
   // in Ollama's response, read directly in localLlmClient.ts's processRawGenerateOutput), so there
   // is no longer any tagged text to extract.
+
+  console.log('\nChaotic overshare injection (crude/sexual content, e.g. "naked and gooning"):');
+  // Live bug: CHAOTIC_OVERSHARE_SIGNAL_REGEX matched bare common nouns (kitchen, sofa, couch,
+  // wifi, router, deadline, homework, leftovers, barking, controller) that show up in an enormous
+  // share of ordinary chat completely unrelated to the overshare bit ever running — so the
+  // "already present, don't inject" check fired constantly on totally unrelated replies, and the
+  // real injection (with the actual gooning/naked content Patrick explicitly wants kept) almost
+  // never fired. Verified live: 17 consecutive real replies, each organically mentioning one of
+  // those bare nouns while chatting about something else, produced ZERO of the real pool content.
+  // Statistical, not exact-count, since forceChaoticOvershare rolls a random 32% chance each call —
+  // a generous range (40-260 out of 500) catches "never fires" or "always fires" while tolerating
+  // ordinary binomial variance around the true ~32% rate.
+  {
+    const mundaneReply =
+      "not much, just chilling on the sofa in the kitchen, my wifi's been dying and I've got a deadline for some homework, the neighbor's dog is barking and I lost the controller under the couch, ate the leftovers already.";
+    let injectedCount = 0;
+    for (let i = 0; i < 500; i++) {
+      if (forceChaoticOvershare(mundaneReply) !== mundaneReply) injectedCount++;
+    }
+    check(
+      `forceChaoticOvershare actually injects on mundane text (${injectedCount}/500, expect ~160)`,
+      injectedCount > 40 && injectedCount < 260
+    );
+  }
+  check('forceChaoticOvershare does NOT double-inject when "naked"/"gooning" is already present', (() => {
+    const already = "I'm literally naked and gooning right now, don't mind me, anyway what's up with you?";
+    return forceChaoticOvershare(already) === already;
+  })());
 
   console.log('\nGotcha / logic solver:');
   check('"how many months have 28 days" -> all 12', trySolveLogic('how many months have 28 days')?.verdict === 'All 12 of them.');

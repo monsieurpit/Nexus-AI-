@@ -1402,8 +1402,17 @@ const CHAOTIC_OVERSHARE_LINES = [
 ];
 // Loose signal words for detecting the bit is ALREADY present, independent of the exact pool
 // text above (the LLM is meant to invent its own lines too, not just reuse these verbatim).
+// Was WAY too broad: bare common nouns like kitchen/sofa/couch/wifi/router/deadline/homework/
+// leftovers/barking/controller match an enormous share of completely unrelated ordinary chat
+// (the model riffing on "my sofa cushion" or "this wifi" has nothing to do with the overshare bit
+// ever having happened) — verified live, 17 consecutive test replies each organically mentioned
+// at least one of these bare nouns while chatting about something else entirely, so this check
+// bailed out before ever rolling the injection dice, and the ACTUAL pool content (naked/gooning/
+// balls deep) never once appeared across all 17. Tightened to the same distinctive multi-word
+// phrasing the pool itself uses — a real signal a similar bit already ran, not just a coincidental
+// shared word.
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX =
-  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|\bmy\s+girl\b|\bmy\s+bed\b|fuck\s+with\s+y'?all\b|\bkitchen\b|\bsofa\b|\bcouch\b|ranked\s+losses?|controller|boss\s+fight|burned\s+toast|smoke\s+alarm|leftovers|deadline|homework|wifi|router|stubbed\s+my\s+toe|barking|stuck\s+in\s+my\s+head/i;
+  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|my\s+girl\s+and\s+i\b|fuck\s+with\s+y'?all\b|ranked\s+losses?|boss\s+fight|burned\s+toast|smoke\s+alarm|stubbed\s+my\s+toe|stuck\s+in\s+my\s+head\s+for/i;
 
 // Polish pool, added for feature parity — this used to be English-only because
 // buildPolishSystemPrompt deliberately never got the INSTRUCTION for this bit (documented there:
@@ -1456,8 +1465,13 @@ const CHAOTIC_OVERSHARE_LINES_PL = [
 // (no drużyna/noga pattern at all), "energetykach...trzęsą" (same root cause as the głęb case),
 // "gorąco...laptop...gotuje" (no pattern at all), and "zajebiście się z wami bawię" (no pattern
 // at all) — fixed all of them together while already auditing this regex line by line.
+// Same over-broad-bare-noun problem as the English regex above (kuchni/kanapie/wifi/router/
+// deadline/laptop/budzik etc. are far too common in ordinary chat to signal the bit already ran)
+// — tightened the same way, to distinctive multi-word phrasing only. Currently dead code in
+// practice (looksPolish() is hard-disabled — see localLlmClient.ts), kept correct for when/if
+// Polish support returns rather than left broken.
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX_PL =
-  /\bnag[aiy]\b|wal[eię]\s+konia|energetyk(?:ach|ów|u)?|\b1v1\b|po\s+jaja\b|moj[aą]\s+dziewczyn[aęą]|w\s+łóżku\b|\bkuchni\b|\bkanapie\b|ranked|\bpad(?:a|zie)?\b|boss(?:ie|a)?|spaliłem|czujka\s+dymu|płatki|deadline|zadanie\s+domowe|budzik|wifi|router|palcem|szczeka|dru[żz]yn[aęy]|jak\s+noga|gorąco|\blaptop\b|zajebi[śs]cie/i;
+  /\bnag[aiy]\b|wal[eię]\s+konia|energetyk(?:ach|ów|u)?\s+w\s+trakcie|\b1v1\b|po\s+jaja\b|moj[aą]\s+dziewczyn[aęą]\s+i\s+ja|spaliłem\s+tosty|czujka\s+dymu|szczeka\s+od\s+godziny/i;
 
 // Probability of actually injecting when the LLM didn't already include the bit on its own —
 // this used to be unconditional (inject whenever absent), which meant it fired on essentially
