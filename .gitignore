@@ -9,3 +9,6 @@ coverage/
 /data/apiKeys.json
 .claude/worktrees/
 CORPUS_NIGHT_LOG.md
+# Regenerated on every scripts/e2eBrowserCheck.ts run — screenshots are for looking at locally
+# (or via Read), not for tracking in git history as binary churn.
+scripts/e2e-screenshots/
