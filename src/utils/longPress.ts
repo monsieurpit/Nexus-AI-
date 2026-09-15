@@ -72,6 +72,14 @@ export function makeLongPressHandlers(onLongPress: () => void, thresholdMs = 480
       // Not related to text selection at all, easy to miss since it has no visible effect on a
       // quick tap.
       WebkitTapHighlightColor: 'transparent',
+      // The actual missing piece for the recurring blue-highlight report: user-select/
+      // touch-callout operate at the CSS painting stage, but iOS Safari's press-and-hold
+      // gesture recognizer can start the text-selection UI before that stage even applies —
+      // so the blue highlight/loupe can flash briefly no matter what user-select says. touch-
+      // action works one level lower, at gesture recognition itself, telling Safari up front
+      // that the only native gesture allowed here is vertical scrolling — nothing else (select,
+      // callout, double-tap-zoom) ever gets a chance to start.
+      touchAction: 'pan-y',
     },
   };
 }
