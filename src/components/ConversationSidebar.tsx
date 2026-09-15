@@ -11,6 +11,8 @@ import {
   Search,
 } from 'lucide-react';
 import { Conversation } from '../types';
+import { makeLongPressHandlers } from '../utils/longPress';
+import { MobileActionSheet } from './MobileActionSheet';
 
 interface ConversationSidebarProps {
   conversations: Conversation[];
@@ -64,6 +66,9 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
   const [draftTitle, setDraftTitle] = useState('');
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  // Long-press on a row opens a mobile action sheet (Rename + Delete) — the desktop hover row
+  // actions aren't reachable at all on touch, since there's no hover state on a phone.
+  const [sheetTarget, setSheetTarget] = useState<Conversation | null>(null);
 
   useEffect(() => {
     if (editingId) inputRef.current?.focus();
@@ -105,6 +110,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
   }, [conversations, query]);
 
   return (
+    <>
     <aside
       className="glass-panel relative z-10 flex h-screen w-[var(--glass-convo-w)] shrink-0 flex-col overflow-hidden"
       aria-label="Conversations"
@@ -166,6 +172,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
             {list.map((c) => {
               const isActive = c.id === activeConversationId;
               const isEditing = editingId === c.id;
+              const longPress = isEditing ? null : makeLongPressHandlers(() => setSheetTarget(c));
               return (
                 <div
                   key={c.id}
@@ -177,6 +184,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                       : 'text-[var(--glass-text-muted)] hover:bg-[var(--glass-panel-elevated)]'
                   }`}
                   onClick={() => !isEditing && onSelectConversation(c.id)}
+                  {...longPress}
                 >
                   <span
                     className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--glass-accent)] transition-opacity ${
@@ -288,5 +296,30 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
         <a href="/disclaimer" className="hover:text-[var(--glass-text-muted)]">Disclaimer</a>
       </div>
     </aside>
+    <MobileActionSheet
+      isOpen={!!sheetTarget}
+      onClose={() => setSheetTarget(null)}
+      title={sheetTarget?.title}
+      actions={
+        sheetTarget
+          ? [
+              {
+                key: 'rename',
+                label: 'Renommer',
+                icon: <Pencil className="h-4 w-4" />,
+                onSelect: () => startEdit(sheetTarget),
+              },
+              {
+                key: 'delete',
+                label: 'Supprimer',
+                icon: <Trash2 className="h-4 w-4" />,
+                onSelect: () => onDeleteConversation(sheetTarget.id),
+                destructive: true,
+              },
+            ]
+          : []
+      }
+    />
+    </>
   );
 };

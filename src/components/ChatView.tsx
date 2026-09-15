@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { AISettings, ChatMessage, ModelPersona } from '../types';
 import { countTokens } from '../ai-engine/tokenizer';
+import { makeLongPressHandlers } from '../utils/longPress';
+import { MobileActionSheet } from './MobileActionSheet';
 
 interface ChatViewProps {
   messages: ChatMessage[];
@@ -91,6 +93,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 }) => {
   const [inputText, setInputText] = useState('');
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  // Long-press on a message opens a mobile action sheet (Copy + whatever else applies to that
+  // message) — the per-message icon row below is hover-only and unreachable on touch.
+  const [sheetMessage, setSheetMessage] = useState<ChatMessage | null>(null);
   const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({});
   const [attachedImage, setAttachedImage] = useState<{
     dataUrl: string;
@@ -264,7 +269,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
     </div>
   );
 
+  const sheetMessageIsUser = sheetMessage?.role === 'user';
+  const sheetMessageHasThoughts = !!sheetMessage?.thoughtProcess && sheetMessage.thoughtProcess.length > 0;
+
   return (
+    <>
     <div
       className={`relative z-10 flex h-screen flex-1 flex-col overflow-hidden bg-[var(--glass-base)] ${
         isDraggingOver ? 'ring-4 ring-[var(--glass-accent-ring)]' : ''
@@ -423,6 +432,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           {messages.map((message) => {
             const isUser = message.role === 'user';
             const isExpanded = expandedThoughts[message.id];
+            const longPress = makeLongPressHandlers(() => setSheetMessage(message));
 
             return (
               <div
@@ -432,6 +442,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     ? 'ml-auto max-w-[92%] !bg-[var(--glass-accent-soft)] sm:max-w-[85%]'
                     : 'mr-auto max-w-[92%] sm:max-w-[85%]'
                 }`}
+                {...longPress}
               >
                 <Avatar isUser={isUser} />
                 <div className="min-w-0 flex-1">
@@ -853,5 +864,56 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
       </div>
     </div>
+    <MobileActionSheet
+      isOpen={!!sheetMessage}
+      onClose={() => setSheetMessage(null)}
+      title={sheetMessageIsUser ? (settings.userName || 'You') : activePersona.name}
+      actions={
+        sheetMessage
+          ? [
+              {
+                key: 'copy',
+                label: copiedMsgId === sheetMessage.id ? 'Copié !' : 'Copier la réponse',
+                icon: copiedMsgId === sheetMessage.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />,
+                onSelect: () => copyToClipboard(sheetMessage.content, sheetMessage.id),
+              },
+              ...(!sheetMessageIsUser
+                ? [
+                    {
+                      key: 'attention',
+                      label: "Inspecter l'attention",
+                      icon: <BrainCircuit className="h-4 w-4" />,
+                      onSelect: () => onOpenAttentionForMessage(sheetMessage),
+                    },
+                  ]
+                : []),
+              ...(sheetMessageHasThoughts
+                ? [
+                    {
+                      key: 'thoughts',
+                      label: expandedThoughts[sheetMessage.id] ? 'Cacher le raisonnement' : 'Voir le raisonnement',
+                      icon: <ChevronDown className="h-4 w-4" />,
+                      onSelect: () => toggleThought(sheetMessage.id),
+                    },
+                  ]
+                : []),
+              // Regenerate only replaces the LAST response — only offer it here when the
+              // long-pressed message actually is that last message, so the action always does
+              // what its label says regardless of which message in the history was pressed.
+              ...(!sheetMessageIsUser && !isGenerating && sheetMessage.id === messages[messages.length - 1]?.id
+                ? [
+                    {
+                      key: 'regenerate',
+                      label: 'Régénérer cette réponse',
+                      icon: <RotateCw className="h-4 w-4" />,
+                      onSelect: onRegenerate,
+                    },
+                  ]
+                : []),
+            ]
+          : []
+      }
+    />
+    </>
   );
 };
