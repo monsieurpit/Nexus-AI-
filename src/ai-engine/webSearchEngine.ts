@@ -577,7 +577,12 @@ export function shouldTriggerLiveWebSearch(
   if (settings?.webSearchMode === 'disabled') return false;
   if (settings?.webSearchMode === 'always') return 'always';
 
-  const q = query.toLowerCase().trim();
+  // Every "never search" pattern below is anchored to the start of the message ("^who...",
+  // "^what..."), so simply addressing the bot by name first ("Nexus, who created you?") silently
+  // defeats all of them — same bug class fixed alongside this in reasoningEngine.ts's
+  // classifyBotMetaQuestion (stripVocativeAddress there); duplicated narrowly here rather than
+  // shared to avoid a circular import between the two files.
+  const q = query.toLowerCase().trim().replace(/^(?:hey|yo|ok(?:ay)?)?[\s,]*nexus[\s,!.:]+/i, '').trim();
 
   // 1. NEVER SEARCH: Insults, curses, and toxicity (handled directly by Discord crashout/roast engine)
   // Reuses swearEngine's detectUserInsult instead of maintaining a second, separately-drifting

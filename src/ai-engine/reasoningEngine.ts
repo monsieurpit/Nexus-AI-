@@ -1064,6 +1064,22 @@ function slangDefinitionReply(term: string, meaning: string): string {
 // ("what are the rules of offside", "what is the standard model") can't reach this.
 type BotMetaQuestion = 'rules' | 'model' | 'mechanics' | 'creator';
 
+// Every regex in BOT_META_REGEXES (and shouldTriggerLiveWebSearch's own "never search" gate in
+// webSearchEngine.ts) is anchored to the START of the message ("^who...", "^what..."), which is
+// right for filtering out real questions that merely contain the same words elsewhere in a
+// sentence — but it means simply addressing the bot by name first ("Nexus, who created you?")
+// silently breaks every single one of them, since the message no longer starts with "who"/"what".
+// Observed live: exactly that phrasing skipped the dedicated creator-answer path (which grounds
+// the LLM in the real fact every time) and fell through to a generic conversational reply that
+// only got the right answer because the persona's own baked-in system prompt happened to cover
+// it — not reliable, since that's one signal instead of two. Stripped here, narrowly, only for
+// the purpose of this classification check — NOT applied to the actual `prompt` used for corpus
+// grounding/history/quoting anywhere else, per the standing rule against trimming the user's real
+// message.
+function stripVocativeAddress(text: string): string {
+  return text.replace(/^(?:hey|yo|ok(?:ay)?)?[\s,]*nexus[\s,!.:]+/i, '').trim();
+}
+
 const BOT_META_REGEXES: [RegExp, BotMetaQuestion][] = [
   [/^what\s+(?:are|is)\s+your\s+(?:rules?|guidelines?|restrictions?|limits?|boundaries|constraints?|filters?)\b/i, 'rules'],
   [/^what\s+(?:rules?|restrictions?|limits?|guidelines?)\s+do\s+you\s+(?:have|follow|obey)\b/i, 'rules'],
@@ -1099,8 +1115,8 @@ const BOT_META_REGEXES: [RegExp, BotMetaQuestion][] = [
   [/^qui\s+est\s+ton\s+(?:créateur|createur|développeur|developpeur)\b/i, 'creator'],
 ];
 
-function classifyBotMetaQuestion(query: string): BotMetaQuestion | null {
-  const q = query.trim();
+export function classifyBotMetaQuestion(query: string): BotMetaQuestion | null {
+  const q = stripVocativeAddress(query.trim());
   for (const [re, kind] of BOT_META_REGEXES) {
     if (re.test(q)) return kind;
   }

@@ -12,7 +12,7 @@
 //        bun run scripts/regressionCheck.ts --live-only   (skip the deterministic tier)
 //        bun run scripts/regressionCheck.ts --det-only    (skip live generation, fast/offline)
 
-import { generateReasoningPath, getSystemPromptCharCount, buildSpeakerAwareWindow } from '../src/ai-engine/reasoningEngine';
+import { generateReasoningPath, getSystemPromptCharCount, buildSpeakerAwareWindow, classifyBotMetaQuestion } from '../src/ai-engine/reasoningEngine';
 import { looksFrench } from '../src/ai-engine/localLlmClient';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore';
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
@@ -89,6 +89,15 @@ async function runDeterministicChecks() {
   console.log('Web search current-events (SHOULD trigger):');
   check('EN "who is the current CEO of tesla"', shouldTriggerLiveWebSearch('who is the current CEO of tesla', undefined, 0.1) === 'current-events');
   check('FR "qui est le président actuel de la France"', shouldTriggerLiveWebSearch('qui est le président actuel de la France', undefined, 0.1) === 'current-events');
+
+  console.log('\nVocative address ("Nexus, ...") no longer defeats start-anchored detectors:');
+  // Live bug: "Nexus, who created you?" skipped the dedicated creator-answer path entirely
+  // because every BOT_META_REGEXES pattern is anchored to the start of the message — addressing
+  // the bot by name first meant the message no longer started with "who".
+  check('classifyBotMetaQuestion("Nexus, who created you?") === creator', classifyBotMetaQuestion('Nexus, who created you?') === 'creator');
+  check('classifyBotMetaQuestion("hey nexus, who made you") === creator', classifyBotMetaQuestion('hey nexus, who made you') === 'creator');
+  check('classifyBotMetaQuestion("who created you") still === creator (no regression)', classifyBotMetaQuestion('who created you') === 'creator');
+  check('shouldTriggerLiveWebSearch("Nexus, who created you?") stays false', shouldTriggerLiveWebSearch('Nexus, who created you?', undefined, 0) === false);
 
   console.log('\nGotcha / logic solver:');
   check('"how many months have 28 days" -> all 12', trySolveLogic('how many months have 28 days')?.verdict === 'All 12 of them.');
