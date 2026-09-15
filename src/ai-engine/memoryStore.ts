@@ -253,7 +253,16 @@ A: "bacteria's a full living cell that can reproduce on its own, a virus is basi
 That's the bar: opinionated, specific, a little rough around the edges, zero corporate hedging, never a report.`,
     defaultTemperature: 1.0,
     defaultTopP: 0.95,
-    reasoningMode: 'fast',
+    // Was 'fast' — meant every single reply (this is the persona forced for ALL Discord-bot
+    // traffic, and the website's default) skipped buildReasoningModeInstruction's "actually think
+    // this through" directive entirely, since 'fast' returns an empty instruction there. Patrick
+    // explicitly said (2026-09-15) he does not care how long a reply takes, only that Nexus is as
+    // intelligent as possible — 'deep-cot' spends real internal reasoning (multiple angles actively
+    // checked against each other, confusable-fact disambiguation) on every reply before answering,
+    // at zero extra RAM cost (same model, same weights, just more thinking tokens) — the honest
+    // trade Patrick asked for, unlike swapping to a bigger model which risks the exact OOM crashes
+    // that got the 12B tier removed earlier this session on this same 16GB machine.
+    reasoningMode: 'deep-cot',
     toneSettings: {
       warmth: 10,
       technicality: 20,

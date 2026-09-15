@@ -3189,8 +3189,12 @@ const LLM_MAX_TOKENS_CASUAL = 220;
 // on thinking left literally nothing for message.content). Patrick explicitly wants the real,
 // unedited thinking visible in the reasoning-trace panel on every reply now, not gated behind
 // reasoningMode, and said latency doesn't matter to him — so this is deliberately generous rather
-// than tuned tight.
-const THINKING_TOKEN_HEADROOM = 500;
+// than tuned tight. Raised again (500 -> 1200) alongside crashout-bot's default reasoningMode
+// switching to 'deep-cot' (see memoryStore.ts) — deep-cot's directive explicitly asks for
+// multiple-angle reasoning and active fact-disambiguation, which genuinely needs more thinking
+// tokens than the lighter 'thorough' pass this headroom was originally sized for; 500 left real
+// risk of the same empty_response starvation resurfacing on a longer, more thorough thinking pass.
+const THINKING_TOKEN_HEADROOM = 1200;
 
 const BROAD_QUESTION_PATTERN =
   /\b(explain|compare|difference between|pros and cons|walk me through|breakdown|in detail|everything about|all the|list (?:all|every)|how does .+ work|why (?:does|is|do)|what are the)\b/i;

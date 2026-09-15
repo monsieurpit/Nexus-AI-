@@ -102,7 +102,7 @@ async function withFreshPage(
   }
 }
 
-async function sendMessage(page: Page, text: string, timeoutMs = 90000, opts: { humanTyping?: boolean } = {}): Promise<void> {
+async function sendMessage(page: Page, text: string, timeoutMs = 180000, opts: { humanTyping?: boolean } = {}): Promise<void> {
   const textarea = page.locator('textarea').first();
   await textarea.click();
   if (opts.humanTyping) {
@@ -134,7 +134,7 @@ async function run() {
       await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(500);
 
-      await sendMessage(page, 'yo hows it going, whats a good beginner language to learn coding', 90000, { humanTyping: true });
+      await sendMessage(page, 'yo hows it going, whats a good beginner language to learn coding', 180000, { humanTyping: true });
       const toggle = page.locator('button[aria-label="Toggle reasoning trace"]').last();
       if (await toggle.count() > 0) {
         await toggle.click();
@@ -147,7 +147,7 @@ async function run() {
         await locationBtn.click();
         await page.waitForTimeout(1500);
       }
-      await sendMessage(page, 'whats the weather like right now', 90000, { humanTyping: true });
+      await sendMessage(page, 'whats the weather like right now', 180000, { humanTyping: true });
       await page.waitForTimeout(1000);
 
       for (const rail of ['Customize', 'Knowledge base', 'Bot API & SDK', 'Attention visualizer']) {
@@ -209,7 +209,7 @@ async function run() {
     if (await regenBtn.count() > 0) {
       const before = await page.locator('body').innerText();
       await regenBtn.click();
-      await page.locator('button[aria-label="Send message"]').waitFor({ state: 'visible', timeout: 90000 });
+      await page.locator('button[aria-label="Send message"]').waitFor({ state: 'visible', timeout: 180000 });
       await page.waitForTimeout(500);
       const after = await page.locator('body').innerText();
       check('regenerate button produces a new reply', before !== after);
@@ -248,7 +248,7 @@ async function run() {
       await locationBtn.click();
       await page.waitForTimeout(1500);
     }
-    await sendMessage(page, 'whats the weather like right now', 90000);
+    await sendMessage(page, 'whats the weather like right now', 180000);
     await shot(page, '04-weather-reply');
     const bodyText = await page.locator('body').innerText();
     // Real Open-Meteo data reliably produces EITHER a numeric °C figure OR a specific condition

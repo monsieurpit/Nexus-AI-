@@ -1559,13 +1559,15 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
         tokens: countTokens(outputText),
         timestamp: new Date().toISOString(),
       };
-    // Bumped from 45000 — the OLLAMA_NUM_CTX fix (localLlmClient.ts) means single requests now
-    // regularly take ~28-30s even uncontended (larger context = more prefill work), and a request
-    // that has to wait behind another one for an OLLAMA_MAX_CONCURRENT slot could add real queueing
-    // time on top of that before generation even starts. 45s was cutting it close specifically
-    // because of that, not because Patrick wants a tighter budget — he's explicit that latency
-    // doesn't matter, quality does, so this errs generous rather than tuned tight.
-    }, isCodeEdit ? 65000 : 90000);
+    // Bumped 45000 -> 90000 -> 150000. The OLLAMA_NUM_CTX fix (localLlmClient.ts) means single
+    // requests now regularly take ~28-30s even uncontended, and crashout-bot's default reasoning
+    // mode switching to 'deep-cot' (memoryStore.ts, real multi-angle thinking on every reply, not
+    // just gated behind an explicit reasoning-mode pick) adds real extra time on top of that,
+    // before even counting a queueing wait behind another OLLAMA_MAX_CONCURRENT slot. Must stay
+    // above localLlmClient.ts's own 120000ms internal timeout or this outer queue timeout would
+    // fire first and kill a request that was actually about to succeed. Patrick is explicit that
+    // latency doesn't matter at all here, only quality — errs very generous, not tuned tight.
+    }, isCodeEdit ? 65000 : 150000);
 
     // Only safe to set headers here on the non-streaming path — a streaming request may already
     // have written token lines via res.write() during generateReasoningPath above, and Node throws

@@ -538,13 +538,16 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
 
   const release = await acquireOllamaSlot();
   const controller = new AbortController();
-  // Bumped from 30000 — see OLLAMA_NUM_CTX's comment above: a properly-sized context window means
-  // even an uncontended casual reply now regularly takes ~28-30s (more prefill work than the old,
-  // silently-truncated 2048-token context), so 30s was already right at the edge before any queue
-  // wait is added on top. Patrick's explicit stance this session: latency doesn't matter, quality
-  // does — so this default errs generous. Callers with their own real time budget (e.g. the Nexus
-  // Code self-review loop) already pass an explicit timeoutMs and are unaffected by this default.
-  const timeoutMs = options.timeoutMs ?? 60000;
+  // Bumped 30000 -> 60000 -> 120000. See OLLAMA_NUM_CTX's comment above: a properly-sized context
+  // window means even an uncontended casual reply now regularly takes ~28-30s (more prefill work
+  // than the old, silently-truncated 2048-token context). Bumped again alongside crashout-bot's
+  // default switching to 'deep-cot' reasoning (memoryStore.ts) — a genuinely deeper multi-angle
+  // thinking pass on every reply takes real extra time on this hardware, and Patrick's explicit
+  // stance this session is that latency doesn't matter at all, only quality — so this errs very
+  // generous rather than risk killing a slow-but-good answer with a false timeout. Callers with
+  // their own real time budget (e.g. the Nexus Code self-review loop) already pass an explicit
+  // timeoutMs and are unaffected by this default.
+  const timeoutMs = options.timeoutMs ?? 120000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
 
@@ -812,7 +815,7 @@ export async function generateStream(
   const release = await acquireOllamaSlot();
   const controller = new AbortController();
   // See generate()'s matching comment above — same reasoning, same new default.
-  const timeoutMs = options.timeoutMs ?? 60000;
+  const timeoutMs = options.timeoutMs ?? 120000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
 
