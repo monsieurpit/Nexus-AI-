@@ -808,12 +808,11 @@ export async function generateStream(
         model,
         messages,
         stream: true,
-        // See the `think` field's own comment on OllamaGenerateOptions. Also: this streaming path
-        // is only ever used for the plain conversational catch-all (llmSituationalReplyOrFallback's
-        // onToken param), which always calls with think left at its default false — a streamed
-        // thinking delta would need its own separate handling in the reader loop below to avoid
-        // leaking into onToken's assembled content, which isn't implemented, so `true` is
-        // deliberately not supported on this path.
+        // See the `think` field's own comment on OllamaGenerateOptions. Streamed thinking deltas
+        // are accumulated separately from content deltas in the reader loop below (never passed to
+        // onToken, which must only ever see real reply content) and reattached to finalData before
+        // processRawGenerateOutput runs, so the caller still gets the raw thinking text back on
+        // `.thinking` exactly like the non-streaming generate() does.
         think: options.think ?? false,
         keep_alive: keepAliveFor(model),
         // Sampling tuned for gemma3 (Google's published recommendation is
@@ -849,6 +848,7 @@ export async function generateStream(
     const decoder = new TextDecoder();
     let buffer = '';
     let assembledContent = '';
+    let assembledThinking = '';
     let finalData: any = null;
 
     while (true) {
@@ -870,6 +870,13 @@ export async function generateStream(
           assembledContent += fragment;
           onToken(fragment);
         }
+        // Thinking deltas are accumulated but deliberately never handed to onToken — that callback
+        // streams the visible reply typewriter-style, and raw thinking is a separate reasoning-trace
+        // concern (see the `think` comment above and OllamaGenerateOptions).
+        const thinkingFragment = typeof parsed?.message?.thinking === 'string' ? parsed.message.thinking : '';
+        if (thinkingFragment) {
+          assembledThinking += thinkingFragment;
+        }
         if (parsed?.done) {
           finalData = parsed;
         }
@@ -881,10 +888,10 @@ export async function generateStream(
       // rather than trusting a possibly-truncated assembledContent.
       return { status: 'unavailable', reason: 'empty_response' };
     }
-    // processRawGenerateOutput reads message.content off `data` directly (matching the
-    // non-streaming shape) — the streamed final line's own message.content is only the LAST
+    // processRawGenerateOutput reads message.content/message.thinking off `data` directly (matching
+    // the non-streaming shape) — the streamed final line's own message.content is only the LAST
     // fragment, not the full text, so it's overwritten here with what was actually accumulated.
-    finalData.message = { content: assembledContent };
+    finalData.message = { content: assembledContent, thinking: assembledThinking || undefined };
     logLatencyDebug(finalData, options, prompt);
     return processRawGenerateOutput(finalData, options, startedAt);
   } catch (err: any) {

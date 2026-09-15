@@ -3182,6 +3182,16 @@ const LLM_MAX_TOKENS_BROAD = 900;
 // friend texting back doesn't write essays in response to "lol" or a passing complaint.
 const LLM_MAX_TOKENS_CASUAL = 220;
 
+// Extra token room added on top of the CONTENT budget whenever `think: true` is set — Gemma 4's
+// native thinking channel draws from the same overall token budget the API call is given, so
+// handing it only the content-sized budget starves it of room to think before starting content
+// (this exact mechanism caused the empty_response bug fixed earlier: a tight budget spent entirely
+// on thinking left literally nothing for message.content). Patrick explicitly wants the real,
+// unedited thinking visible in the reasoning-trace panel on every reply now, not gated behind
+// reasoningMode, and said latency doesn't matter to him — so this is deliberately generous rather
+// than tuned tight.
+const THINKING_TOKEN_HEADROOM = 500;
+
 const BROAD_QUESTION_PATTERN =
   /\b(explain|compare|difference between|pros and cons|walk me through|breakdown|in detail|everything about|all the|list (?:all|every)|how does .+ work|why (?:does|is|do)|what are the)\b/i;
 
@@ -3860,18 +3870,32 @@ async function llmSituationalReplyOrFallback(
     // Mood scales this further — a bored/depressed mood genuinely has less to say, angry is short
     // and cutting rather than chatty, happy has more to say. Deliberately only applied here, never
     // to a factual-answer budget, so mood can color small talk without ever truncating a real
-    // answer to a genuine question.
-    maxTokens: Math.round(Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier()),
+    // answer to a genuine question. THINKING_TOKEN_HEADROOM is added on top (not scaled by mood)
+    // so even a bored/depressed reply's tighter reply budget still gets full room to think first.
+    maxTokens:
+      Math.round(Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier()) +
+      THINKING_TOKEN_HEADROOM,
     preferPolish: usePolish,
     preferFrench: useFrench,
     model: localLlmClient.chatModel(),
-    // Casual chit-chat never wants (or budgets tokens for) the model's native thinking channel —
-    // see the `think` field's own comment on OllamaGenerateOptions for why this must be explicit.
-    think: false,
+    // Patrick wants the model's real, unedited thinking visible in the reasoning-trace panel on
+    // every reply, including plain casual chit-chat (this is the highest-traffic path, so leaving
+    // it off here — as before — meant thinking almost never showed up at all). Safe now that
+    // maxTokens above includes THINKING_TOKEN_HEADROOM specifically to prevent the empty_response
+    // bug this used to cause when thinking ate a too-tight budget.
+    think: true,
   };
   const llmResult = onToken
     ? await localLlmClient.generateStream(llmPrompt, onToken, generateOptions)
     : await localLlmClient.generate(llmPrompt, generateOptions);
+  if (llmResult.status === 'success' && llmResult.thinking) {
+    thoughtSteps.push({
+      id: 'step-llm-raw-thinking-casual',
+      type: 'reasoning',
+      title: '🧠 What the model actually thought (raw, unedited)',
+      description: llmResult.thinking,
+    });
+  }
   if (llmResult.status === 'success' && containsSlurOrHateSpeech(llmResult.text)) {
     thoughtSteps.push({
       id: 'step-llm-safety-blocked',
@@ -4033,14 +4057,16 @@ async function llmGroundedOrFallback(
       ? (confident ? 0.4 : 0.5)
       : factualPin ? 0.25 : confident ? 0.5 : 0.7) - reasoningDrop
   );
-  // 'fast' never reveals thinking (it has no reasoning instruction to reveal in the first place);
-  // 'thorough'/'deep-cot' turn on Gemma 4's native thinking channel — see the `think` field's own
-  // comment on OllamaGenerateOptions for why this has to be explicit rather than left at default.
-  const revealThinking = settings.reasoningMode !== 'fast';
+  // Always on now — Patrick wants the real, unedited thinking visible in the reasoning-trace panel
+  // on every reply, not just 'thorough'/'deep-cot'. THINKING_TOKEN_HEADROOM below is what makes
+  // this safe in 'fast' mode too (previously excluded specifically because 'fast' has no reasoning
+  // instruction telling it to think, so there was no headroom budgeted for a thinking pass it might
+  // still spontaneously produce — see the `think` field's own comment on OllamaGenerateOptions).
+  const revealThinking = true;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
     temperature: usedTemperature,
-    maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
+    maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + THINKING_TOKEN_HEADROOM,
     preferPolish: usePolish,
     preferFrench: useFrench,
     model: localLlmClient.chatModel(),
@@ -4122,7 +4148,7 @@ async function llmGroundedOrFallback(
     const retryResult = await localLlmClient.generate(groundedPrompt + correctionNote, {
       system: buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench),
       temperature: usedTemperature,
-      maxTokens: estimateResponseBudget(prompt, settings.reasoningMode),
+      maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + THINKING_TOKEN_HEADROOM,
       preferPolish: usePolish,
       preferFrench: useFrench,
       model: localLlmClient.chatModel(),
