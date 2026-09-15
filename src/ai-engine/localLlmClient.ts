@@ -192,8 +192,14 @@ const ENGLISH_SIGNAL_WORDS = new Set([
   // "Hello, how are you?" reply got discarded by this exact check and replaced with canned fallback
   // text, purely because its authentic slang-heavy voice didn't happen to contain enough of the
   // original word list.
+  // 'yo' deliberately excluded (removed after a live bug: "Yo mec" — a French/joual greeting
+  // meaning "yo dude" — scored french=0 (before 'mec' was added to FRENCH_SIGNAL_WORDS) vs.
+  // english=1 purely off 'yo' and got answered in English). 'yo' is common French/joual slang too
+  // (Patrick uses it himself), not a distinctive English marker the way 'gonna'/'lmao' are, so it
+  // was never pulling real weight here — it only ever existed to tip ties, which is exactly the
+  // failure mode that broke this case.
   'fuck', 'fucking', 'fucked', 'shit', 'damn', 'goddamn', 'hell', 'ass', 'bitch', 'bro', 'man',
-  'yo', 'yeah', 'nah', 'gonna', 'wanna', 'gotta', 'lol', 'lmao', 'homie', 'dude',
+  'yeah', 'nah', 'gonna', 'wanna', 'gotta', 'lol', 'lmao', 'homie', 'dude',
 ]);
 const POLISH_DIACRITIC_REGEX = /[ąćęłńóśźż]/i;
 
@@ -224,7 +230,7 @@ const FRENCH_SIGNAL_WORDS = new Set([
   'toi', 'moi', 'pis', 'ici', 'aime', 'aimes', 'fais', 'fait', 'vais', 'très', 'trop', 'bien',
   'faire', 'alors', 'donc', 'aussi', 'encore', 'jamais', 'toujours', 'rien', 'quelque',
   'faque', 'tsé', 'tse', 'pantoute', 'icitte', 'astheure', 'asteure',
-  'chu', 'moé', 'toé', 'ouais', 'ouin', 'checke', 'mettons', 'tiguidou',
+  'chu', 'moé', 'toé', 'ouais', 'ouin', 'checke', 'mettons', 'tiguidou', 'mec',
   // Joual drops accents when typed — the accented forms above ('créé', 'ça') miss the way
   // Patrick actually types ("qui ta cree", "comment ca va"). None of these collide with English.
   'qui', 'ca', 'cree', 'creer', 'creee', 'va', 'cava', 'taime', 'gai', 'sais-tu',

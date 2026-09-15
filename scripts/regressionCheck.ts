@@ -64,6 +64,13 @@ async function runDeterministicChecks() {
   check('EN "no comment" is NOT detected as French (comment/grave collision fix)', !looksFrench('no comment'));
   check('EN "dig a grave" is NOT detected as French (comment/grave collision fix)', !looksFrench('dig a grave'));
   check('FR "salut nexus, comment ça va?" still correctly detected as French', looksFrench('salut nexus, comment ça va?'));
+  // Live bug: "Yo mec" (French/joual for "yo dude") got answered in English because "mec" was
+  // missing from FRENCH_SIGNAL_WORDS and "yo" was in ENGLISH_SIGNAL_WORDS, so it scored
+  // french=0/english=1. Fixed by adding "mec" and removing "yo" (which isn't a distinctive
+  // English marker -- Patrick uses it in French too -- it only ever existed to tip ties, which
+  // is exactly the failure mode here).
+  check('FR "Yo mec" now correctly detected as French (mec/yo fix)', looksFrench('Yo mec'));
+  check('EN "yo, what\'s up bro" still correctly detected as English (mec/yo fix)', !looksFrench("yo, what's up bro"));
 
   console.log('\nWeb search 429-guard (should NOT trigger a search):');
   check('EN "do u wana see smth"', shouldTriggerLiveWebSearch('do u wana see smth', undefined, 0) === false);
