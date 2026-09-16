@@ -15,8 +15,10 @@ localhost-only, tunneled-when-needed pattern already used for Ollama in this pro
 background/automatic process.
 """
 import io
+import logging
 import os
 import threading
+import time
 
 from flask import Flask, request, send_file, jsonify
 
@@ -26,6 +28,19 @@ PORT = int(os.environ.get("TTS_SERVICE_PORT", "5050"))
 REFERENCE_WAV = os.environ.get(
     "TTS_REFERENCE_WAV", os.path.join(os.path.dirname(__file__), "voices", "reference.wav")
 )
+
+# Structured logging (timestamp + level, same convention as server.ts's own log() helper) instead
+# of Flask's default bare access-log line — every real request gets its own detail line (text
+# length, chunk count, per-chunk timing, total time). Python's logging module writes to stderr by
+# default, so this lands in ~/.nexus-tunnel/ttsserve.err.log (not .out.log, despite "err" in the
+# name — that's just where Python's logger writes, not a sign of an actual error), genuinely
+# readable now instead of a one-line "POST /speak 200 -" with zero insight into what happened.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+logger = logging.getLogger("tts-service")
 
 app = Flask(__name__)
 
@@ -51,9 +66,10 @@ def get_tts():
             if _tts is None:
                 from TTS.api import TTS
 
-                print("Loading XTTS-v2 (one-time, ~15-30s)...", flush=True)
+                logger.info("Loading XTTS-v2 (one-time, ~15-30s)...")
+                load_started = time.time()
                 _tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2")
-                print("XTTS-v2 loaded and ready.", flush=True)
+                logger.info("XTTS-v2 loaded and ready (%.1fs).", time.time() - load_started)
     return _tts
 
 
@@ -65,19 +81,23 @@ def health():
 
 @app.route("/speak", methods=["POST"])
 def speak():
+    request_started = time.time()
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     language = data.get("language") or "en"
 
     if not text:
+        logger.warning("Rejected /speak: empty text")
         return jsonify({"error": "text is required"}), 400
     if not os.path.exists(REFERENCE_WAV):
+        logger.warning("Rejected /speak: no reference voice recorded yet (%d chars requested)", len(text))
         return jsonify({"error": "no reference voice recorded yet — see tts-service/voices/README.md"}), 412
 
     # XTTS-v2 has a real per-call text length limit (roughly ~250 chars per language before
     # quality/stability degrades) — chunk on sentence boundaries and synthesize each piece, then
     # concatenate, rather than truncating a long reply to just its first sentence.
     chunks = _chunk_text(text, max_len=240)
+    logger.info("Speak request: lang=%s chars=%d chunks=%d text=%r", language, len(text), len(chunks), text[:80])
 
     tts = get_tts()
     import numpy as np
@@ -85,16 +105,24 @@ def speak():
 
     audio_parts = []
     sample_rate = 24000
+    lock_wait_started = time.time()
     with _inference_lock:
-        for chunk in chunks:
+        lock_wait_ms = (time.time() - lock_wait_started) * 1000
+        if lock_wait_ms > 50:
+            logger.info("Waited %.0fms for inference lock (another request was generating)", lock_wait_ms)
+        for i, chunk in enumerate(chunks):
+            chunk_started = time.time()
             wav = tts.tts(text=chunk, speaker_wav=REFERENCE_WAV, language=language)
             audio_parts.append(np.array(wav, dtype=np.float32))
+            logger.info("  chunk %d/%d done (%.1fs)", i + 1, len(chunks), time.time() - chunk_started)
 
     combined = np.concatenate(audio_parts) if len(audio_parts) > 1 else audio_parts[0]
 
     buffer = io.BytesIO()
     sf.write(buffer, combined, sample_rate, format="WAV")
     buffer.seek(0)
+    total_ms = (time.time() - request_started) * 1000
+    logger.info("Speak request complete: %.0fms total, %d bytes audio", total_ms, buffer.getbuffer().nbytes)
     return send_file(buffer, mimetype="audio/wav")
 
 

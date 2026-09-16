@@ -58,6 +58,40 @@ import {
 const app = express();
 const PORT = 3000;
 
+// ----------------------------------------------------
+// STRUCTURED LOGGING — everything still goes to stdout (Railway's own log viewer captures that
+// automatically, and locally it's whatever nohup/launchd redirects to a file), but ALSO kept in a
+// bounded in-memory ring buffer so /api/v1/logs (below) can serve recent activity over HTTP —
+// built specifically so Patrick can check what Nexus is actually doing from his phone while away
+// from his Mac, not just from a terminal he isn't sitting at. Every real request (not just the
+// crashout-chat endpoint, which already had its own one-line log) gets a structured line: method,
+// path, status, latency — plus each endpoint's own handler can log richer detail via `log()`.
+// ----------------------------------------------------
+const LOG_BUFFER_MAX = 2000;
+const logBuffer: string[] = [];
+
+function log(tag: string, message: string): void {
+  const line = `[${new Date().toISOString()}] [${tag}] ${message}`;
+  console.log(line);
+  logBuffer.push(line);
+  if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.shift();
+}
+
+// Applied globally, first thing, so every single request — successful, errored, rate-limited,
+// crashed — gets exactly one summary line, in addition to whatever detail an individual handler
+// logs itself. `res.on('finish', ...)` fires whether the handler resolved normally or threw
+// (Express still sends SOME response either way), so this can't silently miss a request the way a
+// per-handler-only logging approach would if a handler forgot to log or crashed before reaching
+// its own log line.
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  res.on('finish', () => {
+    const latencyMs = Date.now() - startedAt;
+    log('http', `${req.method} ${req.path} -> ${res.statusCode} (${latencyMs}ms)`);
+  });
+  next();
+});
+
 // Local voice-cloning TTS microservice (tts-service/, Coqui XTTS-v2) — same pattern as
 // OLLAMA_BASE_URL: a separate local process on Patrick's own Mac, not bundled into this Node
 // server (Python/PyTorch, a completely different runtime). Defaults to localhost since local dev
@@ -960,6 +994,32 @@ app.get('/api/v1/keys', requireApiKey, (req, res) => {
   });
 });
 
+// Built specifically so Patrick can check what Nexus is actually doing from his phone browser
+// while away from his Mac (see the STRUCTURED LOGGING comment above) — the whole point is
+// checking this without a terminal, so it accepts the key as a plain ?key= query param (easy to
+// paste into a phone browser's URL bar) IN ADDITION TO the normal header-based check every other
+// protected endpoint uses, rather than requiring custom headers a browser URL bar can't set.
+// Read-only, never mutates anything, so the slightly looser auth surface here is a deliberate,
+// narrow trade for practical phone-usability, not a general pattern used elsewhere.
+app.get('/api/v1/logs', (req, res) => {
+  const queryKey = typeof req.query.key === 'string' ? req.query.key.trim() : '';
+  const configuredSecret = process.env.NEXUS_API_KEY?.trim();
+  const queryKeyValid = Boolean(queryKey) && (registeredApiKeys.has(queryKey) || (Boolean(configuredSecret) && queryKey === configuredSecret));
+  if (!hasValidApiKey(req) && !queryKeyValid) {
+    return res.status(401).json({ error: 'A valid x-api-key header, Authorization: Bearer <key> header, or ?key= query param is required.' });
+  }
+  const requestedCount = Math.min(Math.max(Number(req.query.n) || 200, 1), LOG_BUFFER_MAX);
+  const tagFilter = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
+  const lines = tagFilter ? logBuffer.filter((l) => l.includes(`[${tagFilter}]`)) : logBuffer;
+  const recent = lines.slice(-requestedCount);
+  // ?format=json for programmatic use; plain text (the default) is what's actually pleasant to
+  // read in a phone browser — one line per entry, no JSON escaping/quoting to squint through.
+  if (req.query.format === 'json') {
+    return res.json({ count: recent.length, totalBuffered: logBuffer.length, lines: recent });
+  }
+  res.type('text/plain').send(recent.join('\n') || '(no logs yet)');
+});
+
 app.post('/api/v1/keys/generate', requireApiKey, (req, res) => {
   const customLabel = (req.body?.label || 'discord_bot').replace(/[^a-zA-Z0-9_]/g, '');
   const randomSuffix = Math.random().toString(36).substring(2, 10);
@@ -1089,6 +1149,8 @@ app.post('/api/v1/speak', aiComputeLimiter, async (req, res) => {
   if (!cleanText) {
     return res.status(400).json({ error: 'text is required' });
   }
+  const resolvedLanguage = typeof language === 'string' ? language : 'en';
+  const startedAt = Date.now();
   const controller = new AbortController();
   // Generous — a long reply chunked into several XTTS-v2 passes can genuinely take a while on
   // this hardware, same "latency doesn't matter, don't kill a slow-but-working request" stance
@@ -1098,20 +1160,31 @@ app.post('/api/v1/speak', aiComputeLimiter, async (req, res) => {
     const ttsRes = await fetch(`${TTS_SERVICE_BASE_URL}/speak`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: cleanText, language: typeof language === 'string' ? language : 'en' }),
+      body: JSON.stringify({ text: cleanText, language: resolvedLanguage }),
       signal: controller.signal,
     });
     if (!ttsRes.ok) {
       const detail = await ttsRes.text().catch(() => '');
-      // 412 from tts-service/server.py specifically means "no reference voice recorded yet" —
-      // surfaced as-is so the client can show a clear, specific message instead of a generic error.
+      log('speak', `FAILED status=${ttsRes.status} lang=${resolvedLanguage} chars=${cleanText.length} detail="${detail.slice(0, 120)}" (${Date.now() - startedAt}ms)`);
+      // 412 ("no reference voice recorded yet") is expected until Patrick actually records his
+      // sample — not worth a phone notification for that one specifically, only genuine failures.
+      if (ttsRes.status !== 412) {
+        postToDiscordLog(`Voice-over failed: TTS service returned ${ttsRes.status} — ${detail.slice(0, 200)}`, 'warn');
+      }
       return res.status(ttsRes.status === 412 ? 412 : 502).json({ error: detail || 'TTS service error' });
     }
     const audioBuffer = Buffer.from(await ttsRes.arrayBuffer());
+    log('speak', `OK lang=${resolvedLanguage} chars=${cleanText.length} audioBytes=${audioBuffer.length} (${Date.now() - startedAt}ms)`);
     res.setHeader('Content-Type', 'audio/wav');
     return res.send(audioBuffer);
   } catch (err: any) {
     const reason = err?.name === 'AbortError' ? 'timeout' : 'connection_error';
+    log('speak', `FAILED reason=${reason} lang=${resolvedLanguage} chars=${cleanText.length} (${Date.now() - startedAt}ms)`);
+    // connection_error specifically means this Node server couldn't even REACH the TTS
+    // tunnel/service at all — the single most useful "is the voice feature actually broken right
+    // now" signal, worth a phone notification since Patrick's Mac/tunnel being down is exactly the
+    // kind of thing he can't see without leaving his terminal open.
+    postToDiscordLog(`Voice-over unavailable: could not reach TTS service (${reason})`, 'warn');
     return res.status(503).json({ error: `TTS service unavailable (${reason})` });
   } finally {
     clearTimeout(timer);
@@ -1644,8 +1717,9 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
     // already nudged it — so the log line shows what actually colored the reply the user just
     // got, and doubles as a running record of how mood is drifting over real traffic, visible
     // straight in Railway's log viewer without needing to separately poll GET /api/v1/mood.
-    console.log(
-      `[Nexus] "${userText.slice(0, 60)}" -> persona=${persona.id} mood=${queuedExecution.data.mood?.label ?? 'n/a'} ${llmOutcome} total=${queuedExecution.processTimeMs}ms`
+    log(
+      'nexus',
+      `"${userText.slice(0, 60)}" -> persona=${persona.id} mood=${queuedExecution.data.mood?.label ?? 'n/a'} lang=${queuedExecution.data.telemetry?.language ?? 'n/a'} ${llmOutcome} total=${queuedExecution.processTimeMs}ms`
     );
 
     const fullPayload = {
@@ -2634,11 +2708,11 @@ startServer().catch((err) => {
 // handlers, so an operational problem on either side of the AI-engine/bot pair is visible in the
 // same place instead of only ever showing up in Railway's own log viewer.
 process.on('uncaughtException', (error) => {
-  console.error('[Nexus] Uncaught exception:', error);
+  log('fatal', `Uncaught exception: ${error?.stack || error?.message || error}`);
   postToDiscordLog(`Uncaught exception: ${error?.stack || error?.message || error}`, 'error');
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[Nexus] Unhandled rejection:', reason);
+  log('fatal', `Unhandled rejection: ${(reason as any)?.stack || (reason as any)?.message || reason}`);
   postToDiscordLog(`Unhandled rejection: ${(reason as any)?.message || reason}`, 'error');
 });
