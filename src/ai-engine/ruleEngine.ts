@@ -78,6 +78,27 @@ const SPANISH_INDICATORS = [
   /\b(?:hola|buenas|que tal|como estan|como estas|alguien|amigo|amigos|gracias|hermano|por favor|jugar|partida|servidor|canal|reglas|quien|donde|cuando|porque|mandó|mando|esto|mira|verdad|claro|saludos)\b/i,
 ];
 
+// Catalan conversational indicators — added after Patrick flagged that his Barça Discord server
+// runs in English, Spanish AND Catalan (2026-09-17), the same "always safe" role Hard Rule #17
+// already plays for Spanish: ordinary Catalan chat with no threat signal shouldn't get treated as
+// suspicious just because it isn't English. Since threat detection runs first in this file (see
+// the block comment above), this exemption can only ever soften a message that already survived
+// every real scam/raid/spam rule — it can never suppress an actual threat written in Catalan.
+const CATALAN_INDICATORS = [
+  /\b(?:hola|bon dia|bona tarda|bona nit|com estàs|com esteu|algú|amic|amics|gràcies|si\s?us\s?plau|jugar|partida|servidor|canal|normes|qui|on|quan|per\s?què|mira|veritat|clar|salutacions|nosaltres|vosaltres)\b/i,
+];
+
+// French conversational indicators — found missing entirely during a full audit of RaidShield's
+// language coverage (2026-09-17): Spanish and Catalan both have a named "always safe" exemption
+// here, French had none. Doesn't cause false positives on its own (the cascade's final fallback is
+// already "Default Safe", so an innocent French message with no threat markers reaches safe either
+// way) — this exists for parity/defense-in-depth, and to keep the reasoning behind why a French
+// message classified safe legible in the `reason` field instead of just falling out the bottom of
+// the whole rule cascade with a generic catch-all reason.
+const FRENCH_INDICATORS = [
+  /\b(?:salut|bonjour|bonsoir|merci|s'il\s?te\s?pla[iî]t|stp|quelqu'un|ami|amis|jouer|partie|serveur|salon|r[eè]gles|qui|o[uù]|quand|pourquoi|regarde|vrai|clair|salutations|nous|vous)\b/i,
+];
+
 // Reporting indicators (Hard Rule #18)
 const REPORTING_INDICATORS = [
   /alguien me mand[oó] esto/i,
@@ -181,8 +202,29 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
   // (gift/free/link(s)) are common in an innocent warning too ("there's a scammer sending fake
   // nitro links, don't click" has no actual link in it) so they only count as bait when the
   // message actually carries a link-shaped token alongside them.
-  const nitroStrongBait = /\b(?:claim|airdrop|generator|tool|download|hack|unlock|qr|scan)\b/i.test(unquotedLower);
-  const nitroWeakBait = /\b(?:gift|free|links?)\b/i.test(unquotedLower) && hasAnyLinkLikeToken;
+  // Spanish/Catalan bait words added alongside CATALAN_INDICATORS (2026-09-17) — before this, a
+  // Spanish/Catalan Nitro scam that didn't happen to match one of the corpus's handful of exact
+  // known phrasings (raidShieldThreatCorpus.ts's ml-es-*/ml-ca-* entries) fell straight through to
+  // Default Safe, since this generic bait-word check — the actual catch-all for NOVEL phrasing —
+  // only ever recognized English bait words. reclama/reclamar (claim), generador (generator),
+  // descarga/descarregar (download), hackear (hack), desbloquea/desbloqueja (unlock), escanea/
+  // escaneja (scan) are the direct Spanish/Catalan equivalents of the existing strong-bait list.
+  // Found via a full EN/FR/ES/CA audit (2026-09-17): "is this nitro generator a scam? someone
+  // sent it to me" — a genuine report, with REPORTING_INDICATORS entries that exist specifically
+  // to recognize it — was misclassified as 'scam', because nitroStrongBait fired on "generator"
+  // alone with no link/domain anywhere in the message. A real Nitro-generator scam's entire payload
+  // IS the link — without one there's nothing to click, so a bait word with zero link-shaped token
+  // in the message is never itself a live threat, only ever a report/conversation ABOUT one. Now
+  // requires a link-shaped token alongside the bait word, same discipline nitroWeakBait already
+  // used — hasSuspiciousLink (a known typosquat domain) stays independently sufficient on its own
+  // regardless of bait words, unaffected by this change.
+  const nitroStrongBait =
+    /\b(?:claim|airdrop|generator|tool|download|hack|unlock|qr|scan|reclama|reclamar|generador|descarga|descarregar|hackear|desbloquea|desbloqueja|escanea|escaneja)\b/i.test(unquotedLower) &&
+    hasAnyLinkLikeToken;
+  // gratis/gratuït (free), regalo/regal (gift), enlace/enllaç (link) — same weak-bait reasoning as
+  // the English words: common in an innocent warning too, so only bait when a link-shaped token
+  // is actually present alongside them.
+  const nitroWeakBait = /\b(?:gift|free|links?|gratis|gratuït|regalo|regal|enlace|enllaç)\b/i.test(unquotedLower) && hasAnyLinkLikeToken;
   if (/(?:nitro|free nitro|nitro gift|claim nitro|discord nitro)/i.test(unquotedLower) && (hasSuspiciousLink || nitroStrongBait || nitroWeakBait)) {
     return {
       classification: 'scam',
@@ -200,7 +242,10 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
   // stay unaffected.
   if (
     /\b(?:v-?bucks|robux|gift\s*card|free\s*coins?|free\s*points?|free\s*gems?|free\s*diamonds?)\s+generator\b/i.test(unquotedLower) ||
-    /\bgenerator\b.{0,25}\b(?:no\s+(?:human\s+)?verification|100%\s*working|unlimited\s+(?:coins|robux|v-?bucks|gems|money|points))\b/i.test(unquotedLower)
+    /\bgenerator\b.{0,25}\b(?:no\s+(?:human\s+)?verification|100%\s*working|unlimited\s+(?:coins|robux|v-?bucks|gems|money|points))\b/i.test(unquotedLower) ||
+    // Spanish/Catalan equivalents of the same generator-scam tells — "generador" combined with
+    // "sin verificación (humana)"/"sense verificació", "100% funcional", or "ilimitado"/"il·limitat".
+    /\bgenerador\b.{0,25}\b(?:sin\s+verificaci[oó]n(?:\s+humana)?|sense\s+verificaci[oó],?\s*(?:humana)?|100%\s*funcional|ilimitad[oa]|il·?limitad?a?)\b/i.test(unquotedLower)
   ) {
     return {
       classification: 'scam',
@@ -209,7 +254,12 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
     };
   }
 
-  if (/(?:steam gift|steam community|trade offer|csgo skins|free skins|claim steam)/i.test(unquotedLower) && (hasSuspiciousLink || /http/i.test(unquotedLower))) {
+  if (
+    (/(?:steam gift|steam community|trade offer|csgo skins|free skins|claim steam)/i.test(unquotedLower) ||
+      // Spanish/Catalan: "regalo de Steam"/"regal de Steam", "oferta de intercambio"/"oferta d'intercanvi".
+      /(?:regalo\s+de\s+steam|regal\s+de\s+steam|oferta\s+de\s+intercambio|oferta\s+d'?intercanvi)/i.test(unquotedLower)) &&
+    (hasSuspiciousLink || /http/i.test(unquotedLower))
+  ) {
     return {
       classification: 'scam',
       confidence: 0.99,
@@ -217,7 +267,11 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
     };
   }
 
-  if (/(?:scan this qr|discord qr login|verify via qr|scan with mobile app)/i.test(unquotedLower)) {
+  if (
+    /(?:scan this qr|discord qr login|verify via qr|scan with mobile app)/i.test(unquotedLower) ||
+    // Spanish/Catalan: "escanea este código QR"/"escaneja aquest codi QR", "verificar (a través) del QR".
+    /(?:escanea\s+(?:este|el)\s+c[oó]digo\s+qr|escaneja\s+aquest\s+codi\s+qr|verificar?\s+(?:v[ií]a|a\s+trav[eé]s\s+del?|mitjan[cç]ant\s+el)\s+qr)/i.test(unquotedLower)
+  ) {
     return {
       classification: 'scam',
       confidence: 0.99,
@@ -321,6 +375,26 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
       classification: 'safe',
       confidence: 0.96,
       reason: 'Legitimate Spanish conversational dialogue (Hard Rule #17).',
+    };
+  }
+
+  // Catalan conversation without scam markers is safe — same reasoning as Hard Rule #17 above,
+  // added for Patrick's Barça server (English/Spanish/Catalan).
+  if (CATALAN_INDICATORS.some((p) => p.test(unquotedLower))) {
+    return {
+      classification: 'safe',
+      confidence: 0.96,
+      reason: 'Legitimate Catalan conversational dialogue.',
+    };
+  }
+
+  // French conversation without scam markers is safe — parity fix, see FRENCH_INDICATORS' own
+  // comment above.
+  if (FRENCH_INDICATORS.some((p) => p.test(unquotedLower))) {
+    return {
+      classification: 'safe',
+      confidence: 0.96,
+      reason: 'Legitimate French conversational dialogue.',
     };
   }
 

@@ -60,7 +60,14 @@ export interface RaidShieldThreatPattern {
  * cases) — this only catches the residual phrasings.
  */
 export const CORPUS_SAFE_CONTEXT: RegExp[] = [
-  /\b(is|are)\s+(this|these|that|those)\s+(a\s+)?(scam|phish(?:ing)?|legit|safe|real|fake|virus|malware)\b/i,
+  // Widened (2026-09-17, full EN/FR/ES/CA RaidShield audit) — the original pattern required the
+  // accusation word right after "is this"/"are these" with nothing in between, so "is this nitro
+  // generator a scam?" (a genuine report, naming what the suspicious thing actually is before
+  // asking about it — the normal way anyone phrases this) never matched, fell through to
+  // nitro-generator-any's own bare "nitro generator" match, and got misclassified as the scam
+  // itself. ruleEngine.ts's own REPORTING_INDICATORS already had this exact bug fixed once before
+  // (see its own comment) but this file's narrower, separate copy never got the same fix.
+  /\b(is|are)\s+(this|these|that|those)\s+.{0,40}?(a\s+)?(scam|phish(?:ing)?|legit|safe|real|fake|virus|malware)\b/i,
   /\b(someone|somebody|a\s+bot|random(?:\s+account)?)\s+(just\s+)?(dm(?:ed|d)?|messaged|sent|pinged)\s+me\b/i,
   /\bgot\s+(this|a)\s+(weird\s+)?(dm|message|link|ping)\b/i,
   /\b(be\s+careful|watch\s+out|heads?\s+up|psa|warning|do\s?n'?t\s+click|dont\s+fall\s+for|dont\s+trust)\b/i,
@@ -836,6 +843,21 @@ const MULTILANG: RaidShieldThreatPattern[] = [
     keywords: ['gana desde casa', 'privado'],
     allOf: [/\bgan[ae]\w*\b/i, /\$\s?\d{2,}/, /\b(?:desde\s+casa|d[ií]a|privado|whatsapp|telegram)\b/i],
   }),
+  // Catalan — added for Patrick's Barça server (English/Spanish/Catalan), mirroring the Spanish
+  // entries above one-for-one since it's the exact same set of scam constructions in a language
+  // this corpus had zero coverage for until now.
+  t('ml-ca-nitro-gratis', 'scam', 0.93, 'Catalan "Nitro gratis, reclama-ho aquí" phishing.', {
+    family: 'multilang', keywords: ['nitro gratis', 'reclama'],
+    allOf: [/\bnitro\s+gratis\b/i, /\b(?:reclama|reclamar|aqu[ií]|enlla[cç]|link)\b/i],
+  }),
+  t('ml-ca-regal-discord', 'scam', 0.9, 'Catalan fake "Discord t\'ha regalat / has guanyat" gift.', {
+    family: 'multilang', keywords: ['has guanyat', 'regal'],
+    allOf: [/\b(?:has\s+guanyat|t'?ha\s+regalat|felicitats\s+has\s+guanyat)\b/i, /\b(?:nitro|regal|premi|targeta)\b/i],
+  }),
+  t('ml-ca-verifica-compte', 'scam', 0.9, 'Catalan "verifica el teu compte o serà suspès" phishing.', {
+    family: 'multilang', keywords: ['verifica el teu compte', 'suspès'],
+    allOf: [/\bverifica\s+el\s+teu\s+compte\b/i, /\b(?:susp[eè]s\w*|eliminat|bloquejat|24\s?hores)\b/i],
+  }),
 ];
 
 // =======================================================================
@@ -1324,6 +1346,14 @@ const SUPPLEMENT: RaidShieldThreatPattern[] = [
   t('ml-de-konto-gesperrt', 'scam', 0.9, 'German "dein Konto wurde gesperrt, jetzt verifizieren".', {
     family: 'multilang', keywords: ['konto gesperrt', 'verifizieren'],
     allOf: [/\bdein\s+konto\b/i, /\b(?:gesperrt|deaktiviert|gemeldet)\b/i],
+  }),
+  t('ml-ca-clic-regal-discord', 'scam', 0.9, 'Catalan "fes clic per reclamar el teu regal de Discord".', {
+    family: 'multilang', keywords: ['fes clic', 'regal discord'],
+    allOf: [/\bfes\s+clic\b/i, /\b(?:regal|nitro|premi)\b/i, /\bdiscord\b/i],
+  }),
+  t('ml-ca-compte-menor', 'scam', 0.9, 'Catalan "el teu compte ha estat reportat per ser menor, verifica la teva edat".', {
+    family: 'multilang', keywords: ['reportat', 'menor', 'edat'],
+    allOf: [/\bcompte\b/i, /\b(?:reportat|denunciat)\w*\b/i, /\b(?:menor|edat|13\s+anys)\b/i],
   }),
 ];
 
