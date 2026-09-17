@@ -1438,7 +1438,18 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
       if (imagePart) {
         const visionResult = await generateVision(
           imagePart.inlineData.data,
-          'Describe what is shown in this image in detail — objects, text, people, setting, mood.',
+          // Kept deliberately SHORT and single-clause (2026-09-17, after live testing moondream
+          // directly) — an earlier, more elaborate version of this prompt ("transcribe it EXACTLY
+          // as written... state what language it appears to be in...") looked more thorough on
+          // paper but measurably broke this specific tiny 1B vision model: the same test image,
+          // same everything, went from a real description most of the time down to a 0% non-empty
+          // rate purely from that added wording — moondream is small enough that even one extra
+          // instruction clause can collapse it into an immediate empty completion. This is the
+          // version that actually held up across repeated live tests. No need to also ask it to
+          // name the language explicitly — looksFrench/scoreFrenchSignal and RaidShield's own
+          // Spanish/Catalan detection already classify whatever text comes back, so that job
+          // doesn't have to survive being asked of this specific fragile model too.
+          'Describe this image in detail, including any text visible in it.',
           { timeoutMs: 25000 }
         );
         if (visionResult.status === 'success') {
@@ -1890,6 +1901,20 @@ app.post('/api/v1/raidshield', aiComputeLimiter, async (req, res) => {
       if (imagePart) {
         const visionResult = await generateVision(
           imagePart.inlineData.data,
+          // Widened (2026-09-17, full EN/FR/ES/CA RaidShield audit) — the RaidShield classifier
+          // downstream (evaluateRaidShieldRules) now understands scam phrasing in all four
+          // languages, but only if the actual words reach it. A vague "some Spanish text about a
+          // gift" gives evaluateRaidShieldRules nothing to pattern-match against; the literal
+          // transcribed sentence ("felicidades ganaste un regalo, haz clic aquí") is what its
+          // Spanish/Catalan/French bait-word rules and corpus patterns actually need to fire on. A
+          // screenshotted scam DM in any of these languages is exactly the real-world case this
+          // exists for — someone posts a screenshot, not typed text.
+          //
+          // Kept SHORT and single-clause deliberately — see the /api/v1/nexus vision prompt's own
+          // comment above for the live test that found an explicit "transcribe it EXACTLY... state
+          // what language" tail collapses this specific tiny (1B param) vision model into an empty
+          // response far more often than not. No explicit language-naming needed here either —
+          // evaluateRaidShieldRules' own EN/FR/ES/CA detection runs on whatever text comes back.
           'Describe exactly what is shown in this image, in detail — including any visible text, links, QR codes, logos, or people. Be factual and literal.',
           { timeoutMs: 30000 }
         );
@@ -1958,11 +1983,16 @@ app.post('/api/v1/vision/analyze', aiComputeLimiter, async (req, res) => {
       // regardless of content, fabricating a "Clean" verdict even for something genuinely
       // malicious. Now runs the image through a real vision model (moondream) with a prompt suited
       // to what was actually asked.
+      // Same real text-inclusion as the other two vision call sites (server.ts's /api/v1/nexus and
+      // /api/v1/raidshield) — kept SHORT and single-clause for the same reason documented on
+      // those: live-tested, an explicit "transcribe it EXACTLY... state what language" tail
+      // measurably collapses this specific tiny vision model into an empty response far more
+      // often than the plain version does.
       const visionPrompt = isSecurityMode
         ? 'Describe exactly what is shown in this image, in detail — including any text, logos, QR codes, buttons, or links visible. Be factual and literal, do not guess at intent.'
         : prompt && prompt.trim()
         ? prompt.trim()
-        : 'Describe what is shown in this image in detail.';
+        : 'Describe this image in detail, including any text visible in it.';
 
       const visionResult = await generateVision(imagePart.inlineData.data, visionPrompt, { timeoutMs: 45000 });
 

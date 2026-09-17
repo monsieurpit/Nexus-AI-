@@ -454,6 +454,23 @@ function isDegenerateRepetition(text: string): boolean {
   // the gibberish run had trailing punctuation/emoji glued on with no space ("...WWWW!!!11️⃣"),
   // which an anchored "the whole token is letters" check doesn't match.
   if (/[a-zA-Z]{35,}/.test(text)) return true;
+  // A fourth failure mode, found via the vision model (moondream) specifically (2026-09-17): the
+  // output degenerates into the SAME single punctuation character repeated dozens of times
+  // ("!!!!!!!!!!!!!!!!!!!!!!!!!!!!...", no letters at all) — neither of the two checks above
+  // catches this, since it's not word-repetition (there's only ever one whitespace-delimited
+  // "word") and it's not alphabetic (the 35-char letter-run check only matches [a-zA-Z]).
+  // Deliberately restricted to non-word characters (punctuation/symbols) only, NOT letters — this
+  // function is shared with the main crashout-voice text generator, and a stretched word like
+  // "NOOOOOO" or "hahahaha" is genuine in-character emphasis there, not degenerate output, so a
+  // letter-repetition threshold this tight would misfire on real replies. No legitimate reply
+  // stacks the same punctuation mark 8+ times in a row either way.
+  if (/([^\w\s])\1{7,}/.test(text)) return true;
+  // A fifth failure mode, also found via the vision model: the output is a bare coordinate/number
+  // array with no actual words at all ("[0.12, 0.74, 0.86, 0.87]") — looks like an internal
+  // bounding-box/confidence artifact leaking out instead of a real description. No legitimate
+  // reply of any real length is entirely devoid of letters; gated on length so a short, genuinely
+  // numeric-only real answer ("42", "3.14") isn't misflagged.
+  if (text.length >= 8 && !/[a-zA-Z]/.test(text)) return true;
   // A third failure mode: the model echoes the style instruction as a literal fill-in-the-blank
   // placeholder instead of actually substituting real profanity — "<insert profanity>", "[insert
   // swear word here]", etc. — rather than following it. Observed live: "Shit <insert profanity>
@@ -978,7 +995,7 @@ const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'moondream';
 
 export type VisionResult =
   | { status: 'success'; text: string; latencyMs: number }
-  | { status: 'unavailable'; reason: 'not_configured' | 'connection_error' | 'timeout' | 'http_error' | 'empty_response'; detail?: string };
+  | { status: 'unavailable'; reason: 'not_configured' | 'connection_error' | 'timeout' | 'http_error' | 'empty_response' | 'degenerate_output'; detail?: string };
 
 /**
  * Real image understanding via a dedicated small vision model (moondream by default — ~1.7GB,
@@ -989,7 +1006,27 @@ export type VisionResult =
  * unread. gemma3:4b (the main text model) is used via Ollama's text chat API here with no images,
  * so vision stays a separate model/call rather than an option on generate().
  */
+// moondream is stochastic (temperature 0.3) and genuinely inconsistent at reading text out of an
+// image — verified live (2026-09-17) running the EXACT SAME test image through it twice: one run
+// produced a real, correct transcription, the other produced empty_response for that same image.
+// Since the failure is non-deterministic, a single retry (still on the same small, fast model —
+// this costs a couple seconds, not a slow escalation to a bigger model) has a real chance of
+// succeeding where the first attempt didn't, rather than giving up on legitimately readable text
+// after one unlucky sample. Only retries the failure modes retrying can plausibly fix
+// (empty_response, degenerate_output — both are model-sampling flukes); a real connection/timeout/
+// config problem won't be fixed by asking the same broken thing again, so those return immediately.
 export async function generateVision(
+  imageBase64: string,
+  prompt: string,
+  options: { timeoutMs?: number } = {}
+): Promise<VisionResult> {
+  const first = await generateVisionOnce(imageBase64, prompt, options);
+  if (first.status === 'success') return first;
+  if (first.reason !== 'empty_response' && first.reason !== 'degenerate_output') return first;
+  return generateVisionOnce(imageBase64, prompt, options);
+}
+
+async function generateVisionOnce(
   imageBase64: string,
   prompt: string,
   options: { timeoutMs?: number } = {}
@@ -1038,6 +1075,16 @@ export async function generateVision(
     const text = typeof data?.message?.content === 'string' ? data.message.content.trim() : '';
     if (!text) {
       return { status: 'unavailable', reason: 'empty_response' };
+    }
+    // moondream (the small vision model used here) is genuinely unreliable at transcribing dense
+    // text out of an image — verified live (2026-09-17) asking it to transcribe short multi-line
+    // scam-style text: it spiraled into "QUE QUE QUE QUE..." repeated for the entire response on
+    // one real test image. Reuses the exact same repetition/run-on detector already proven for the
+    // main text model's output (isDegenerateRepetition, below) rather than shipping garbage prose
+    // into a chat reply or — worse — feeding it into evaluateRaidShieldRules as if it were real
+    // transcribed scam text.
+    if (isDegenerateRepetition(text)) {
+      return { status: 'unavailable', reason: 'degenerate_output', detail: text.slice(0, 100) };
     }
 
     return { status: 'success', text, latencyMs: Date.now() - startedAt };
