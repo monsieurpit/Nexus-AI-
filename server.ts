@@ -22,6 +22,7 @@ import {
   checkAvailability as checkLocalLlmAvailability,
   generate as generateLlmText,
   generateVision,
+  visionModel as localLlmVisionModel,
   chatModel as localLlmChatModel,
 } from './src/ai-engine/localLlmClient';
 import { ROLEPLAY_PERSONAS, buildRoleplayPrompt } from './src/ai-engine/roleplayPersonas';
@@ -1438,18 +1439,15 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
       if (imagePart) {
         const visionResult = await generateVision(
           imagePart.inlineData.data,
-          // Kept deliberately SHORT and single-clause (2026-09-17, after live testing moondream
-          // directly) — an earlier, more elaborate version of this prompt ("transcribe it EXACTLY
-          // as written... state what language it appears to be in...") looked more thorough on
-          // paper but measurably broke this specific tiny 1B vision model: the same test image,
-          // same everything, went from a real description most of the time down to a 0% non-empty
-          // rate purely from that added wording — moondream is small enough that even one extra
-          // instruction clause can collapse it into an immediate empty completion. This is the
-          // version that actually held up across repeated live tests. No need to also ask it to
-          // name the language explicitly — looksFrench/scoreFrenchSignal and RaidShield's own
-          // Spanish/Catalan detection already classify whatever text comes back, so that job
-          // doesn't have to survive being asked of this specific fragile model too.
-          'Describe this image in detail, including any text visible in it.',
+          // Restored to the full, explicit instruction (2026-09-17) after swapping the vision model
+          // from moondream (1B — measurably broke on exactly this wording, see localLlmClient.ts's
+          // OLLAMA_VISION_MODEL comment) to Qwen2.5-VL 3B, which handles it fine: live-tested 8/8
+          // perfect, near-verbatim transcriptions across two full passes with this exact wording,
+          // including correctly naming French/Spanish/Catalan unprompted. Asking for the language
+          // explicitly here is now genuinely a bonus, not a requirement — looksFrench/
+          // scoreFrenchSignal and RaidShield's own detection still classify whatever text comes
+          // back either way, so this doesn't depend on the model getting it right.
+          'Describe what is shown in this image in detail — objects, text, people, setting, mood. If there is any text visible anywhere in the image, transcribe it EXACTLY as written, word for word, in its original language (do not translate it), and state what language it appears to be in (English, French, Spanish, Catalan, or another language).',
           { timeoutMs: 25000 }
         );
         if (visionResult.status === 'success') {
@@ -1910,12 +1908,12 @@ app.post('/api/v1/raidshield', aiComputeLimiter, async (req, res) => {
           // screenshotted scam DM in any of these languages is exactly the real-world case this
           // exists for — someone posts a screenshot, not typed text.
           //
-          // Kept SHORT and single-clause deliberately — see the /api/v1/nexus vision prompt's own
-          // comment above for the live test that found an explicit "transcribe it EXACTLY... state
-          // what language" tail collapses this specific tiny (1B param) vision model into an empty
-          // response far more often than not. No explicit language-naming needed here either —
-          // evaluateRaidShieldRules' own EN/FR/ES/CA detection runs on whatever text comes back.
-          'Describe exactly what is shown in this image, in detail — including any visible text, links, QR codes, logos, or people. Be factual and literal.',
+          // Restored the explicit transcribe/language instruction (2026-09-17) after swapping to
+          // Qwen2.5-VL 3B (see localLlmClient.ts's OLLAMA_VISION_MODEL comment) — this exact tail
+          // used to collapse moondream (the old 1B model) into an empty response, but Qwen2.5-VL
+          // handled it fine in live testing, and it's genuinely useful here to get an explicit
+          // verbatim transcription for RaidShield to pattern-match against.
+          'Describe exactly what is shown in this image, in detail — including any visible text, links, QR codes, logos, or people. If there is any text visible anywhere in the image, transcribe it EXACTLY as written, word for word, in its original language (do not translate it), and state what language it appears to be in. Be factual and literal.',
           { timeoutMs: 30000 }
         );
         if (visionResult.status === 'success') {
@@ -1981,18 +1979,14 @@ app.post('/api/v1/vision/analyze', aiComputeLimiter, async (req, res) => {
       // Previously this never actually looked at the image at all — it returned a canned string
       // ("Optical frame alignment verified", "Threat Signatures: No... detected") for every image
       // regardless of content, fabricating a "Clean" verdict even for something genuinely
-      // malicious. Now runs the image through a real vision model (moondream) with a prompt suited
-      // to what was actually asked.
-      // Same real text-inclusion as the other two vision call sites (server.ts's /api/v1/nexus and
-      // /api/v1/raidshield) — kept SHORT and single-clause for the same reason documented on
-      // those: live-tested, an explicit "transcribe it EXACTLY... state what language" tail
-      // measurably collapses this specific tiny vision model into an empty response far more
-      // often than the plain version does.
+      // malicious. Now runs the image through a real vision model (Qwen2.5-VL 3B, swapped from
+      // moondream 2026-09-17 — see localLlmClient.ts's OLLAMA_VISION_MODEL comment) with a prompt
+      // suited to what was actually asked.
       const visionPrompt = isSecurityMode
-        ? 'Describe exactly what is shown in this image, in detail — including any text, logos, QR codes, buttons, or links visible. Be factual and literal, do not guess at intent.'
+        ? 'Describe exactly what is shown in this image, in detail — including any text, logos, QR codes, buttons, or links visible. If there is any text visible anywhere in the image, transcribe it EXACTLY as written, word for word, in its original language (do not translate it), and state what language it appears to be in. Be factual and literal, do not guess at intent.'
         : prompt && prompt.trim()
         ? prompt.trim()
-        : 'Describe this image in detail, including any text visible in it.';
+        : 'Describe what is shown in this image in detail. If there is any text visible, transcribe it exactly as written and state what language it is in.';
 
       const visionResult = await generateVision(imagePart.inlineData.data, visionPrompt, { timeoutMs: 45000 });
 
@@ -2001,7 +1995,7 @@ app.post('/api/v1/vision/analyze', aiComputeLimiter, async (req, res) => {
           analysis: `⚠️ Vision analysis unavailable right now (${visionResult.reason}). Image received (${mimeType}, ${(dataSize / 1024).toFixed(1)} KB) but could not be inspected.`,
           status: 'error',
           hasImage: true,
-          model: 'moondream',
+          model: localLlmVisionModel(),
           timestamp: new Date().toISOString(),
         };
       }
@@ -2014,7 +2008,7 @@ app.post('/api/v1/vision/analyze', aiComputeLimiter, async (req, res) => {
         analysis: analysisReport,
         status: 'success',
         hasImage: true,
-        model: 'moondream',
+        model: localLlmVisionModel(),
         latencyMs: visionResult.latencyMs,
         timestamp: new Date().toISOString(),
       };

@@ -991,15 +991,37 @@ export async function generateStream(
   }
 }
 
-const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'moondream';
+// Swapped from moondream (1B params, ~1.7GB) to Qwen2.5-VL 3B (~3.2GB) — 2026-09-17, per Patrick's
+// explicit request after moondream's OCR reliability turned out genuinely poor (see the extensive
+// live-testing comments on generateVision/generateVisionOnce below and this file's own
+// isDegenerateRepetition additions, all written chasing moondream failure modes). Live A/B tested
+// side by side on the exact same 4 test images (EN/FR/ES/CA scam-style screenshots): moondream's
+// non-empty response rate swung wildly (0% to ~90% across different prompt wordings, highly
+// sensitive to instruction complexity), while qwen2.5vl:3b hit 8/8 perfect, near-verbatim
+// transcriptions — including correctly identifying French/Spanish/Catalan by name — across two full
+// reliability passes, with BOTH the short and the more elaborate/explicit prompt wording, at
+// roughly 1s per image once warm. Still small enough for this 16GB host (similar footprint to the
+// main chat model) — this isn't a "go bigger" tradeoff, it's a strictly better model at a similar
+// size.
+const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'qwen2.5vl:3b';
+
+// Exposed the same way chatModel() already exposes the text model — server.ts's vision endpoints
+// used to hardcode the literal string 'moondream' directly into their own API responses, which
+// silently went stale and started lying about which model actually ran the moment this swapped to
+// Qwen2.5-VL. Reading it from here means a future model swap only ever needs to happen in one
+// place again.
+export function visionModel(): string {
+  return OLLAMA_VISION_MODEL;
+}
 
 export type VisionResult =
   | { status: 'success'; text: string; latencyMs: number }
   | { status: 'unavailable'; reason: 'not_configured' | 'connection_error' | 'timeout' | 'http_error' | 'empty_response' | 'degenerate_output'; detail?: string };
 
 /**
- * Real image understanding via a dedicated small vision model (moondream by default — ~1.7GB,
- * fast enough on this host to answer in a few seconds). This did NOT exist before: server.ts's
+ * Real image understanding via a dedicated small vision model (Qwen2.5-VL 3B by default — ~3.2GB,
+ * fast enough on this host to answer in a few seconds; swapped from moondream 2026-09-17, see
+ * OLLAMA_VISION_MODEL's own comment above for why). This did NOT exist before: server.ts's
  * image-handling paths fetched the image bytes and then just returned canned strings like
  * "Optical frame alignment verified" and "Visual Input Received & Inspected" regardless of what
  * was actually in the picture — image content was fetched, base64-encoded, and then thrown away
