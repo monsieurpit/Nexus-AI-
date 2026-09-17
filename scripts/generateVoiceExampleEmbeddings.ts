@@ -17,7 +17,8 @@ import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import * as localLlmClient from '../src/ai-engine/localLlmClient';
 
 const OUTPUT_PATH = resolve(__dirname, '../src/ai-engine/corpus/voiceExampleEmbeddings.generated.json');
-const EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
+// Same sync fix as scripts/generateEmbeddings.ts — see its comment.
+const EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'bge-m3';
 const FORCE_REEMBED = process.env.FORCE_REEMBED === 'true';
 
 interface VectorEntry {
@@ -33,6 +34,14 @@ interface EmbeddingsFile {
 
 function hashText(text: string): string {
   return createHash('sha256').update(text).digest('hex').slice(0, 16);
+}
+
+// Same rounding + compact-output treatment as scripts/generateEmbeddings.ts, for consistency —
+// see that file's roundVector comment for why. This file is far smaller (81 items) so it was never
+// close to GitHub's size limit, but keeping both generated files on the same convention avoids a
+// silent format drift between them.
+function roundVector(vec: number[]): number[] {
+  return vec.map((x) => Math.round(x * 1e6) / 1e6);
 }
 
 // nomic-embed-text's recommended "search_document:" prefix for indexed text — the query-time
@@ -94,7 +103,7 @@ async function main() {
       continue;
     }
 
-    vectors[example.id] = { vector: result.vector, textHash };
+    vectors[example.id] = { vector: roundVector(result.vector), textHash };
     embedded++;
     if (embedded % 20 === 0) console.log(`  embedded ${embedded} so far...`);
   }
@@ -117,7 +126,7 @@ async function main() {
     vectors,
   };
 
-  writeFileSync(OUTPUT_PATH, JSON.stringify(output, null, 2) + '\n');
+  writeFileSync(OUTPUT_PATH, JSON.stringify(output) + '\n');
   console.log(`Wrote ${Object.keys(vectors).length} vectors (dim=${dim}) to ${OUTPUT_PATH}`);
 }
 

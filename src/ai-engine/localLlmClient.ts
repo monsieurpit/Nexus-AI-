@@ -16,7 +16,22 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:4b';
 // Modelfile got wiped by a Mac reboot / `ollama` cleanup), fall back to this instead of
 // failing every request. Set OLLAMA_MODEL_FALLBACK=gemma3:4b on Railway.
 const OLLAMA_MODEL_FALLBACK = process.env.OLLAMA_MODEL_FALLBACK || 'gemma3:4b';
-const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text';
+// Swapped from nomic-embed-text (768-dim, effectively English-only) to bge-m3 (1024-dim,
+// multilingual) — 2026-09-17, per Patrick's explicit request after establishing the corpus itself
+// is English-only and cross-lingual retrieval quality actually matters (RaidShield ES/CA support,
+// French chat, etc.). Verified live with real cosine-similarity comparisons before committing to
+// the full corpus re-embed: with nomic-embed-text, a French or Catalan "what is a black hole"
+// query actually scored an UNRELATED Discord-structure document HIGHER than the correct astronomy
+// document (negative retrieval margin — the current setup would silently return the wrong doc for
+// those languages). With bge-m3, the correct document won by a clear margin in all four languages
+// tested (EN/FR/ES/CA). Also verified bge-m3 performs slightly BETTER with the existing
+// "search_query:"/"search_document:" prefix convention (vectorSearch.ts, scripts/
+// generateEmbeddings.ts) than without it, so that convention is kept as-is — no prefix-logic
+// changes needed anywhere, only this model swap plus a full re-embed of the corpus (different
+// model = incompatible vector space, not something that can be partially migrated).
+// Confirmed working reliably on this host: ~1.2GB on disk, loads alongside the ~3.3GB text model
+// with room to spare on 16GB, and responds in 30-120ms once warm.
+const OLLAMA_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'bge-m3';
 // Explicit context window, sent on every generate()/generateStream() call. Found live (2026-09-15):
 // a real production request came back http_error with no visible cause locally, traced to Ollama's
 // own server log showing `n_ctx_slot = 2048` — with OLLAMA_NUM_PARALLEL=2 set on the host (see

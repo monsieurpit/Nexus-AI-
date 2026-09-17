@@ -313,6 +313,46 @@ export const STOP_WORDS = new Set([
   'na', 'nie', 'tak', 'się', 'ja', 'ty', 'on', 'ona', 'ono', 'my', 'wy', 'oni', 'one', 'ten',
   'ta', 'te', 'tego', 'tej', 'tym', 'tych', 'przez', 'bez', 'od', 'pod', 'nad', 'przy', 'że',
   'żeby', 'oraz', 'lub', 'czyli', 'więc', 'bardzo', 'tylko', 'już', 'jeszcze', 'także', 'też',
+  // French/Spanish/Catalan function words — same exact bug class as the Polish list right above,
+  // found live (2026-09-17) during a full multilingual-embedding audit: "qu'est-ce qu'un trou
+  // noir" (what is a black hole, French) top-matched Film Noir corpus entries, "que es la
+  // fotosíntesis" (what is photosynthesis, Spanish) top-matched FC Barcelona/La Liga entries, and
+  // "com funciona la fotosíntesi" (how does photosynthesis work, Catalan) top-matched DNS/domain
+  // corpus entries — all three purely because ordinary connector words ("es", "la", "com", "que")
+  // are RARE across this predominantly-English corpus, so BM25's IDF weighting scores them as
+  // high-signal rare terms instead of the near-meaningless function words they actually are,
+  // exactly the mechanism the Polish comment above already documents. Swapping the embedding
+  // model to a real multilingual one (bge-m3) fixed the underlying semantic similarity computation
+  // — confirmed via direct cosine tests — but BM25 keyword matches still win the hybrid-search
+  // merge whenever they exist (reciprocalRankFusion's own comment above explains why, and that
+  // priority is deliberate), so a spurious BM25 hit on a bare connector word could still bury a
+  // correct vector match. This is the same fix as the Polish case: strip the noise at the source.
+  //
+  // Deliberately excludes several words that would otherwise fit this list but are also real,
+  // meaningful English content words in THIS corpus specifically: "ai" (French "have", but also
+  // this corpus's own many Artificial Intelligence documents — stopwording it would break English
+  // AI queries), "son"/"ton"/"ma"/"car"/"par" (already excluded from localLlmClient.ts's
+  // FRENCH_SIGNAL_WORDS for the identical reason — a son, a ton, informal "ma", a car, golf par),
+  // "con" (con artist / pros and cons), "cap" (a baseball cap / to cap something).
+  'qu', 'quoi', 'que', 'qui', 'est', 'suis', 'es', 'sommes', 'êtes', 'sont', 'était', 'étais',
+  'être', 'avoir', 'as', 'a', 'avons', 'avez', 'ont', 'le', 'la', 'les', 'un', 'une', 'des',
+  'du', 'de', 'et', 'ou', 'mais', 'donc', 'ne', 'pas', 'se', 'ce', 'cette', 'ces', 'cet',
+  'je', 'tu', 'il', 'elle', 'nous', 'vous', 'ils', 'elles', 'mon', 'mes', 'ta',
+  'tes', 'sa', 'ses', 'notre', 'nos', 'votre', 'vos', 'leur', 'leurs', 'dans', 'sur',
+  'sous', 'chez', 'avec', 'sans', 'pour', 'entre', 'vers', 'comme', 'si', 'quand',
+  // Spanish
+  'qué', 'quien', 'quién', 'como', 'cómo', 'cuando', 'cuándo', 'donde', 'dónde', 'el', 'los',
+  'unos', 'unas', 'soy', 'eres', 'somos', 'sois', 'fue', 'ser', 'estar', 'estoy',
+  'estas', 'está', 'estamos', 'están', 'tengo', 'tienes', 'tiene', 'tenemos', 'tienen', 'yo',
+  'tú', 'él', 'ella', 'nosotros', 'vosotros', 'ellos', 'ellas', 'mi', 'su', 'sus',
+  'nuestro', 'nuestra', 'vuestro', 'vuestra', 'en', 'sin', 'por', 'hacia',
+  'pero', 'porque', 'aunque', 'muy', 'más', 'menos', 'también',
+  // Catalan
+  'què', 'com', 'quan', 'on', 'perquè', 'però', 'sóc', 'ets', 'som', 'sou', 'són',
+  'ésser', 'estic', 'estàs', 'està', 'estem', 'esteu', 'estan', 'tinc', 'tens', 'te', 'tenim',
+  'teniu', 'tenen', 'jo', 'ell', 'nosaltres', 'vosaltres', 'ells', 'meu', 'meva', 'teu',
+  'teva', 'seu', 'seva', 'nostre', 'nostra', 'vostre', 'vostra', 'amb', 'sense', 'per',
+  'molt', 'també',
 ]);
 
 // Folds accented Latin characters (é, ñ, ü, ...) down to their plain ASCII base letter before
