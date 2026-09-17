@@ -1296,9 +1296,15 @@ const LEADING_FILLER_REGEX =
 const CHAT_TRIGGER_MAX_WORDS = 7;
 const isChatLength = (wordCount: number) => wordCount <= CHAT_TRIGGER_MAX_WORDS;
 // Phrase-specific greeting forms ("how are you", "what's up") are matched by their own explicit
-// clauses below, so excluding question words here doesn't cost them anything.
+// clauses below, so excluding question words here doesn't cost them anything. French words added
+// alongside the French chatTriggers entries below (2026-09-17) — without them, "salut, c'est quoi
+// un trou noir" would have its real question swallowed into a bare greeting reply, the same defect
+// this regex already exists to prevent for English ("hey so my little brother asked how
+// photosynthesis works"). "où" deliberately left out — its accented character sits outside \w so
+// \b doesn't reliably bound it (same ASCII-\b-vs-diacritic defect documented elsewhere in this
+// file), and it's a low-value question opener to chase down a workaround for right now.
 const QUESTION_BODY_REGEX =
-  /\b(?:what|whats|why|how|hows|who|whos|where|wheres|when|whens|which|explain|define|difference)\b/i;
+  /\b(?:what|whats|why|how|hows|who|whos|where|wheres|when|whens|which|explain|define|difference|quoi|pourquoi|comment|qui|quand|quel|quelle|quels|quelles|explique|expliquer|d[ée]finis|d[ée]finir|diff[ée]rence)\b/i;
 
 export function detectQueryIntent(query: string): QueryIntent {
   let q = query.toLowerCase().trim();
@@ -1358,6 +1364,20 @@ export function detectQueryIntent(query: string): QueryIntent {
     // content), producing a completely unprompted physics lecture in English to a one-word Polish
     // message telling the bot to chill out.
     'spokojnie', 'spoko', 'luz', 'wyluzuj',
+    // French (Québécois) equivalents — never added until now (2026-09-17), same missing-coverage
+    // bug Polish already got fixed for above: a bare "salut ça va?" had NOTHING here to match, fell
+    // through to 'general' intent, BM25-matched an unrelated corpus document (observed live: a
+    // French internet-slang/verlan entry) and answered in ENGLISH despite the message being French
+    // small talk — the exact failure buildFrenchSystemPrompt's own header comment already
+    // documented as "found live" and supposedly handled, except this trigger list (a completely
+    // separate, upstream classification step) never got the French entries that actually route a
+    // message to that dedicated French system prompt in the first place.
+    'salut', 'allo', 'allô', 'coucou', 'bonjour', 'bonsoir', 'coudonc',
+    'ça va', 'ca va', 'comment ça va', 'comment ca va', 'quoi de neuf', 'quoi de neu', 'ça roule', 'ca roule',
+    'merci', 'merci beaucoup', 'merci bien',
+    'bye', 'à plus', 'a plus', 'à la prochaine', 'a la prochaine', 'bonne journée', 'bonne journee',
+    'qui es-tu', 'qui es tu', "t'es qui", 't es qui', "qui t'a créé", "qui t'a cree", "qui t'a fait",
+    'mdr', 'ptdr', "d'accord", 'dacc', 'daccord', 'mouais',
   ];
 
   // Strictly for exact-match trigger comparisons — "you good?" should still hit the "you good"
@@ -3528,7 +3548,7 @@ async function buildSystemPrompt(
   const voiceExamplesBlock = prompt
     ? formatVoiceExamplesBlock(await retrieveVoiceExamples(prompt, 3))
     : '';
-  if (useFrench) return getMoodPrimacyPrefix('fr') + buildFrenchSystemPrompt(isCrashout) + voiceExamplesBlock;
+  if (useFrench) return getMoodPrimacyPrefix('fr') + buildFrenchSystemPrompt(isCrashout, settings.reasoningMode) + voiceExamplesBlock;
   return (
     getMoodPrimacyPrefix('en') +
     persona.systemPrompt +
@@ -3625,8 +3645,27 @@ function buildPolishSystemPromptBody(isCrashout: boolean): string {
 // English-style instruction stack is what CAUSES the confusion for a secondary language on a
 // small model, not model size — so this stays short on purpose, mirroring buildPolishSystemPrompt
 // structurally rather than translating its full numbered list from scratch.
-function buildFrenchSystemPrompt(isCrashout: boolean): string {
-  return buildFrenchSystemPromptBody(isCrashout) + getMoodDirective('fr');
+// French sibling of buildReasoningModeInstruction — never existed before (2026-09-17), which meant
+// French replies had ZERO guidance on thinking length regardless of reasoningMode, the exact same
+// bug just fixed for English 'fast' mode. Confirmed live: French fast-mode replies were taking
+// ~22-28s, right in the same slow range English was in before that fix, for the same root cause —
+// undirected thinking defaulting to a long structured plan. Kept short and in French itself (not a
+// translated copy of the longer English directives) per this file's own repeated, hard-learned
+// lesson: a long English-style instruction stack confuses this model in French/Polish even when
+// it's about something as simple as "think less" — see buildFrenchSystemPrompt's own header
+// comment and buildPolishSystemPrompt's for the same finding.
+function buildReasoningModeInstructionFr(reasoningMode: AISettings['reasoningMode']): string {
+  if (reasoningMode === 'deep-cot') {
+    return "\n\nRéflexion : avant de répondre, prends vraiment le temps d'y penser comme il faut — considère au moins deux angles différents, vérifie si la réponse évidente est vraiment correcte, PUIS donne une seule réponse claire. Montre jamais ce raisonnement, juste une meilleure réponse.";
+  }
+  if (reasoningMode === 'thorough') {
+    return "\n\nRéflexion : pense comme il faut avant de répondre — vérifie que la réponse évidente est vraiment la bonne, PUIS réponds clairement. Montre jamais ce raisonnement.";
+  }
+  return "\n\nGarde ton raisonnement interne court — une phrase ou deux, jamais un plan structuré au complet. Réponds ensuite.";
+}
+
+function buildFrenchSystemPrompt(isCrashout: boolean, reasoningMode: AISettings['reasoningMode']): string {
+  return buildFrenchSystemPromptBody(isCrashout) + buildReasoningModeInstructionFr(reasoningMode) + getMoodDirective('fr');
 }
 
 function buildFrenchSystemPromptBody(isCrashout: boolean): string {
