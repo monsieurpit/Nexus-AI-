@@ -192,6 +192,17 @@ const ENGLISH_SIGNAL_WORDS = new Set([
   // failure mode that broke this case.
   'fuck', 'fucking', 'fucked', 'shit', 'damn', 'goddamn', 'hell', 'ass', 'bitch', 'bro', 'man',
   'yeah', 'nah', 'gonna', 'wanna', 'gotta', 'lol', 'lmao', 'homie', 'dude',
+  // Contractions — added alongside the tokenizer fix below (2026-09-17) that stops stripping
+  // apostrophes. Before that fix, "don't"/"it's"/"what's" etc. silently split into fragments
+  // ("don"+"t", "it"+"s") that matched NOTHING in either language's word list, quietly losing
+  // real English signal on every single contraction in a message — one of the reasons short,
+  // contraction-heavy English messages could tie or lose against French. Each of these is an
+  // unambiguous English-only contraction with no French-word collision.
+  'what\'s', 'it\'s', 'that\'s', 'who\'s', 'here\'s', 'there\'s', 'let\'s',
+  'don\'t', 'doesn\'t', 'didn\'t', 'isn\'t', 'aren\'t', 'wasn\'t', 'weren\'t',
+  'can\'t', 'couldn\'t', 'wouldn\'t', 'shouldn\'t', 'won\'t',
+  'i\'m', 'i\'ve', 'i\'ll', 'i\'d', 'you\'re', 'you\'ve', 'you\'ll',
+  'we\'re', 'we\'ve', 'we\'ll', 'they\'re', 'they\'ve', 'they\'ll', 'he\'s', 'she\'s',
 ]);
 const POLISH_DIACRITIC_REGEX = /[ąćęłńóśźż]/i;
 
@@ -243,11 +254,41 @@ const FRENCH_SIGNAL_WORDS = new Set([
   'pécho', 'pecho', 'relou', 'reuf', 'seum', 'enjailler', 'tkt', 'jpp', 'askip', 'pnj',
   'bref', 'chelou', 'khey', 'frero', 'frerot', 'dsl', 'bjr', 'bsr', 'bcp', 'auj', 'stp',
   'dispo', 'meuf', 'daron', 'daronne',
+  // Common function words added in a full French-support review (2026-09-17) — the original list
+  // leaned heavily on greetings/slang/joual markers and was missing a lot of ordinary, high-
+  // frequency French grammar words, meaning a plain, non-slangy French sentence with no accents
+  // and no joual could score 0 or tie against English on short messages. Each entry checked
+  // against ENGLISH_SIGNAL_WORDS for collisions the same way as every other addition to this list
+  // — deliberately excludes real English words that happen to look French: "pour" (to pour),
+  // "par" (golf par), "ton"/"son" (a ton, my son), "ma" (informal "mom"), "tout" (a ticket tout),
+  // "pendant" (jewelry pendant), "comment"/"car"/"grave" (already excluded above), "si" (too
+  // ambiguous with the SI unit system / informal "si" in English text).
+  'le', 'la', 'les', 'de', 'du', 'des', 'un', 'une', 'et', 'dans', 'sur', 'comme', 'donc',
+  'leur', 'leurs', 'notre', 'nos', 'votre', 'vos', 'ses', 'sa', 'ces', 'cette', 'cet',
+  'ceux', 'celle', 'celui', 'quand', 'mais', 'ne', 'pas', 'peu', 'beaucoup', 'tous', 'toute',
+  'toutes', 'voila', 'voici', 'parce', 'puisque', 'depuis', 'vers', 'chez', 'entre', 'contre',
+  'sous', 'dessus', 'dessous', 'tes',
+  // Contraction forms — the tokenizer fix right below this list stops splitting "c'est" into
+  // fragments ("c" + "est", neither of which was ever in either word list), so these entries
+  // (some of which — "c'est", "s'il" — existed in this list already but could literally never
+  // match before that fix, since the text they're meant to match never reached the Set lookup
+  // as a whole token) can now actually fire.
+  "n'est", "qu'est", "j'ai", "j'aime", "d'accord", "n'importe", "jusqu'à", "aujourd'hui",
+  "qu'il", "qu'elle", "qu'on", "m'a", "n'a", "l'ai", "y'a", "t'es", "t'as", "c'était", "n'ai",
 ]);
 const FRENCH_DIACRITIC_REGEX = /[àâçéèêëîïôùûüÿœæ]/i;
 
 export function scoreFrenchSignal(text: string): { french: number; english: number; wordCount: number } {
-  const words = text.toLowerCase().match(/[a-zàâçéèêëîïôùûüÿœæ]+/gi) || [];
+  // Includes internal apostrophes as part of a word ("c'est", "don't") instead of stripping them
+  // — found live (2026-09-17) that the old letters-only regex split every contraction into
+  // fragments on both sides ("c'est" -> "c" + "est", "don't" -> "don" + "t"), none of which
+  // matched anything in either signal-word list. That silently threw away real signal on some of
+  // the most common words in both languages and meant several FRENCH_SIGNAL_WORDS entries written
+  // WITH an apostrophe ("c'est", "s'il") could never actually match real input. The trailing
+  // `(?:'[letters]+)*` group only attaches an apostrophe when it's directly followed by more
+  // letters, so a stray typographic quote around a word ('salut') still isn't swallowed into the
+  // token.
+  const words = text.toLowerCase().match(/[a-zàâçéèêëîïôùûüÿœæ]+(?:'[a-zàâçéèêëîïôùûüÿœæ]+)*/gi) || [];
   let french = 0;
   let english = 0;
   for (const w of words) {
