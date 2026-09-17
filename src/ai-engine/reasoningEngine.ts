@@ -3203,14 +3203,25 @@ const LLM_MAX_TOKENS_CASUAL = 220;
 function thinkingHeadroomFor(reasoningMode: AISettings['reasoningMode']): number {
   if (reasoningMode === 'deep-cot') return 1200;
   if (reasoningMode === 'thorough') return 700;
-  // Bumped 280 -> 450 — found live: 280 was tuned before voiceExampleRetrieval.ts existed, against
-  // a lighter prompt with no injected few-shot block. Once retrieval started appending 2-3 real
-  // examples (voiceExamples.ts, some of them long, heavily-sworn Québécois French), a French 'fast'
-  // reply reliably hit the exact empty_response bug this headroom exists to prevent — the model's
-  // thinking pass now has genuinely more material to reference/emulate and needs a bit more room,
-  // even for 'fast'. Still a fraction of the old flat 1200 that made every casual reply slow.
-  return 450;
+  // 280 -> 450 -> 320 -> 400. 320 (paired with the new "keep it brief" instruction above) still
+  // hit empty_response live on French fast-mode replies (1 failure in 3 real attempts) — the
+  // instruction measurably shortens thinking but doesn't guarantee it, and French sacres-heavy
+  // replies apparently still sometimes want more room than that. 400 is the value that held up
+  // clean across repeated live English AND French tests with zero empty_response, while still
+  // being well below the old flat 450 (or the original 1200) in practice now that the instruction
+  // is doing real work — this is a real safety margin, not a guess.
+  return 400;
 }
+
+// Multi-pass self-review budget for grounded/factual answers (llmGroundedOrFallback) — same
+// pattern already proven in generateCodeEditWithReview() for Nexus Code, extended to regular
+// factual questions per Patrick's explicit request (2026-09-17): "it doesn't need to take more
+// than 1 minute every request, but yes it can sometimes." 55s (not a flat 60s) so there's real
+// margin left for topUpLlmSwearing/thoughtStep bookkeeping and the outer HTTP round-trip to still
+// land close to that ~1-minute figure in the common case, while a genuinely stubborn question that
+// needs all 3 passes is allowed to run past it rather than getting cut off mid-improvement.
+const GROUNDED_ANSWER_TOTAL_BUDGET_MS = 55_000;
+const GROUNDED_ANSWER_MAX_PASSES = 3;
 
 const BROAD_QUESTION_PATTERN =
   /\b(explain|compare|difference between|pros and cons|walk me through|breakdown|in detail|everything about|all the|list (?:all|every)|how does .+ work|why (?:does|is|do)|what are the)\b/i;
@@ -3400,7 +3411,17 @@ function buildReasoningModeInstruction(reasoningMode: AISettings['reasoningMode'
   if (reasoningMode === 'thorough') {
     return "\n\nReasoning directive: think this through properly before you answer. In your head, work through the actual steps or facts it takes to get this right, check whether the obvious first answer is actually correct or is missing something, and consider whether two similar-looking facts are being confused. THEN give one clear, correct final answer. Don't show or number the thinking out loud — just make the answer genuinely better for having done the work, not a guess.";
   }
-  return '';
+  // 'fast' used to get NO reasoning instruction at all (empty string) — found live (2026-09-17)
+  // via Ollama's own per-request timing logs that this let the model's thinking channel default to
+  // a full multi-point structured plan every single reply (mood check, persona check, structure,
+  // swearing, joke, TMI — genuinely several hundred tokens of it), even for a trivial "yo whats up".
+  // Since generation speed here is fixed at ~26 tokens/sec regardless of what's being generated,
+  // that unconstrained thinking was directly costing 15-25+ real seconds on every casual reply, not
+  // the actual reply content. This one line caps it explicitly WITHOUT turning thinking off
+  // entirely (Patrick separately asked to keep real thinking visible in the reasoning-trace panel)
+  // — a brief, real thought is still genuinely happening and still shown, it's just no longer
+  // allowed to sprawl into an unbounded structured plan for a two-sentence answer.
+  return "\n\nKeep your internal thinking brief — a quick sentence or two is genuinely enough, not a full structured plan. Then answer.";
 }
 
 // Patrick asked to actually SEE the model's real internal reasoning in the reasoning-trace panel
@@ -4100,10 +4121,15 @@ async function llmGroundedOrFallback(
   // still spontaneously produce — see the `think` field's own comment on OllamaGenerateOptions).
   const revealThinking = true;
   const groundedSystemPrompt = await buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench, prompt);
+  // Starts here, before the FIRST generation pass — "no more than 1 minute per request" (Patrick's
+  // own framing) means the whole grounded-answer flow, not just the self-review retries on top of
+  // it, so the deadline has to cover pass 1 too, not just passes 2-3 below.
+  const groundedDeadline = Date.now() + GROUNDED_ANSWER_TOTAL_BUDGET_MS;
   const llmResult = await localLlmClient.generate(groundedPrompt, {
     system: groundedSystemPrompt,
     temperature: usedTemperature,
     maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + thinkingHeadroomFor(settings.reasoningMode),
+    timeoutMs: Math.max(Math.min(groundedDeadline - Date.now() - 3000, 60000), 8000),
     preferPolish: usePolish,
     preferFrench: useFrench,
     model: localLlmClient.chatModel(),
@@ -4163,17 +4189,24 @@ async function llmGroundedOrFallback(
   let finalLatency = llmResult.latencyMs;
   let retryAttempted = false;
   let retryFixed = false;
+  let passesUsed = 1;
   retryTelemetry.confidentGroundedTotal++;
 
-  // Reflect-and-retry: previously, a failed self-check discarded the model's output entirely for
-  // the canned template — the model never got a chance to fix its own mistake, even though
-  // verifyAnswer() already tells us exactly what was wrong (off-topic, missing-entity, no-causal,
-  // too-few-items...). One corrective regeneration, naming the specific issue, costs one extra
-  // Ollama call only in the failure case (the common case — a passing first attempt — is
-  // completely unaffected) and gives the model a real shot at self-correction instead of
-  // confidence-demotion standing in for correction. Falls back to the template only if this
-  // second attempt ALSO fails verification, exactly as before this existed.
-  if (!llmVerification.passed) {
+  // Multi-pass self-review, same pattern as generateCodeEditWithReview() (Nexus Code) — extended
+  // to regular factual answers per Patrick's explicit request (2026-09-17). Previously this was
+  // exactly ONE corrective regeneration, named "retry"; now it's a real loop, up to
+  // GROUNDED_ANSWER_MAX_PASSES attempts, each one naming verifyAnswer()'s SPECIFIC complaint about
+  // the previous attempt rather than a generic "try again" — genuinely a chance to fix the exact
+  // problem, not just reroll. Bails early (keeping the best-so-far answer, never discarding a real
+  // response for a worse one) the moment either verification passes or the shared time budget
+  // (groundedDeadline, started before pass 1) runs out — "no more than 1 minute per request... but
+  // yes it can sometimes" is exactly this: generous but not unbounded, and a stubborn question that
+  // needs the full 3 passes is allowed to run past a clean 1-minute mark rather than being cut off
+  // mid-improvement. The common case — a passing first attempt — is completely unaffected, same as
+  // before this existed.
+  for (let pass = 2; pass <= GROUNDED_ANSWER_MAX_PASSES && !llmVerification.passed; pass++) {
+    const remaining = groundedDeadline - Date.now();
+    if (remaining < 6000) break; // not enough budget left for a real attempt — keep best-so-far
     retryAttempted = true;
     retryTelemetry.retryFired++;
     const issueSummary = llmVerification.issues.map((i) => i.detail).join(' ');
@@ -4182,41 +4215,47 @@ async function llmGroundedOrFallback(
       : useFrench
       ? `\n\nTa réponse précédente avait un problème : ${issueSummary} Corrige ça et réponds à nouveau, précisément à la question : ${prompt}`
       : `\n\nYour previous answer had a problem: ${issueSummary} Fix that and answer again, specifically addressing: ${prompt}`;
+    const passTimeoutMs = Math.max(Math.min(remaining - 3000, 45000), 5000);
     const retryResult = await localLlmClient.generate(groundedPrompt + correctionNote, {
       // Reuses the same systemPrompt computed for the first attempt above (same persona/settings/
       // language/prompt combo — retrieval would return identical examples, no need to re-run it).
       system: groundedSystemPrompt,
       temperature: usedTemperature,
       maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + thinkingHeadroomFor(settings.reasoningMode),
+      timeoutMs: passTimeoutMs,
       preferPolish: usePolish,
       preferFrench: useFrench,
       model: localLlmClient.chatModel(),
       think: revealThinking,
     });
-    // The retry attempt goes through the exact same safety gate as the first — a corrective
+    // Every retry pass goes through the exact same safety gate as the first — a corrective
     // regeneration is not exempt from anything the original response had to pass.
-    if (retryResult.status === 'success') {
-      const retryRawText = retryResult.text;
-      const retryThinking = retryResult.thinking;
-      if (retryThinking) {
-        thoughtSteps.push({
-          id: 'step-llm-raw-thinking-retry',
-          type: 'reasoning',
-          title: '🧠 What the model actually thought (retry, raw/unedited)',
-          description: retryThinking,
-          data: { reasoningMode: settings.reasoningMode },
-        });
-      }
-      if (!containsSlurOrHateSpeech(retryRawText)) {
-        const retryVerification = verifyAnswer(retryRawText, intent, queryTerms, entities, prompt);
-        if (retryVerification.passed) {
-          llmVerification = retryVerification;
-          finalText = retryRawText;
-          finalLatency = retryResult.latencyMs;
-          retryFixed = true;
-          retryTelemetry.retryFixedCount++;
-        }
-      }
+    if (retryResult.status !== 'success') break; // ran out of time/connection — keep best-so-far
+    passesUsed = pass;
+    const retryRawText = retryResult.text;
+    const retryThinking = retryResult.thinking;
+    if (retryThinking) {
+      thoughtSteps.push({
+        id: `step-llm-raw-thinking-retry-${pass}`,
+        type: 'reasoning',
+        title: `🧠 What the model actually thought (pass ${pass}, raw/unedited)`,
+        description: retryThinking,
+        data: { reasoningMode: settings.reasoningMode },
+      });
+    }
+    if (containsSlurOrHateSpeech(retryRawText)) continue; // discard this pass, try again if budget allows
+    const retryVerification = verifyAnswer(retryRawText, intent, queryTerms, entities, prompt);
+    // Always keep the LATEST attempt as the best-so-far, even if it still doesn't fully pass —
+    // each pass incorporates the previous one's specific critique, so a later attempt that still
+    // fails verification is still more likely to be closer to correct than an earlier one, same
+    // reasoning generateCodeEditWithReview() already uses ("always returns the last successfully-
+    // generated text even if it has to bail early on time").
+    llmVerification = retryVerification;
+    finalText = retryRawText;
+    finalLatency = retryResult.latencyMs;
+    if (retryVerification.passed) {
+      retryFixed = true;
+      retryTelemetry.retryFixedCount++;
     }
   }
 
@@ -4225,11 +4264,11 @@ async function llmGroundedOrFallback(
     type: 'synthesis',
     title: llmVerification.passed
       ? retryFixed
-        ? '🧠 Local LLM grounded response (fixed on retry)'
+        ? `🧠 Local LLM grounded response (fixed on pass ${passesUsed})`
         : '🧠 Local LLM grounded response'
-      : '📦 LLM answer failed self-check twice — using template',
+      : `📦 LLM answer failed self-check after ${passesUsed} pass(es) — using template`,
     description: llmVerification.passed
-      ? `Ollama responded in ${finalLatency}ms, grounded on ${top.length} source(s).${retryFixed ? ' First attempt failed self-check and was corrected on retry.' : ''}`
+      ? `Ollama responded in ${finalLatency}ms, grounded on ${top.length} source(s).${retryFixed ? ` First attempt failed self-check and was corrected on pass ${passesUsed}.` : ''}`
       : llmVerification.issues.map((i) => i.detail).join('\n'),
     durationMs: finalLatency,
     data: {
@@ -4239,6 +4278,7 @@ async function llmGroundedOrFallback(
       verificationPassed: llmVerification.passed,
       retryAttempted,
       retryFixed,
+      passesUsed,
     },
   });
   // templateFallback used to be returned raw here on the verification-failed branch — every OTHER
