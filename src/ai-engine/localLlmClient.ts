@@ -301,15 +301,16 @@ export function looksPolish(_text: string): boolean {
 // in server.ts already bounds total worst-case wait via its own 45s per-task timeout, so no
 // separate wait-timeout is needed here. Applies to both generate() and embed() since they compete
 // for the same underlying model-serving capacity on the same machine.
-// Default raised from 1 to 2, not guessed — verified live against the actual host (a Mac Mini
-// M4, 16GB unified memory) by setting OLLAMA_NUM_PARALLEL=2 on the Ollama service itself (it
-// otherwise runs its llama.cpp backend with `-np 1`, meaning even multiple concurrent requests
-// from this client were being serialized a second time at the model layer) and firing 4 real
-// concurrent qwen2.5:3b chat completions: they finished in ~3.1-4.6s each in true overlapping
-// pairs, RAM headroom stayed comfortable (~4GB free+inactive throughout, no swap pressure), and
-// nothing degraded. Going higher than 2 was not attempted — 16GB total, shared with the rest of
-// the machine's normal use, doesn't leave confident headroom for more parallel KV-cache slots.
-const OLLAMA_MAX_CONCURRENT = Math.max(1, Number(process.env.OLLAMA_MAX_CONCURRENT) || 2);
+// Was raised from 1 to 2 once, verified live against qwen2.5:3b (a much lighter model than what
+// actually runs here now). Reverted back to 1 per Patrick's explicit request (2026-09-17): only
+// one message processed at a time, everything else waits its turn, so his Mac never has to serve
+// two real generations at once. Justified independent of that request too — since the qwen2.5:3b
+// test, this host moved to a heavier model (gemma4/nexus2:4b, 8B vs 3B), a much larger context
+// window (OLLAMA_NUM_CTX=8192, up from an effectively-truncated ~2048), and multi-pass self-review
+// (generateCodeEditWithReview, llmGroundedOrFallback's retry loop) that can itself fire 2-3 Ollama
+// calls for a single user request — the real per-slot KV-cache/RAM cost today is substantially
+// higher than what the original 16GB headroom measurement was based on.
+const OLLAMA_MAX_CONCURRENT = Math.max(1, Number(process.env.OLLAMA_MAX_CONCURRENT) || 1);
 let activeOllamaCalls = 0;
 const ollamaWaitQueue: (() => void)[] = [];
 

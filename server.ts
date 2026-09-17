@@ -385,20 +385,19 @@ class RequestQueue {
   private totalWaitTimeMs: number = 0;
   private totalProcessingTimeMs: number = 0;
 
-  // How many requests may run truly concurrently. Kept well below "unbounded" — same
-  // crash-protection intent as the original single-slot queue — so a traffic burst still
-  // can't exhaust memory or overwhelm the process. Configurable via env var for tuning
-  // per host without a code change.
+  // How many requests may run truly concurrently. Configurable via env var for tuning per host
+  // without a code change.
   //
-  // Default lowered from 5 to 2 to actually match OLLAMA_MAX_CONCURRENT's own default (2, tuned
-  // against the Mac Mini host's real KV-cache headroom — see localLlmClient.ts). Every one of
-  // these "concurrent requests" runs a full generateReasoningPath pass — BM25/embeddings
-  // retrieval plus a real Ollama call — not just the Ollama call itself, so a queue default of 5
-  // let up to 5 of those full, memory-heavier passes run at once even though only 2 could ever
-  // actually get an Ollama slot; the other 3 just sat there each holding their own retrieval
-  // buffers in memory while blocked on the Ollama semaphore, directly inflating peak memory
-  // during exactly the kind of Discord traffic burst that was crashing Railway's 1GB container.
-  private readonly maxConcurrency: number = Math.max(1, Number(process.env.REQUEST_QUEUE_CONCURRENCY) || 2);
+  // Default lowered again, 2 -> 1, per Patrick's explicit request (2026-09-17): strictly one
+  // message processed at a time, everything else waits its turn in the exact order it arrived
+  // (this.queue is a plain push/shift array — real FIFO, not best-effort), so his Mac's real RAM
+  // and GPU/CPU never has to serve two full generateReasoningPath passes (retrieval + embeddings +
+  // an Ollama call each) at once. Matches OLLAMA_MAX_CONCURRENT's own default below — running this
+  // queue at 1 while Ollama's own slot semaphore still allowed 2 would just mean two requests
+  // could still pile up in the SAME heavier retrieval/embedding stage waiting for one shared Ollama
+  // slot, which is exactly the peak-memory problem the 5->2 change already fixed once before; both
+  // layers need to agree on the same ceiling for it to actually mean "one at a time" end to end.
+  private readonly maxConcurrency: number = Math.max(1, Number(process.env.REQUEST_QUEUE_CONCURRENCY) || 1);
 
   // Found by a code review: enqueue() below had NO cap on how many tasks could sit waiting —
   // peakQueueLength was only ever recorded for telemetry, never enforced as an actual limit.
