@@ -64,6 +64,15 @@ const PROTECTED_WORDS = new Set([
   'betwixt', 'beteem', 'between',
   'dividend', 'dividends', 'multiplier', 'multipliers', 'indented', 'commute', 'commuter',
   'convent', 'percept', 'overage', 'whereas', 'whew', 'chow', 'whits', 'coverage', 'leverage',
+  // Found via a live EN/FR/ES/CA audit (2026-09-17): "compte" (French/Catalan for "account") is
+  // edit-distance-1 from "compute" (a KEYWORD_TARGETS entry), so a genuine French/Catalan question
+  // containing "compte" was silently rewritten to "compute" — not a harmless near-miss like most
+  // of this list, an active meaning change (account -> compute) that misclassified intent as
+  // "mathematical" and sent the whole request down the wrong path. Caught via a real image
+  // (a Catalan Discord scam screenshot quoting "el teu compte de Discord") whose vision-model
+  // description got glued onto a French question, corrupted here, and ended up answering an
+  // unrelated "what is Discord" definition instead of reacting to the actual scam content.
+  'compte',
 ]);
 
 // Chat spellings too far from their target for the distance tiers to reach safely (2 edits at

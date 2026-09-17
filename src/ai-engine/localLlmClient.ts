@@ -278,7 +278,26 @@ const FRENCH_SIGNAL_WORDS = new Set([
 ]);
 const FRENCH_DIACRITIC_REGEX = /[àâçéèêëîïôùûüÿœæ]/i;
 
-export function scoreFrenchSignal(text: string): { french: number; english: number; wordCount: number } {
+// Strips the synthetic image-description block server.ts appends to a user's message
+// (`${userText}\n\n[Attached image shows: ${visionDescription}]`, or the image-only fallback
+// `React to this image: ${visionDescription}`) before language scoring. Found live (2026-09-17):
+// a genuinely French question ("c'est quoi cette image", 5 French signal words) attached to an
+// image got its language signal EXACTLY tied 5-5 against the vision model's own English
+// narration describing the picture — the vision description is synthetic, system-generated text
+// about what a picture contains, never something the human actually typed, and it should never
+// get to vote on what language the SYSTEM thinks the human is speaking. Safe to strip
+// unconditionally: no legitimate user message starts with either literal marker, and the vision
+// block is always the trailing segment of the string server.ts builds, so trimming to the end is
+// enough — no risk of an unrelated "]" inside the transcribed image text truncating this early.
+function stripSyntheticImageDescription(text: string): string {
+  return text
+    .replace(/\[Attached image shows:[\s\S]*$/i, '')
+    .replace(/^React to this image:[\s\S]*$/i, '')
+    .trim();
+}
+
+export function scoreFrenchSignal(rawText: string): { french: number; english: number; wordCount: number } {
+  const text = stripSyntheticImageDescription(rawText);
   // Includes internal apostrophes as part of a word ("c'est", "don't") instead of stripping them
   // — found live (2026-09-17) that the old letters-only regex split every contraction into
   // fragments on both sides ("c'est" -> "c" + "est", "don't" -> "don" + "t"), none of which
@@ -303,7 +322,8 @@ export function looksFrench(text: string): boolean {
   return french > english;
 }
 
-export function scoreLanguageSignal(text: string): { polish: number; english: number; wordCount: number } {
+export function scoreLanguageSignal(rawText: string): { polish: number; english: number; wordCount: number } {
+  const text = stripSyntheticImageDescription(rawText);
   const words = text.toLowerCase().match(/[a-ząćęłńóśźż]+/gi) || [];
   let polish = 0;
   let english = 0;
