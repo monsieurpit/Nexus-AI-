@@ -226,6 +226,62 @@ async function annotateSemanticDoubt(
   return [{ ...top, semanticScore: topCosine, semanticDoubt }, ...results.slice(1)];
 }
 
+// The deeper fix annotateSemanticDoubt's own comment above flags as future work (2026-09-17, full
+// EN/FR/ES/CA retrieval audit): for a query DETECTED as non-English, a BM25 "hit" against this
+// English-only corpus is much less trustworthy than it is for an English query — it's usually a
+// coincidental keyword/stem overlap (French "trou noir" matching "Film Noir", Catalan "com
+// funciona" matching "functions", French/Spanish "comment"/"como" stemming into "comment(s)"),
+// not real relevance, precisely BECAUSE the corpus is English and the query isn't. The doubt-only
+// mechanism above was deliberately built to never re-rank (its own comment explains why an
+// absolute-cosine re-rank was tried once and reverted for ENGLISH queries) — but that reasoning
+// doesn't transfer to the non-English case: there, BM25's raw score isn't a reliable trust signal
+// at all, so deferring to vector search's own top pick when it clearly disagrees is the more
+// trustworthy choice, not a risky gamble. English queries are completely unaffected by this — the
+// looksNonEnglishQuery(prompt) gate below means this function is a no-op whenever it's false, so
+// the already-proven English-only behavior above is byte-for-byte unchanged.
+//
+// Verified live before landing: "que es la fotosíntesis" (BM25 top: FC Barcelona/La Liga, cosine
+// ~0.1) vs vector's own top (What Photosynthesis Is, cosine ~0.65) — gap 0.55, a clear real
+// disagreement, not a coin-flip-close call. Kept to the SAME relative-gap principle
+// annotateSemanticDoubt already uses (never an absolute cosine threshold) — just acted on here
+// instead of only flagged, and only for queries where BM25's underlying trust assumption doesn't
+// hold in the first place.
+const NON_ENGLISH_RERANK_MIN_GAP = 0.05;
+
+async function maybeRerankForNonEnglishQuery(
+  prompt: string,
+  results: RankedResult[],
+  vecList: VectorScoredItem[] | null
+): Promise<RankedResult[]> {
+  if (results.length === 0 || !vecList || vecList.length === 0) return results;
+  if (!localLlmClient.looksNonEnglishQuery(prompt)) return results;
+
+  const top = results[0];
+  const bestAlt = vecList[0];
+  if (bestAlt.item.id === top.item.id) return results;
+
+  const queryVec = await embedQueryCached(prompt);
+  const realEmbeddings = await loadRealEmbeddings();
+  const topVec = realEmbeddings[top.item.id];
+  if (!queryVec || !topVec) return results;
+  const topCosine = cosineSimilarity(queryVec, topVec);
+
+  const gap = bestAlt.score - topCosine;
+  if (gap < NON_ENGLISH_RERANK_MIN_GAP) return results;
+
+  // Promote vector's top pick to the front. The demoted old top isn't just reordered — it's
+  // dropped from the returned set entirely, not kept as a lower-ranked result: this only fires
+  // once real evidence (the gap check above) says BM25's pick was actively wrong for this query,
+  // and grounding context downstream concatenates several top results into the LLM's prompt, so a
+  // demoted-but-still-present wrong document would still risk polluting/confusing the final
+  // answer even from a lower slot. Score reuses the exact same [0.5, 0.8] cosine-to-score mapping
+  // reciprocalRankFusion already uses for a vector-only discovery — same scale, same reasoning:
+  // real and hedge-worthy, but never able to cross CONFIDENT_MATCH_SCORE on its own.
+  const promoted: RankedResult = { item: bestAlt.item, score: 0.5 + bestAlt.score * 0.3 };
+  const rest = results.filter((r) => r.item.id !== bestAlt.item.id && r.item.id !== top.item.id);
+  return [promoted, ...rest];
+}
+
 /**
  * Drop-in async replacement for semanticEngine.ts's searchKnowledgeGraph(), adding a real-vector
  * signal on top when ENABLE_HYBRID_SEARCH=true. With the flag off (default) or when Ollama's
@@ -251,5 +307,6 @@ export async function hybridSearchKnowledgeGraph(
   }
 
   const fused = reciprocalRankFusion(bm25List, vecList).slice(0, topK);
-  return annotateSemanticDoubt(prompt, fused, vecList);
+  const reranked = await maybeRerankForNonEnglishQuery(prompt, fused, vecList);
+  return annotateSemanticDoubt(prompt, reranked, vecList);
 }

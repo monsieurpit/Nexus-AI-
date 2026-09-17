@@ -337,6 +337,66 @@ export function looksFrench(text: string): boolean {
   return french > english;
 }
 
+// Spanish/Catalan equivalents of FRENCH_SIGNAL_WORDS above — built 2026-09-17 specifically to let
+// vectorSearch.ts's hybridSearchKnowledgeGraph tell whether a query is likely non-English, so it
+// can decide whether to trust a BM25 keyword "hit" (see that file's own comment on why BM25
+// matches against this English corpus are untrustworthy for a non-English query — a shared
+// substring with an unrelated English document, not real relevance). Not wired into the general
+// chat/persona routing pipeline the way looksFrench is — full Spanish/Catalan conversational
+// support was explicitly scoped out earlier this session; this exists only to serve retrieval
+// reweighting. Reuses the same word lists already reviewed for English-collision safety when they
+// were added to bm25Engine.ts's STOP_WORDS earlier today — same exclusions apply here for the
+// identical reason (a stopword and a signal word share the same false-positive risk: a word that's
+// ALSO a real English word must never appear in either).
+const SPANISH_SIGNAL_WORDS = new Set([
+  // Bare unaccented forms added alongside the accented ones — found live testing this exact
+  // check: "que es el sistema solar" (typed without accents, extremely common casual typing)
+  // scored 0 Spanish signal because only the accented "qué" was listed, the same accent-dropping
+  // gap already fixed for French/Polish elsewhere in this file. "es"/"el"/"que" checked and are
+  // not real English words, so adding the bare forms carries no new collision risk.
+  'es', 'el', 'que', 'esta',
+  'qué', 'quien', 'quién', 'como', 'cómo', 'cuando', 'cuándo', 'donde', 'dónde', 'los',
+  'unos', 'unas', 'soy', 'eres', 'somos', 'sois', 'fue', 'ser', 'estar', 'estoy',
+  'estas', 'está', 'estamos', 'están', 'tengo', 'tienes', 'tiene', 'tenemos', 'tienen',
+  'nosotros', 'vosotros', 'ellos', 'ellas', 'nuestro', 'nuestra', 'vuestro', 'vuestra',
+  'porque', 'aunque', 'también', 'hola', 'gracias', 'adiós', 'favor', 'ayuda', 'amigo',
+  'buenos', 'días', 'noches', 'sí', 'esto', 'eso', 'aquí', 'allí',
+]);
+const CATALAN_SIGNAL_WORDS = new Set([
+  'és', 'què', 'com', 'quan', 'perquè', 'però', 'sóc', 'ets', 'som', 'sou', 'són',
+  'ésser', 'estic', 'estàs', 'està', 'estem', 'esteu', 'estan', 'tinc', 'tens', 'tenim',
+  'teniu', 'tenen', 'nosaltres', 'vosaltres', 'ells', 'meva', 'teva', 'seva',
+  'nostre', 'nostra', 'vostre', 'vostra', 'amb', 'sense', 'molt', 'també', 'gràcies',
+  'adéu', 'amic', 'ajuda', 'bon', 'dia', 'aquí', 'allà', 'sisplau',
+]);
+const SPANISH_CATALAN_DIACRITIC_REGEX = /[áéíóúñçàèòüï]/i;
+
+// Combined, deliberately coarse "does this query look like it's NOT plain English" check — unlike
+// looksFrench (which distinguishes French specifically from English), this doesn't need to know
+// WHICH language a query is in, only whether BM25's keyword-match priority over vector search
+// should be trusted (see vectorSearch.ts). Any real, above-noise non-English signal — French,
+// Spanish, or Catalan — is enough to flip this, since the underlying problem (BM25 keyword
+// collisions against an English-only corpus) is the same regardless of which of the three it is.
+export function looksNonEnglishQuery(rawText: string): boolean {
+  const text = stripSyntheticImageDescription(rawText);
+  const words = text.toLowerCase().match(/[a-zàâçéèêëîïôùûüÿœæáíóúñ]+(?:'[a-zàâçéèêëîïôùûüÿœæáíóúñ]+)*/gi) || [];
+  let nonEnglish = 0;
+  let english = 0;
+  for (const w of words) {
+    if (
+      FRENCH_SIGNAL_WORDS.has(w) ||
+      SPANISH_SIGNAL_WORDS.has(w) ||
+      CATALAN_SIGNAL_WORDS.has(w) ||
+      FRENCH_DIACRITIC_REGEX.test(w) ||
+      SPANISH_CATALAN_DIACRITIC_REGEX.test(w)
+    ) {
+      nonEnglish++;
+    }
+    if (ENGLISH_SIGNAL_WORDS.has(w)) english++;
+  }
+  return nonEnglish > english;
+}
+
 export function scoreLanguageSignal(rawText: string): { polish: number; english: number; wordCount: number } {
   const text = stripSyntheticImageDescription(rawText);
   const words = text.toLowerCase().match(/[a-ząćęłńóśźż]+/gi) || [];
