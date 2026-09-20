@@ -163,8 +163,15 @@ const PHONE_NUMBER_REGEX =
 // "you got any X" — the possession-question mirror of "do you have X", same personal-question
 // category. Observed live: "Nexus you got any bitches?" fell through this regex, reached full
 // corpus retrieval, and got an unrelated Meal Prep document dumped near-verbatim.
+// "what's your favorite X" / "what is your favorite X" — a noun-phrase personal-preference
+// question, a different grammatical shape than every alternative above (those are all verb-led:
+// "do you like", "are you"). Found live (2026-09-20): "c'est quoi ton film préféré" (French
+// equivalent, see PERSONAL_QUESTION_REGEX_FR below) fell through to 'general' intent, ran full
+// corpus retrieval + multi-pass self-review grounding on a topic with no real corpus match
+// (~30-45s round trip, off-topic hedge answer about the film industry) for what should have been
+// an instant free-form in-character reply about the persona's own made-up taste.
 const PERSONAL_QUESTION_REGEX =
-  /^(?:why\s+are\s+you|why\s+do\s+you|why\s+don'?t\s+you|why\s+doesn'?t\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with|have|got|has)\b|\byou\s+got\s+any\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b|\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b/i;
+  /^(?:why\s+are\s+you|why\s+do\s+you|why\s+don'?t\s+you|why\s+doesn'?t\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with|have|got|has)\b|\byou\s+got\s+any\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b|\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b|\bwhat'?s\s+your\s+favou?rite\b|\bwhat\s+is\s+your\s+favou?rite\b/i;
 
 // Genuine creative-writing requests ("write a haiku about autumn", "compose a poem about love")
 // have no factual answer to retrieve at all — they're a pure generation task. Never had any
@@ -275,8 +282,17 @@ const PERSONAL_QUESTION_REGEX_PL =
 // "tu trouves pas que". Second alternative is a generic 2nd-person fallback: "tu" (or the elided
 // "t'") directly before a verb, anchored to the message lead, the position where a real content
 // noun almost never sits.
+// "c'est quoi ton/ta X préféré(e)" / "quel est ton X préféré" — same noun-phrase personal-
+// preference shape as PERSONAL_QUESTION_REGEX's English "what's your favorite X" addition above,
+// grammatically distinct from every other alternative here (all verb-led: "tu aimes", "tu
+// penses"). This is also the reason detectQueryIntent()'s own "c'est quoi" definition-branch
+// pattern now carries a negative lookahead against a possessive right after it — that stops
+// "c'est quoi ton film préféré" from being classified 'definition' in the first place, and this
+// addition is the second, independent layer: even if intent ends up something other than
+// 'conversational', PERSONAL_QUESTION_REGEX_FR matching here is what actually routes to the
+// free-form in-character reply instead of corpus grounding.
 const PERSONAL_QUESTION_REGEX_FR =
-  /\b(?:est-ce\s+que\s+)?(?:tu|t['’])\s*(?:aimes?|adores?|détestes?|haïs|préfères?|penses?|crois|trouves?|connais|écoutes?|regardes?|joues?|veux|peux|sais)\b|\b(?:aimes?|penses?|trouves?|crois|préfères?)-(?:tu|vous)\b|\bpourquoi\s+(?:tu|t['’]|vous)\s*(?:es|est|êtes|es-tu)\b|\b(?:qu[e']|c['’]est\s+quoi\s+que)\s+(?:tu|t['’])\s*(?:en\s+)?(?:penses?|dis|crois)\b|\bt['’]aimes-tu\b/i;
+  /\b(?:est-ce\s+que\s+)?(?:tu|t['’])\s*(?:aimes?|adores?|détestes?|haïs|préfères?|penses?|crois|trouves?|connais|écoutes?|regardes?|joues?|veux|peux|sais)\b|\b(?:aimes?|penses?|trouves?|crois|préfères?)-(?:tu|vous)\b|\bpourquoi\s+(?:tu|t['’]|vous)\s*(?:es|est|êtes|es-tu)\b|\b(?:qu[e']|c['’]est\s+quoi\s+que)\s+(?:tu|t['’])\s*(?:en\s+)?(?:penses?|dis|crois)\b|\bt['’]aimes-tu\b|\b(?:c['’]est\s+quoi|quel(?:le)?\s+est)\s+(?:ton|ta|tes|votre|vos)\s+\w+\s+pr[eé]f[eé]r[eé]e?/i;
 
 // Reassurance/affection statements directed AT the bot ("don't worry, everyone loves you") —
 // declarative, not a question, so they don't match PERSONAL_QUESTION_REGEX either, but they're
@@ -1825,10 +1841,20 @@ export function detectQueryIntent(query: string): QueryIntent {
     // French/Spanish/Catalan — same gap as the branches above. "qu'est-ce que"/"qu'est-ce qu'"
     // (what is), "c'est quoi" (informal "what is it"), "que es"/"qué es"/"que son"/"qué son" (ES,
     // accent-optional), "què és" (CA), "définition de"/"definición de"/"definició de".
-    /qu'est-ce\s+(?:que|qu')/i.test(q) ||
-    /c'est\s+quoi\b/i.test(q) ||
-    /\bqu[eé]\s+(?:es|son)\b/i.test(q) ||
-    /\bqu[eè]\s+[eé]s\b/i.test(q) ||
+    //
+    // Each of these gets a negative lookahead against a possessive determiner right after the
+    // trigger ("ton"/"ta"/"tes"/"mon"/"ma"/"mes"/"son"/"sa"/"ses" FR, "tu"/"su" ES) — found live
+    // (2026-09-20): "c'est quoi ton film préféré" (a personal/opinion question about the persona's
+    // own taste) was matching here and getting routed into corpus-grounded retrieval + multi-pass
+    // self-review instead of a free-form conversational reply, producing a slow (~30s), off-topic,
+    // low-confidence answer about the film industry in general. "c'est quoi ton/ta/tes X" is
+    // structurally always a personal-preference question, never a genuine definition request —
+    // real definition requests ("c'est quoi un trou noir", "qu'est-ce que la photosynthèse") are
+    // never phrased with a possessive right after the trigger, so this costs no real coverage.
+    /qu'est-ce\s+(?:que|qu')(?!\s+(?:ton|ta|tes|mon|ma|mes|son|sa|ses)\b)/i.test(q) ||
+    /c'est\s+quoi\b(?!\s+(?:ton|ta|tes|mon|ma|mes|son|sa|ses)\b)/i.test(q) ||
+    /\bqu[eé]\s+(?:es|son)\b(?!\s+(?:tu|su)\b)/i.test(q) ||
+    /\bqu[eè]\s+[eé]s\b(?!\s+(?:el\s+teu|la\s+teva)\b)/i.test(q) ||
     /d[ée]finici[oó]n\s+de|d[ée]finition\s+de|definici[oó]\s+de/i.test(q)
   ) {
     return 'definition';
