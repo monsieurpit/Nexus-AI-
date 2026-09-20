@@ -2614,7 +2614,7 @@ function conversationalReply(
 
   // "roast me"/"insult me" were classified as conversational intent (so a stray "roast" or
   // "insult" wouldn't hijack corpus search) but never actually got roasted — they fell through
-  // this whole function to the generic "What's up?" fallback. generateRoast (ruleEngine.ts) has
+  // this whole function to the generic "What's up?" fallback. generateRoast (rules/customDirectives.ts) has
   // real roast content already; it was only ever wired into the dead generateNexusHomieResponse
   // path, never into the conversational reply the live bot actually uses.
   if (/\broast\s+(?:me|myself)\b/.test(q) || q === 'roast me' || /\binsult\s+me\b/.test(q)) {
@@ -4385,7 +4385,7 @@ export async function generateReasoningPath(
   // 1. Strict Directives, User Toxicity Insults & Casseurt Handler
   //
   // Used to short-circuit straight to casseurtRant()'s pre-written, combinatorial (opener + a few
-  // shuffled reasons + closer) text — richer than the old ruleEngine.ts hardcoded 3-liner it used
+  // shuffled reasons + closer) text — richer than the old ruleEngine.ts (now rules/customDirectives.ts) hardcoded 3-liner it used
   // to always run behind (removed — that fired FIRST and this branch was never actually reached),
   // but still not genuinely written by the AI, and entirely English with no language detection, so
   // a Polish mention ("co sądzisz o Casseurcie") would still have come back in English. Routed

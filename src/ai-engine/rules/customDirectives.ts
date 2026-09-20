@@ -314,7 +314,7 @@ export function enforceStrictSdkRules(
       // Same defect already fixed this session in several other regexes (swearEngine.ts's insult
       // list, reasoningEngine.ts's Polish personal-question/reassurance regexes). Not using a
       // lookbehind for the LEADING boundary — this file is reachable from the client Vite bundle
-      // (App.tsx -> generator.ts -> reasoningEngine.ts -> ruleEngine.ts), whose build target list
+      // (App.tsx -> generator.ts -> reasoningEngine.ts -> customDirectives.ts), whose build target list
       // includes Safari 14, which doesn't support lookbehind assertions; risking that class of
       // build breakage again (see the dictionary-pl top-level-await fix earlier this session)
       // isn't worth it for the rarer case of a forbidden phrase that STARTS with a diacritic.

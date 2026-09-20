@@ -428,7 +428,7 @@ function parseLinearSide(side: string): { coeff: number; constant: number } {
       // — so reject any match where that's not the case. Checked by index rather than a
       // lookbehind assertion in the regex itself: this file is reachable from the browser bundle,
       // whose build target includes an engine without lookbehind support (see the same reasoning
-      // applied to ruleEngine.ts's forbidden-phrase regex this session).
+      // applied to rules/customDirectives.ts's forbidden-phrase regex this session).
       const precedingChar = side[match.index - 1];
       if (precedingChar && /[a-z]/i.test(precedingChar)) continue;
       const raw = match[1].replace(/\s+/g, '');
