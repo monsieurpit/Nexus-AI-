@@ -375,6 +375,12 @@ interface QueuedTask<T> {
   reject: (reason?: any) => void;
   enqueuedAt: number;
   timeoutMs: number;
+  // "Nexus Code" (isCodeEdit) needs the Mac to itself — its self-review loop is already the
+  // heaviest single thing this server runs (up to 3 generation passes + up to 2 review passes),
+  // and Patrick asked (2026-09-20) that it never share a generation slot with anything else. An
+  // exclusive task can only start once activeTasks is completely empty, and once it's running (or
+  // at the front of the queue waiting to start) no new regular task is admitted — see pumpQueue().
+  exclusive: boolean;
 }
 
 class RequestQueue {
@@ -385,20 +391,23 @@ class RequestQueue {
   public peakConcurrency: number = 0;
   private totalWaitTimeMs: number = 0;
   private totalProcessingTimeMs: number = 0;
+  // Set while a "Nexus Code" (exclusive) task is actively running — see QueuedTask's own comment.
+  // null when no exclusive task is in flight.
+  private activeExclusiveTaskId: string | null = null;
 
-  // How many requests may run truly concurrently. Configurable via env var for tuning per host
-  // without a code change.
+  // How many REGULAR (non-exclusive) requests may run truly concurrently. Configurable via env
+  // var for tuning per host without a code change.
   //
-  // Default lowered again, 2 -> 1, per Patrick's explicit request (2026-09-17): strictly one
-  // message processed at a time, everything else waits its turn in the exact order it arrived
-  // (this.queue is a plain push/shift array — real FIFO, not best-effort), so his Mac's real RAM
-  // and GPU/CPU never has to serve two full generateReasoningPath passes (retrieval + embeddings +
-  // an Ollama call each) at once. Matches OLLAMA_MAX_CONCURRENT's own default below — running this
-  // queue at 1 while Ollama's own slot semaphore still allowed 2 would just mean two requests
-  // could still pile up in the SAME heavier retrieval/embedding stage waiting for one shared Ollama
-  // slot, which is exactly the peak-memory problem the 5->2 change already fixed once before; both
-  // layers need to agree on the same ceiling for it to actually mean "one at a time" end to end.
-  private readonly maxConcurrency: number = Math.max(1, Number(process.env.REQUEST_QUEUE_CONCURRENCY) || 1);
+  // Raised 1 -> 2 per Patrick's explicit request (2026-09-20): two ordinary chat requests may now
+  // run at once (this.queue is a plain push/shift array — real FIFO among same-priority tasks, not
+  // best-effort). "Nexus Code" (isCodeEdit) is the one exception — it's enqueued with
+  // exclusive: true and always runs completely alone regardless of this number, since its
+  // self-review loop is already the heaviest single thing this server runs and Patrick doesn't
+  // want it sharing a generation slot with anything else. Matches OLLAMA_NUM_PARALLEL's own value
+  // (~/.nexus-tunnel/com.nexus.ollamaserve.plist) — both layers need to agree on the same ceiling
+  // for "2 regular requests" to mean genuine parallel generation rather than one queueing invisibly
+  // behind the other at the Ollama layer.
+  private readonly maxConcurrency: number = Math.max(1, Number(process.env.REQUEST_QUEUE_CONCURRENCY) || 2);
 
   // Found by a code review: enqueue() below had NO cap on how many tasks could sit waiting —
   // peakQueueLength was only ever recorded for telemetry, never enforced as an actual limit.
@@ -421,7 +430,9 @@ class RequestQueue {
   }
 
   public get isBusy(): boolean {
-    return this.activeTasks.size >= this.maxConcurrency;
+    // An in-flight exclusive (Nexus Code) task counts as busy even though it only occupies 1 of
+    // the (now 2) regular concurrency slots — nothing else is allowed to start alongside it.
+    return this.activeExclusiveTaskId !== null || this.activeTasks.size >= this.maxConcurrency;
   }
 
   public get currentActiveTask(): { id: string; endpoint: string; startedAt: number } | null {
@@ -444,7 +455,8 @@ class RequestQueue {
   public enqueue<T>(
     endpoint: string,
     taskFn: () => Promise<T>,
-    timeoutMs: number = 45000
+    timeoutMs: number = 45000,
+    options: { exclusive?: boolean } = {}
   ): Promise<{ data: T; queuePosition: number; waitTimeMs: number; processTimeMs: number }> {
     return new Promise((resolve, reject) => {
       // Reject immediately rather than let the queue grow forever — see maxQueueLength's own
@@ -469,6 +481,7 @@ class RequestQueue {
         reject,
         enqueuedAt,
         timeoutMs,
+        exclusive: Boolean(options.exclusive),
       };
 
       this.queue.push(task);
@@ -480,8 +493,28 @@ class RequestQueue {
   // in between, so concurrent calls (from enqueue() and from tasks finishing) can never both
   // slip past the capacity check and overshoot maxConcurrency — JS's single-threaded event
   // loop guarantees nothing else runs between the check and the reservation below.
+  //
+  // Two-tier scheduling (2026-09-20, Patrick's request): regular tasks may run up to
+  // maxConcurrency (2) at once, but an exclusive ("Nexus Code") task always runs completely
+  // alone. Concretely: (1) while an exclusive task is in flight, nothing else is admitted —
+  // handled by the early return below; (2) once an exclusive task reaches the FRONT of the queue,
+  // no new regular task is admitted ahead of it either, even if the exclusive task itself still has
+  // to wait for currently-running regular tasks to drain — otherwise a steady stream of ordinary
+  // chat traffic could starve it indefinitely. It never preempts work already running; it just
+  // waits for the current occupants to finish, then takes the Mac to itself until it's done.
   private pumpQueue(): void {
-    while (this.activeTasks.size < this.maxConcurrency && this.queue.length > 0) {
+    if (this.activeExclusiveTaskId !== null) return;
+
+    while (this.queue.length > 0) {
+      const next = this.queue[0];
+      if (next.exclusive) {
+        if (this.activeTasks.size > 0) break; // wait for current occupants to drain first
+        const task = this.queue.shift()!;
+        this.activeExclusiveTaskId = task.id;
+        this.runTask(task);
+        break; // it's now the sole occupant — stop pumping until it finishes
+      }
+      if (this.activeTasks.size >= this.maxConcurrency) break;
       const task = this.queue.shift()!;
       this.runTask(task);
     }
@@ -516,6 +549,7 @@ class RequestQueue {
     } finally {
       if (timeoutHandle) clearTimeout(timeoutHandle);
       this.activeTasks.delete(task.id);
+      if (this.activeExclusiveTaskId === task.id) this.activeExclusiveTaskId = null;
       // A slot just freed up — immediately pull the next queued task, if any.
       this.pumpQueue();
     }
@@ -1698,7 +1732,11 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
     // above localLlmClient.ts's own 120000ms internal timeout or this outer queue timeout would
     // fire first and kill a request that was actually about to succeed. Patrick is explicit that
     // latency doesn't matter at all here, only quality — errs very generous, not tuned tight.
-    }, isCodeEdit ? 65000 : 150000);
+    // exclusive: isCodeEdit — "Nexus Code" runs alone (see RequestQueue's own comment), waiting
+    // for any currently-running regular requests to drain and blocking new ones from starting
+    // ahead of it once it's queued, rather than sharing one of the (now 2) regular concurrency
+    // slots the way it did before.
+    }, isCodeEdit ? 65000 : 150000, { exclusive: isCodeEdit });
 
     // Only safe to set headers here on the non-streaming path — a streaming request may already
     // have written token lines via res.write() during generateReasoningPath above, and Node throws
