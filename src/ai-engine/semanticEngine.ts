@@ -712,7 +712,13 @@ export function computeEmbedding(text: string): number[] {
 // corrected, instead of only every call after it.
 computeEmbedding('');
 
-export function cosineSimilarity(v1: number[], v2: number[]): number {
+// Accepts Float32Array as well as a plain number[] — vectorSearch.ts's corpus vectors are stored
+// as Float32Array specifically to cut memory (see loadRealEmbeddings's own comment: a 51MB
+// on-disk corpus was inflating to ~200MB+ of resident memory as regular JS number arrays, a real
+// contributor to Railway's 1GB memory ceiling being approached in production). A live query
+// vector (from localLlmClient.embed()) stays a plain number[] — one vector per request, not worth
+// converting — so this needs to accept either shape on either side.
+export function cosineSimilarity(v1: number[] | Float32Array, v2: number[] | Float32Array): number {
   if (v1.length !== v2.length) return 0;
   let dot = 0;
   let n1 = 0;

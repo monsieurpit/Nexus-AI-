@@ -24,9 +24,20 @@ import * as localLlmClient from './localLlmClient';
 // transform it for the client target at all — the same treatment nspell/dictionary-pl already
 // get there), this keeps real embeddings working server-side while being truly inert in the
 // browser bundle instead of just "unlikely to run".
-let embeddingsPromise: Promise<Record<string, number[]>> | null = null;
+// Stored as Float32Array, not a plain number[] — found live (2026-09-20) that this 51MB on-disk
+// JSON file (5540 documents x 1024-dim vectors, see scripts/generateEmbeddings.ts) was costing
+// ~200MB+ of actual resident memory once parsed into regular JS arrays: a JS `number` is always a
+// float64 under the hood, so a plain array of 1024 numbers costs 8 bytes/element (5540 x 1024 x 8
+// = ~45MB for the vector data alone) even though this model's own precision doesn't need more
+// than float32 ever gave it. A Float32Array packs the same values into 4 bytes/element with none
+// of a regular array's per-element boxing/indirection — a real, mechanical ~2x cut on the single
+// largest piece of long-lived memory this server holds, confirmed as a meaningful share of
+// Railway's 1GB container limit being approached in production. Converted once, right here at
+// load time, so the heavier intermediate JSON.parse() array representation is only ever
+// short-lived garbage, never the thing actually kept resident for the life of the process.
+let embeddingsPromise: Promise<Record<string, Float32Array>> | null = null;
 
-async function loadRealEmbeddings(): Promise<Record<string, number[]>> {
+async function loadRealEmbeddings(): Promise<Record<string, Float32Array>> {
   if (typeof window !== 'undefined') return {};
   if (!embeddingsPromise) {
     embeddingsPromise = (async () => {
@@ -44,7 +55,11 @@ async function loadRealEmbeddings(): Promise<Record<string, number[]>> {
             const corpusEmbeddings = JSON.parse(content);
             const vectors =
               (corpusEmbeddings as { vectors: Record<string, { vector: number[]; textHash: string }> }).vectors || {};
-            return Object.fromEntries(Object.entries(vectors).map(([id, entry]) => [id, entry.vector]));
+            const out: Record<string, Float32Array> = {};
+            for (const id of Object.keys(vectors)) {
+              out[id] = new Float32Array(vectors[id].vector);
+            }
+            return out;
           }
         }
         return {};
