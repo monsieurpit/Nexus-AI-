@@ -12,10 +12,10 @@ import {
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS, extractMemorableFact } from './src/ai-engine/memoryStore';
 import {
   evaluateStrictDirectives,
-  evaluateRaidShieldRules,
   parseSdkRules,
   enforceStrictSdkRules,
-} from './src/ai-engine/ruleEngine';
+} from './src/ai-engine/rules/customDirectives';
+import { evaluateRaidShieldRules } from './src/ai-engine/rules/raidshield';
 import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommendReasoningMode, generateCodeEditWithReview } from './src/ai-engine/reasoningEngine';
 import { getMoodDisplay } from './src/ai-engine/rules/mood';
 import {

@@ -3,11 +3,11 @@
  * =========================
  *
  * A dedicated, data-driven security corpus for the Nexus AI RaidShield engine
- * (`evaluateRaidShieldRules` in `../ruleEngine.ts`, served at
+ * (`evaluateRaidShieldRules` in `../rules/raidshield.ts`, served at
  * `POST /api/v1/raidshield` and consumed by the Discord bot's
  * `aiModerationService` / `raidDetectionService`).
  *
- * The hand-written "21 Hard Rules" cascade in `ruleEngine.ts` stays the first
+ * The hand-written "21 Hard Rules" cascade in `rules/raidshield.ts` stays the first
  * line of defence and keeps priority: it owns the "always safe" exemptions
  * (reporting, mod context, mainstream links, Spanish smalltalk, role/rank talk,
  * bot commands) and the highest-severity scam vectors (Nitro phishing, Steam
@@ -28,7 +28,7 @@
  *    to its own Default Safe).
  *
  * This file is intentionally large. Add new patterns here rather than growing
- * the `ruleEngine.ts` cascade.
+ * the `rules/raidshield.ts` cascade.
  */
 
 export type RaidShieldCorpusClassification = 'scam' | 'spam' | 'bot' | 'raid' | 'safe';
@@ -55,7 +55,7 @@ export interface RaidShieldThreatPattern {
 
 /**
  * Shared "this is a report / warning / question, not an attack" guard. Runs
- * before every corpus entry. Deliberately narrower than the ruleEngine's own
+ * before every corpus entry. Deliberately narrower than raidshield.ts's own
  * REPORTING_INDICATORS (which has already run and returned safe for the clear
  * cases) — this only catches the residual phrasings.
  */
@@ -65,7 +65,7 @@ export const CORPUS_SAFE_CONTEXT: RegExp[] = [
   // generator a scam?" (a genuine report, naming what the suspicious thing actually is before
   // asking about it — the normal way anyone phrases this) never matched, fell through to
   // nitro-generator-any's own bare "nitro generator" match, and got misclassified as the scam
-  // itself. ruleEngine.ts's own REPORTING_INDICATORS already had this exact bug fixed once before
+  // itself. raidshield.ts's own REPORTING_INDICATORS already had this exact bug fixed once before
   // (see its own comment) but this file's narrower, separate copy never got the same fix.
   /\b(is|are)\s+(this|these|that|those)\s+.{0,40}?(a\s+)?(scam|phish(?:ing)?|legit|safe|real|fake|virus|malware)\b/i,
   /\b(someone|somebody|a\s+bot|random(?:\s+account)?)\s+(just\s+)?(dm(?:ed|d)?|messaged|sent|pinged)\s+me\b/i,
@@ -109,7 +109,7 @@ const URGENCY = /\b(?:now|today|hurry|fast|quick(?:ly)?|limited|expires?|last\s+
 const FREE = /\b(?:free|100%\s*free|no\s+cost|giveaway|give\s?away|claim|redeem|drop(?:ping)?)\b/i;
 
 // =======================================================================
-// FAMILY 1 — Discord Nitro / boost / gift phishing (beyond ruleEngine's core rule)
+// FAMILY 1 — Discord Nitro / boost / gift phishing (beyond raidshield.ts's core rule)
 // =======================================================================
 const NITRO: RaidShieldThreatPattern[] = [
   t('nitro-dm-me', 'scam', 0.93, 'Discord Nitro bait routed through DMs — classic scam funnel.', {
@@ -1422,7 +1422,7 @@ function entryMatches(entry: RaidShieldThreatPattern, text: string, lower: strin
 }
 
 /**
- * Consult the threat corpus for a message that the ruleEngine's hard rules did
+ * Consult the threat corpus for a message that raidshield.ts's hard rules did
  * not already classify. Returns the highest-confidence threat match, or `null`
  * when nothing distinctive is found (or a safe-context guard fired).
  */

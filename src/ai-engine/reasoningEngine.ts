@@ -25,7 +25,7 @@ import {
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
 import { registerMoodEvent, getMoodDirective, getMoodPrimacyPrefix, getMoodResponseLengthMultiplier } from './rules/mood';
 import { retrieveVoiceExamples, formatVoiceExamplesBlock } from './voiceExampleRetrieval';
-import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
+import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
 import * as localLlmClient from './localLlmClient';
 import {
   infuseSwearyHumanVoice,
