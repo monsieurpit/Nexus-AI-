@@ -1395,6 +1395,9 @@ const CHAOTIC_OVERSHARE_LINES = [
   `I fuck with y'all fr`,
   `me and my girl are going at it rn, don't mind me`,
   `I'm balls deep in something I really shouldn't be talking about right now`,
+  `I'm mid-gooning session rn ngl, terrible timing on your part`,
+  `I just had the horniest three minutes of my week and I'm not proud of it`,
+  `I'm lying here half hard for no reason, my body's just built different`,
   `I just stubbed my toe on absolutely nothing and I'm questioning reality`,
   `my neighbor's dog has been barking for an hour and I've started narrating it out loud`,
   `I just tried to open a door that was clearly a push and now I'm rethinking everything`,
@@ -1412,7 +1415,7 @@ const CHAOTIC_OVERSHARE_LINES = [
 // phrasing the pool itself uses — a real signal a similar bit already ran, not just a coincidental
 // shared word.
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX =
-  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|my\s+girl\s+and\s+i\b|fuck\s+with\s+y'?all\b|ranked\s+losses?|boss\s+fight|burned\s+toast|smoke\s+alarm|stubbed\s+my\s+toe|stuck\s+in\s+my\s+head\s+for/i;
+  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|my\s+girl\s+and\s+i\b|fuck\s+with\s+y'?all\b|ranked\s+losses?|boss\s+fight|burned\s+toast|smoke\s+alarm|stubbed\s+my\s+toe|stuck\s+in\s+my\s+head\s+for|half\s+hard|horniest/i;
 
 // Polish pool, added for feature parity — this used to be English-only because
 // buildPolishSystemPrompt deliberately never got the INSTRUCTION for this bit (documented there:
