@@ -140,6 +140,14 @@ function scrubSwearingForDraft(text: string): string {
     .trim();
 }
 
+// The LLM's own compliance with the swearing directive is stochastic — a 3B model doesn't
+// reliably hit "swear every response" 100% of the time, especially on short casual replies where
+// there's less natural surface area for profanity to land. This guarantees a floor via the same
+// word-substitution mechanism (not the old header/footer template-stamp, which was correctly
+// killed) the legacy template pipeline already used, blending real swears into the ACTUAL
+// generated sentence rather than bolting on a fixed phrase — safe to run on any LLM-generated
+// text since (unlike the hand-written pool text infuseSwearyHumanVoice's conversational-category
+// skip was protecting) it's already unique per request.
 export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
   if (userPrompt) text = capRamblingReply(text, userPrompt);
   // Formal draft request (email/text/essay the user will actually send) — none of the swear-floor

@@ -12,7 +12,8 @@
 //        bun run scripts/regressionCheck.ts --live-only   (skip the deterministic tier)
 //        bun run scripts/regressionCheck.ts --det-only    (skip live generation, fast/offline)
 
-import { generateReasoningPath, getSystemPromptCharCount, buildSpeakerAwareWindow, classifyBotMetaQuestion } from '../src/ai-engine/reasoningEngine';
+import { generateReasoningPath, buildSpeakerAwareWindow, classifyBotMetaQuestion } from '../src/ai-engine/reasoningEngine';
+import { getSystemPromptCharCount } from '../src/ai-engine/rules/promptBuilder';
 import { looksFrench } from '../src/ai-engine/localLlmClient';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore';
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
