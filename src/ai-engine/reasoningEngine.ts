@@ -23,7 +23,7 @@ import {
   findNearbyPlaces,
 } from './weatherEngine';
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
-import { registerMoodEvent, getMoodDirective, getMoodPrimacyPrefix, getMoodResponseLengthMultiplier } from './moodEngine';
+import { registerMoodEvent, getMoodDirective, getMoodPrimacyPrefix, getMoodResponseLengthMultiplier } from './rules/mood';
 import { retrieveVoiceExamples, formatVoiceExamplesBlock } from './voiceExampleRetrieval';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './ruleEngine';
 import * as localLlmClient from './localLlmClient';
@@ -3618,7 +3618,7 @@ function buildLlmKnowledgeInstruction(reasoningMode: AISettings['reasoningMode']
 // all — everything that matters is in the same last paragraph. Also restores the wildly
 // unpredictable/absurd energy that "write in normal sentence case, not shouting" accidentally
 // flattened out along with the shouting itself.
-// Wraps buildFinalDirectiveBody so the mood directive (artificial "feelings" — see moodEngine.ts)
+// Wraps buildFinalDirectiveBody so the mood directive (artificial "feelings" — see rules/mood.ts)
 // gets appended exactly once regardless of which of the four return branches below fires, instead
 // of threading it into each one separately.
 // Patrick's explicit ask: Nexus should swear heavily everywhere EXCEPT when the user is actually
@@ -4653,7 +4653,7 @@ export async function generateReasoningPath(
     settings.discordUserId === '1394001641899954368' ||
     Boolean(settings.userCustomDirectives?.includes('1394001641899954368'));
 
-  // Artificial "feelings" (moodEngine.ts) — registered once per real user turn, right at the top
+  // Artificial "feelings" (rules/mood.ts) — registered once per real user turn, right at the top
   // of the function, so it fires exactly once regardless of which branch below ends up handling
   // the actual reply (including the safety-refusal branches right after this, which return early
   // and never reach the insult/distress detectors further down that would otherwise double as the

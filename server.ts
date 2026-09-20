@@ -17,7 +17,7 @@ import {
   enforceStrictSdkRules,
 } from './src/ai-engine/ruleEngine';
 import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommendReasoningMode, generateCodeEditWithReview } from './src/ai-engine/reasoningEngine';
-import { getMoodDisplay } from './src/ai-engine/moodEngine';
+import { getMoodDisplay } from './src/ai-engine/rules/mood';
 import {
   checkAvailability as checkLocalLlmAvailability,
   generate as generateLlmText,
@@ -611,7 +611,7 @@ app.get('/api/v1/queue/status', (req, res) => {
   });
 });
 
-// 🎭 Nexus's current artificial "mood" (moodEngine.ts) — a lightweight polling endpoint so a
+// 🎭 Nexus's current artificial "mood" (rules/mood.ts) — a lightweight polling endpoint so a
 // consumer (the Discord bot's presence status, the website's UI, anything) can show how the bot
 // is "feeling" right now without needing to send it an actual message first. No auth required,
 // same as /api/v1/queue/status — this is read-only telemetry about the bot itself, not user data.
@@ -1721,7 +1721,7 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
       : queuedExecution.data.telemetry
       ? `real LLM (${queuedExecution.data.telemetry.latencyMs}ms)`
       : 'no LLM call (template/rule-based reply)';
-    // mood= reflects the bot's artificial mood (moodEngine.ts) AFTER this request's own event
+    // mood= reflects the bot's artificial mood (rules/mood.ts) AFTER this request's own event
     // already nudged it — so the log line shows what actually colored the reply the user just
     // got, and doubles as a running record of how mood is drifting over real traffic, visible
     // straight in Railway's log viewer without needing to separately poll GET /api/v1/mood.

@@ -1,6 +1,6 @@
 // Permanent regression suite covering every real bug found and fixed this session — run this
 // after touching reasoningEngine.ts, swearEngine.ts, webSearchEngine.ts, logicSolver.ts, or
-// moodEngine.ts instead of writing a fresh one-off _verify_*.ts script each time. Two tiers:
+// rules/mood.ts instead of writing a fresh one-off _verify_*.ts script each time. Two tiers:
 // deterministic checks (fast, no Ollama needed — regex/solver functions called directly) and
 // live checks (need a real Ollama connection, since they exercise actual generation quality —
 // list-flattening, language routing, tone). Live checks use structural assertions (regex on the
@@ -16,7 +16,7 @@ import { generateReasoningPath, getSystemPromptCharCount, buildSpeakerAwareWindo
 import { looksFrench } from '../src/ai-engine/localLlmClient';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore';
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
-import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/moodEngine';
+import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
 import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare } from '../src/ai-engine/swearEngine';
 import { shouldTriggerLiveWebSearch } from '../src/ai-engine/webSearchEngine';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
