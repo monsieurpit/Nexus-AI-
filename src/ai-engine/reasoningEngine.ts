@@ -1656,7 +1656,20 @@ export function detectQueryIntent(query: string): QueryIntent {
     /\bkiedy\b/.test(q) ||
     q.includes('jaki rok') ||
     q.includes('jaka data') ||
-    /\bhistoria\s+\w/.test(q)
+    /\bhistoria\s+\w/.test(q) ||
+    // French/Spanish/Catalan — added 2026-09-17 after finding the exact same gap already
+    // documented and fixed for Polish above: this whole classification function (and the
+    // downstream downgrade heuristic in generateReasoningPath) had ZERO French/Spanish/Catalan
+    // coverage, so a short factual question in any of the three ("quand est né Napoléon", no "?")
+    // fell all the way through to 'general' and then got silently downgraded to 'conversational',
+    // skipping corpus retrieval entirely — verified live. "quand" (FR when), "cuándo"/"cuando" (ES
+    // when, accent-optional since casual typing routinely drops it), "quan" (CA when).
+    /\bquand\b/i.test(q) ||
+    /\bcu[aá]ndo\b/i.test(q) ||
+    /\bquan\b/i.test(q) ||
+    q.includes('quelle année') || q.includes('quelle date') ||
+    q.includes('qué año') || q.includes('que año') || q.includes('qué fecha') || q.includes('que fecha') ||
+    q.includes('quin any') || q.includes('quina data')
   ) {
     return 'temporal';
   }
@@ -1675,7 +1688,20 @@ export function detectQueryIntent(query: string): QueryIntent {
     // reads as non-word to \b, same as the space that follows it, so there's no detectable
     // transition). Same defect already fixed this session in several other regexes; verified live
     // that a bare trailing \b here genuinely failed to match "kto wynalazł żarówkę".
-    /\bkto\s+(?:jest|był|była|wynalazł|odkrył|stworzył|wymyślił)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/.test(q)
+    /\bkto\s+(?:jest|był|była|wynalazł|odkrył|stworzył|wymyślił)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/.test(q) ||
+    // French/Spanish/Catalan — same gap as temporal above. "qui" (FR who), "quién"/"quien" (ES
+    // who, accent-optional), "qui" (CA who — identical spelling to French, no conflict since both
+    // trigger the same branch either way).
+    q.includes('qui a ') || q.includes('qui est ') || q.includes('qui était') ||
+    q.includes('qui va ') ||
+    // Trailing negative lookahead instead of \b — same ASCII-\b-vs-diacritic defect already fixed
+    // elsewhere in this file for Polish (see the "kto" fix's own comment above): "inventó"/
+    // "descubrió"/"creó" end in an accented "ó", which JS's ASCII-only \b treats as a non-word
+    // character the same as the space/end-of-string that follows it, so no \w/\W transition is
+    // ever detected there and \b silently fails to match. Verified live: a bare trailing \b here
+    // failed on "quién inventó la bombilla" entirely.
+    /\bqui[eé]n\s+(?:es|era|fue|invent[oó]|descubri[oó]|cre[oó])(?![a-zàâçéèêëîïôùûüÿœæáíóúñ])/i.test(q) ||
+    q.includes('qui és ') || q.includes('qui era ') || q.includes('qui va inventar') || q.includes('qui va descobrir')
   ) {
     return 'person';
   }
@@ -1688,7 +1714,22 @@ export function detectQueryIntent(query: string): QueryIntent {
     q.includes('where are ') ||
     // Polish: "gdzie" (where), "stolica" (capital) — same reasoning as above.
     /\bgdzie\b/.test(q) ||
-    q.includes('stolica')
+    q.includes('stolica') ||
+    // French/Spanish/Catalan — same gap as temporal/person above. "où" (FR where), "dónde"/
+    // "donde" (ES where), "capitale de"/"capital de" (capital of). Catalan "on" (where)
+    // deliberately NOT matched bare — it's also the common English preposition "on", so it's
+    // gated on the specific "on és"/"on està"/"on queda" (where is) shapes real Catalan questions
+    // actually use, the same collision-avoidance discipline already applied throughout this
+    // session's other French/Spanish/Catalan additions.
+    /\bo[uù]\s+(?:est|se\s+trouve|sont)\b/i.test(q) ||
+    // Trailing negative lookahead instead of \b on both — same ASCII-\b-vs-diacritic defect as
+    // the person branch's "quién inventó" fix above ("está" ends in an accented "á", "està" in an
+    // accented "à").
+    /\bd[oó]nde\s+(?:est[aá]|queda|se\s+encuentra)(?![a-zàâçéèêëîïôùûüÿœæáíóúñ])/i.test(q) ||
+    /\bon\s+(?:[eé]s|est[aà]|queda)(?![a-zàâçéèêëîïôùûüÿœæáíóúñ])/i.test(q) ||
+    q.includes('capitale de') || q.includes('capital de') ||
+    q.includes('situé à') || q.includes('situé en') ||
+    q.includes('ubicado en') || q.includes('situado en') || q.includes('situat a')
   ) {
     return 'location';
   }
@@ -1752,7 +1793,15 @@ export function detectQueryIntent(query: string): QueryIntent {
     // wet"), which those regexes would otherwise swallow.
     /^is\s+(?:an?\s+|the\s+)?[a-z0-9'-]+(?:\s+[a-z0-9'-]+){0,2}\s+an?\s+[a-z0-9'-]+(?:\s+or\s+an?\s+[a-z0-9'-]+)?\??$/i.test(
       q
-    )
+    ) ||
+    // French/Spanish/Catalan — same gap as the branches above. "différence entre"/"diferencia
+    // entre"/"diferència entre" (difference between), "comparer"/"comparar" (compare, imperative).
+    // Written as explicit alternation rather than one clever shared pattern — found live while
+    // testing that French/Spanish end their singular form in "-ence"/"-encia" but Catalan ends in
+    // "-ència" (an "a", not an "e"), so a single merged character-class pattern silently missed
+    // the Catalan singular form ("diferència entre") despite matching everything else.
+    /\b(?:diff[ée]rences?|diferencias?|difer[eè]nci?[ea]s?)\s+entre\b/i.test(q) ||
+    q.includes('comparer ') || q.includes('comparar ')
   ) {
     return 'comparative';
   }
@@ -1772,7 +1821,15 @@ export function detectQueryIntent(query: string): QueryIntent {
     /\bco\s+to\s+(?:jest|są)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/.test(q) ||
     /\bczym\s+jest\b/.test(q) ||
     /\bjak(?:i|a|ie|ą|iej|iego)\s+jest\b/.test(q) ||
-    q.includes('co oznacza')
+    q.includes('co oznacza') ||
+    // French/Spanish/Catalan — same gap as the branches above. "qu'est-ce que"/"qu'est-ce qu'"
+    // (what is), "c'est quoi" (informal "what is it"), "que es"/"qué es"/"que son"/"qué son" (ES,
+    // accent-optional), "què és" (CA), "définition de"/"definición de"/"definició de".
+    /qu'est-ce\s+(?:que|qu')/i.test(q) ||
+    /c'est\s+quoi\b/i.test(q) ||
+    /\bqu[eé]\s+(?:es|son)\b/i.test(q) ||
+    /\bqu[eè]\s+[eé]s\b/i.test(q) ||
+    /d[ée]finici[oó]n\s+de|d[ée]finition\s+de|definici[oó]\s+de/i.test(q)
   ) {
     return 'definition';
   }
@@ -1795,7 +1852,19 @@ export function detectQueryIntent(query: string): QueryIntent {
     // handled by the definition branch above) — and "wyjaśnij"/"wytłumacz" (explain, imperative).
     /\bjak\b/.test(q) ||
     q.includes('wyjaśnij') ||
-    q.includes('wytłumacz')
+    q.includes('wytłumacz') ||
+    // French/Spanish/Catalan — same gap as the branches above. "comment"/"cómo"/"como"/"com"
+    // (how) deliberately NOT matched bare — "comment" collides with the common English noun ("no
+    // comment", "leave a comment" — already excluded from FRENCH_SIGNAL_WORDS in localLlmClient.ts
+    // for the identical reason), "como" is also the Spanish comparative "like/as" (not just
+    // interrogative "how") when unaccented, and "com" collides with the ".com" domain suffix —
+    // all three gated on the specific following-word shapes a real "how does X work" question
+    // actually uses. "explique(-moi)" (FR, explain [to me]) is safe to match bare.
+    /\bcomment\s+(?:fonctionne|faire|ça|ca|fais|font)/i.test(q) ||
+    /\bexplique(?:-moi)?\b/i.test(q) ||
+    /\bc[oó]mo\s+(?:funciona|se\s|puedo|hace|hago|puedes)/i.test(q) ||
+    /\bcómo\b/i.test(q) ||
+    /\bcom\s+(?:funciona|fa|puc|faig|fas)/i.test(q)
   ) {
     return 'explanation';
   }
@@ -1809,7 +1878,15 @@ export function detectQueryIntent(query: string): QueryIntent {
     q.includes('why does') ||
     // Polish: "dlaczego"/"czemu" (why) — same reasoning as above.
     q.includes('dlaczego') ||
-    /\bczemu\b/.test(q)
+    /\bczemu\b/.test(q) ||
+    // French/Spanish/Catalan — same gap as the branches above. "pourquoi" (FR why, safe bare —
+    // not a real English word). Spanish "por qué" (why, WITH a space) deliberately distinguished
+    // from "porque" (NO space, means "because" — a statement marker, not a question) so a
+    // sentence merely using "porque" to explain something doesn't get misread as a why-question.
+    // Catalan "per què" (why) same space-based distinction from "perquè" (because).
+    /\bpourquoi\b/i.test(q) ||
+    /\bpor\s+qu[eé](?![a-zàâçéèêëîïôùûüÿœæáíóúñ])/i.test(q) ||
+    /\bper\s+qu[eè](?![a-zàâçéèêëîïôùûüÿœæáíóúñ])/i.test(q)
   ) {
     return 'causal';
   }
@@ -1824,7 +1901,13 @@ export function detectQueryIntent(query: string): QueryIntent {
     // Polish: "wymień" (list, imperative), "podaj przykłady" (give examples), "rodzaje" (types).
     q.includes('wymień') ||
     q.includes('podaj przykłady') ||
-    q.includes('rodzaje ')
+    q.includes('rodzaje ') ||
+    // French/Spanish/Catalan — same gap as the branches above. "exemples de"/"ejemplos de"/
+    // "exemples de" (CA, same spelling as FR), "types de"/"tipos de"/"tipus de", "liste"/"lista"/
+    // "llista" (list, imperative).
+    q.includes('exemples de') || q.includes('ejemplos de') ||
+    q.includes('types de') || q.includes('tipos de') || q.includes('tipus de') ||
+    q.includes('liste ') || q.includes('lista ') || q.includes('llista ')
   ) {
     return 'listing';
   }
@@ -2183,6 +2266,23 @@ async function searchWithReformulation(
 
   const keywordQuery = queryTerms.join(' ').trim();
   if (!keywordQuery || keywordQuery === augmentedQuery.toLowerCase().trim()) {
+    return { results, reformulatedQuery: null };
+  }
+
+  // Found live (2026-09-17/18, full EN/FR/ES/CA retrieval audit) — this BM25-only retry was
+  // silently undoing vectorSearch.ts's non-English rerank fix (maybeRerankForNonEnglishQuery):
+  // that fix intentionally caps a promoted vector match's score in [0.5, 0.8] (same convention
+  // reciprocalRankFusion already uses for a vector-only discovery — real but never able to reach
+  // CONFIDENT_MATCH_SCORE on its own), but the comparison below just picks whichever score is
+  // numerically bigger. BM25's raw scores on this corpus routinely land at 4-25 even for a wrong,
+  // coincidental keyword collision (exactly the "trou noir" -> "Film Noir" case the rerank fix
+  // exists to correct), so this retry's own BM25-only result — with zero awareness of the
+  // rerank's evidence-based correction — always numerically "won" and silently reverted the fix.
+  // Skipped entirely for a query detected non-English: BM25 alone is the untrustworthy signal for
+  // that case in the first place (see vectorSearch.ts's own comment on why), so a BM25-only retry
+  // has nothing reliable to contribute there — the first call's result (already benefiting from
+  // the rerank fix if it applied) is kept as-is. English queries are completely unaffected.
+  if (localLlmClient.looksNonEnglishQuery(augmentedQuery)) {
     return { results, reformulatedQuery: null };
   }
 
@@ -3201,7 +3301,16 @@ const LLM_MAX_TOKENS_DEFAULT = 420;
 const LLM_MAX_TOKENS_BROAD = 900;
 // Casual/situational replies (small talk, roasts, no corpus grounding involved) — a real chaotic
 // friend texting back doesn't write essays in response to "lol" or a passing complaint.
-const LLM_MAX_TOKENS_CASUAL = 220;
+// Trimmed again 220 -> 110 (2026-09-20) — Patrick reported real server members complaining about
+// "mega paragraphes" on plain casual banter (his example: "nexus do you like eating chairs" got a
+// ~100-word, 4-sentence rant back). The persona's own style directive already says "2 to 3
+// sentences, one short paragraph at most" (buildFinalDirectiveBody), but a small local model's
+// compliance with a LENGTH instruction is stochastic — the same reason this codebase already
+// enforces the swear-count floor mechanically instead of trusting the prompt alone. 220 tokens
+// (~150-170 words) left real room to ramble well past "2-3 sentences" even while nominally
+// following every other style rule; 110 (~65-80 words) actually forces the brevity the prompt
+// asks for, rather than just requesting it and hoping.
+const LLM_MAX_TOKENS_CASUAL = 110;
 
 // Extra token room added on top of the CONTENT budget whenever `think: true` is set — Gemma 4's
 // native thinking channel draws from the SAME overall token budget (num_predict) as the visible
@@ -5307,7 +5416,20 @@ export async function generateReasoningPath(
       // assert a boundary right after one (same defect just fixed in detectQueryIntent()'s own
       // new Polish patterns above), which would have quietly left this one word still broken
       // despite being added here.
-      /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should|explain|tell\s+me|describe|define|give\s+me|show\s+me|list|write|calculate|solve|translate|summarize|compare|czy|jak|jaki|jaka|jakie|jaką|co|czym|kto|kiedy|gdzie|ile|dlaczego|czemu)(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ])/i.test(
+      // French/Spanish/Catalan leading words added 2026-09-17 alongside detectQueryIntent()'s own
+      // new coverage for the same three languages (see that function's temporal/person/location/
+      // comparative/definition/explanation/causal/listing branches) — this exact gap the Polish
+      // comment above already documents ("jaka jest stolica polski" being wrongly downgraded)
+      // applied identically to French/Spanish/Catalan and was, if anything, a bigger real-world
+      // hit: casual typing very often skips the "?" entirely, so `effectivePrompt.includes('?')`
+      // alone almost never saved these. Verified live before this fix: "qu'est-ce qu'un trou noir"
+      // (no "?") — detectQueryIntent() now correctly returns 'definition' for it, but THIS
+      // heuristic (checked independently, right after) still overwrote that back to
+      // 'conversational' because its own leading-word list had zero French/Spanish/Catalan
+      // coverage, skipping corpus retrieval anyway despite the upstream fix. Same trailing
+      // negative-lookahead treatment as the Polish "jaką" fix for identical reasons — several of
+      // these end in accented characters ASCII \b can't see past.
+      /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should|explain|tell\s+me|describe|define|give\s+me|show\s+me|list|write|calculate|solve|translate|summarize|compare|czy|jak|jaki|jaka|jakie|jaką|co|czym|kto|kiedy|gdzie|ile|dlaczego|czemu|qu'est-ce|c'est\s+quoi|comment|pourquoi|combien|quand|o[uù]|qui|quel|quelle|quels|quelles|explique|liste?|d[ée]finition|qu[eé]|c[oó]mo|por\s+qu[eé]|cu[aá]ndo|d[oó]nde|qui[eé]n|cu[aá]l|cu[aá]les|explica|compara|lista|d[ée]finici[oó]n|qu[eè]|com|per\s+qu[eè]|quan|on|quin|quina|quins|quines|llista|definici[oó])(?![a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻàâçéèêëîïôùûüÿœæáíóúñÀ-ÿ])/i.test(
         effectivePrompt.trim()
       );
     if (wordCount <= 12 && !looksLikeRealRequest) {
