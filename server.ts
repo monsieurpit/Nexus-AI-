@@ -1923,7 +1923,16 @@ app.post('/api/v1/raidshield', aiComputeLimiter, async (req, res) => {
         }
       }
 
-      const evalInput = [targetText, imageDescription ? `[Image content: ${imageDescription}]` : ''].filter(Boolean).join(' ');
+      // Found live (2026-09-20) after a real false positive — an innocent image got auto-
+      // quarantined as CSAM-bait at 95% confidence. Root cause: this wrapper literally contained
+      // the word "content", which several raidShieldThreatCorpus.ts patterns (nsfw-teen-bait
+      // among them) accept as one branch of their own required "sexual content" signal — so EVERY
+      // single image scan silently pre-satisfied part of those patterns regardless of what was
+      // actually in the picture, before the real vision description was even considered. Reworded
+      // to avoid every word this corpus treats as a signal anywhere (checked against the corpus
+      // file directly, not guessed) — this wrapper's own boilerplate must never be able to
+      // contribute to a classification on its own.
+      const evalInput = [targetText, imageDescription ? `[Attached image shows: ${imageDescription}]` : ''].filter(Boolean).join(' ');
       const evalResult = evaluateRaidShieldRules(evalInput || 'image_attachment_scanned');
       const imageStatusNote = imagePart
         ? imageDescription

@@ -720,9 +720,27 @@ const NSFW: RaidShieldThreatPattern[] = [
     allOf: [/\b(?:leaked|leak|hacked)\b/i, /\b(?:nudes?|pics?|onlyfans|content|folder|mega|drive)\b/i],
     signals: [LINK, SHORTENER, /\bdiscord\.gg\//i],
   }),
+  // Tightened 2026-09-20 after a real false positive: a normal, innocent image got auto-
+  // quarantined at 95% confidence as CSAM-bait. Root cause was two-fold. (1) server.ts's own
+  // wrapper text around a vision-model description literally reads `[Image content: ...]` —
+  // the bare word "content" was satisfying this pattern's second group on every single image
+  // scan regardless of what was actually in the picture (fixed separately in server.ts). (2) This
+  // pattern's first group accepted bare, unqualified digits "13"/"14"/"15" with zero surrounding
+  // context — a vision description mentioning "13 people", a jersey number, a price, or literally
+  // any unrelated use of those digits satisfied it. Combined with server/link/content in the
+  // second group (both extremely generic — "server" and "link" appear in huge swaths of ordinary
+  // Discord chatter and image descriptions with zero relation to this threat), the two together
+  // created a real, live false-positive path for an innocent image. Retightened: age digits now
+  // require an actual age-marker suffix real bait phrasing uses ("13yo", "13y/o", "13f", "14
+  // years old" — not bare "13"), and "server"/"link" (too generic on their own) dropped from the
+  // second group, which still has "nudes?/content/pics?/vids?/trade/dropbox" — content alone is
+  // still permissive, but the first group's tightening now does the real discriminating work.
   t('nsfw-teen-bait', 'scam', 0.95, 'Bait referencing sexual content involving minors — report + hard block.', {
     keywords: ['teen', 'young', 'nsfw'],
-    allOf: [/\b(?:teen|young\s+girls?|13|14|15|underage|minor|jailbait|loli|cp)\b/i, /\b(?:nudes?|content|pics?|vids?|server|link|trade|dropbox)\b/i],
+    allOf: [
+      /\b(?:teen|young\s+girls?|young\s+boys?|1[345]\s*(?:y\/?o|yo|f|m)\b|1[345]\s*years?\s*old|underage|minor|jailbait|loli|cp)\b/i,
+      /\b(?:nudes?|content|pics?|vids?|trade|dropbox)\b/i,
+    ],
   }),
   t('nsfw-dating-bot', 'spam', 0.8, 'Catfish "hey wanna chat / see my pics" opener typical of NSFW bots.', {
     keywords: ['wanna chat', 'my pics', 'lonely'],
