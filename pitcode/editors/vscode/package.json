@@ -1,0 +1,31 @@
+{
+  "name": "pitcode",
+  "displayName": "PitCode",
+  "description": "Syntax colors, snippets and editing help for the PitCode language (.pit files)",
+  "version": "1.0.0",
+  "publisher": "pitcode",
+  "license": "MIT",
+  "engines": { "vscode": "^1.60.0" },
+  "categories": ["Programming Languages", "Snippets"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "pitcode",
+        "aliases": ["PitCode", "pitcode"],
+        "extensions": [".pit"],
+        "firstLine": "^#!.*\\bpitcode\\b",
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "pitcode",
+        "scopeName": "source.pitcode",
+        "path": "./syntaxes/pitcode.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      { "language": "pitcode", "path": "./snippets/pitcode.json" }
+    ]
+  }
+}

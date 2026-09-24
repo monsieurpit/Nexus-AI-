@@ -1,0 +1,25 @@
+{
+  "Function": { "prefix": "fn", "body": ["${1:name}(${2:params}) => {", "\t$0", "}"], "description": "A function" },
+  "When": { "prefix": "when", "body": ["when ${1:condition} {", "\t$0", "}"], "description": "A condition" },
+  "When / other": { "prefix": "whenother", "body": ["when ${1:condition} {", "\t$2", "} other {", "\t$0", "}"], "description": "A condition with other" },
+  "Loop over items": { "prefix": "loopin", "body": ["loop ${1:item} in ${2:list} {", "\t$0", "}"], "description": "Loop over a list" },
+  "Loop over a range": { "prefix": "looprange", "body": ["loop ${1:i} in ${2:0}..${3:10} {", "\t$0", "}"], "description": "Count with a range" },
+  "Loop while": { "prefix": "loop", "body": ["loop ${1:condition} {", "\t$0", "}"], "description": "Loop while a condition is true" },
+  "Kind": {
+    "prefix": "kind",
+    "body": ["kind ${1:Name} {", "\tinit(${2:value}) => {", "\t\tme.${2:value} = ${2:value}", "\t}", "", "\t$0", "}"],
+    "description": "A kind (object blueprint)"
+  },
+  "Kind from": {
+    "prefix": "kindfrom",
+    "body": ["kind ${1:Name} from ${2:Parent} {", "\tinit(${3:value}) => {", "\t\tup.init(${3:value})", "\t}", "", "\t$0", "}"],
+    "description": "A kind that comes from another kind"
+  },
+  "Match": { "prefix": "match", "body": ["match ${1:value} {", "\t${2:pattern} => $3", "\tother => $0", "}"], "description": "Choose by value" },
+  "Attempt": {
+    "prefix": "attempt",
+    "body": ["attempt {", "\t$1", "} rescue ${2:err} {", "\tsay ${2:err}.message", "}"],
+    "description": "Handle errors"
+  },
+  "Use": { "prefix": "use", "body": ["use { ${2:name} } from \"${1:./file}\""], "description": "Use shared names from another file" }
+}

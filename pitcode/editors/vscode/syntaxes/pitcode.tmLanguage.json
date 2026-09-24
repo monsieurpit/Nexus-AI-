@@ -1,0 +1,133 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "PitCode",
+  "scopeName": "source.pitcode",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#kind-declaration" },
+    { "include": "#function-declaration" },
+    { "include": "#keywords" },
+    { "include": "#constants" },
+    { "include": "#builtins" },
+    { "include": "#operators" },
+    { "include": "#calls" },
+    { "include": "#members" },
+    { "include": "#kinds" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.shebang.pitcode", "match": "\\A#!.*$" },
+        { "name": "comment.line.double-slash.pitcode", "match": "//.*$" },
+        { "name": "comment.block.pitcode", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        { "name": "string.quoted.triple.raw.pitcode", "begin": "r\"\"\"", "end": "\"\"\"" },
+        { "name": "string.quoted.double.raw.pitcode", "begin": "r\"", "end": "\"|$" },
+        {
+          "name": "string.quoted.triple.pitcode",
+          "begin": "\"\"\"",
+          "end": "\"\"\"",
+          "patterns": [{ "include": "#escapes" }, { "include": "#interpolation" }]
+        },
+        {
+          "name": "string.quoted.double.pitcode",
+          "begin": "\"",
+          "end": "\"|$",
+          "patterns": [{ "include": "#escapes" }, { "include": "#interpolation" }]
+        }
+      ]
+    },
+    "escapes": {
+      "name": "constant.character.escape.pitcode",
+      "match": "\\\\(u\\{[0-9A-Fa-f]+\\}|[ntr0\"\\\\{}])"
+    },
+    "interpolation": {
+      "name": "meta.interpolation.pitcode",
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": { "0": { "name": "punctuation.section.interpolation.begin.pitcode" } },
+      "endCaptures": { "0": { "name": "punctuation.section.interpolation.end.pitcode" } },
+      "contentName": "source.pitcode.embedded",
+      "patterns": [{ "include": "$self" }]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.hex.pitcode", "match": "\\b0x[0-9A-Fa-f_]+\\b" },
+        { "name": "constant.numeric.binary.pitcode", "match": "\\b0b[01_]+\\b" },
+        { "name": "constant.numeric.decimal.pitcode", "match": "\\b\\d[\\d_]*(\\.\\d+)?([eE][+-]?\\d+)?\\b" }
+      ]
+    },
+    "kind-declaration": {
+      "match": "\\b(share\\s+)?(kind)\\s+([\\p{L}_][\\p{L}\\p{N}_]*)(?:\\s+(from)\\s+([\\p{L}_][\\p{L}\\p{N}_.]*))?",
+      "captures": {
+        "1": { "name": "storage.modifier.share.pitcode" },
+        "2": { "name": "storage.type.kind.pitcode" },
+        "3": { "name": "entity.name.type.kind.pitcode" },
+        "4": { "name": "storage.modifier.from.pitcode" },
+        "5": { "name": "entity.other.inherited-class.pitcode" }
+      }
+    },
+    "function-declaration": {
+      "match": "^\\s*(?:(share|shared|get|set)\\s+)?([\\p{L}_][\\p{L}\\p{N}_]*)(?=\\s*\\([^()]*(?:\\([^()]*\\)[^()]*)*\\)\\s*=>)",
+      "captures": {
+        "1": { "name": "storage.modifier.pitcode" },
+        "2": { "name": "entity.name.function.pitcode" }
+      }
+    },
+    "keywords": {
+      "patterns": [
+        { "name": "keyword.control.conditional.pitcode", "match": "\\b(when|orwhen|other|match)\\b" },
+        { "name": "keyword.control.loop.pitcode", "match": "\\b(loop|in|stop|skip|by)\\b" },
+        { "name": "keyword.control.flow.pitcode", "match": "\\b(back|give|wait)\\b" },
+        { "name": "keyword.control.exception.pitcode", "match": "\\b(attempt|rescue|always|raise)\\b" },
+        { "name": "keyword.control.import.pitcode", "match": "\\b(use|share|from|as)\\b" },
+        { "name": "storage.type.pitcode", "match": "\\b(pit|lock|kind|shared)\\b" },
+        { "name": "keyword.operator.word.pitcode", "match": "\\b(and|or|not|is)\\b" },
+        { "name": "support.function.say.pitcode", "match": "\\bsay\\b" },
+        { "name": "variable.language.pitcode", "match": "\\b(me|up)\\b" }
+      ]
+    },
+    "constants": {
+      "name": "constant.language.pitcode",
+      "match": "\\b(true|false|nil)\\b"
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.pitcode",
+          "match": "\\b(ask|len|str|num|int|type|clock|random|list|set|range|pattern|same|check|char|warn|sleep|later|every|cancel|all|race|promise|fetch|quit)\\b(?=\\s*\\()"
+        },
+        { "name": "support.class.builtin.pitcode", "match": "\\b(Error)\\b" },
+        { "name": "support.variable.builtin.pitcode", "match": "\\b(math|json|time|files|args|env)\\b" }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        { "name": "storage.type.function.arrow.pitcode", "match": "=>" },
+        { "name": "keyword.operator.range.pitcode", "match": "\\.\\.=?|\\.\\.\\." },
+        { "name": "keyword.operator.optional.pitcode", "match": "\\?\\.|\\?\\?|\\?" },
+        { "name": "keyword.operator.comparison.pitcode", "match": "==|!=|<=|>=|<|>" },
+        { "name": "keyword.operator.assignment.pitcode", "match": "(\\+|-|\\*\\*|\\*|/|%)?=|\\+\\+|--" },
+        { "name": "keyword.operator.arithmetic.pitcode", "match": "\\*\\*|[+\\-*/%]" },
+        { "name": "keyword.operator.bitwise.pitcode", "match": "<<|>>|[&|^~]" }
+      ]
+    },
+    "calls": {
+      "match": "([\\p{L}_][\\p{L}\\p{N}_]*)(?=\\()",
+      "captures": { "1": { "name": "entity.name.function.call.pitcode" } }
+    },
+    "members": {
+      "match": "(?<=\\.)([\\p{L}_][\\p{L}\\p{N}_]*)",
+      "captures": { "1": { "name": "variable.other.property.pitcode" } }
+    },
+    "kinds": {
+      "name": "entity.name.type.pitcode",
+      "match": "\\b[A-Z][\\p{L}\\p{N}_]*\\b"
+    }
+  }
+}
