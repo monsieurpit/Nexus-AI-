@@ -1,0 +1,19 @@
+// Waiting for things: wait, sleep, later and all
+
+fillTank(name, seconds) => {
+  say "Filling {name}..."
+  wait sleep(seconds * 100)
+  say "{name} is full"
+  back name
+}
+
+// One after the other
+wait fillTank("Tank A", 2)
+
+// All at the same time
+pit done = wait all([fillTank("Tank B", 3), fillTank("Tank C", 1)])
+say "Ready:", done
+
+// Run something later
+later(200, () => say "Boat leaves now!")
+say "Waiting for the boat..."

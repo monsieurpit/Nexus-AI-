@@ -209,6 +209,13 @@ export class Parser {
       this.advance();
       this.markAsync(keyword);
     }
+    // `loop [a, b] in pairs` and `loop {name, age} in people` unpack each item.
+    if (this.check("[") || this.check("{")) {
+      const pattern = this.target(keyword);
+      this.consume("in", "Expected 'in' after the pattern, like: loop [a, b] in pairs");
+      const iterable = this.expression();
+      return { kind: "LoopEach", names: [], pattern, iterable, body: this.loopBody("the list to loop over"), isAwait, token: keyword };
+    }
     const isEach = this.check("IDENT") && (this.peekAt(1).type === "in" || this.peekAt(1).type === ",");
     if (isEach || isAwait) {
       const names = [this.identifier("Expected a name for each item")];
@@ -218,7 +225,7 @@ export class Parser {
       }
       this.consume("in", "Expected 'in', like: loop item in list");
       const iterable = this.expression();
-      return { kind: "LoopEach", names, iterable, body: this.loopBody("the list to loop over"), isAwait, token: keyword };
+      return { kind: "LoopEach", names, pattern: null, iterable, body: this.loopBody("the list to loop over"), isAwait, token: keyword };
     }
     const cond = this.expression();
     return { kind: "LoopWhile", cond, body: this.loopBody("the loop condition") };
@@ -318,7 +325,7 @@ export class Parser {
   private kindDeclaration(shared: boolean): Stmt {
     this.advance();
     const name = this.identifier("Expected a name after 'kind', like: kind Dog { ... }");
-    const parent = this.match("from") ? this.postfix() : null;
+    const parent = this.matchWord("from") ? this.postfix() : null;
     const open = this.consume("{", `Expected '{' to start the body of kind ${name.lexeme}`);
     const members: KindMember[] = [];
     const seen = new Set<string>();
@@ -388,10 +395,10 @@ export class Parser {
         if (!this.match(",")) break;
       }
       this.consume("}", "Expected '}' after the names");
-      this.consume("from", "Expected 'from', like: use { add } from \"./tools.pit\"");
+      this.consumeWord("from", "Expected 'from', like: use { add } from \"./tools.pit\"");
     } else if (this.check("IDENT")) {
       alias = this.advance();
-      this.consume("from", `Expected 'from', like: use ${alias.lexeme} from "./${alias.lexeme}.pit"`);
+      this.consumeWord("from", `Expected 'from', like: use ${alias.lexeme} from "./${alias.lexeme}.pit"`);
     }
     const pathToken = this.consume("STRING", "Expected the file to use, like: \"./tools.pit\"");
     const path = this.plainString(pathToken);
@@ -950,6 +957,11 @@ export class Parser {
   /** Contextual words like `by`, `as`, `get`, `set`, `shared` are plain names elsewhere. */
   private checkWord(word: string): boolean {
     return this.check("IDENT") && this.peek().lexeme === word;
+  }
+
+  private consumeWord(word: string, message: string): Token {
+    if (this.checkWord(word)) return this.advance();
+    throw this.error(this.peek(), `${message}, but found ${describeToken(this.peek())}`);
   }
 
   private matchWord(word: string): boolean {

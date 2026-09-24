@@ -1,0 +1,47 @@
+// Kinds describe things: what they hold (fields) and what they can do (methods)
+
+kind Gear {
+  shared count = 0
+
+  init(name, weight) => {
+    me.name = name
+    me.weight = weight
+    Gear.count += 1
+  }
+
+  describe() => "{me.name} ({me.weight} kg)"
+  show() => "Gear({me.name})"
+}
+
+// A Tank is a kind of Gear, with more to it
+kind Tank from Gear {
+  lock material = "aluminium"
+
+  init(liters, pressure) => {
+    up.init("{liters} L tank", 14)
+    me.liters = liters
+    me.pressure = pressure
+  }
+
+  get air() => me.liters * me.pressure
+
+  describe() => up.describe() + ", {me.air} L of air"
+
+  breathe(liters) => {
+    me.pressure -= liters / me.liters
+    back me
+  }
+}
+
+pit bag = [Gear("Mask", 0.3), Gear("Fins", 2), Tank(12, 200)]
+loop item in bag {
+  say "-", item.describe()
+}
+say bag
+say "Total weight:", bag.map(g => g.weight).sum(), "kg"
+say "Gear made:", Gear.count
+
+pit tank = bag[2]
+tank.breathe(600).breathe(600)
+say "Tank pressure now:", tank.pressure, "bar"
+say tank is Tank, tank is Gear, type(tank)

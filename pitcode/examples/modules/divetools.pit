@@ -1,0 +1,22 @@
+// A module: `share` marks what other files can use
+
+share lock SURFACE_PRESSURE = 1.013  // bar
+
+share pressureAt(depth) => SURFACE_PRESSURE + depth / 10
+
+share feet(meters) => (meters * 3.28084).round(1)
+
+share kind Diver {
+  init(name) => {
+    me.name = name
+    me.log = []
+  }
+  addDive(depth, minutes) => {
+    me.log.add({depth, minutes})
+    back me
+  }
+  deepest() => me.log.map(d => d.depth).max()
+}
+
+// Not shared, so it stays private to this file
+helper() => "private"

@@ -262,8 +262,10 @@ class Compiler {
     return t ? this.loc(t) : "$.p";
   }
 
-  private pit(s: Extract<Stmt, { kind: "Pit" }>): string {
-    const init = s.init ? this.expr(s.init) : "null";
+  /** `rawInit` is JavaScript for the value (used by pattern loops); the names are declared here. */
+  private pit(s: Extract<Stmt, { kind: "Pit" }>, rawInit?: string): string {
+    if (rawInit) for (const name of targetNames(s.target)) this.declare(name, "var", false);
+    const init = rawInit ?? (s.init ? this.expr(s.init) : "null");
     const decl = this.isReplTop() ? "" : s.locked ? "const " : "let ";
     const names = targetNames(s.target);
     const bindings = names.map((n) => this.scope.lookup(n.lexeme)!);
@@ -330,6 +332,7 @@ class Compiler {
   }
 
   private loopEach(s: Extract<Stmt, { kind: "LoopEach" }>): string {
+    if (s.pattern) return this.loopPattern(s, s.pattern);
     const loc = this.loc(s.token);
     const setup = (scope: Scope) => {
       for (const n of s.names) {
@@ -368,6 +371,22 @@ class Compiler {
     }
     if (second) return `for (let [${first}, ${second}] of $.pairs(${loc}, ${iterable})) {\n${indent(body())}\n}`;
     return `for (let ${first} of $.iter(${loc}, ${iterable})) {\n${indent(body())}\n}`;
+  }
+
+  /** `loop [a, b] in items`: each item is unpacked like `pit [a, b] = item`. */
+  private loopPattern(s: Extract<Stmt, { kind: "LoopEach" }>, pattern: Target): string {
+    const item = this.unique("v");
+    const itemToken = s.token;
+    const iterable = this.expr(s.iterable);
+    const scope = new Scope(this.scope);
+    const body = this.inScope(scope, () => {
+      const unpack = this.pit({
+        kind: "Pit", target: pattern, init: { kind: "Var", name: { ...itemToken, lexeme: item } }, locked: false, shared: false, token: itemToken,
+      }, item);
+      return unpack + "\n" + this.statements(s.body);
+    });
+    const head = s.isAwait ? `for await (const ${item} of $.aiter(${this.loc(s.token)}, ${iterable}))` : `for (const ${item} of $.iter(${this.loc(s.token)}, ${iterable}))`;
+    return `${head} {\n${indent(body)}\n}`;
   }
 
   private attempt(s: Extract<Stmt, { kind: "Attempt" }>): string {

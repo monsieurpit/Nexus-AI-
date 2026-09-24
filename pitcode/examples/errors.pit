@@ -1,0 +1,35 @@
+// When things go wrong: attempt, rescue, always and raise
+
+kind OutOfAir from Error {
+  init(depth) => {
+    up.init("Out of air at {depth} m!")
+    me.depth = depth
+  }
+}
+
+dive(depth, air) => {
+  when air < depth * 2 {
+    raise OutOfAir(depth)
+  }
+  back "Great dive to {depth} m"
+}
+
+loop [depth, air] in [[10, 100], [40, 50]] {
+  attempt {
+    say dive(depth, air)
+  } rescue problem {
+    say "Problem:", problem.message, "(line {problem.line})"
+    when problem is OutOfAir {
+      say "Surface slowly from {problem.depth} m"
+    }
+  } always {
+    say "Log book updated."
+  }
+}
+
+// Mistakes in the program itself can be rescued too
+attempt {
+  say 10 / 0
+} rescue e {
+  say "{e.name}: {e.message}"
+}

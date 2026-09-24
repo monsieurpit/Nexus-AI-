@@ -1,0 +1,10 @@
+// Run with: pitcode examples/modules/main.pit
+use { pressureAt, feet, Diver } from "./divetools"
+use tools from "./divetools.pit"
+
+say "At 30 m the pressure is", pressureAt(30).round(2), "bar"
+say "30 m is", feet(30), "ft"
+say "Surface:", tools.SURFACE_PRESSURE
+
+pit pat = Diver("Pat").addDive(18, 45).addDive(32, 38)
+say "{pat.name}'s deepest dive: {pat.deepest()} m"

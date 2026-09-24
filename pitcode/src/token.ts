@@ -4,7 +4,7 @@ export const KEYWORDS = [
   "loop", "in", "stop", "skip",
   "and", "or", "not", "is",
   "true", "false", "nil",
-  "kind", "from", "me", "up",
+  "kind", "me", "up",
   "match",
   "attempt", "rescue", "always", "raise",
   "wait", "give",

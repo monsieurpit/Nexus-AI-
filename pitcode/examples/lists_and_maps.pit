@@ -1,0 +1,40 @@
+// Lists and maps: the two ways to hold many values
+
+pit depths = [18, 32, 12, 25]
+depths.add(40)
+say "Dives:", depths
+say "Deepest:", depths.max(), "m — average:", depths.average().round(1), "m"
+say "Deeper than 20 m:", depths.filter(d => d > 20)
+say "In feet:", depths.map(d => (d * 3.281).round())
+say "Sorted:", depths.sort(), "— the original stays", depths
+
+// Lists can be taken apart
+pit [first, second, ...others] = depths
+say "First two:", first, second, "and", others.size, "more"
+
+// Maps hold named values
+pit diver = {
+  name: "Pat"
+  certification: "Advanced"
+  dives: 212
+}
+diver.favoriteSite = "Cozumel"
+diver.dives += 1
+say diver
+say "{diver.name} has done {diver.dives} dives"
+
+loop key, value in diver {
+  say "  {key}: {value}"
+}
+
+// Unpack a map by key names
+pit {name, dives: count} = diver
+say name, "→", count
+
+// Sets keep one of each value
+pit sites = set(["Cozumel", "Bonaire", "Cozumel"])
+say sites, sites.size
+
+// Ranges count for you
+say (1..=5).list(), (0..20 by 5).list()
+say "Squares:", (1..=5).map(n => n ** 2)

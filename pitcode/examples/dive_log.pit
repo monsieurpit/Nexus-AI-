@@ -1,0 +1,64 @@
+// A little dive log, like MacDive — saved to a JSON file.
+// Run it with: pitcode examples/dive_log.pit
+
+lock LOG_FILE = "dive_log.json"
+
+kind Dive {
+  init(site, depth, minutes, date = time.format(time.now(), "YYYY-MM-DD")) => {
+    me.site = site
+    me.depth = depth
+    me.minutes = minutes
+    me.date = date
+  }
+
+  show() => "{me.date}  {me.site.padEnd(22)} {str(me.depth).padStart(3)} m  {str(me.minutes).padStart(3)} min"
+
+  shared fromMap(m) => Dive(m.site, m.depth, m.minutes, m.date)
+}
+
+kind Logbook {
+  init(file) => {
+    me.file = file
+    me.dives = []
+    when files.exists(file) {
+      me.dives = json.parse(files.read(file)).map(Dive.fromMap)
+    }
+  }
+
+  add(dive) => {
+    me.dives.add(dive)
+    files.write(me.file, json.text(me.dives, 2))
+    back me
+  }
+
+  get totalMinutes() => me.dives.map(d => d.minutes).sum()
+
+  report() => {
+    say "#    Date        Site                   Depth  Time"
+    loop dive, i in me.dives {
+      say "{str(i + 1).padStart(3)}  {dive}"
+    }
+    when me.dives.isEmpty {
+      say "No dives yet."
+      back
+    }
+    pit deepest = me.dives.sortBy(d => d.depth).last
+    pit hours = (me.totalMinutes / 60).round(1)
+    say ""
+    say "Dives: {me.dives.size}   Time underwater: {hours} h   Deepest: {deepest.depth} m at {deepest.site}"
+    pit bySite = me.dives.groupBy(d => d.site.split(" - ")[0])
+    loop site, dives in bySite {
+      say "  {site}: {dives.size} dive{dives.size == 1 ? "" : "s"}"
+    }
+  }
+}
+
+pit log = Logbook(LOG_FILE)
+when log.dives.isEmpty {
+  log.add(Dive("Cozumel - Palancar", 24, 52, "2024-03-02"))
+     .add(Dive("Bonaire - 1000 Steps", 18, 61, "2024-06-15"))
+     .add(Dive("Cozumel - Santa Rosa", 31, 44, "2024-03-03"))
+}
+log.report()
+say ""
+say "(Saved in {LOG_FILE}. Delete it to start over.)"

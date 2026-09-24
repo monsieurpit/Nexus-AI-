@@ -1,0 +1,28 @@
+// A function that uses `give` hands out values one at a time
+
+countdown(from) => {
+  loop n in from..0 {
+    give n
+  }
+  give "Surface!"
+}
+
+loop step in countdown(3) {
+  say step
+}
+
+// It can even go on forever: the loop decides when to stop
+fibonacci() => {
+  pit [a, b] = [0, 1]
+  loop {
+    give a
+    [a, b] = [b, a + b]
+  }
+}
+
+loop n in fibonacci() {
+  when n > 100 { stop }
+  say n
+}
+
+say list(countdown(2))

@@ -89,7 +89,7 @@ export type Stmt =
   | { kind: "When"; branches: WhenBranch[]; otherwise: Stmt[] | null }
   | { kind: "LoopForever"; body: Stmt[] }
   | { kind: "LoopWhile"; cond: Expr; body: Stmt[] }
-  | { kind: "LoopEach"; names: Token[]; iterable: Expr; body: Stmt[]; isAwait: boolean; token: Token }
+  | { kind: "LoopEach"; names: Token[]; pattern: Target | null; iterable: Expr; body: Stmt[]; isAwait: boolean; token: Token }
   | { kind: "Func"; name: Token; fn: FunctionDef; shared: boolean }
   | { kind: "Kind"; name: Token; parent: Expr | null; members: KindMember[]; shared: boolean }
   | { kind: "Back"; keyword: Token; value: Expr | null }

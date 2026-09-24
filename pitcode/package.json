@@ -1,6 +1,6 @@
 {
   "name": "pitcode",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "PitCode — a small, friendly programming language with its own syntax.",
   "license": "MIT",
   "main": "dist/src/index.js",
