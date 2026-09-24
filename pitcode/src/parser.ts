@@ -205,16 +205,19 @@ export class Parser {
 
   private loopStatement(): Stmt {
     const keyword = this.advance();
-    if (this.check("{")) return { kind: "LoopForever", body: this.loopBody("'loop'") };
+    if (this.check("{") && !this.patternAhead(this.current)) {
+      return { kind: "LoopForever", body: this.loopBody("'loop'") };
+    }
 
-    const isAwait = this.check("wait") && this.peekAt(1).type === "IDENT"
-      && (this.peekAt(2).type === "in" || this.peekAt(2).type === ",");
+    const isAwait = this.check("wait") && (
+      (this.peekAt(1).type === "IDENT" && (this.peekAt(2).type === "in" || this.peekAt(2).type === ","))
+      || this.peekAt(1).type === "[" || (this.peekAt(1).type === "{" && this.patternAhead(this.current + 1)));
     if (isAwait) {
       this.advance();
       this.markAsync(keyword);
     }
     // `loop [a, b] in pairs` and `loop {name, age} in people` unpack each item.
-    if (this.check("[") || this.check("{")) {
+    if (this.check("[") || (this.check("{") && this.patternAhead(this.current))) {
       const pattern = this.target(keyword);
       this.consume("in", "Expected 'in' after the pattern, like: loop [a, b] in pairs");
       const iterable = this.expression();
@@ -448,34 +451,50 @@ export class Parser {
       params.push({ name: single, pattern: null, default: null, rest: false });
     } else {
       this.consume("(", "Expected '(' to start the parameter list");
-      let sawDefault = false;
-      while (!this.check(")")) {
-        const rest = this.match("...");
-        let pattern: Target | null = null;
-        let param: Token;
-        if (!rest && (this.check("[") || this.check("{"))) {
-          param = this.peek();
-          pattern = this.target(param);
-        } else {
-          param = this.identifier("Expected a parameter name");
-          if (params.some((p) => p.name.lexeme === param.lexeme)) {
-            throw this.error(param, `Parameter '${param.lexeme}' is listed twice`);
-          }
-        }
-        const def = !rest && this.match("=") ? this.expression() : null;
-        if (def) sawDefault = true;
-        else if (sawDefault && !rest) throw this.error(param, "Parameters with default values must come last");
-        params.push({ name: param, pattern, default: def, rest });
-        if (rest) {
-          if (!this.check(")")) throw this.error(this.peek(), "'...rest' must be the last parameter");
-          break;
-        }
-        if (!this.match(",")) break;
+      // Default values in a method's parameters may use `me`.
+      const savedInKind = this.ctx.inKind;
+      this.ctx.inKind ||= options.inKind;
+      try {
+        this.parameters(params);
+      } finally {
+        this.ctx.inKind = savedInKind;
       }
       this.consume(")", "Expected ')' after the parameters");
     }
     this.consume("=>", "Expected '=>' after the parameters");
+    return this.functionBody(name, token, params, options);
+  }
 
+  private parameters(params: Param[]): void {
+    let sawDefault = false;
+    while (!this.check(")")) {
+      const rest = this.match("...");
+      let pattern: Target | null = null;
+      let param: Token;
+      if (!rest && (this.check("[") || this.check("{"))) {
+        param = this.peek();
+        pattern = this.target(param);
+      } else {
+        param = this.identifier("Expected a parameter name");
+        if (params.some((p) => p.name.lexeme === param.lexeme)) {
+          throw this.error(param, `Parameter '${param.lexeme}' is listed twice`);
+        }
+      }
+      const def = !rest && this.match("=") ? this.expression() : null;
+      if (def) sawDefault = true;
+      else if (sawDefault && !rest) throw this.error(param, "Parameters with default values must come last");
+      params.push({ name: param, pattern, default: def, rest });
+      if (rest) {
+        if (!this.check(")")) throw this.error(this.peek(), "'...rest' must be the last parameter");
+        break;
+      }
+      if (!this.match(",")) break;
+    }
+  }
+
+  private functionBody(
+    name: string | null, token: Token, params: Param[], options: { inKind: boolean; upAllowed: boolean },
+  ): { fn: FunctionDef; expressionBody: boolean } {
     const fn: FunctionDef = { name, params, body: [], token, isGenerator: false, isAsync: false };
     const expressionBody = !this.check("{");
     this.withContext({ type: "function", fn, inKind: options.inKind, upAllowed: options.upAllowed, loopDepth: 0 }, () => {
@@ -904,8 +923,13 @@ export class Parser {
       return { kind: "Entry", key: t.lexeme, value: { kind: "Lambda", fn: this.functionRest(t.lexeme, t, this.lambdaOptions()).fn } };
     }
     let key: string;
+    if (t.type === "NUMBER") {
+      // `{1: "one"}` keeps 1 as a number, so `map[1]` finds it.
+      this.advance();
+      this.consume(":", "Expected ':' after the key");
+      return { kind: "Computed", key: { kind: "Literal", value: t.value as number }, value: this.expression() };
+    }
     if (t.type === "STRING") key = this.plainString(t);
-    else if (t.type === "NUMBER") key = String(t.value);
     else if (t.type === "IDENT" || isKeyword(t.type)) key = t.lexeme;
     else throw this.error(t, `Expected a key but found ${describeToken(t)}`);
     this.advance();
@@ -939,6 +963,19 @@ export class Parser {
   }
 
   // ---------- helpers ----------
+
+  /** True when the bracket at index `i` is closed and then followed by `in` (a loop pattern). */
+  private patternAhead(i: number): boolean {
+    let depth = 0;
+    for (let j = i; j < this.tokens.length; j++) {
+      const type = this.tokens[j].type;
+      if (type === "(" || type === "[" || type === "{") depth++;
+      else if (type === ")" || type === "]" || type === "}") {
+        if (--depth === 0) return this.tokens[j + 1]?.type === "in";
+      } else if (type === "EOF") return false;
+    }
+    return false;
+  }
 
   /** True when the `(` at index `i` has a matching `)` followed by `=>`. */
   private arrowAfterParens(i: number): boolean {

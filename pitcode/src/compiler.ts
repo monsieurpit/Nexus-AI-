@@ -493,11 +493,7 @@ class Compiler {
         const params: string[] = [];
         const unpack: string[] = [];
         for (const p of fn.params) {
-          // Default values are worked out before `$me` exists, so they use `this`.
-          const savedMe = this.fn.me;
-          if (method) this.fn.me = "this";
-          const def = p.default ? this.expr(p.default) : "null";
-          this.fn.me = savedMe;
+          const def = p.default ? this.defaultValue(p.default, method) : "null";
           if (p.pattern) {
             const js = this.unique("p");
             params.push(`${js} = ${def}`);
@@ -518,6 +514,21 @@ class Compiler {
       });
     } finally {
       this.fn = savedFn;
+    }
+  }
+
+  /**
+   * A parameter's default value. It runs before the function body exists, so it gets its own
+   * temporaries, and uses `this` for `me` in methods.
+   */
+  private defaultValue(e: Expr, method: boolean): string {
+    const saved = this.fn;
+    this.fn = { temps: [], me: method ? "this" : saved.me, inMethod: false };
+    try {
+      const value = this.expr(e);
+      return this.fn.temps.length ? `(() => { let ${this.fn.temps.join(", ")}; return ${value}; })()` : value;
+    } finally {
+      this.fn = saved;
     }
   }
 

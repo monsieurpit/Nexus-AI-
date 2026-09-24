@@ -23,7 +23,7 @@ test("lists", async () => {
 });
 
 test("maps", async () => {
-  assert.equal(await output('pit p = {name: "Pat", "fav color": "blue", 3: "three"}\nsay p, p.name, p["fav color"], p.nope'), '{name: "Pat", "fav color": "blue", "3": "three"} Pat blue nil\n');
+  assert.equal(await output('pit p = {name: "Pat", "fav color": "blue", 3: "three"}\nsay p, p.name, p["fav color"], p.nope, p[3]'), '{name: "Pat", "fav color": "blue", 3: "three"} Pat blue nil three\n');
   assert.equal(await output('pit p = {}\np.a = 1\np["b"] = 2\np.a += 10\nsay p, p.size, p.keys(), p.values()'), '{a: 11, b: 2} 2 ["a", "b"] [11, 2]\n');
   assert.equal(await output('pit m = {a: 1}\nsay m.has("a"), m.get("z", 0), m.remove("a"), m, m.isEmpty'), "true 0 true {} true\n");
   assert.equal(await output("pit x = 1\nsay {x, y: 2}, {[1 + 1]: \"two\"}"), '{x: 1, y: 2} {2: "two"}\n');
@@ -35,6 +35,9 @@ test("maps", async () => {
 });
 
 test("destructuring", async () => {
+  assert.equal(await output("loop {x} in [{x: 1}, {x: 2}] { say x }"), "1\n2\n");
+  assert.equal(await output("f(x = nil or 5, y = match x { 5 => \"five\"\nother => \"?\" }) => \"{x} {y}\"\nsay f(), f(1)"), "5 five 1 ?\n");
+  assert.equal(await output("kind K {\n  pit v = nil\n  m(a = me.v ?? 3) => a\n}\nsay K().m()"), "3\n");
   assert.equal(await output("pit [a, b, ...rest] = [1, 2, 3, 4]\nsay a, b, rest"), "1 2 [3, 4]\n");
   assert.equal(await output("pit [a, b = 5] = [1]\nsay a, b"), "1 5\n");
   assert.equal(await output('pit {name, age: years, city = "?"} = {name: "Pat", age: 60}\nsay name, years, city'), "Pat 60 ?\n");
