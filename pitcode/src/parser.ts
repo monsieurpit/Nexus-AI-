@@ -32,6 +32,10 @@ export class Parser {
     const program: Stmt[] = [];
     while (!this.check("EOF")) {
       if (this.match(";")) continue;
+      const t = this.peek();
+      if (t.type === "}" || t.type === ")" || t.type === "]") {
+        throw this.error(t, `This '${t.type}' doesn't close anything. Remove it or add the matching opening one`);
+      }
       program.push(this.statement());
     }
     return program;

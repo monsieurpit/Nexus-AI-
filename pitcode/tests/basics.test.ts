@@ -187,4 +187,8 @@ test("runtime error messages", async () => {
   assert.match(await msg('say "x".uper()'), /Did you mean 'upper'\?/);
   assert.match(await msg("loop x in 5 { }"), /use a range like: loop i in 0\.\.5/);
   assert.match(await msg("say x\npit x = 1"), /'x' is used before it is created/);
+  assert.match(await msg("say [].lenght"), /Did you mean 'size'\?/);
+  assert.match(await msg('say "x".toUppercase()'), /Text doesn't have 'toUppercase'. Did you mean 'upper'\?/);
+  assert.match(await msg("say 1\n}"), /doesn't close anything/);
+  assert.match(await msg("[len] = [1]"), /Cannot change built-in 'len'/);
 });

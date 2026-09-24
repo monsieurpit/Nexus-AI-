@@ -310,13 +310,7 @@ class Compiler {
     if (s.op.type === "??=") return at + this.nilAssign(t, loc, value) + ";";
     if (t.kind === "Var") {
       const b = this.resolve(t.name);
-      if (b.locked) {
-        const why = b.kind === "builtin" ? `Cannot change built-in '${t.name.lexeme}'. Make your own with: pit ${t.name.lexeme} = ...`
-          : b.kind === "kind" ? `Cannot change kind '${t.name.lexeme}'`
-          : b.kind === "import" ? `Cannot change '${t.name.lexeme}' because it comes from 'use'`
-          : `Cannot change locked '${t.name.lexeme}'`;
-        throw nameError(t.name, why);
-      }
+      this.checkChangeable(t.name, b);
       if (op) return `${at}${b.js} = $.${BINARY_HELPERS[op]}(${loc}, ${b.js}, ${value});`;
       return `${at}${b.js} = ${value};`;
     }
@@ -324,7 +318,7 @@ class Compiler {
       const names = t.items.map((item) => {
         const v = (item.kind === "Spread" ? item.expr : item) as Extract<Expr, { kind: "Var" }>;
         const b = this.resolve(v.name);
-        if (b.locked) throw nameError(v.name, `Cannot change locked '${v.name.lexeme}'`);
+        this.checkChangeable(v.name, b);
         return item.kind === "Spread" ? `...${b.js}` : b.js;
       });
       return `${at}[${names.join(", ")}] = $.ul(${loc}, ${value});`;
@@ -343,11 +337,21 @@ class Compiler {
     throw nameError(s.op, "You can only assign to a variable, a field or an item");
   }
 
+  private checkChangeable(name: Token, b: Binding): void {
+    if (!b.locked) return;
+    const n = name.lexeme;
+    const why = b.kind === "builtin" ? `Cannot change built-in '${n}'. Make your own with: pit ${n} = ...`
+      : b.kind === "kind" ? `Cannot change kind '${n}'`
+      : b.kind === "import" ? `Cannot change '${n}' because it comes from 'use'`
+      : `Cannot change locked '${n}'`;
+    throw nameError(name, why);
+  }
+
   /** `target ??= value`: only sets it (and only works out `value`) when it is nil. */
   private nilAssign(t: Expr, loc: string, value: string): string {
     if (t.kind === "Var") {
       const b = this.resolve(t.name);
-      if (b.locked) throw nameError(t.name, `Cannot change locked '${t.name.lexeme}'`);
+      this.checkChangeable(t.name, b);
       return `${b.js} ??= ${value}`;
     }
     const obj = this.temp();

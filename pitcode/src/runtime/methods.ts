@@ -434,8 +434,13 @@ const JS_NAMES: Record<string, string> = {
 
 export function unknownMember(loc: Loc, type: TypeMethods, name: string): never {
   const known = [...Object.keys(type.props), ...Object.keys(type.methods)];
-  const hint = JS_NAMES[name] && JS_NAMES[name] !== name ? JS_NAMES[name] : closest(name, known);
-  fail(loc, `${type.label} don't have '${name}'${hint ? `. Did you mean '${hint}'?` : ""}`);
+  const exists = (n: string) => known.includes(n) || !/^[A-Za-z]+$/.test(n);
+  // A JavaScript name (even misspelled, like "lenght") points to the PitCode one.
+  const jsName = Object.hasOwn(JS_NAMES, name) ? name : closest(name, Object.keys(JS_NAMES));
+  const fromJs = jsName && exists(JS_NAMES[jsName]) ? JS_NAMES[jsName] : null;
+  const hint = fromJs ?? closest(name, known);
+  const verb = type.label === "Text" ? "doesn't" : "don't";
+  fail(loc, `${type.label} ${verb} have '${name}'${hint ? `. Did you mean '${hint}'?` : ""}`);
 }
 
 export function callMethod(loc: Loc, type: TypeMethods, self: unknown, name: string, args: unknown[]): unknown {
