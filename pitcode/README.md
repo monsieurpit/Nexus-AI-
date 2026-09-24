@@ -276,6 +276,8 @@ t.breathe(100)
 say t.air, t is Tank, type(t)
 ```
 
+Reading a field an instance doesn't have is an error (`Tank has no field 'litres'. Did you mean 'liters'?`), so typos don't hide. For a field that may be empty, give it a starting value in the kind (`pit owner = nil`), or check with `"owner" in tank`. Maps are different: a missing key is simply `nil`.
+
 Give a kind an `items()` method (often with `give`) and you can `loop` over it.
 
 ### Errors
@@ -405,6 +407,8 @@ test("pressure grows 1 bar every 10 m", () => {
 | `setTimeout` / `setInterval`            | `later` / `every`                        |
 | `JSON.stringify` / `JSON.parse`         | `json.text` / `json.parse`               |
 | `Math.sqrt`                             | `math.sqrt`                              |
+
+A few JavaScript features are not in PitCode: loop labels (use a function and `back` to leave nested loops), `#private` fields (start a name with `_` to mark it as internal), `BigInt`, `Symbol`, `Proxy` and `with`.
 
 If you type the JavaScript word by habit, PitCode tells you its word for it:
 

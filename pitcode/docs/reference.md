@@ -196,6 +196,10 @@ say answer.status, answer.ok
 pit data = wait answer.json()  // or: wait answer.text()
 ```
 
+## Kinds
+
+Reading a field or method an instance doesn't have is a `RuntimeError` with a suggestion. Declare fields that may be empty with `pit name = nil` in the kind, or test with `"name" in thing`. `fields(thing)` gives all fields as a map.
+
 ## Errors
 
 Every error has `name`, `message`, `line` and `column`. The names you'll see:
