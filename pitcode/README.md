@@ -31,6 +31,7 @@ npm link                      # once: makes the `pitcode` command available
 pitcode examples/hello.pit    # run a program
 pitcode                       # interactive prompt: type code, see results
 pitcode --js file.pit         # see the JavaScript your program becomes
+pitcode fmt file.pit          # tidy the indentation of a file
 ```
 
 Run the tests with `npm test`. The full list of built-in functions and methods is in [docs/reference.md](docs/reference.md).

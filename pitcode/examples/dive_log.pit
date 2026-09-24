@@ -56,8 +56,8 @@ kind Logbook {
 pit log = Logbook(LOG_FILE)
 when log.dives.isEmpty {
   log.add(Dive("Cozumel - Palancar", 24, 52, "2024-03-02"))
-     .add(Dive("Bonaire - 1000 Steps", 18, 61, "2024-06-15"))
-     .add(Dive("Cozumel - Santa Rosa", 31, 44, "2024-03-03"))
+    .add(Dive("Bonaire - 1000 Steps", 18, 61, "2024-06-15"))
+    .add(Dive("Cozumel - Santa Rosa", 31, 44, "2024-03-03"))
 }
 log.report()
 say ""

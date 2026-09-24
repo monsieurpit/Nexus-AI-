@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
 import { PitError } from "./errors";
+import { format } from "./format";
 import { nodeHost } from "./host/node";
 import { Runtime } from "./runtime/runtime";
 
@@ -16,6 +17,7 @@ Usage:
   pitcode                    Start the interactive prompt (REPL)
   pitcode <file.pit> [args]  Run a PitCode program (args are in the 'args' list)
   pitcode < file.pit         Run a program read from standard input
+  pitcode fmt <files...>     Tidy the indentation of .pit files (--check only reports)
   pitcode --js <file.pit>    Show the JavaScript a program turns into
   pitcode --help             Show this help
   pitcode --version          Show the version
@@ -38,6 +40,7 @@ function main(argv: string[]): number | undefined {
     process.stdout.write(`PitCode ${VERSION}\n`);
     return 0;
   }
+  if (first === "fmt") return formatFiles(rest);
   if (first === "--js") {
     const job = readJob(rest[0], []);
     if (!job) return 1;
@@ -72,6 +75,46 @@ function main(argv: string[]): number | undefined {
     if (code !== 0 && !process.exitCode) process.exitCode = code;
   });
   return undefined;
+}
+
+function formatFiles(args: string[]): number {
+  const check = args.includes("--check");
+  const files = args.filter((a) => a !== "--check");
+  if (files.length === 0) {
+    process.stderr.write("pitcode fmt: give the files to tidy, like: pitcode fmt main.pit\n");
+    return 2;
+  }
+  let status = 0;
+  for (const file of files) {
+    let source: string;
+    try {
+      source = readFileSync(file, "utf8");
+    } catch {
+      process.stderr.write(`pitcode: can't open file '${file}'\n`);
+      status = 1;
+      continue;
+    }
+    let tidy: string;
+    try {
+      tidy = format(source);
+    } catch (e) {
+      if (!(e instanceof PitError)) throw e;
+      e.file = file;
+      e.source = source;
+      process.stderr.write(e.format() + "\n");
+      status = 1;
+      continue;
+    }
+    if (tidy === source) continue;
+    if (check) {
+      process.stdout.write(`${file} needs tidying\n`);
+      status = 1;
+    } else {
+      writeFileSync(file, tidy);
+      process.stdout.write(`Tidied ${file}\n`);
+    }
+  }
+  return status;
 }
 
 function readJob(file: string | undefined, args: string[]): Job | null {

@@ -4,6 +4,7 @@ export { PitError } from "./errors";
 export { Lexer } from "./lexer";
 export { Parser } from "./parser";
 export { compile } from "./compiler";
+export { format } from "./format";
 export { Runtime, parse, type Host } from "./runtime/runtime";
 export { str, repr, typeName } from "./runtime/values";
 
