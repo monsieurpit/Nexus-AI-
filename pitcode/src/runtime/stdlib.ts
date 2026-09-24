@@ -2,7 +2,7 @@ import { fail, invoke } from "./core";
 import { needInt, needNumber, needString, toNumber } from "./methods";
 import { iter, truthy } from "./ops";
 import {
-  Base, ErrorValue, PitRange, deepEqual, setFnMeta, str, typeName, type Loc,
+  Base, ErrorValue, PitRange, deepEqual, repr, setFnMeta, str, typeName, type Loc,
 } from "./values";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -28,6 +28,17 @@ export interface StdlibHost {
   exit(code: number): void;
   /** Reports an error that happened in a timer callback, after the main program. */
   reportError(error: unknown): void;
+  write(text: string): void;
+  /** One line describing an error, for failed tests. */
+  describeError(error: unknown): string;
+  tests: TestResults;
+}
+
+export interface TestResults {
+  passed: number;
+  failed: number;
+  /** Tests whose function is async and still running. */
+  pending: Promise<void>[];
 }
 
 export function native(name: string, min: number, max: number, fn: (loc: Loc, ...args: any[]) => unknown): Function {
@@ -401,6 +412,36 @@ export function createBuiltins(host: StdlibHost): Record<string, unknown> {
       }
     }),
     same: native("same", 2, 2, (_, a, b) => deepEqual(a, b)),
+    test: native("test", 2, 2, (loc, name, fn) => {
+      const label = str(name);
+      const passed = () => {
+        host.tests.passed++;
+        host.write(`✓ ${label}\n`);
+      };
+      const failed = (e: unknown) => {
+        host.tests.failed++;
+        host.write(`✗ ${label}\n    ${host.describeError(e)}\n`);
+      };
+      try {
+        const result = invoke(loc, fn, []);
+        if (result instanceof Promise) {
+          const done = result.then(passed, failed);
+          host.tests.pending.push(done);
+          return done.then(() => null);
+        }
+        passed();
+      } catch (e) {
+        failed(e);
+      }
+      return null;
+    }),
+    expect: native("expect", 2, 3, (loc, actual, wanted, message) => {
+      if (!deepEqual(actual, wanted)) {
+        const why = `expected ${repr(wanted)} but got ${repr(actual)}`;
+        throw ErrorValue.create(message === undefined ? why : `${str(message)}: ${why}`, "CheckError", loc);
+      }
+      return null;
+    }),
     copy: native("copy", 1, 1, (_, x) => deepCopy(x, new Map())),
     url: module({
       encode: native("url.encode", 1, 1, (loc, text) => encodeURIComponent(needString(loc, text, "url.encode()"))),

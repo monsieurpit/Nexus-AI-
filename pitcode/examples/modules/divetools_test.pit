@@ -1,0 +1,17 @@
+// Run with: pitcode test examples
+use { pressureAt, feet, Diver } from "./divetools"
+
+test("pressure grows 1 bar every 10 m", () => {
+  expect(pressureAt(10).round(3), 2.013)
+  expect(pressureAt(30).round(3), 4.013)
+})
+
+test("meters to feet", () => {
+  expect(feet(10), 32.8)
+})
+
+test("a diver remembers the deepest dive", () => {
+  pit pat = Diver("Pat").addDive(18, 45).addDive(32, 38)
+  expect(pat.deepest(), 32)
+  expect(pat.log.size, 2)
+})

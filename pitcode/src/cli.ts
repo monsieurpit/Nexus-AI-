@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
 import { PitError } from "./errors";
 import { format } from "./format";
@@ -17,6 +18,7 @@ Usage:
   pitcode                    Start the interactive prompt (REPL)
   pitcode <file.pit> [args]  Run a PitCode program (args are in the 'args' list)
   pitcode < file.pit         Run a program read from standard input
+  pitcode test [files...]    Run tests (all *_test.pit files in this folder if none are given)
   pitcode fmt <files...>     Tidy the indentation of .pit files (--check only reports)
   pitcode --js <file.pit>    Show the JavaScript a program turns into
   pitcode --help             Show this help
@@ -41,6 +43,10 @@ function main(argv: string[]): number | undefined {
     return 0;
   }
   if (first === "fmt") return formatFiles(rest);
+  if (first === "test") {
+    void runTests(rest).then((code) => (process.exitCode = code));
+    return undefined;
+  }
   if (first === "--js") {
     const job = readJob(rest[0], []);
     if (!job) return 1;
@@ -75,6 +81,55 @@ function main(argv: string[]): number | undefined {
     if (code !== 0 && !process.exitCode) process.exitCode = code;
   });
   return undefined;
+}
+
+/** Finds test files: names ending in _test.pit or .test.pit, in this folder and below. */
+function findTests(dir: string): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(dir).sort()) {
+    if (name.startsWith(".") || name === "node_modules") continue;
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) out.push(...findTests(path));
+    else if (/(_test|\.test)\.pit$/.test(name)) out.push(path);
+  }
+  return out;
+}
+
+async function runTests(args: string[]): Promise<number> {
+  const files = args.length ? args : findTests(".");
+  if (files.length === 0) {
+    process.stdout.write("No test files found. Name them like: tools_test.pit\n");
+    return 0;
+  }
+  let passed = 0;
+  let failed = 0;
+  for (const file of files) {
+    const job = readJob(file, []);
+    if (!job) {
+      failed++;
+      continue;
+    }
+    process.stdout.write(`\n${file}\n`);
+    const runtime = new Runtime(nodeHost({
+      write: (text) => process.stdout.write("  " + text.replace(/\n(?=.)/g, "\n  ")),
+      reportError: (e) => {
+        failed++;
+        process.stdout.write(e.format() + "\n");
+      },
+    }));
+    try {
+      await runtime.run(job.source, job.file);
+    } catch (e) {
+      failed++;
+      process.stdout.write((e instanceof PitError ? e : runtime.toPitError(e)).format() + "\n");
+    }
+    const results = await runtime.testResults();
+    passed += results.passed;
+    failed += results.failed;
+  }
+  const summary = `${passed} passed, ${failed} failed`;
+  process.stdout.write(`\n${failed ? "✗" : "✓"} ${summary}\n`);
+  return failed ? 1 : 0;
 }
 
 function formatFiles(args: string[]): number {

@@ -32,6 +32,7 @@ pitcode examples/hello.pit    # run a program
 pitcode                       # interactive prompt: type code, see results
 pitcode --js file.pit         # see the JavaScript your program becomes
 pitcode fmt file.pit          # tidy the indentation of a file
+pitcode test                  # run every *_test.pit file
 ```
 
 Run the tests with `npm test`. The full list of built-in functions and methods is in [docs/reference.md](docs/reference.md).
@@ -350,6 +351,25 @@ pit name = ask("What's your name? ")
 ```
 
 See [docs/reference.md](docs/reference.md) for everything that's built in.
+
+### Testing
+
+Put tests in files whose names end in `_test.pit`, then run `pitcode test`:
+
+```pit
+// tools_test.pit
+use { pressureAt } from "./divetools"
+
+test("pressure grows 1 bar every 10 m", () => {
+  expect(pressureAt(10).round(3), 2.013)
+})
+```
+
+```
+✓ pressure grows 1 bar every 10 m
+
+✓ 1 passed, 0 failed
+```
 
 ---
 

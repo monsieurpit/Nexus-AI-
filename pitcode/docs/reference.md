@@ -40,6 +40,8 @@ Words with special meaning only in one place: `from` (`kind A from B`, `use x fr
 | `same(a, b)` | Deep comparison: `same([1, [2]], [1, [2]])` is `true` |
 | `copy(x)` | A full copy: lists, maps and instances inside are copied too |
 | `check(ok, message?)` | Raises an error when `ok` is false |
+| `expect(actual, wanted, message?)` | Raises an error showing both values when they differ (compares contents) |
+| `test(name, f)` | Runs `f` and prints ✓ or ✗ with the reason (used with `pitcode test`) |
 | `char(code)` | The character for a code: `char(65)` is `"A"` |
 | `random()` | A number from 0 up to (not including) 1 |
 | `clock()` | The time in seconds, handy for measuring |

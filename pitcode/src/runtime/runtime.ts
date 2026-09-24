@@ -5,7 +5,7 @@ import { Parser } from "../parser";
 import type { Stmt } from "../ast";
 import { call, fail, findMember } from "./core";
 import * as ops from "./ops";
-import { createBuiltins, type FileSystem } from "./stdlib";
+import { createBuiltins, type FileSystem, type TestResults } from "./stdlib";
 import {
   Base, ErrorValue, decodeLoc, hooks, makeLoc, str, type Loc,
 } from "./values";
@@ -60,6 +60,8 @@ export class Runtime {
   readonly helpers: Record<string, unknown> & { p: Loc };
   private readonly replGlobals = new Map<string, Binding>();
   private readonly replValues: Record<string, unknown> = Object.create(null);
+  /** Counts from `test(...)` calls. */
+  readonly tests: TestResults = { passed: 0, failed: 0, pending: [] };
 
   constructor(private readonly host: Host) {
     this.builtins = createBuiltins({
@@ -73,6 +75,12 @@ export class Runtime {
         else fail(this.helpers.p, "quit() can't be used here");
       },
       reportError: (e) => this.report(e),
+      write: (text) => host.write(text),
+      describeError: (e) => {
+        const err = this.toPitError(e);
+        return `${err.kind}: ${err.message}${err.line > 0 ? ` (${err.file ?? "line"}:${err.line})` : ""}`;
+      },
+      tests: this.tests,
     });
     this.helpers = {
       p: 0,
@@ -124,6 +132,12 @@ export class Runtime {
     } catch (e) {
       throw this.toPitError(e);
     }
+  }
+
+  /** Waits for async tests to finish and gives the totals. */
+  async testResults(): Promise<{ passed: number; failed: number }> {
+    while (this.tests.pending.length) await this.tests.pending.shift();
+    return { passed: this.tests.passed, failed: this.tests.failed };
   }
 
   /** The JavaScript a program compiles to (for `pitcode --js`). */
