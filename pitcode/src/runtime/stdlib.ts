@@ -334,9 +334,20 @@ export function createBuiltins(host: StdlibHost): Record<string, unknown> {
     }),
     str: native("str", 1, 1, (_, x) => str(x)),
     num: native("num", 1, 1, (_, x) => toNumber(x)),
-    int: native("int", 1, 1, (_, x) => {
+    int: native("int", 1, 2, (loc, x, base) => {
+      if (base !== undefined) {
+        const b = needInt(loc, base, "int()");
+        if (b < 2 || b > 36) fail(loc, "int() can read bases from 2 to 36");
+        const n = Number.parseInt(needString(loc, x, "int()").trim().replace(/_/g, ""), b);
+        return Number.isNaN(n) ? null : n;
+      }
       const n = toNumber(x);
       return n === null ? null : Math.trunc(n);
+    }),
+    fields: native("fields", 1, 1, (loc, x) => {
+      if (x instanceof Map) return new Map(x);
+      if (x instanceof Base) return new Map(Object.entries(x));
+      fail(loc, `fields() needs a kind's instance or a map, but got ${typeName(x)}`);
     }),
     type: native("type", 1, 1, (_, x) => typeName(x)),
     clock: native("clock", 0, 0, () => Date.now() / 1000),

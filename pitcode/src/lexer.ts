@@ -14,7 +14,7 @@ const isAlphaNumeric = (c: string) => isAlpha(c) || isDigit(c);
 
 /** Operators, longest first so `**=` wins over `**` and `*`. */
 const OPERATORS: TokenType[] = [
-  "...", "..=", "**=",
+  "...", "..=", "**=", "??=",
   "..", "?.", "??", "**", "+=", "-=", "*=", "/=", "%=", "++", "--",
   "==", "!=", "<=", ">=", "<<", ">>", "=>",
   "(", ")", "{", "}", "[", "]", ",", ";", ":", ".", "?",

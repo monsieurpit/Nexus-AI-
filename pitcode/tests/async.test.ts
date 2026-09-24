@@ -25,6 +25,18 @@ test("generators with give", async () => {
   `), "0\n1\n1\n2\n3\n5\n8\n13\n");
 });
 
+test("async generators with loop wait", async () => {
+  assert.equal(await output(`
+    ticks(n) => {
+      loop i in 0..n {
+        wait sleep(1)
+        give i
+      }
+    }
+    loop wait t in ticks(3) { say "tick", t }
+  `), "tick 0\ntick 1\ntick 2\n");
+});
+
 test("async with wait", async () => {
   assert.equal(await output("slow(x) => {\n  wait sleep(5)\n  back x * 2\n}\nsay wait slow(21)"), "42\n");
   assert.equal(await output("slow(x) => {\n  wait sleep(5)\n  back x\n}\nsay wait all([slow(1), slow(2)])"), "[1, 2]\n");
@@ -77,6 +89,8 @@ test("math, json, time", async () => {
 
 test("built-in conversions", async () => {
   assert.equal(await output('say str(1.5), num("2.5"), num("x"), int("7.9"), int(-2.5), type(str)'), "1.5 2.5 nil 7 -2 function\n");
+  assert.equal(await output('say int("ff", 16), int("101", 2), int("zz", 10)'), "255 5 nil\n");
+  assert.equal(await output("kind P { init() => { me.x = 1 } }\nsay fields(P()), fields({a: 1})"), "{x: 1} {a: 1}\n");
   assert.equal(await output('say len("abc"), len([1, 2]), len({a: 1}), len(set([1]))'), "3 2 1 1\n");
   assert.equal(await output('pit n = ask("name? ")\nsay "Hi {n}"', ["Pat"]), "Hi Pat\n");
   assert.equal(await output("say ask()"), "nil\n");

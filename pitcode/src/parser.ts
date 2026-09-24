@@ -5,7 +5,7 @@ import { HABIT_HINTS, PitError, syntaxError } from "./errors";
 import { Lexer } from "./lexer";
 import { describeToken, isKeyword, type Interpolation, type Token, type TokenType } from "./token";
 
-const ASSIGN_OPS: TokenType[] = ["=", "+=", "-=", "*=", "/=", "%=", "**="];
+const ASSIGN_OPS: TokenType[] = ["=", "+=", "-=", "*=", "/=", "%=", "**=", "??="];
 
 /** What kind of code the parser is inside, to check where `back`, `give`, `me`... are allowed. */
 interface Context {
@@ -228,6 +228,8 @@ export class Parser {
       return { kind: "LoopEach", names, pattern: null, iterable, body: this.loopBody("the list to loop over"), isAwait, token: keyword };
     }
     const cond = this.expression();
+    // `loop 3 times { ... }`
+    if (this.matchWord("times")) return { kind: "LoopTimes", count: cond, body: this.loopBody("'times'"), token: keyword };
     return { kind: "LoopWhile", cond, body: this.loopBody("the loop condition") };
   }
 
@@ -439,20 +441,27 @@ export class Parser {
   ): { fn: FunctionDef; expressionBody: boolean } {
     const params: Param[] = [];
     if (single) {
-      params.push({ name: single, default: null, rest: false });
+      params.push({ name: single, pattern: null, default: null, rest: false });
     } else {
       this.consume("(", "Expected '(' to start the parameter list");
       let sawDefault = false;
       while (!this.check(")")) {
         const rest = this.match("...");
-        const param = this.identifier("Expected a parameter name");
-        if (params.some((p) => p.name.lexeme === param.lexeme)) {
-          throw this.error(param, `Parameter '${param.lexeme}' is listed twice`);
+        let pattern: Target | null = null;
+        let param: Token;
+        if (!rest && (this.check("[") || this.check("{"))) {
+          param = this.peek();
+          pattern = this.target(param);
+        } else {
+          param = this.identifier("Expected a parameter name");
+          if (params.some((p) => p.name.lexeme === param.lexeme)) {
+            throw this.error(param, `Parameter '${param.lexeme}' is listed twice`);
+          }
         }
         const def = !rest && this.match("=") ? this.expression() : null;
         if (def) sawDefault = true;
         else if (sawDefault && !rest) throw this.error(param, "Parameters with default values must come last");
-        params.push({ name: param, default: def, rest });
+        params.push({ name: param, pattern, default: def, rest });
         if (rest) {
           if (!this.check(")")) throw this.error(this.peek(), "'...rest' must be the last parameter");
           break;
@@ -510,6 +519,7 @@ export class Parser {
       return;
     }
     if (target.kind === "Member" && !target.optional) return;
+    if (op.type === "??=") throw this.error(op, "'??=' works on a variable, a field or an item");
     if (target.kind === "Me") throw this.error(op, "You can't replace 'me'. Change its fields instead, like: me.name = ...");
     throw this.error(op, "You can only assign to a variable, a field (a.b), an item (a[i]) or a list of names ([a, b])");
   }
@@ -711,6 +721,11 @@ export class Parser {
         const index = this.expression();
         this.consume("]", "Expected ']' after the index");
         expr = { kind: "Index", object: expr, index, bracket: t };
+      } else if (t.type === "?." && this.peekAt(1).type === "(") {
+        // `f?.()` calls f only when it isn't nil.
+        this.advance();
+        const paren = this.advance();
+        expr = { kind: "Call", callee: expr, paren, args: this.arguments(), optional: true };
       } else if (t.type === "." || t.type === "?.") {
         this.advance();
         const name = this.memberName();

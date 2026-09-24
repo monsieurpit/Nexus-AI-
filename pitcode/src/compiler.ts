@@ -234,6 +234,11 @@ class Compiler {
         return `while (${this.bool(s.cond)}) {\n${indent(this.block(s.body))}\n}`;
       case "LoopEach":
         return this.loopEach(s);
+      case "LoopTimes": {
+        const n = this.unique("n");
+        const i = this.unique("i");
+        return `for (let ${i} = 0, ${n} = $.times(${this.loc(s.token)}, ${this.expr(s.count)}); ${i} < ${n}; ${i}++) {\n${indent(this.block(s.body))}\n}`;
+      }
       case "Func":
         return this.funcDeclaration(s.name, s.fn, s.shared);
       case "Kind":
@@ -296,6 +301,7 @@ class Compiler {
     const value = this.expr(s.value);
     const t = s.target;
     const at = `$.p = ${loc}; `;
+    if (s.op.type === "??=") return at + this.nilAssign(t, loc, value) + ";";
     if (t.kind === "Var") {
       const b = this.resolve(t.name);
       if (b.locked) {
@@ -329,6 +335,24 @@ class Compiler {
       return `${at}$.si(${loc}, ${obj}, ${index}, ${value});`;
     }
     throw nameError(s.op, "You can only assign to a variable, a field or an item");
+  }
+
+  /** `target ??= value`: only sets it (and only works out `value`) when it is nil. */
+  private nilAssign(t: Expr, loc: string, value: string): string {
+    if (t.kind === "Var") {
+      const b = this.resolve(t.name);
+      if (b.locked) throw nameError(t.name, `Cannot change locked '${t.name.lexeme}'`);
+      return `${b.js} ??= ${value}`;
+    }
+    const obj = this.temp();
+    if (t.kind === "Member") {
+      return `(${obj} = ${this.expr(t.object)}, $.g(${loc}, ${obj}, ${q(t.name)}) ?? $.s(${loc}, ${obj}, ${q(t.name)}, ${value}))`;
+    }
+    if (t.kind === "Index") {
+      const key = this.temp();
+      return `(${obj} = ${this.expr(t.object)}, ${key} = ${this.expr(t.index)}, $.i(${loc}, ${obj}, ${key}) ?? $.si(${loc}, ${obj}, ${key}, ${value}))`;
+    }
+    throw nameError({ line: 0, col: 0 }, "'??=' works on a variable, a field or an item");
   }
 
   private loopEach(s: Extract<Stmt, { kind: "LoopEach" }>): string {
@@ -457,16 +481,25 @@ class Compiler {
     try {
       return this.inScope(scope, () => {
         const params: string[] = [];
+        const unpack: string[] = [];
         for (const p of fn.params) {
           // Default values are worked out before `$me` exists, so they use `this`.
           const savedMe = this.fn.me;
           if (method) this.fn.me = "this";
           const def = p.default ? this.expr(p.default) : "null";
           this.fn.me = savedMe;
+          if (p.pattern) {
+            const js = this.unique("p");
+            params.push(`${js} = ${def}`);
+            unpack.push(this.pit({
+              kind: "Pit", target: p.pattern, init: null, locked: false, shared: false, token: p.name,
+            }, js));
+            continue;
+          }
           const b = this.declare(p.name, "param", false);
           params.push(p.rest ? `...${b.js}` : `${b.js} = ${def}`);
         }
-        let body = this.statements(fn.body);
+        let body = [...unpack, this.statements(fn.body)].filter(Boolean).join("\n");
         const prologue: string[] = [];
         if (method) prologue.push("const $me = this;");
         if (this.fn.temps.length) prologue.push(`let ${this.fn.temps.join(", ")};`);
@@ -650,7 +683,7 @@ class Compiler {
       if (!this.fn.inMethod) throw nameError(callee.token, "'up' can only be used directly inside a method");
       return `$.up(${loc}, super[${q(callee.name)}], $me, ${q(callee.name)}, ${args})`;
     }
-    return `$.c(${loc}, ${this.expr(callee)}, ${args})`;
+    return `$.${e.optional ? "c0" : "c"}(${loc}, ${this.expr(callee)}, ${args})`;
   }
 }
 

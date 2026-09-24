@@ -97,6 +97,22 @@ test("functions, recursion and closures", async () => {
   assert.equal(await output("say [1, 2, 3].map(n => say n)"), "1\n2\n3\n[nil, nil, nil]\n");
 });
 
+test("loop n times, ??= and optional calls", async () => {
+  assert.equal(await output('loop 3 times { say "hi" }\npit k = 0\nloop 2 * 2 times { k += 1 }\nsay k'), "hi\nhi\nhi\n4\n");
+  assert.equal(await output("pit c = {}\nc.a ??= 5\nc.a ??= 99\npit n = nil\nn ??= 7\npit l = [nil]\nl[0] ??= 1\nsay c, n, l"), "{a: 5} 7 [1]\n");
+  assert.equal(await output("pit calls = 0\nexpensive() => { calls += 1\nback 1 }\npit x = 0\nx ??= expensive()\nsay calls"), "0\n");
+  assert.equal(await output("pit f = nil\npit g = x => x * 2\nsay f?.(1), g?.(4)"), "nil 8\n");
+  assert.match((await errorOf("loop -1 times { }")).message, /whole number of 0 or more/);
+  assert.match((await errorOf('loop "x" times { }')).message, /whole number/);
+});
+
+test("unpacking in parameters", async () => {
+  assert.equal(await output("say [[1, 2], [3, 4]].map(([a, b]) => a + b)"), "[3, 7]\n");
+  assert.equal(await output('say [{name: "A", age: 1}].map(({name, age}) => "{name}:{age}")'), '["A:1"]\n');
+  assert.equal(await output("add([a, b], c = 10) => a + b + c\nsay add([1, 2]), add([1, 2], 0)"), "13 3\n");
+  assert.match((await errorOf("f([a, a]) => a")).message, /already exists/);
+});
+
 test("block scoping", async () => {
   assert.equal(await output("pit x = 1\n{ pit x = 2\nsay x }\nsay x"), "2\n1\n");
   assert.equal(await output("pit len = 5\nsay len"), "5\n"); // built-ins can be shadowed

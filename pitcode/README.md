@@ -56,6 +56,7 @@ pit speed = 10              // a variable you can change
 speed = 12
 speed += 3                  // also -= *= /= %= **=
 speed++                     // and --
+nickname ??= "Pat"          // only sets it when it is nil
 
 lock MAX_DEPTH = 40         // a constant: changing it is an error
 pit nothing                 // starts as nil
@@ -108,7 +109,7 @@ say "hello".upper(), "a,b".split(","), "  x ".trim()
 | Logic       | `and  or  not`                              |
 | Membership  | `x in list`, `x not in list`, `"a" in text` |
 | Kinds       | `pet is Dog`, `pet is not Cat`              |
-| Nil helpers | `value ?? "default"`, `maybe?.name`         |
+| Nil helpers | `value ?? "default"`, `maybe?.name`, `maybeFn?.()` |
 | Choice      | `ok ? "yes" : "no"`                         |
 | Bits        | `&  \|  ^  ~  <<  >>`                       |
 
@@ -161,6 +162,7 @@ loop name, i in ["Ann", "Bo"] { say i, name }        // with the position
 loop key, value in {a: 1, b: 2} { say key, value }   // maps give keys and values
 loop [x, y] in [[1, 2], [3, 4]] { say x + y }        // unpack each item
 loop letter in "hey" { say letter }
+loop 3 times { say "hip hip hooray" }              // repeat
 
 loop count < 3 { count += 1 }        // while the condition is true
 loop {                               // forever...
@@ -182,6 +184,9 @@ volume(w, h, d) => {                 // a block: use `back` to give a value back
 greet(name, greeting = "Hi") => "{greeting} {name}"   // default values
 total(...numbers) => numbers.sum()                      // any number of values
 say total(1, 2, 3), total(...[4, 5])                    // spread a list into values
+
+sumPair([a, b]) => a + b             // unpack a list or map given as a value
+people.map(({name}) => name)
 
 pit double = n => n * 2              // functions are values
 pit add = (a, b) => a + b

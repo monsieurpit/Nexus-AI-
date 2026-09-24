@@ -375,6 +375,19 @@ function memberNames(obj: object): string[] {
   return [...names];
 }
 
+/** `f?.(args)`. */
+export function callOpt(loc: Loc, f: unknown, args: unknown[]): unknown {
+  return f === null || f === undefined ? null : call(loc, f, args);
+}
+
+/** Checks the count in `loop n times`. */
+export function times(loc: Loc, n: unknown): number {
+  if (typeof n !== "number" || !Number.isInteger(n) || n < 0) {
+    fail(loc, `'times' needs a whole number of 0 or more, but got ${typeof n === "number" ? n : typeName(n)}`);
+  }
+  return n;
+}
+
 /** `obj?.name(args)`. */
 export function callMemberOpt(loc: Loc, obj: unknown, name: string, args: unknown[]): unknown {
   return obj === null || obj === undefined ? null : callMember(loc, obj, name, args);

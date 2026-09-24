@@ -2,6 +2,8 @@ import type { Token } from "./token";
 
 export interface Param {
   name: Token;
+  /** `([a, b]) => ...` unpacks the value given for this parameter. */
+  pattern: Target | null;
   /** Value used when the caller leaves this argument out. */
   default: Expr | null;
   /** `...rest` collects the remaining arguments into a list. */
@@ -51,7 +53,7 @@ export type Expr =
   | { kind: "Logical"; left: Expr; op: Token; right: Expr }
   | { kind: "Ternary"; cond: Expr; then: Expr; otherwise: Expr }
   | { kind: "Range"; from: Expr; to: Expr; inclusive: boolean; step: Expr | null; dots: Token }
-  | { kind: "Call"; callee: Expr; paren: Token; args: (Expr | Spread)[] }
+  | { kind: "Call"; callee: Expr; paren: Token; args: (Expr | Spread)[]; optional?: boolean }
   | { kind: "Member"; object: Expr; name: string; token: Token; optional: boolean }
   | { kind: "Index"; object: Expr; index: Expr; bracket: Token }
   | { kind: "Up"; name: string; token: Token }
@@ -89,6 +91,7 @@ export type Stmt =
   | { kind: "When"; branches: WhenBranch[]; otherwise: Stmt[] | null }
   | { kind: "LoopForever"; body: Stmt[] }
   | { kind: "LoopWhile"; cond: Expr; body: Stmt[] }
+  | { kind: "LoopTimes"; count: Expr; body: Stmt[]; token: Token }
   | { kind: "LoopEach"; names: Token[]; pattern: Target | null; iterable: Expr; body: Stmt[]; isAwait: boolean; token: Token }
   | { kind: "Func"; name: Token; fn: FunctionDef; shared: boolean }
   | { kind: "Kind"; name: Token; parent: Expr | null; members: KindMember[]; shared: boolean }

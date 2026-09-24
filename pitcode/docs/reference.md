@@ -20,7 +20,7 @@ Everything built into PitCode. For a tour of the language itself, see the [READM
 | `attempt` / `rescue` / `always` / `raise` | error handling |
 | `use` / `share` | modules |
 
-Words with special meaning only in one place: `from` (`kind A from B`, `use x from "..."`), `by` (`0..10 by 2`), `as` (`use { a as b }`), `get` / `set` / `shared` (inside a kind).
+Words with special meaning only in one place: `from` (`kind A from B`, `use x from "..."`), `by` (`0..10 by 2`), `times` (`loop 3 times`), `as` (`use { a as b }`), `get` / `set` / `shared` (inside a kind).
 
 ## Functions
 
@@ -30,7 +30,8 @@ Words with special meaning only in one place: `from` (`kind A from B`, `use x fr
 | `len(x)` | Size of text, a list, a map, a set or a range |
 | `str(x)` | Turns any value into text |
 | `num(x)` | Turns text into a number (`nil` if it isn't one) |
-| `int(x)` | Like `num`, then drops the decimals |
+| `int(x)` / `int(text, base)` | Like `num`, then drops the decimals / reads another base: `int("ff", 16)` is `255` |
+| `fields(x)` | A map of an instance's fields |
 | `type(x)` | `"number"`, `"string"`, `"bool"`, `"nil"`, `"list"`, `"map"`, `"set"`, `"range"`, `"function"`, `"kind"`, `"pattern"`, `"promise"`, `"iterator"`, or a kind's name |
 | `list(x?)` | Makes a list from anything you can loop over |
 | `set(x?)` | Makes a set (each value once) |

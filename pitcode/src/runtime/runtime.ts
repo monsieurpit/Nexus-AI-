@@ -78,7 +78,7 @@ export class Runtime {
       is: ops.is, in: ops.isIn,
       range: ops.range, rangeEnds: ops.rangeEnds, rangeStep: ops.rangeStep,
       g: ops.get, g0: ops.getOpt, s: ops.set, i: ops.index, si: ops.setIndex, u: ops.update, ui: ops.updateIndex,
-      c: call, m: ops.callMember, m0: ops.callMemberOpt, up: ops.callUp,
+      c: call, c0: ops.callOpt, m: ops.callMember, m0: ops.callMemberOpt, up: ops.callUp, times: ops.times,
       base: ops.parentKind, kind: ops.defineKind, fn: ops.defineFn, Base,
       iter: ops.iter, pairs: ops.pairs, aiter: ops.asyncIter,
       sl: ops.spread, se: ops.spreadEntries, ul: ops.unpackList, um: ops.unpackMap, without: ops.without,
