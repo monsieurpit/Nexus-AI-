@@ -307,6 +307,14 @@ export const NUMBER_METHODS: MethodTable = {
   fixed: method(0, 1, (loc, n: number, [digits = 0]) => n.toFixed(needInt(loc, digits, "fixed()"))),
   clamp: method(2, 2, (loc, n: number, [lo, hi]) => Math.min(Math.max(n, needNumber(loc, lo, "clamp()")), needNumber(loc, hi, "clamp()"))),
   sqrt: method(0, 0, (_, n: number) => Math.sqrt(n)),
+  format: method(0, 2, (loc, n: number, [digits, locale = "en"]) => {
+    const d = digits === undefined || digits === null ? undefined : needInt(loc, digits, "format()");
+    try {
+      return n.toLocaleString(needString(loc, locale, "format()"), { minimumFractionDigits: d, maximumFractionDigits: d ?? 20 });
+    } catch {
+      fail(loc, `format() doesn't know the language "${String(locale)}". Try "en" or "fr"`);
+    }
+  }),
 };
 
 // ---------- maps ----------

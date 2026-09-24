@@ -90,6 +90,9 @@ test("math, json, time", async () => {
 test("built-in conversions", async () => {
   assert.equal(await output('say str(1.5), num("2.5"), num("x"), int("7.9"), int(-2.5), type(str)'), "1.5 2.5 nil 7 -2 function\n");
   assert.equal(await output('say int("ff", 16), int("101", 2), int("zz", 10)'), "255 5 nil\n");
+  assert.equal(await output('say 1234567.891.format(2), 1234.5.format(1, "fr"), 1000.format()'), "1,234,567.89 1\u202f234,5 1,000\n");
+  assert.equal(await output("pit a = [[1], {b: [2]}]\npit c = copy(a)\nc[0].add(9)\nc[1].b.add(9)\nsay a, c"), "[[1], {b: [2]}] [[1, 9], {b: [2, 9]}]\n");
+  assert.equal(await output('say url.encode("a b&c"), url.decode("a%20b"), url.query({q: "coral reef", n: 2})'), "a%20b%26c a b q=coral%20reef&n=2\n");
   assert.equal(await output("kind P { init() => { me.x = 1 } }\nsay fields(P()), fields({a: 1})"), "{x: 1} {a: 1}\n");
   assert.equal(await output('say len("abc"), len([1, 2]), len({a: 1}), len(set([1]))'), "3 2 1 1\n");
   assert.equal(await output('pit n = ask("name? ")\nsay "Hi {n}"', ["Pat"]), "Hi Pat\n");

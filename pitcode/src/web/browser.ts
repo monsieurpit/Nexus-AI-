@@ -19,6 +19,16 @@ export interface BrowserRunOptions {
 
 export const version = "1.0.0";
 
+/** Errors from async code nobody waited for go to the most recent run's output. */
+let reportLate: ((reason: unknown) => void) | null = null;
+if (typeof addEventListener === "function") {
+  addEventListener("unhandledrejection", (event) => {
+    if (!reportLate) return;
+    event.preventDefault();
+    reportLate(event.reason);
+  });
+}
+
 /** Runs a program. Errors are written to `writeError` (or `write`) and also returned. */
 export async function run(source: string, options: BrowserRunOptions): Promise<PitError | null> {
   let failed: PitError | null = null;
@@ -39,6 +49,7 @@ export async function run(source: string, options: BrowserRunOptions): Promise<P
     loopTimeLimitMs: options.loopTimeLimitMs ?? 5000,
     reportError: report,
   });
+  reportLate = (reason) => report(runtime.toPitError(reason));
   try {
     await runtime.run(source, "main.pit");
   } catch (e) {

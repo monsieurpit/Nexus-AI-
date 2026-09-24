@@ -38,6 +38,7 @@ Words with special meaning only in one place: `from` (`kind A from B`, `use x fr
 | `range(end)` / `range(start, end, step?)` | Same as `start..end by step` |
 | `pattern(text, flags?)` | A regular expression, like `pattern("[0-9]+", "i")` |
 | `same(a, b)` | Deep comparison: `same([1, [2]], [1, [2]])` is `true` |
+| `copy(x)` | A full copy: lists, maps and instances inside are copied too |
 | `check(ok, message?)` | Raises an error when `ok` is false |
 | `char(code)` | The character for a code: `char(65)` is `"A"` |
 | `random()` | A number from 0 up to (not including) 1 |
@@ -88,7 +89,7 @@ Properties: `size`, `isEmpty`, `first`, `last`.
 | `random()` | One random item |
 | `same(other)` | Deep comparison |
 
-`list[i]` reads an item (`list[-1]` is the last one). `list + other` joins lists.
+`list[i]` reads an item (`list[-1]` is the last one). `list + other` joins lists. `[0] * 3` is `[0, 0, 0]`.
 
 ## Text
 
@@ -118,7 +119,7 @@ Properties: `size`, `isEmpty`.
 
 ## Numbers
 
-Property: `isWhole`. Methods: `round(digits = 0)`, `floor()`, `ceil()`, `abs()`, `sqrt()`, `fixed(digits)` (text with exactly that many decimals), `clamp(low, high)`.
+Property: `isWhole`. Methods: `round(digits = 0)`, `floor()`, `ceil()`, `abs()`, `sqrt()`, `fixed(digits)` (text with exactly that many decimals), `clamp(low, high)`, `format(digits?, language = "en")` (easy-to-read text: `1234.5.format(1)` is `"1,234.5"`, and `1234.5.format(1, "fr")` is `"1 234,5"`).
 
 ## Maps
 
@@ -176,6 +177,10 @@ Times are numbers of milliseconds.
 ## files
 
 (Not available in the browser.) `files.read(path)`, `files.write(path, text)`, `files.append(path, text)`, `files.exists(path)`, `files.list(folder?)`, `files.remove(path)`, `files.makeDir(path)`.
+
+## url
+
+`url.encode(text)` and `url.decode(text)` make text safe for a web address and back. `url.query({q: "coral reef", page: 2})` gives `"q=coral%20reef&page=2"`.
 
 ## fetch
 

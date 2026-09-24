@@ -74,6 +74,39 @@ export function toJson(loc: Loc, value: unknown, seen = new Set<unknown>()): unk
   }
 }
 
+// ---------- copying ----------
+
+/** A full copy: lists, maps, sets and instances inside are copied too. */
+export function deepCopy(value: unknown, seen: Map<unknown, unknown>): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (seen.has(value)) return seen.get(value);
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    seen.set(value, out);
+    for (const x of value) out.push(deepCopy(x, seen));
+    return out;
+  }
+  if (value instanceof Map) {
+    const out = new Map();
+    seen.set(value, out);
+    for (const [k, v] of value) out.set(k, deepCopy(v, seen));
+    return out;
+  }
+  if (value instanceof Set) {
+    const out = new Set();
+    seen.set(value, out);
+    for (const x of value) out.add(deepCopy(x, seen));
+    return out;
+  }
+  if (value instanceof Base) {
+    const out = Object.create(Object.getPrototypeOf(value));
+    seen.set(value, out);
+    for (const [k, v] of Object.entries(value)) out[k] = deepCopy(v, seen);
+    return out;
+  }
+  return value;
+}
+
 // ---------- time ----------
 
 function toDate(loc: Loc, ts: unknown): Date {
@@ -368,6 +401,21 @@ export function createBuiltins(host: StdlibHost): Record<string, unknown> {
       }
     }),
     same: native("same", 2, 2, (_, a, b) => deepEqual(a, b)),
+    copy: native("copy", 1, 1, (_, x) => deepCopy(x, new Map())),
+    url: module({
+      encode: native("url.encode", 1, 1, (loc, text) => encodeURIComponent(needString(loc, text, "url.encode()"))),
+      decode: native("url.decode", 1, 1, (loc, text) => {
+        try {
+          return decodeURIComponent(needString(loc, text, "url.decode()"));
+        } catch {
+          fail(loc, "That text is not a valid encoded web address");
+        }
+      }),
+      query: native("url.query", 1, 1, (loc, params) => {
+        if (!(params instanceof Map)) fail(loc, `url.query() needs a map, like {q: "coral"}, but got ${typeName(params)}`);
+        return [...params].map(([k, v]) => `${encodeURIComponent(str(k))}=${encodeURIComponent(str(v))}`).join("&");
+      }),
+    }),
     check: native("check", 1, 2, (loc, condition, message) => {
       if (!truthy(condition)) throw ErrorValue.create(message === undefined ? "Check failed" : str(message), "CheckError", loc);
       return null;

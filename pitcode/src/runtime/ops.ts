@@ -40,6 +40,8 @@ export function mul(loc: Loc, a: unknown, b: unknown): unknown {
   // "-" * 10 repeats text.
   if (typeof a === "string" && typeof b === "number" && Number.isInteger(b) && b >= 0) return a.repeat(b);
   if (typeof b === "string" && typeof a === "number" && Number.isInteger(a) && a >= 0) return b.repeat(a);
+  // [0] * 3 is [0, 0, 0].
+  if (Array.isArray(a) && typeof b === "number" && Number.isInteger(b) && b >= 0) return Array.from({ length: b }, () => a).flat();
   fail(loc, `'*' needs two numbers, but got ${typeName(a)} and ${typeName(b)}`);
 }
 

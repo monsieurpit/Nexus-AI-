@@ -20,6 +20,7 @@ test("lists", async () => {
   assert.equal(await output("say [1, 2, 3].count(), [1, 2, 2].count(2), [1, 2, 3].count(n => n > 1)"), "3 2 2\n");
   assert.equal(await output("say [...[1, 2], 3, ...(4..=5)], [1] + [2], [].first, [7].last, [].isEmpty"), "[1, 2, 3, 4, 5] [1, 2] nil 7 true\n");
   assert.equal(await output("say [\n  1,\n  2\n  3\n]"), "[1, 2, 3]\n");
+  assert.equal(await output("say [0] * 3, [1, 2] * 2, [] * 4"), "[0, 0, 0] [1, 2, 1, 2] []\n");
 });
 
 test("maps", async () => {
