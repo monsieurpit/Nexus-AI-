@@ -239,7 +239,7 @@ class Compiler {
       case "Kind":
         return this.kindDeclaration(s);
       case "Back":
-        return `return ${s.value ? this.expr(s.value) : "null"};`;
+        return `$.p = ${this.loc(s.keyword)}; return ${s.value ? this.expr(s.value) : "null"};`;
       case "Give":
         return `yield ${s.value ? this.expr(s.value) : "null"};`;
       case "Stop":
@@ -501,12 +501,14 @@ class Compiler {
     if (m.kind === "Field") {
       if (m.locked) locked.push(`[${q(m.name.lexeme)}, ${m.shared}]`);
       const savedFn = this.fn;
-      this.fn = { temps: [], me: m.shared ? null : "this", inMethod: false };
+      this.fn = { temps: [], me: m.shared ? null : "$me", inMethod: false };
       try {
         let value = m.init ? this.expr(m.init) : "null";
-        if (this.fn.temps.length) {
-          value = `(() => { let ${this.fn.temps.join(", ")}; return ${value}; })()`;
-        }
+        const setup: string[] = [];
+        if (value.includes("$me")) setup.push("const $me = this;");
+        if (this.fn.temps.length) setup.push(`let ${this.fn.temps.join(", ")};`);
+        // The arrow function keeps `this` pointing at the new instance.
+        if (setup.length) value = `(() => { ${setup.join(" ")} return ${value}; })()`;
         return `${prefix}${key} = ${value};`;
       } finally {
         this.fn = savedFn;

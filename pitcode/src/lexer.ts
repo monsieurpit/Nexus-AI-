@@ -7,7 +7,9 @@ const ESCAPES: Record<string, string> = {
 
 const isDigit = (c: string) => c >= "0" && c <= "9";
 const isHexDigit = (c: string) => isDigit(c) || (c >= "a" && c <= "f") || (c >= "A" && c <= "F");
-const isAlpha = (c: string) => (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_";
+// Letters from any language are allowed in names (profondeur, plongée, 深さ...).
+const isAlpha = (c: string) => (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_"
+  || (c > "\x7f" && /\p{L}/u.test(c));
 const isAlphaNumeric = (c: string) => isAlpha(c) || isDigit(c);
 
 /** Operators, longest first so `**=` wins over `**` and `*`. */

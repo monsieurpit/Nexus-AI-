@@ -13,6 +13,10 @@ import {
 /** Everything PitCode needs from the outside world. Only `write` is required. */
 export interface Host {
   write(text: string): void;
+  /** Where `warn` writes. Defaults to `write`. */
+  writeError?(text: string): void;
+  /** Environment variables, readable as the `env` map. */
+  env?: Record<string, string>;
   /** Reads a line the user types (for `ask`). */
   readLine?(prompt: string): string | null;
   /** Finds a file for `use`. `from` is the file that asks for it. */
@@ -55,6 +59,8 @@ export class Runtime {
   constructor(private readonly host: Host) {
     this.builtins = createBuiltins({
       readLine: (prompt) => host.readLine?.(prompt) ?? null,
+      writeError: (text) => (host.writeError ?? host.write)(text),
+      env: host.env ?? {},
       fs: host.fs,
       args: host.args ?? [],
       exit: (code) => {

@@ -66,6 +66,32 @@ test("fields can be set on the fly and read with []", async () => {
   assert.equal(await output('kind Box {}\npit b = Box()\nb.color = "red"\nsay b.color, b["color"], b.missing, "color" in b'), "red red nil true\n");
 });
 
+test("field values can use me, and items() makes a kind loopable", async () => {
+  assert.equal(await output(`
+    kind Tank {
+      pit size = 12
+      pit describe = () => "{me.size} L"
+      pit double = me.size * 2
+    }
+    pit t = Tank()
+    say t.describe(), t.double
+    kind Bag {
+      init() => { me.things = [] }
+      add(x) => { me.things.add(x) }
+      items() => {
+        loop x in me.things { give x }
+      }
+    }
+    pit b = Bag()
+    b.add(1)
+    b.add(2)
+    loop x in b { say "item", x }
+    say list(b)
+  `), "12 L 24\nitem 1\nitem 2\n[1, 2]\n");
+  assert.match((await errorOf("kind A {}\nloop x in A() { }")).message, /Give it an items\(\) method/);
+  assert.match((await errorOf("kind A {}\npit a = A()\na.constructor = 1")).message, /can't be used as a field name/);
+});
+
 test("kind errors", async () => {
   assert.match((await errorOf(`${ANIMALS}\npit d = Dog("Rex")\nd.legs = 3`)).message, /Cannot change locked field 'legs'/);
   assert.match((await errorOf(`${ANIMALS}\nDog("Rex").label = "x"`)).message, /can only be read/);

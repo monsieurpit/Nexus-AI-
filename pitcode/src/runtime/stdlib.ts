@@ -20,6 +20,9 @@ export interface FileSystem {
 /** What the built-ins need from the place PitCode runs in (a terminal, a browser, a test). */
 export interface StdlibHost {
   readLine(prompt: string): string | null;
+  /** Writes to the error output (for `warn`). */
+  writeError(text: string): void;
+  env: Record<string, string>;
   fs?: FileSystem;
   args: string[];
   exit(code: number): void;
@@ -317,7 +320,12 @@ export function createBuiltins(host: StdlibHost): Record<string, unknown> {
     time,
     files,
     args: [...host.args],
+    env: new Map(Object.entries(host.env)),
     ask: native("ask", 0, 1, (_, prompt) => host.readLine(prompt === undefined ? "" : str(prompt))),
+    warn: native("warn", 0, Infinity, (_, ...values) => {
+      host.writeError(values.map(str).join(" ") + "\n");
+      return null;
+    }),
     len: native("len", 1, 1, (loc, x) => {
       if (typeof x === "string" || Array.isArray(x)) return x.length;
       if (x instanceof Map || x instanceof Set) return x.size;

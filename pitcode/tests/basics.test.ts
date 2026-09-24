@@ -23,6 +23,10 @@ test("text and interpolation", async () => {
   assert.equal(await output('say """\n    one\n      two\n    """'), "one\n  two\n");
 });
 
+test("names can use letters from any language", async () => {
+  assert.equal(await output('pit plongée = 18\npit profondeur_max = 40\nsay "{plongée}/{profondeur_max}"'), "18/40\n");
+});
+
 test("comments", async () => {
   assert.equal(await output("say 1 // one\n/* a\nblock */ say 2"), "1\n2\n");
 });

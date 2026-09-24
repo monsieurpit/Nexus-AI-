@@ -237,7 +237,7 @@ export function set(loc: Loc, obj: unknown, name: string, value: unknown): unkno
     return value;
   }
   if (obj instanceof Base) {
-    if (name === "__proto__") fail(loc, "'__proto__' can't be used as a field name");
+    if (name === "__proto__" || name === "constructor") fail(loc, `'${name}' can't be used as a field name`);
     if (isLockedField(obj, name, false)) fail(loc, `Cannot change locked field '${name}'`);
     const d = findMember(obj, name);
     if (d && (d.get || d.set)) {
@@ -437,6 +437,12 @@ export function iter(loc: Loc, value: unknown): Iterable<unknown> {
   if (typeof value === "number") fail(loc, `Can't loop over a number. To count, use a range like: loop i in 0..${value}`);
   if (value instanceof Map) return value.keys();
   if (typeof value === "string" || (typeof value === "object" && Symbol.iterator in value)) return value as Iterable<unknown>;
+  // A kind can be looped over by giving it an `items()` method (often one that uses `give`).
+  if (value instanceof Base) {
+    const items = findMember(value, "items");
+    if (items && typeof items.value === "function") return iter(loc, items.value.call(value));
+    fail(loc, `Can't loop over ${kindName(value.constructor)}. Give it an items() method to make it loopable`);
+  }
   fail(loc, `Can't loop over ${article(typeName(value))}`);
 }
 

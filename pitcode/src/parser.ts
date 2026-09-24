@@ -347,6 +347,7 @@ export class Parser {
     if (this.check("pit") || this.check("lock") || bareSharedField) {
       const keyword = bareSharedField ? this.peek() : this.advance();
       const name = this.identifier("Expected a field name");
+      if (name.lexeme === "constructor") throw this.error(name, "'constructor' can't be used as a field name");
       let init: Expr | null = null;
       if (this.match("=")) init = this.withContext({ type: "field", fn: null, inKind: !shared, upAllowed: false, loopDepth: 0 }, () => this.expression());
       else if (keyword.type === "lock") throw this.error(this.peek(), `'lock ${name.lexeme}' needs a value`);
@@ -362,6 +363,7 @@ export class Parser {
     }
     const name = this.advance();
     if (name.lexeme === "init" && (shared || accessor)) throw this.error(name, "'init' can't be shared or a get/set");
+    if (name.lexeme === "constructor") throw this.error(name, "Use 'init' to set up a new instance");
     const { fn, expressionBody } = this.functionRest(name.lexeme, name, {
       inKind: !shared, upAllowed: !shared && hasParent,
     });

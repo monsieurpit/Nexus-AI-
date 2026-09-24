@@ -54,6 +54,8 @@ export function loadModuleFromDisk(spec: string, from: string): { name: string; 
 export function nodeHost(overrides: Partial<Host> = {}): Host {
   return {
     write: (text) => process.stdout.write(text),
+    writeError: (text) => process.stderr.write(text),
+    env: Object.fromEntries(Object.entries(process.env).filter((e): e is [string, string] => e[1] !== undefined)),
     readLine: readLineFromStdin,
     loadModule: loadModuleFromDisk,
     fs: nodeFileSystem,
