@@ -1,6 +1,6 @@
 export const KEYWORDS = [
   "pit", "lock", "back", "say",
-  "when", "orwhen", "other",
+  "when", "orwhen",
   "loop", "in", "stop", "skip",
   "and", "or", "not", "is",
   "true", "false", "nil",

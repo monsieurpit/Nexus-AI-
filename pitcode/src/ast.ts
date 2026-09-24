@@ -89,16 +89,17 @@ export type Stmt =
   | { kind: "Assign"; target: Expr; op: Token; value: Expr }
   | { kind: "Block"; body: Stmt[] }
   | { kind: "When"; branches: WhenBranch[]; otherwise: Stmt[] | null }
-  | { kind: "LoopForever"; body: Stmt[] }
-  | { kind: "LoopWhile"; cond: Expr; body: Stmt[] }
-  | { kind: "LoopTimes"; count: Expr; body: Stmt[]; token: Token }
-  | { kind: "LoopEach"; names: Token[]; pattern: Target | null; iterable: Expr; body: Stmt[]; isAwait: boolean; token: Token }
+  | { kind: "LoopForever"; body: Stmt[]; label: Token | null }
+  | { kind: "LoopUntil"; body: Stmt[]; cond: Expr; label: Token | null }
+  | { kind: "LoopWhile"; cond: Expr; body: Stmt[]; label: Token | null }
+  | { kind: "LoopTimes"; count: Expr; body: Stmt[]; token: Token; label: Token | null }
+  | { kind: "LoopEach"; names: Token[]; pattern: Target | null; iterable: Expr; body: Stmt[]; isAwait: boolean; token: Token; label: Token | null }
   | { kind: "Func"; name: Token; fn: FunctionDef; shared: boolean }
   | { kind: "Kind"; name: Token; parent: Expr | null; members: KindMember[]; shared: boolean }
   | { kind: "Back"; keyword: Token; value: Expr | null }
   | { kind: "Give"; keyword: Token; value: Expr | null }
-  | { kind: "Stop"; keyword: Token }
-  | { kind: "Skip"; keyword: Token }
+  | { kind: "Stop"; keyword: Token; label: Token | null }
+  | { kind: "Skip"; keyword: Token; label: Token | null }
   | { kind: "Raise"; keyword: Token; value: Expr }
   | { kind: "Attempt"; body: Stmt[]; errorName: Token | null; rescue: Stmt[] | null; always: Stmt[] | null }
   | { kind: "MatchStmt"; subject: Expr; arms: MatchArm<Stmt>[]; token: Token }

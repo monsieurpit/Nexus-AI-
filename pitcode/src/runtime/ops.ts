@@ -190,7 +190,14 @@ function bindMethod(fn: Function, self: object): Function {
 }
 
 /** Reads `obj.name`. */
-export function get(loc: Loc, obj: unknown, name: string): unknown {
+/** Names starting with `_` are private: only code inside a kind may use them on instances. */
+function checkPrivate(loc: Loc, obj: object, name: string, inside: boolean | undefined): void {
+  if (!inside && name.length > 1 && name[0] === "_") {
+    fail(loc, `'${name}' is private to ${kindName(obj.constructor)}. Only its own methods can use it`);
+  }
+}
+
+export function get(loc: Loc, obj: unknown, name: string, inside?: boolean): unknown {
   if (obj === null || obj === undefined) fail(loc, `Can't read '${name}' of nil`);
   const type = builtinType(obj);
   if (type) {
@@ -201,7 +208,10 @@ export function get(loc: Loc, obj: unknown, name: string): unknown {
     if (obj instanceof Map) return null;
     unknownMember(loc, type, name);
   }
-  if (obj instanceof Base) return getField(loc, obj, name);
+  if (obj instanceof Base) {
+    checkPrivate(loc, obj, name, inside);
+    return getField(loc, obj, name);
+  }
   if (typeof obj === "function") {
     if (isKind(obj)) {
       const d = findStatic(obj, name);
@@ -232,18 +242,19 @@ function getField(loc: Loc, obj: Base, name: string): unknown {
 }
 
 /** Reads `obj?.name`. */
-export function getOpt(loc: Loc, obj: unknown, name: string): unknown {
-  return obj === null || obj === undefined ? null : get(loc, obj, name);
+export function getOpt(loc: Loc, obj: unknown, name: string, inside?: boolean): unknown {
+  return obj === null || obj === undefined ? null : get(loc, obj, name, inside);
 }
 
 /** `obj.name = value`. */
-export function set(loc: Loc, obj: unknown, name: string, value: unknown): unknown {
+export function set(loc: Loc, obj: unknown, name: string, value: unknown, inside?: boolean): unknown {
   if (obj === null || obj === undefined) fail(loc, `Can't set '${name}' on nil`);
   if (obj instanceof Map) {
     obj.set(name, value);
     return value;
   }
   if (obj instanceof Base) {
+    checkPrivate(loc, obj, name, inside);
     if (name === "__proto__" || name === "constructor") fail(loc, `'${name}' can't be used as a field name`);
     if (isLockedField(obj, name, false)) fail(loc, `Cannot change locked field '${name}'`);
     const d = findMember(obj, name);
@@ -324,8 +335,8 @@ export function setIndex(loc: Loc, obj: unknown, i: unknown, value: unknown): un
 }
 
 /** `obj.name op= value`. */
-export function update(loc: Loc, obj: unknown, name: string, op: string, value: unknown): unknown {
-  return set(loc, obj, name, BINARY[op](loc, get(loc, obj, name), value));
+export function update(loc: Loc, obj: unknown, name: string, op: string, value: unknown, inside?: boolean): unknown {
+  return set(loc, obj, name, BINARY[op](loc, get(loc, obj, name, inside), value), inside);
 }
 
 /** `obj[index] op= value`. */
@@ -336,7 +347,7 @@ export function updateIndex(loc: Loc, obj: unknown, i: unknown, op: string, valu
 // ---------- calls ----------
 
 /** `obj.name(args)`. */
-export function callMember(loc: Loc, obj: unknown, name: string, args: unknown[]): unknown {
+export function callMember(loc: Loc, obj: unknown, name: string, args: unknown[], inside?: boolean): unknown {
   if (obj === null || obj === undefined) fail(loc, `Can't call '${name}' on nil`);
   const type = builtinType(obj);
   if (type) {
@@ -344,6 +355,7 @@ export function callMember(loc: Loc, obj: unknown, name: string, args: unknown[]
     return callMethod(loc, type, obj, name, args);
   }
   if (obj instanceof Base) {
+    checkPrivate(loc, obj, name, inside);
     if (Object.hasOwn(obj, name)) return call(loc, (obj as any)[name], args);
     const d = findMember(obj, name);
     if (!d) {
@@ -396,8 +408,8 @@ export function times(loc: Loc, n: unknown): number {
 }
 
 /** `obj?.name(args)`. */
-export function callMemberOpt(loc: Loc, obj: unknown, name: string, args: unknown[]): unknown {
-  return obj === null || obj === undefined ? null : callMember(loc, obj, name, args);
+export function callMemberOpt(loc: Loc, obj: unknown, name: string, args: unknown[], inside?: boolean): unknown {
+  return obj === null || obj === undefined ? null : callMember(loc, obj, name, args, inside);
 }
 
 /** `up.name(args)` inside a method. */

@@ -105,7 +105,7 @@ export function highlight(source: string): { text: string; kind: HighlightKind }
       const next = tokens[i + 1];
       if (/^[A-Z]/.test(t.lexeme)) kind = "kind";
       else if (next?.type === "(" || next?.type === "=>") kind = "function";
-      else if (["by", "times", "from", "as", "shared", "get", "set"].includes(t.lexeme)) kind = "keyword";
+      else if (["by", "times", "from", "as", "shared", "get", "set", "other", "until"].includes(t.lexeme)) kind = "keyword";
     } else kind = "operator";
     out.push({ text, kind });
     pos = start + text.length;

@@ -16,6 +16,8 @@ interface Context {
   /** `up` is allowed (directly inside a method of a kind that has a parent). */
   upAllowed: boolean;
   loopDepth: number;
+  /** Names of the loops we are inside (`loop ... as outer`). */
+  labels: string[];
 }
 
 /** Recursive-descent parser: tokens → list of statements. */
@@ -24,7 +26,7 @@ export class Parser {
   private blockDepth = 0;
   /** While parsing `match` patterns, `x => ...` must not be read as a function. */
   private noLambda = false;
-  private ctx: Context = { type: "top", fn: null, inKind: false, upAllowed: false, loopDepth: 0 };
+  private ctx: Context = { type: "top", fn: null, inKind: false, upAllowed: false, loopDepth: 0, labels: [] };
 
   constructor(private readonly tokens: Token[]) {}
 
@@ -91,13 +93,15 @@ export class Parser {
       case "{":
         return { kind: "Block", body: this.block("") };
       case "orwhen":
-      case "other":
-        throw this.error(t, `'${t.type}' must come right after the '}' of a 'when' block`);
+        throw this.error(t, "'orwhen' must come right after the '}' of a 'when' block");
       case "rescue":
       case "always":
         throw this.error(t, `'${t.type}' must come right after the '}' of an 'attempt' block`);
     }
     if (this.isFunctionDeclarationStart()) return this.functionDeclaration(false);
+    if (this.checkWord("other") && this.peekAt(1).type === "{") {
+      throw this.error(t, "'other' must come right after the '}' of a 'when' block");
+    }
     return this.expressionStatement();
   }
 
@@ -197,7 +201,11 @@ export class Parser {
         branches.push({ cond: this.expression(), body: this.block("the 'orwhen' condition") });
         continue;
       }
-      if (this.match("other")) otherwise = this.block("'other'");
+      // `other` is a normal name, except right after a when block.
+      if (this.checkWord("other") && this.peekAt(1).type === "{") {
+        this.advance();
+        otherwise = this.block("'other'");
+      }
       break;
     }
     return { kind: "When", branches, otherwise };
@@ -205,8 +213,17 @@ export class Parser {
 
   private loopStatement(): Stmt {
     const keyword = this.advance();
-    if (this.check("{") && !this.patternAhead(this.current)) {
-      return { kind: "LoopForever", body: this.loopBody("'loop'") };
+    const namedForever = this.checkWord("as") && this.peekAt(1).type === "IDENT" && this.peekAt(2).type === "{";
+    if ((this.check("{") && !this.patternAhead(this.current)) || namedForever) {
+      const loop = this.loopBody("'loop'");
+      // `loop { ... } until done` checks at the end of each turn.
+      if (this.checkWord("until") && !this.peek().newlineBefore) {
+        this.advance();
+        const cond = this.expression();
+        this.endStatement();
+        return { kind: "LoopUntil", cond, ...loop };
+      }
+      return { kind: "LoopForever", ...loop };
     }
 
     const isAwait = this.check("wait") && (
@@ -221,7 +238,7 @@ export class Parser {
       const pattern = this.target(keyword);
       this.consume("in", "Expected 'in' after the pattern, like: loop [a, b] in pairs");
       const iterable = this.expression();
-      return { kind: "LoopEach", names: [], pattern, iterable, body: this.loopBody("the list to loop over"), isAwait, token: keyword };
+      return { kind: "LoopEach", names: [], pattern, iterable, ...this.loopBody("the list to loop over"), isAwait, token: keyword };
     }
     const isEach = this.check("IDENT") && (this.peekAt(1).type === "in" || this.peekAt(1).type === ",");
     if (isEach || isAwait) {
@@ -232,20 +249,27 @@ export class Parser {
       }
       this.consume("in", "Expected 'in', like: loop item in list");
       const iterable = this.expression();
-      return { kind: "LoopEach", names, pattern: null, iterable, body: this.loopBody("the list to loop over"), isAwait, token: keyword };
+      return { kind: "LoopEach", names, pattern: null, iterable, ...this.loopBody("the list to loop over"), isAwait, token: keyword };
     }
     const cond = this.expression();
     // `loop 3 times { ... }`
-    if (this.matchWord("times")) return { kind: "LoopTimes", count: cond, body: this.loopBody("'times'"), token: keyword };
-    return { kind: "LoopWhile", cond, body: this.loopBody("the loop condition") };
+    if (this.matchWord("times")) return { kind: "LoopTimes", count: cond, ...this.loopBody("'times'"), token: keyword };
+    return { kind: "LoopWhile", cond, ...this.loopBody("the loop condition") };
   }
 
-  private loopBody(after: string): Stmt[] {
+  /** The body of a loop, after an optional name: `loop i in 0..3 as outer { ... }`. */
+  private loopBody(after: string): { body: Stmt[]; label: Token | null } {
+    const label = this.matchWord("as") ? this.identifier("Expected a name for the loop after 'as'") : null;
+    if (label && this.ctx.labels.includes(label.lexeme)) {
+      throw this.error(label, `A loop around this one is already called '${label.lexeme}'`);
+    }
     this.ctx.loopDepth++;
+    if (label) this.ctx.labels.push(label.lexeme);
     try {
-      return this.block(after);
+      return { body: this.block(label ? `'as ${label.lexeme}'` : after), label };
     } finally {
       this.ctx.loopDepth--;
+      if (label) this.ctx.labels.pop();
     }
   }
 
@@ -271,8 +295,13 @@ export class Parser {
   private jumpStatement(): Stmt {
     const keyword = this.advance();
     if (this.ctx.loopDepth === 0) throw this.error(keyword, `'${keyword.type}' can only be used inside a loop`);
+    // `stop outer` leaves the loop named `outer`.
+    const label = this.check("IDENT") && !this.peek().newlineBefore ? this.advance() : null;
+    if (label && !this.ctx.labels.includes(label.lexeme)) {
+      throw this.error(label, `There is no loop called '${label.lexeme}' around this ${keyword.type}. Name one like: loop ... as ${label.lexeme} { }`);
+    }
     this.endStatement();
-    return keyword.type === "stop" ? { kind: "Stop", keyword } : { kind: "Skip", keyword };
+    return keyword.type === "stop" ? { kind: "Stop", keyword, label } : { kind: "Skip", keyword, label };
   }
 
   private attemptStatement(): Stmt {
@@ -307,7 +336,8 @@ export class Parser {
       if (this.match(";")) continue;
       const token = this.peek();
       let patterns: Expr[] | null = null;
-      if (this.match("other")) {
+      if (this.checkWord("other") && this.peekAt(1).type === "=>") {
+        this.advance();
         if (arms.some((a) => a.patterns === null)) throw this.error(token, "This match already has an 'other' arm");
       } else {
         patterns = [];
@@ -365,7 +395,7 @@ export class Parser {
       const name = this.identifier("Expected a field name");
       if (name.lexeme === "constructor") throw this.error(name, "'constructor' can't be used as a field name");
       let init: Expr | null = null;
-      if (this.match("=")) init = this.withContext({ type: "field", fn: null, inKind: !shared, upAllowed: false, loopDepth: 0 }, () => this.expression());
+      if (this.match("=")) init = this.withContext({ type: "field", fn: null, inKind: !shared, upAllowed: false, loopDepth: 0, labels: [] }, () => this.expression());
       else if (keyword.type === "lock") throw this.error(this.peek(), `'lock ${name.lexeme}' needs a value`);
       this.endStatement();
       return { kind: "Field", name, init, shared, locked: keyword.type === "lock" };
@@ -497,7 +527,7 @@ export class Parser {
   ): { fn: FunctionDef; expressionBody: boolean } {
     const fn: FunctionDef = { name, params, body: [], token, isGenerator: false, isAsync: false };
     const expressionBody = !this.check("{");
-    this.withContext({ type: "function", fn, inKind: options.inKind, upAllowed: options.upAllowed, loopDepth: 0 }, () => {
+    this.withContext({ type: "function", fn, inKind: options.inKind, upAllowed: options.upAllowed, loopDepth: 0, labels: [] }, () => {
       if (expressionBody) {
         const value = this.expression();
         fn.body = [{ kind: "Back", keyword: token, value }];

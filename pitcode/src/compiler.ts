@@ -128,6 +128,11 @@ class Compiler {
     return String(makeLoc(this.options.fileId, t.line, t.col));
   }
 
+  /** Code inside a kind may use private `_names`; this passes that along to the runtime. */
+  private inside(name: string): string {
+    return name.startsWith("_") && this.fn.me !== null ? ", true" : "";
+  }
+
   private guard(): string {
     return this.options.guardLoops ? "$.tick();\n" : "";
   }
@@ -235,15 +240,17 @@ class Compiler {
         return code;
       }
       case "LoopForever":
-        return `for (;;) {\n${indent(this.guard() + this.block(s.body))}\n}`;
+        return `${labelOf(s.label)}for (;;) {\n${indent(this.guard() + this.block(s.body))}\n}`;
+      case "LoopUntil":
+        return `${labelOf(s.label)}do {\n${indent(this.guard() + this.block(s.body))}\n} while (!${this.bool(s.cond)});`;
       case "LoopWhile":
-        return `while (${this.bool(s.cond)}) {\n${indent(this.guard() + this.block(s.body))}\n}`;
+        return `${labelOf(s.label)}while (${this.bool(s.cond)}) {\n${indent(this.guard() + this.block(s.body))}\n}`;
       case "LoopEach":
         return this.loopEach(s);
       case "LoopTimes": {
         const n = this.unique("n");
         const i = this.unique("i");
-        return `for (let ${i} = 0, ${n} = $.times(${this.loc(s.token)}, ${this.expr(s.count)}); ${i} < ${n}; ${i}++) {\n${indent(this.guard() + this.block(s.body))}\n}`;
+        return `${labelOf(s.label)}for (let ${i} = 0, ${n} = $.times(${this.loc(s.token)}, ${this.expr(s.count)}); ${i} < ${n}; ${i}++) {\n${indent(this.guard() + this.block(s.body))}\n}`;
       }
       case "Func":
         return this.funcDeclaration(s.name, s.fn, s.shared);
@@ -254,9 +261,9 @@ class Compiler {
       case "Give":
         return `yield ${s.value ? this.expr(s.value) : "null"};`;
       case "Stop":
-        return "break;";
+        return s.label ? `break ${s.label.lexeme}$loop;` : "break;";
       case "Skip":
-        return "continue;";
+        return s.label ? `continue ${s.label.lexeme}$loop;` : "continue;";
       case "Raise":
         return `throw $.raise(${this.loc(s.keyword)}, ${this.expr(s.value)});`;
       case "Attempt":
@@ -325,8 +332,8 @@ class Compiler {
     }
     if (t.kind === "Member") {
       const obj = this.expr(t.object);
-      if (op) return `${at}$.u(${loc}, ${obj}, ${q(t.name)}, ${q(op)}, ${value});`;
-      return `${at}$.s(${loc}, ${obj}, ${q(t.name)}, ${value});`;
+      if (op) return `${at}$.u(${loc}, ${obj}, ${q(t.name)}, ${q(op)}, ${value}${this.inside(t.name)});`;
+      return `${at}$.s(${loc}, ${obj}, ${q(t.name)}, ${value}${this.inside(t.name)});`;
     }
     if (t.kind === "Index") {
       const obj = this.expr(t.object);
@@ -356,7 +363,7 @@ class Compiler {
     }
     const obj = this.temp();
     if (t.kind === "Member") {
-      return `(${obj} = ${this.expr(t.object)}, $.g(${loc}, ${obj}, ${q(t.name)}) ?? $.s(${loc}, ${obj}, ${q(t.name)}, ${value}))`;
+      return `(${obj} = ${this.expr(t.object)}, $.g(${loc}, ${obj}, ${q(t.name)}${this.inside(t.name)}) ?? $.s(${loc}, ${obj}, ${q(t.name)}, ${value}${this.inside(t.name)}))`;
     }
     if (t.kind === "Index") {
       const key = this.temp();
@@ -392,7 +399,7 @@ class Compiler {
         `  const ${a} = ${from}, ${b} = ${to};`,
         `  $.rangeEnds(${this.loc(it.dots)}, ${a}, ${b});`,
         `  const ${step} = ${stepCode};`,
-        `  for (let ${first} = ${a}; ${step} > 0 ? ${first} ${cmp[0]} ${b} : ${first} ${cmp[1]} ${b}; ${first} += ${step}) {`,
+        `  ${labelOf(s.label)}for (let ${first} = ${a}; ${step} > 0 ? ${first} ${cmp[0]} ${b} : ${first} ${cmp[1]} ${b}; ${first} += ${step}) {`,
         indent(indent(body())),
         `  }`,
         `}`,
@@ -401,10 +408,10 @@ class Compiler {
     const iterable = this.expr(it);
     if (s.isAwait) {
       if (second) throw nameError(s.names[1], "'loop wait' takes one name");
-      return `for await (let ${first} of $.aiter(${loc}, ${iterable})) {\n${indent(body())}\n}`;
+      return `${labelOf(s.label)}for await (let ${first} of $.aiter(${loc}, ${iterable})) {\n${indent(body())}\n}`;
     }
-    if (second) return `for (let [${first}, ${second}] of $.pairs(${loc}, ${iterable})) {\n${indent(body())}\n}`;
-    return `for (let ${first} of $.iter(${loc}, ${iterable})) {\n${indent(body())}\n}`;
+    if (second) return `${labelOf(s.label)}for (let [${first}, ${second}] of $.pairs(${loc}, ${iterable})) {\n${indent(body())}\n}`;
+    return `${labelOf(s.label)}for (let ${first} of $.iter(${loc}, ${iterable})) {\n${indent(body())}\n}`;
   }
 
   /** `loop [a, b] in items`: each item is unpacked like `pit [a, b] = item`. */
@@ -420,7 +427,7 @@ class Compiler {
       return this.guard() + unpack + "\n" + this.statements(s.body);
     });
     const head = s.isAwait ? `for await (const ${item} of $.aiter(${this.loc(s.token)}, ${iterable}))` : `for (const ${item} of $.iter(${this.loc(s.token)}, ${iterable}))`;
-    return `${head} {\n${indent(body)}\n}`;
+    return `${labelOf(s.label)}${head} {\n${indent(body)}\n}`;
   }
 
   private attempt(s: Extract<Stmt, { kind: "Attempt" }>): string {
@@ -655,7 +662,7 @@ class Compiler {
       case "Call":
         return this.call(e);
       case "Member":
-        return `$.${e.optional ? "g0" : "g"}(${this.loc(e.token)}, ${this.expr(e.object)}, ${q(e.name)})`;
+        return `$.${e.optional ? "g0" : "g"}(${this.loc(e.token)}, ${this.expr(e.object)}, ${q(e.name)}${this.inside(e.name)})`;
       case "Index":
         return `$.i(${this.loc(e.bracket)}, ${this.expr(e.object)}, ${this.expr(e.index)})`;
       case "Up":
@@ -698,7 +705,7 @@ class Compiler {
     const args = this.args(e.args);
     const callee = e.callee;
     if (callee.kind === "Member") {
-      return `$.${callee.optional ? "m0" : "m"}(${this.loc(callee.token)}, ${this.expr(callee.object)}, ${q(callee.name)}, ${args})`;
+      return `$.${callee.optional ? "m0" : "m"}(${this.loc(callee.token)}, ${this.expr(callee.object)}, ${q(callee.name)}, ${args}${this.inside(callee.name)})`;
     }
     if (callee.kind === "Up") {
       if (!this.fn.inMethod) throw nameError(callee.token, "'up' can only be used directly inside a method");
@@ -706,6 +713,11 @@ class Compiler {
     }
     return `$.${e.optional ? "c0" : "c"}(${loc}, ${this.expr(callee)}, ${args})`;
   }
+}
+
+/** JavaScript label for a named loop. */
+function labelOf(label: Token | null): string {
+  return label ? `${label.lexeme}$loop: ` : "";
 }
 
 function literal(value: number | string | boolean | null): string {
