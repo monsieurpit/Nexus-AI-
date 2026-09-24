@@ -1,0 +1,24 @@
+// Two ways to compute Fibonacci numbers
+
+// Recursive: calls itself
+slowFib(n) => {
+  when n < 2 { back n }
+  back slowFib(n - 1) + slowFib(n - 2)
+}
+
+// With a loop
+fastFib(n) => {
+  pit a = 0
+  pit b = 1
+  loop i in 0..n {
+    pit next = a + b
+    a = b
+    b = next
+  }
+  back a
+}
+
+loop i in 0..10 {
+  say "fib({i}) = {slowFib(i)}"
+}
+say "fib(50) = {fastFib(50)}"

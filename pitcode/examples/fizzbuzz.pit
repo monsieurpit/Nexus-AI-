@@ -1,0 +1,12 @@
+// FizzBuzz from 1 to 15
+loop n in 1..16 {
+  when n % 15 == 0 {
+    say "FizzBuzz"
+  } orwhen n % 3 == 0 {
+    say "Fizz"
+  } orwhen n % 5 == 0 {
+    say "Buzz"
+  } other {
+    say n
+  }
+}

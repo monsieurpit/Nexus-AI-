@@ -1,0 +1,29 @@
+// Functions are values: they can be stored, passed around, and they remember
+// the variables around them (closures).
+
+makeCounter() => {
+  pit count = 0
+  back () => {
+    count += 1
+    back count
+  }
+}
+
+pit counter = makeCounter()
+counter()
+counter()
+say "counter is at", counter()
+
+twice(f, x) => f(f(x))
+pit addTen = (n) => n + 10
+say twice(addTen, 1)
+
+// A countdown using `stop` and `skip`
+pit n = 10
+loop {
+  n -= 1
+  when n == 7 { skip }
+  when n < 4 { stop }
+  say n
+}
+say "Liftoff!"

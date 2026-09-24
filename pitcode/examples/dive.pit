@@ -1,0 +1,18 @@
+// A little dive calculator
+lock SURFACE_PRESSURE = 1   // bar
+
+pressureAt(depth) => SURFACE_PRESSURE + depth / 10
+
+// How long a tank lasts at a given depth.
+// tank: litres, fill: bar, sac: litres per minute at the surface
+minutesOfGas(tank, fill, sac, depth) => {
+  pit gas = tank * fill
+  back gas / (sac * pressureAt(depth))
+}
+
+say "Depth   Pressure   Air time (12 L @ 200 bar)"
+loop depth in 0..5 {
+  pit metres = depth * 10
+  pit minutes = minutesOfGas(12, 200, 20, metres)
+  say "{metres} m     {pressureAt(metres)} bar      {minutes} min"
+}

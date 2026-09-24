@@ -1,0 +1,20 @@
+// Welcome to PitCode!
+pit name = "Pat"
+lock VERSION = 1
+
+greet(who) => {
+  back "Hello, {who}!"
+}
+
+say greet(name)
+say "This is PitCode version {VERSION}."
+say "2 + 3 =", 2 + 3
+
+pit age = 12
+when age >= 18 {
+  say "adult"
+} orwhen age >= 13 {
+  say "teen"
+} other {
+  say "kid"
+}
