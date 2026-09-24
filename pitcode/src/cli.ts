@@ -18,7 +18,7 @@ Usage:
   pitcode                    Start the interactive prompt (REPL)
   pitcode <file.pit> [args]  Run a PitCode program (args are in the 'args' list)
   pitcode < file.pit         Run a program read from standard input
-  pitcode test [files...]    Run tests (all *_test.pit files in this folder if none are given)
+  pitcode test [paths...]    Run tests (all *_test.pit files in these folders, or this one)
   pitcode fmt <files...>     Tidy the indentation of .pit files (--check only reports)
   pitcode --js <file.pit>    Show the JavaScript a program turns into
   pitcode --help             Show this help
@@ -96,7 +96,14 @@ function findTests(dir: string): string[] {
 }
 
 async function runTests(args: string[]): Promise<number> {
-  const files = args.length ? args : findTests(".");
+  const isDir = (p: string) => {
+    try {
+      return statSync(p).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+  const files = (args.length ? args : ["."]).flatMap((a) => (isDir(a) ? findTests(a) : [a]));
   if (files.length === 0) {
     process.stdout.write("No test files found. Name them like: tools_test.pit\n");
     return 0;
