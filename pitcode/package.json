@@ -1,7 +1,7 @@
 {
   "name": "pitcode",
   "version": "1.0.0",
-  "description": "PitCode — a small, friendly programming language with its own syntax.",
+  "description": "PitCode \u2014 a small, friendly programming language with its own syntax.",
   "license": "MIT",
   "main": "dist/src/index.js",
   "bin": {
@@ -10,10 +10,12 @@
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true})\" && tsc -p tsconfig.json",
     "test": "npm run build && node --test \"dist/tests/**/*.test.js\"",
-    "start": "node dist/src/cli.js"
+    "start": "node dist/src/cli.js",
+    "build:web": "npm run build && esbuild src/web/browser.ts --bundle --format=iife --global-name=PitCode --target=es2022 --minify --outfile=dist/web/pitcode.js && node scripts/build-playground.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "esbuild": "^0.24.2",
     "typescript": "^5.6.0"
   }
 }

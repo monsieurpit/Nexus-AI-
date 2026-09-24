@@ -412,3 +412,11 @@ Mistakes in names (typos, changing a `lock`, using something that doesn't exist)
 3. `src/compiler.ts` checks names and turns the tree into JavaScript.
 4. `src/runtime/` has everything the compiled code relies on: values, operators, methods, and the standard library.
 5. `src/cli.ts` is the `pitcode` command, and `src/repl.ts` is the interactive prompt.
+
+## Playground
+
+`npm run build:web` builds `dist/web/playground.html`: a single page where you can write and run PitCode in any browser, with colored code and examples. `dist/web/pitcode.js` is PitCode for web pages (`PitCode.run(source, { write })`).
+
+## Editor support
+
+`editors/vscode` adds colors and snippets for `.pit` files to Visual Studio Code. See [its README](editors/vscode/README.md) to install it.

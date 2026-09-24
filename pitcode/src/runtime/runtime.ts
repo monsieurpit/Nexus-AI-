@@ -26,6 +26,11 @@ export interface Host {
   exit?(code: number): void;
   /** Called for errors that happen after the main program finished (in timers or unawaited tasks). */
   reportError?(error: PitError): void;
+  /**
+   * Stops a program whose loops keep running for this many milliseconds without a break
+   * (for the browser, where an endless loop would freeze the page).
+   */
+  loopTimeLimitMs?: number;
 }
 
 /** Parses PitCode source. A `#!` first line is ignored. */
@@ -83,6 +88,7 @@ export class Runtime {
       iter: ops.iter, pairs: ops.pairs, aiter: ops.asyncIter,
       sl: ops.spread, se: ops.spreadEntries, ul: ops.unpackList, um: ops.unpackMap, without: ops.without,
       mt: ops.matches, raise: ops.raise, ex: ops.exportsMap, str,
+      tick: this.makeTick(host.loopTimeLimitMs),
       say: (values: unknown[]) => {
         host.write(values.map(str).join(" ") + "\n");
         return null;
@@ -133,7 +139,9 @@ export class Runtime {
 
   private compileSource(source: string, name: string, fileId: number, repl?: Map<string, Binding>): string {
     try {
-      return compile(parse(source), { fileId, builtins: Object.keys(this.builtins), repl });
+      return compile(parse(source), {
+        fileId, builtins: Object.keys(this.builtins), repl, guardLoops: this.host.loopTimeLimitMs !== undefined,
+      });
     } catch (e) {
       if (e instanceof PitError) {
         e.file ??= name;
@@ -169,6 +177,26 @@ export class Runtime {
       this.modules.set(found.name, module);
     }
     return module;
+  }
+
+  /**
+   * Measures how long loops run without giving the page a chance to breathe.
+   * A timer resets the clock as soon as the program pauses (ends, or waits for something).
+   */
+  private makeTick(limit: number | undefined): () => void {
+    let count = 0;
+    let sliceStart = 0;
+    return () => {
+      if (limit === undefined || ++count % 1000 !== 0) return;
+      const now = Date.now();
+      if (sliceStart === 0) {
+        sliceStart = now;
+        setTimeout(() => (sliceStart = 0), 0);
+      } else if (now - sliceStart > limit) {
+        sliceStart = 0;
+        fail(this.helpers.p, `Stopped: a loop ran for more than ${limit / 1000} seconds without stopping`);
+      }
+    };
   }
 
   /** Turns anything thrown into the Error value that `rescue` sees. */

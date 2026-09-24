@@ -1,0 +1,43 @@
+// Welcome to PitCode! Change anything and press Run (Ctrl + Enter).
+
+pit name = ask("What's your name? ") ?? "diver"
+say "Hello, {name}!"
+
+// Functions
+pressureAt(depth) => 1 + depth / 10
+
+// Lists, ranges and loops
+loop depth in 0..=40 by 10 {
+  say "{str(depth).padStart(2)} m → {pressureAt(depth)} bar"
+}
+
+// Maps
+pit dive = {site: "Cozumel", depth: 24, minutes: 52}
+say "{dive.site}: {dive.depth} m for {dive.minutes} min"
+
+// Kinds (objects)
+kind Diver {
+  init(name) => {
+    me.name = name
+    me.dives = []
+  }
+  log(depth) => {
+    me.dives.add(depth)
+    back me
+  }
+  get deepest() => me.dives.max()
+}
+
+pit pat = Diver(name).log(18).log(32).log(12)
+say "{pat.name}'s deepest dive: {pat.deepest} m"
+
+// Match
+pit level = match pat.deepest {
+  0..18 => "Open Water"
+  18..30 => "Advanced"
+  other => "Deep diver"
+}
+say "Level:", level
+
+// Errors are clear. Try removing the // below:
+// say pat.depest

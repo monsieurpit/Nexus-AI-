@@ -82,7 +82,7 @@
     "keywords": {
       "patterns": [
         { "name": "keyword.control.conditional.pitcode", "match": "\\b(when|orwhen|other|match)\\b" },
-        { "name": "keyword.control.loop.pitcode", "match": "\\b(loop|in|stop|skip|by)\\b" },
+        { "name": "keyword.control.loop.pitcode", "match": "\\b(loop|in|stop|skip|by|times)\\b" },
         { "name": "keyword.control.flow.pitcode", "match": "\\b(back|give|wait)\\b" },
         { "name": "keyword.control.exception.pitcode", "match": "\\b(attempt|rescue|always|raise)\\b" },
         { "name": "keyword.control.import.pitcode", "match": "\\b(use|share|from|as)\\b" },

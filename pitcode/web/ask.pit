@@ -1,0 +1,12 @@
+// ask() reads the "Answers for ask()" box, one line at a time.
+
+pit name = ask("Your name? ")
+pit age = num(ask("Your age? "))
+
+when age == nil {
+  say "That's not a number, {name}."
+} orwhen age < 10 {
+  say "{name}, you can try snorkeling first!"
+} other {
+  say "{name}, you're {age}: old enough for a scuba course."
+}

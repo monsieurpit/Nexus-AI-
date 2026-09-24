@@ -21,6 +21,8 @@ export interface CompileOptions {
    * so each new line can see what earlier lines created.
    */
   repl?: Map<string, Binding>;
+  /** Adds a check in every loop so a program that never stops can be stopped (used in the browser). */
+  guardLoops?: boolean;
 }
 
 class Scope {
@@ -126,6 +128,10 @@ class Compiler {
     return String(makeLoc(this.options.fileId, t.line, t.col));
   }
 
+  private guard(): string {
+    return this.options.guardLoops ? "$.tick();\n" : "";
+  }
+
   private temp(): string {
     const name = `$t${++this.uid}`;
     this.fn.temps.push(name);
@@ -229,15 +235,15 @@ class Compiler {
         return code;
       }
       case "LoopForever":
-        return `for (;;) {\n${indent(this.block(s.body))}\n}`;
+        return `for (;;) {\n${indent(this.guard() + this.block(s.body))}\n}`;
       case "LoopWhile":
-        return `while (${this.bool(s.cond)}) {\n${indent(this.block(s.body))}\n}`;
+        return `while (${this.bool(s.cond)}) {\n${indent(this.guard() + this.block(s.body))}\n}`;
       case "LoopEach":
         return this.loopEach(s);
       case "LoopTimes": {
         const n = this.unique("n");
         const i = this.unique("i");
-        return `for (let ${i} = 0, ${n} = $.times(${this.loc(s.token)}, ${this.expr(s.count)}); ${i} < ${n}; ${i}++) {\n${indent(this.block(s.body))}\n}`;
+        return `for (let ${i} = 0, ${n} = $.times(${this.loc(s.token)}, ${this.expr(s.count)}); ${i} < ${n}; ${i}++) {\n${indent(this.guard() + this.block(s.body))}\n}`;
       }
       case "Func":
         return this.funcDeclaration(s.name, s.fn, s.shared);
@@ -364,7 +370,7 @@ class Compiler {
         scope.names.set(n.lexeme, { kind: "loop", js: `${n.lexeme}$`, locked: false });
       }
     };
-    const body = () => this.block(s.body, setup);
+    const body = () => this.guard() + this.block(s.body, setup);
     const [first, second] = s.names.map((n) => `${n.lexeme}$`);
     const it = s.iterable;
 
@@ -407,7 +413,7 @@ class Compiler {
       const unpack = this.pit({
         kind: "Pit", target: pattern, init: { kind: "Var", name: { ...itemToken, lexeme: item } }, locked: false, shared: false, token: itemToken,
       }, item);
-      return unpack + "\n" + this.statements(s.body);
+      return this.guard() + unpack + "\n" + this.statements(s.body);
     });
     const head = s.isAwait ? `for await (const ${item} of $.aiter(${this.loc(s.token)}, ${iterable}))` : `for (const ${item} of $.iter(${this.loc(s.token)}, ${iterable}))`;
     return `${head} {\n${indent(body)}\n}`;
