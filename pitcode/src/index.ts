@@ -1,20 +1,19 @@
-import type { Stmt } from "./ast";
-import { Interpreter, type InterpreterOptions } from "./interpreter";
-import { Lexer } from "./lexer";
-import { Parser } from "./parser";
+import { Runtime, parse, type Host } from "./runtime/runtime";
 
 export { PitError } from "./errors";
-export { Interpreter, type InterpreterOptions } from "./interpreter";
 export { Lexer } from "./lexer";
 export { Parser } from "./parser";
+export { compile } from "./compiler";
+export { Runtime, parse, type Host } from "./runtime/runtime";
+export { str, repr, typeName } from "./runtime/values";
 
-/** Lexes and parses PitCode source. A `#!` first line is ignored. */
-export function parse(source: string): Stmt[] {
-  const tokens = new Lexer(source.replace(/^#!.*/, "")).tokenize();
-  return new Parser(tokens).parseProgram();
+export interface RunOptions extends Partial<Host> {
+  /** File name used in error messages. */
+  file?: string;
 }
 
-/** Parses and runs PitCode source. Throws PitError on syntax or runtime errors. */
-export function run(source: string, options?: InterpreterOptions): void {
-  new Interpreter(options).run(parse(source));
+/** Compiles and runs PitCode source. Rejects with a PitError on syntax or runtime errors. */
+export async function run(source: string, options: RunOptions = {}): Promise<void> {
+  const host: Host = { write: (text) => process.stdout.write(text), ...options };
+  await new Runtime(host).run(source, options.file ?? "<input>");
 }

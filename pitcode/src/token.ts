@@ -2,18 +2,25 @@ export const KEYWORDS = [
   "pit", "lock", "back", "say",
   "when", "orwhen", "other",
   "loop", "in", "stop", "skip",
-  "and", "or", "not",
+  "and", "or", "not", "is",
   "true", "false", "nil",
+  "kind", "from", "me", "up",
+  "match",
+  "attempt", "rescue", "always", "raise",
+  "wait", "give",
+  "use", "share",
 ] as const;
 
 export type Keyword = (typeof KEYWORDS)[number];
 
 export type TokenType =
-  | "(" | ")" | "{" | "}" | "," | ";"
-  | "+" | "-" | "*" | "/" | "%"
-  | "=" | "+=" | "-=" | "*=" | "/="
+  | "(" | ")" | "{" | "}" | "[" | "]" | "," | ";" | ":"
+  | "." | "?." | "?" | "??" | ".." | "..=" | "..."
+  | "+" | "-" | "*" | "/" | "%" | "**"
+  | "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "++" | "--"
   | "==" | "!=" | "<" | "<=" | ">" | ">="
-  | "=>" | ".."
+  | "&" | "|" | "^" | "~" | "<<" | ">>"
+  | "=>"
   | "IDENT" | "NUMBER" | "STRING"
   | Keyword
   | "EOF";
