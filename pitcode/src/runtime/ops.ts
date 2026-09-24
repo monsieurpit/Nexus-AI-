@@ -201,7 +201,7 @@ export function get(loc: Loc, obj: unknown, name: string): unknown {
     if (obj instanceof Map) return null;
     unknownMember(loc, type, name);
   }
-  if (obj instanceof Base) return getField(obj, name);
+  if (obj instanceof Base) return getField(loc, obj, name);
   if (typeof obj === "function") {
     if (isKind(obj)) {
       const d = findStatic(obj, name);
@@ -217,10 +217,15 @@ export function get(loc: Loc, obj: unknown, name: string): unknown {
   return typeof value === "function" ? value.bind(obj) : value ?? null;
 }
 
-function getField(obj: Base, name: string): unknown {
+/** Reads a field or method of an instance. A name it doesn't have is an error, to catch typos. */
+function getField(loc: Loc, obj: Base, name: string): unknown {
   if (Object.hasOwn(obj, name)) return (obj as any)[name] ?? null;
   const d = findMember(obj, name);
-  if (!d) return null;
+  if (!d) {
+    const hint = closest(name, memberNames(obj));
+    const kind = kindName(obj.constructor);
+    fail(loc, `${kind} has no field '${name}'${hint ? `. Did you mean '${hint}'?` : `. Give it one in the kind, like: pit ${name} = nil`}`);
+  }
   if (d.get) return d.get.call(obj) ?? null;
   if (typeof d.value === "function") return bindMethod(d.value, obj);
   return d.value ?? null;
@@ -290,7 +295,7 @@ export function index(loc: Loc, obj: unknown, i: unknown): unknown {
   }
   if (obj instanceof Base) {
     if (typeof i !== "string") fail(loc, `Fields are named with text, but got ${typeName(i)}`);
-    return getField(obj, i);
+    return getField(loc, obj, i);
   }
   if (obj === null || obj === undefined) fail(loc, "Can't take an item from nil");
   fail(loc, `Can't take an item from ${article(typeName(obj))}`);

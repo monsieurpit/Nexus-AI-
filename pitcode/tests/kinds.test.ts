@@ -63,7 +63,9 @@ test("show() customizes printing", async () => {
 });
 
 test("fields can be set on the fly and read with []", async () => {
-  assert.equal(await output('kind Box {}\npit b = Box()\nb.color = "red"\nsay b.color, b["color"], b.missing, "color" in b'), "red red nil true\n");
+  assert.equal(await output('kind Box {}\npit b = Box()\nb.color = "red"\nsay b.color, b["color"], "color" in b, "size" in b'), "red red true false\n");
+  assert.match((await errorOf('kind Box { pit color = nil }\nsay Box().colr')).message, /Box has no field 'colr'. Did you mean 'color'\?/);
+  assert.match((await errorOf("kind Box {}\nsay Box().size")).message, /Box has no field 'size'. Give it one in the kind/);
 });
 
 test("field values can use me, and items() makes a kind loopable", async () => {
