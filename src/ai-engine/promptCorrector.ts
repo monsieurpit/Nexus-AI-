@@ -100,6 +100,12 @@ const CHAT_TYPO_MAP = new Map<string, string>(Object.entries({
   calculat: 'calculate', caculate: 'calculate', calclate: 'calculate',
   multiplyed: 'multiplied', mutliplied: 'multiplied',
   percentt: 'percent', precent: 'percent',
+  // Patrick's explicit request (2026-09-27) — "dih" is deliberately garbled internet/Discord
+  // slang for "dick" (see slangAndBrainrotEngine.ts's own substitution for the same term, aimed
+  // at the model's hallucination risk specifically); rewritten here too so the corrected word is
+  // what every downstream reader of this prompt — intent detection, retrieval, the model itself —
+  // actually sees, not just the one narrower call site slangAndBrainrotEngine.ts covers.
+  dih: 'dick',
 }));
 
 // Polish counterpart of LEAD_TARGETS/KEYWORD_TARGETS above — added alongside this session's
