@@ -5732,9 +5732,19 @@ export async function generateReasoningPath(
         thoughtSteps,
         true
       );
+      // Reported live (2026-09-27): "what's the LaLiga leaderboard" came back with real, correct
+      // standings buried in a wall of text — topUpLlmSwearing's chaotic-overshare tangent (a
+      // trailing "Anyway, I'm currently trying to find a decent spot on the carpet because this
+      // mattress is giving me acute sciatica..." aside) is deliberately exempt from the sentence
+      // cap everywhere else (a genuine voice feature Patrick wants on ordinary chat), but a
+      // scannable, data-dense standings table is exactly the one reply shape where that tangent
+      // reads as bloat instead of personality — "great info, why is it wrapped in a novel" was the
+      // literal complaint. Stripped here only, not in capRamblingReply itself, so every other
+      // answer shape keeps the overshare aside untouched.
+      const liveReplyNoTangent = liveReply.replace(/\s+Anyway,[\s\S]*$/i, '').trim();
       return {
         thoughtSteps,
-        content: enforceStrictSdkRules(liveReply, prompt, settings.userCustomDirectives, {
+        content: enforceStrictSdkRules(liveReplyNoTangent, prompt, settings.userCustomDirectives, {
           isSuperChill,
           username: settings.userName,
           systemInstruction: persona.systemPrompt,
