@@ -3652,9 +3652,23 @@ async function llmSituationalReplyOrFallback(
     // empty_response bug this used to cause when thinking ate a too-tight budget.
     think: true,
   };
-  const llmResult = onToken
+  let llmResult = onToken
     ? await localLlmClient.generateStream(llmPrompt, onToken, generateOptions)
     : await localLlmClient.generate(llmPrompt, generateOptions);
+  // Same one-shot retry as llmGroundedOrFallback's own copy of this comment — 'empty_response'/
+  // 'degenerate_output' are sampling flukes (the model's own thinking channel ran out of budget
+  // mid-thought, or briefly degenerated), not a real failure that would repeat identically, so
+  // retrying once is nearly free (the failed attempt already cost the time) and often turns a dead
+  // request into a real reply instead of the generic, "robotic"-feeling template text. This is by
+  // far the highest-traffic path in the whole engine (plain casual chat), so this is where that
+  // ~1-in-3 empty_response rate is actually felt most. Always retries via the plain (non-streaming)
+  // generate() even when the first attempt streamed — the caller already has to treat this
+  // function's return value as the source of truth over whatever chunks were streamed (see this
+  // function's own doc comment above), so a non-streamed retry here doesn't violate that contract,
+  // and avoids the visual weirdness of streaming the same reply twice.
+  if (llmResult.status !== 'success' && (llmResult.reason === 'empty_response' || llmResult.reason === 'degenerate_output')) {
+    llmResult = await localLlmClient.generate(llmPrompt, generateOptions);
+  }
   if (llmResult.status === 'success' && llmResult.thinking) {
     thoughtSteps.push({
       id: 'step-llm-raw-thinking-casual',
@@ -3835,16 +3849,36 @@ async function llmGroundedOrFallback(
   // own framing) means the whole grounded-answer flow, not just the self-review retries on top of
   // it, so the deadline has to cover pass 1 too, not just passes 2-3 below.
   const groundedDeadline = Date.now() + GROUNDED_ANSWER_TOTAL_BUDGET_MS;
-  const llmResult = await localLlmClient.generate(groundedPrompt, {
-    system: groundedSystemPrompt,
-    temperature: usedTemperature,
-    maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + thinkingHeadroomFor(settings.reasoningMode),
-    timeoutMs: Math.max(Math.min(groundedDeadline - Date.now() - 3000, 60000), 8000),
-    preferPolish: usePolish,
-    preferFrench: useFrench,
-    model: localLlmClient.chatModel(),
-    think: revealThinking,
-  });
+  const generateOnce = () =>
+    localLlmClient.generate(groundedPrompt, {
+      system: groundedSystemPrompt,
+      temperature: usedTemperature,
+      maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + thinkingHeadroomFor(settings.reasoningMode),
+      timeoutMs: Math.max(Math.min(groundedDeadline - Date.now() - 3000, 60000), 8000),
+      preferPolish: usePolish,
+      preferFrench: useFrench,
+      model: localLlmClient.chatModel(),
+      think: revealThinking,
+    });
+  let llmResult = await generateOnce();
+  // Found live (2026-09-27): 'empty_response'/'degenerate_output' are sampling flukes, not real
+  // failures (see localLlmClient.ts's own comment on those two reasons) — a genuinely wrong prompt
+  // or configuration would fail identically on every attempt, but these two specifically mean the
+  // model's OWN token budget ran out mid-thought this one time, or its output briefly degenerated,
+  // pure bad luck on that particular generation. Falling straight to templateFallback (the generic,
+  // canned, "robotic"-feeling text this whole grounded path exists to avoid) threw away a genuinely
+  // recoverable ~1-in-3 case for zero reason — one immediate retry costs nothing worse than the
+  // time already sunk into the failed attempt (which produced nothing usable anyway), and often
+  // turns a dead request into a real, in-character answer. Never retries connection_error/timeout/
+  // http_error/not_configured — those are real failures that would just fail identically again,
+  // wasting time before falling back regardless.
+  if (
+    llmResult.status !== 'success' &&
+    (llmResult.reason === 'empty_response' || llmResult.reason === 'degenerate_output') &&
+    groundedDeadline - Date.now() > 8000
+  ) {
+    llmResult = await generateOnce();
+  }
   if (llmResult.status !== 'success') {
     thoughtSteps.push({
       id: 'step-llm-unavailable',
