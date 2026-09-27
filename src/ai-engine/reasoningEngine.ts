@@ -171,8 +171,22 @@ const PHONE_NUMBER_REGEX =
 // corpus retrieval + multi-pass self-review grounding on a topic with no real corpus match
 // (~30-45s round trip, off-topic hedge answer about the film industry) for what should have been
 // an instant free-form in-character reply about the persona's own made-up taste.
+// "do you still/even/really/actually/always/ever [ANY VERB]" — a general adverb-gap clause, not
+// another one-off enumerated verb. Found live (2026-09-27): "nexus do you still goon every day"
+// fell through this regex entirely — the existing "do you (?:like|love|...)" clause requires the
+// verb to immediately follow "do you", and "still" sitting in between broke the match, plus "goon"
+// itself was never going to be in a hand-enumerated verb list anyway. It reached full corpus
+// retrieval instead, where a comprehension-only slang-glossary doc (kb-crude-slang-goon-*, written
+// so the bot UNDERSTANDS the term, not so it lectures the user with it) scored extremely high on
+// literal keyword overlap (score 22+, nowhere near WEAK_MATCH_SCORE) and got treated as a
+// slam-dunk factual match — triggering the grounded/broad answer path (~900-token budget instead
+// of casual's 110) for what was actually a personal question about the bot's own habits. This
+// clause is deliberately general (any verb) rather than enumerated: "still/even/really/actually/
+// always/ever" in this exact position ("do you STILL X", "do you EVEN X") is a strong structural
+// signal of a personal/rhetorical question about the addressee's ongoing traits, essentially
+// regardless of which verb fills the slot — much more robust than adding one verb per bug report.
 const PERSONAL_QUESTION_REGEX =
-  /^(?:why\s+are\s+you|why\s+do\s+you|why\s+don'?t\s+you|why\s+doesn'?t\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with|have|got|has)\b|\byou\s+got\s+any\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b|\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b|\bwhat'?s\s+your\s+favou?rite\b|\bwhat\s+is\s+your\s+favou?rite\b/i;
+  /^(?:why\s+are\s+you|why\s+do\s+you|why\s+don'?t\s+you|why\s+doesn'?t\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with|have|got|has)\b|\bdo\s+you\s+(?:still|even|really|actually|always|ever)\s+\w+\b|\byou\s+got\s+any\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b|\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b|\bwhat'?s\s+your\s+favou?rite\b|\bwhat\s+is\s+your\s+favou?rite\b/i;
 
 // Genuine creative-writing requests ("write a haiku about autumn", "compose a poem about love")
 // have no factual answer to retrieve at all — they're a pure generation task. Never had any
