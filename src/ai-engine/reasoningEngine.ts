@@ -9,6 +9,7 @@ import {
 } from '../types';
 import { extractQueryEntities, searchKnowledgeGraph, getBM25Engine } from './semanticEngine';
 import { detectLiveSportsIntent, resolveLiveSportsContext } from './liveSportsService';
+import { detectUrlInPrompt, fetchUrlContent } from './urlFetcher';
 import { hybridSearchKnowledgeGraph } from './vectorSearch';
 import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
@@ -5725,6 +5726,51 @@ export async function generateReasoningPath(
       }),
       knowledgeHits: [],
     };
+  }
+
+  // 5.4. URL fetch — if the user pasted a link, go read that specific page rather than guessing at
+  // its content from the corpus or a generic web search. Runs BEFORE live sports/domain
+  // intelligence/corpus search below: a pasted link is the strongest possible signal of what the
+  // user actually wants answered from, and anything else would just be a worse guess. Deliberately
+  // conservative failure handling — urlFetcher.ts's fetchUrlContent() never throws, and any error
+  // (blocked target, timeout, non-HTML, unreachable) falls through to the normal pipeline below
+  // instead of presenting a broken fetch as if it were a real answer, same convention as the live
+  // sports branch just after this one.
+  const detectedUrl = detectUrlInPrompt(effectivePrompt) || detectUrlInPrompt(prompt);
+  if (detectedUrl) {
+    const page = await fetchUrlContent(detectedUrl);
+    if (page.status === 'success') {
+      thoughtSteps.push({
+        id: 'step-url-fetch',
+        type: 'reasoning',
+        title: '🔗 Visited link',
+        description: `Fetched "${page.title}" from ${page.url}.`,
+      });
+      const pageReply = await llmGroundedOrFallback(
+        prompt,
+        persona,
+        settings,
+        isCrashout,
+        [{ item: { title: page.title, content: page.content } }],
+        page.content,
+        intent,
+        queryTerms,
+        entities,
+        thoughtSteps,
+        true
+      );
+      return {
+        thoughtSteps,
+        content: enforceStrictSdkRules(pageReply, prompt, settings.userCustomDirectives, {
+          isSuperChill,
+          username: settings.userName,
+          systemInstruction: persona.systemPrompt,
+          swearIntensity: settings.swearIntensity,
+        }),
+        knowledgeHits: [`Visited link: ${page.title}`],
+      };
+    }
+    console.warn('[urlFetch] fetchUrlContent failed, falling through to normal pipeline:', page.reason, page.detail);
   }
 
   // 5.5. Live Sports Data (ESPN) — current scores, in-progress matches, and league standings.
