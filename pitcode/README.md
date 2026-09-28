@@ -71,6 +71,7 @@ Names can use letters from any language: `pit profondeur = 18`, `pit plongée = 
 | Type     | Examples                                  |
 |----------|-------------------------------------------|
 | number   | `42`, `3.14`, `-7`, `1_000_000`, `0xFF`, `1e6` |
+| big      | `123n`, `2n ** 100n` (whole numbers of any size) |
 | string   | `"hi"`, `"Line\nbreak"`, `"Hi {name}"`    |
 | bool     | `true`, `false`                           |
 | nil      | `nil` (no value)                          |
@@ -165,6 +166,13 @@ loop key, value in {a: 1, b: 2} { say key, value }   // maps give keys and value
 loop [x, y] in [[1, 2], [3, 4]] { say x + y }        // unpack each item
 loop letter in "hey" { say letter }
 loop 3 times { say "hip hip hooray" }              // repeat
+loop { tries += 1 } until tries == 3               // runs at least once
+
+loop row in rows as outer {                        // name a loop...
+  loop cell in row {
+    when cell == nil { skip outer }                // ...to skip or stop it from inside another
+  }
+}
 
 loop count < 3 { count += 1 }        // while the condition is true
 loop {                               // forever...
@@ -275,6 +283,8 @@ pit t = SteelTank(12, 232)          // no `new`, just call the kind
 t.breathe(100)
 say t.air, t is Tank, type(t)
 ```
+
+Names starting with `_` (`me._balance`, `_check()`) are private: only the kind's own code can use them.
 
 Reading a field an instance doesn't have is an error (`Tank has no field 'litres'. Did you mean 'liters'?`), so typos don't hide. For a field that may be empty, give it a starting value in the kind (`pit owner = nil`), or check with `"owner" in tank`. Maps are different: a missing key is simply `nil`.
 
@@ -408,7 +418,7 @@ test("pressure grows 1 bar every 10 m", () => {
 | `JSON.stringify` / `JSON.parse`         | `json.text` / `json.parse`               |
 | `Math.sqrt`                             | `math.sqrt`                              |
 
-A few JavaScript features are not in PitCode: loop labels (use a function and `back` to leave nested loops), `#private` fields (start a name with `_` to mark it as internal), `BigInt`, `Symbol`, `Proxy` and `with`.
+A few JavaScript features are not in PitCode: `Symbol`, `Proxy`, `with` and tagged templates.
 
 If you type the JavaScript word by habit, PitCode tells you its word for it:
 

@@ -23,16 +23,51 @@ function bothNumbers(loc: Loc, op: string, a: unknown, b: unknown): asserts a is
   }
 }
 
+/**
+ * Math on big whole numbers (`123n`). Both sides must be big: mixing them with
+ * normal numbers would quietly lose precision, so it's an error.
+ */
+function bigMath(loc: Loc, op: string, a: unknown, b: unknown): bigint | undefined {
+  const aBig = typeof a === "bigint";
+  const bBig = typeof b === "bigint";
+  if (!aBig && !bBig) return undefined;
+  if (aBig !== bBig) {
+    if (typeof a === "number" || typeof b === "number") {
+      fail(loc, `Can't mix big and normal numbers with '${op}'. Convert one with big(x) or num(x)`);
+    }
+    return undefined;
+  }
+  const x = a as bigint;
+  const y = b as bigint;
+  switch (op) {
+    case "+": return x + y;
+    case "-": return x - y;
+    case "*": return x * y;
+    case "/":
+    case "%":
+      if (y === 0n) fail(loc, "Division by zero");
+      return op === "/" ? x / y : x % y;
+    case "**":
+      if (y < 0n) fail(loc, "A big number can't be raised to a negative power");
+      return x ** y;
+  }
+  return undefined;
+}
+
 export function add(loc: Loc, a: unknown, b: unknown): unknown {
   if (typeof a === "number" && typeof b === "number") return a + b;
   if (typeof a === "string" || typeof b === "string") return str(a) + str(b);
   if (Array.isArray(a) && Array.isArray(b)) return [...a, ...b];
+  const big = bigMath(loc, "+", a, b);
+  if (big !== undefined) return big;
   fail(loc, `Can't add ${typeName(a)} and ${typeName(b)}`);
 }
 
-export function sub(loc: Loc, a: unknown, b: unknown): number {
+export function sub(loc: Loc, a: unknown, b: unknown): unknown {
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  const big = bigMath(loc, "-", a, b);
+  if (big !== undefined) return big;
   bothNumbers(loc, "-", a, b);
-  return a - (b as number);
 }
 
 export function mul(loc: Loc, a: unknown, b: unknown): unknown {
@@ -42,27 +77,36 @@ export function mul(loc: Loc, a: unknown, b: unknown): unknown {
   if (typeof b === "string" && typeof a === "number" && Number.isInteger(a) && a >= 0) return b.repeat(a);
   // [0] * 3 is [0, 0, 0].
   if (Array.isArray(a) && typeof b === "number" && Number.isInteger(b) && b >= 0) return Array.from({ length: b }, () => a).flat();
+  const big = bigMath(loc, "*", a, b);
+  if (big !== undefined) return big;
   fail(loc, `'*' needs two numbers, but got ${typeName(a)} and ${typeName(b)}`);
 }
 
-export function div(loc: Loc, a: unknown, b: unknown): number {
+export function div(loc: Loc, a: unknown, b: unknown): unknown {
+  const big = bigMath(loc, "/", a, b);
+  if (big !== undefined) return big;
   bothNumbers(loc, "/", a, b);
   if (b === 0) fail(loc, "Division by zero");
   return a / (b as number);
 }
 
-export function mod(loc: Loc, a: unknown, b: unknown): number {
+export function mod(loc: Loc, a: unknown, b: unknown): unknown {
+  const big = bigMath(loc, "%", a, b);
+  if (big !== undefined) return big;
   bothNumbers(loc, "%", a, b);
   if (b === 0) fail(loc, "Division by zero");
   return a % (b as number);
 }
 
-export function pow(loc: Loc, a: unknown, b: unknown): number {
+export function pow(loc: Loc, a: unknown, b: unknown): unknown {
+  const big = bigMath(loc, "**", a, b);
+  if (big !== undefined) return big;
   bothNumbers(loc, "**", a, b);
   return a ** (b as number);
 }
 
-export function neg(loc: Loc, a: unknown): number {
+export function neg(loc: Loc, a: unknown): number | bigint {
+  if (typeof a === "bigint") return -a;
   if (typeof a !== "number") fail(loc, `Can't make ${typeName(a)} negative`);
   return -a;
 }
@@ -86,7 +130,8 @@ export function bnot(loc: Loc, a: unknown): number {
 }
 
 function comparable(loc: Loc, a: unknown, b: unknown): void {
-  const ok = (typeof a === "number" && typeof b === "number") || (typeof a === "string" && typeof b === "string");
+  const numeric = (v: unknown) => typeof v === "number" || typeof v === "bigint";
+  const ok = (numeric(a) && numeric(b)) || (typeof a === "string" && typeof b === "string");
   if (!ok) fail(loc, `Can't compare ${typeName(a)} with ${typeName(b)}`);
 }
 

@@ -50,3 +50,12 @@ test("other is a normal name outside when and match", async () => {
   assert.equal(await output("pit other = 1\nwhen other > 5 { say \"big\" } other { say other }"), "1\n");
   assert.equal(await output("say match 3 { 1 => \"one\"\nother => \"many\" }"), "many\n");
 });
+
+test("big whole numbers", async () => {
+  assert.equal(await output("say 2n ** 100n, type(5n), -5n, 7n / 2n, 7n % 2n, 0xFFn"), "1267650600228229401496703205376 big -5 3 1 255\n");
+  assert.equal(await output('say big(12) * 3n, big("123456789012345678901234567890") + 1n, num(9n) + 1, int(4n)'), "36 123456789012345678901234567891 10 4\n");
+  assert.equal(await output("say [3n, 1n, 2n].sort(), 5n == 5n, 1n < 2, json.text({a: 10n})"), '[1, 2, 3] true true {"a":10}\n');
+  assert.match((await errorOf("say 1n + 1")).message, /Can't mix big and normal numbers/);
+  assert.match((await errorOf("say 1n / 0n")).message, /Division by zero/);
+  assert.match((await errorOf("say big(1.5)")).message, /whole number/);
+});

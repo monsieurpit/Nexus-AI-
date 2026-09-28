@@ -143,6 +143,7 @@ export function typeName(value: unknown): string {
   if (value === null || value === undefined) return "nil";
   switch (typeof value) {
     case "number": return "number";
+    case "bigint": return "big";
     case "string": return "string";
     case "boolean": return "bool";
     case "function": return isKind(value) ? "kind" : "function";

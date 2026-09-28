@@ -639,6 +639,7 @@ class Compiler {
         if (e.op.type === "not") return `!${this.bool(e.right)}`;
         if (e.op.type === "-") {
           if (e.right.kind === "Literal" && typeof e.right.value === "number") return `(-${e.right.value})`;
+          if (e.right.kind === "Literal" && typeof e.right.value === "bigint") return `(-${e.right.value}n)`;
           return `$.neg(${this.loc(e.op)}, ${this.expr(e.right)})`;
         }
         return `$.bnot(${this.loc(e.op)}, ${this.expr(e.right)})`;
@@ -720,8 +721,9 @@ function labelOf(label: Token | null): string {
   return label ? `${label.lexeme}$loop: ` : "";
 }
 
-function literal(value: number | string | boolean | null): string {
+function literal(value: number | bigint | string | boolean | null): string {
   if (value === null) return "null";
+  if (typeof value === "bigint") return `${value}n`;
   if (typeof value === "string") return JSON.stringify(value);
   if (typeof value === "number") return Number.isFinite(value) ? String(value) : "Infinity";
   return String(value);

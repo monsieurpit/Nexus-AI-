@@ -101,9 +101,18 @@ export class Lexer {
       this.advance();
       const digits = this.digits((ch) => (base === 16 ? isHexDigit(ch) : ch === "0" || ch === "1"));
       if (!digits) throw this.error(`Expected ${base === 16 ? "hex" : "binary"} digits after '0${base === 16 ? "x" : "b"}'`);
+      if (this.peek() === "n" && !isAlphaNumeric(this.peekNext())) {
+        this.advance();
+        return this.add("NUMBER", BigInt(`0${base === 16 ? "x" : "b"}${digits}`));
+      }
       return this.add("NUMBER", Number.parseInt(digits, base));
     }
     let text = this.digits(isDigit);
+    // `123n` is a big whole number, exact at any size.
+    if (this.peek() === "n" && !isAlphaNumeric(this.peekNext())) {
+      this.advance();
+      return this.add("NUMBER", BigInt(text));
+    }
     // Only a dot followed by a digit is a decimal point, so `0..10` stays a range.
     if (this.peek() === "." && isDigit(this.peekNext())) {
       this.advance();

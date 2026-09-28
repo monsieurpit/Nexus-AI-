@@ -58,6 +58,7 @@ function position(index: number, size: number): number {
 /** Default order for sort(): numbers by value, text alphabetically. */
 export function compareValues(loc: Loc, a: unknown, b: unknown): number {
   if (typeof a === "number" && typeof b === "number") return a - b;
+  if ((typeof a === "bigint" || typeof a === "number") && (typeof b === "bigint" || typeof b === "number")) return a < b ? -1 : a > b ? 1 : 0;
   if (typeof a === "string" && typeof b === "string") return a < b ? -1 : a > b ? 1 : 0;
   fail(loc, `Can't sort a mix of ${typeName(a)} and ${typeName(b)}. Give sort() a function to compare them`);
 }
@@ -282,6 +283,7 @@ function replaceText(loc: Loc, s: string, from: unknown, to: unknown, all: boole
 
 export function toNumber(value: unknown): number | null {
   if (typeof value === "number") return value;
+  if (typeof value === "bigint") return Number(value);
   if (typeof value === "string" && value.trim() !== "") {
     const n = Number(value.trim().replace(/_/g, ""));
     return Number.isNaN(n) ? null : n;

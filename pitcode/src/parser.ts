@@ -819,7 +819,7 @@ export class Parser {
     switch (t.type) {
       case "NUMBER":
         this.advance();
-        return { kind: "Literal", value: t.value as number };
+        return { kind: "Literal", value: t.value as number | bigint };
       case "STRING":
         this.advance();
         return this.stringLiteral(t);

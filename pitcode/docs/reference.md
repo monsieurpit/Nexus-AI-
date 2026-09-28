@@ -38,6 +38,7 @@ Words with special meaning only in one place: `from` (`kind A from B`, `use x fr
 | `range(end)` / `range(start, end, step?)` | Same as `start..end by step` |
 | `pattern(text, flags?)` | A regular expression, like `pattern("[0-9]+", "i")` |
 | `same(a, b)` | Deep comparison: `same([1, [2]], [1, [2]])` is `true` |
+| `big(x)` | A big whole number from a number or text: exact at any size (`2n ** 100n`) |
 | `copy(x)` | A full copy: lists, maps and instances inside are copied too |
 | `check(ok, message?)` | Raises an error when `ok` is false |
 | `expect(actual, wanted, message?)` | Raises an error showing both values when they differ (compares contents) |

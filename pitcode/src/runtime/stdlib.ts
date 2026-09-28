@@ -64,6 +64,8 @@ export function fromJson(value: unknown): unknown {
 export function toJson(loc: Loc, value: unknown, seen = new Set<unknown>()): unknown {
   if (value === null || value === undefined) return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  // JSON has no big numbers: small ones become numbers, others text.
+  if (typeof value === "bigint") return Number.isSafeInteger(Number(value)) ? Number(value) : String(value);
   if (typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "function") return undefined;
   if (seen.has(value)) fail(loc, "Can't turn a value that contains itself into JSON");
@@ -379,6 +381,7 @@ export function createBuiltins(host: StdlibHost): Record<string, unknown> {
     str: native("str", 1, 1, (_, x) => str(x)),
     num: native("num", 1, 1, (_, x) => toNumber(x)),
     int: native("int", 1, 2, (loc, x, base) => {
+      if (typeof x === "bigint") return Number(x);
       if (base !== undefined) {
         const b = needInt(loc, base, "int()");
         if (b < 2 || b > 36) fail(loc, "int() can read bases from 2 to 36");
@@ -412,6 +415,15 @@ export function createBuiltins(host: StdlibHost): Record<string, unknown> {
       }
     }),
     same: native("same", 2, 2, (_, a, b) => deepEqual(a, b)),
+    big: native("big", 1, 1, (loc, x) => {
+      if (typeof x === "bigint") return x;
+      if (typeof x === "number") {
+        if (!Number.isInteger(x)) fail(loc, `big() needs a whole number, but got ${x}`);
+        return BigInt(x);
+      }
+      if (typeof x === "string" && /^\s*-?\d[\d_]*\s*$/.test(x)) return BigInt(x.trim().replace(/_/g, ""));
+      fail(loc, `big() needs a whole number or text of digits, but got ${typeName(x)}`);
+    }),
     test: native("test", 2, 2, (loc, name, fn) => {
       const label = str(name);
       const passed = () => {

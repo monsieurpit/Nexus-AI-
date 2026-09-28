@@ -38,7 +38,7 @@ export interface Token {
   type: TokenType;
   lexeme: string;
   /** Number value for NUMBER tokens, string parts for STRING tokens. */
-  value?: number | StringPart[];
+  value?: number | bigint | StringPart[];
   line: number;
   col: number;
   /** True when a line break separates this token from the previous one. */

@@ -42,7 +42,7 @@ export interface MatchArm<Body> {
 }
 
 export type Expr =
-  | { kind: "Literal"; value: number | string | boolean | null }
+  | { kind: "Literal"; value: number | bigint | string | boolean | null }
   | { kind: "Interp"; parts: (string | Expr)[] }
   | { kind: "Var"; name: Token }
   | { kind: "Me"; token: Token }
