@@ -5,7 +5,7 @@ import { Parser } from "../parser";
 import type { Stmt } from "../ast";
 import { call, fail, findMember } from "./core";
 import * as ops from "./ops";
-import { createBuiltins, type FileSystem, type TestResults } from "./stdlib";
+import { createBuiltins, type FileSystem, type SystemAccess, type TestResults } from "./stdlib";
 import {
   Base, ErrorValue, decodeLoc, hooks, makeLoc, str, type Loc,
 } from "./values";
@@ -22,6 +22,8 @@ export interface Host {
   /** Finds a file for `use`. `from` is the file that asks for it. */
   loadModule?(spec: string, from: string): { name: string; source: string };
   fs?: FileSystem;
+  /** Running commands and web servers (computers only). */
+  system?: SystemAccess;
   args?: string[];
   exit?(code: number): void;
   /** Called for errors that happen after the main program finished (in timers or unawaited tasks). */
@@ -81,6 +83,8 @@ export class Runtime {
         return `${err.kind}: ${err.message}${err.line > 0 ? ` (${err.file ?? "line"}:${err.line})` : ""}`;
       },
       tests: this.tests,
+      toError: (e) => this.toErrorValue(e),
+      system: host.system,
     });
     this.helpers = {
       p: 0,

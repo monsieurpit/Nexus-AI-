@@ -31,7 +31,30 @@ export interface StdlibHost {
   write(text: string): void;
   /** One line describing an error, for failed tests. */
   describeError(error: unknown): string;
+  /** Turns anything thrown into an Error value. */
+  toError(error: unknown): unknown;
+  system?: SystemAccess;
   tests: TestResults;
+}
+
+/** Running commands and serving web pages; only on computers (not in the browser). */
+export interface SystemAccess {
+  run(command: string): { out: string; err: string; code: number };
+  serve(port: number, handle: (request: WebRequest) => Promise<WebResponse>): Promise<{ port: number; stop(): void }>;
+}
+
+export interface WebRequest {
+  method: string;
+  path: string;
+  query: Record<string, string>;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export interface WebResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
 }
 
 export interface TestResults {
@@ -85,6 +108,60 @@ export function toJson(loc: Loc, value: unknown, seen = new Set<unknown>()): unk
   } finally {
     seen.delete(value);
   }
+}
+
+// ---------- web server replies ----------
+
+const REPLY = "__pitcode_reply__";
+
+/** What a web.serve handler gives back → an HTTP response. */
+function toResponse(loc: Loc, result: unknown): WebResponse {
+  let status = 200;
+  let headers: Record<string, string> = {};
+  let body = result;
+  if (result instanceof Map && result.get(REPLY) === true) {
+    status = result.get("status") as number;
+    body = result.get("body");
+    const h = result.get("headers");
+    if (h instanceof Map) headers = Object.fromEntries([...h].map(([k, v]) => [str(k).toLowerCase(), str(v)]));
+  }
+  if (typeof body === "string") {
+    headers["content-type"] ??= /^\s*</.test(body) ? "text/html; charset=utf-8" : "text/plain; charset=utf-8";
+    return { status, headers, body };
+  }
+  if (body === null || body === undefined) return { status: status === 200 ? 204 : status, headers, body: "" };
+  headers["content-type"] ??= "application/json";
+  return { status, headers, body: JSON.stringify(toJson(loc, body)) };
+}
+
+// ---------- events ----------
+
+/** `events()`: a small event hub, like Node's EventEmitter. */
+function makeEvents(): Map<string, unknown> {
+  const listeners = new Map<string, { fn: unknown; once: boolean }[]>();
+  const add = (loc: Loc, name: unknown, fn: unknown, once: boolean) => {
+    if (typeof fn !== "function") fail(loc, "Give a function to call, like: bus.on(\"ready\", data => say data)");
+    const key = str(name);
+    listeners.set(key, [...(listeners.get(key) ?? []), { fn, once }]);
+    return null;
+  };
+  return new Map<string, unknown>([
+    ["on", native("on", 2, 2, (loc, name, fn) => add(loc, name, fn, false))],
+    ["once", native("once", 2, 2, (loc, name, fn) => add(loc, name, fn, true))],
+    ["off", native("off", 1, 2, (_, name, fn) => {
+      const key = str(name);
+      listeners.set(key, fn === undefined ? [] : (listeners.get(key) ?? []).filter((l) => l.fn !== fn));
+      return null;
+    })],
+    ["emit", native("emit", 1, Infinity, (loc, name, ...args) => {
+      const key = str(name);
+      const current = listeners.get(key) ?? [];
+      listeners.set(key, current.filter((l) => !l.once));
+      for (const l of current) invoke(loc, l.fn, args);
+      return current.length;
+    })],
+    ["count", native("count", 1, 1, (_, name) => (listeners.get(str(name)) ?? []).length)],
+  ]);
 }
 
 // ---------- copying ----------
@@ -171,6 +248,11 @@ export function createBuiltins(host: StdlibHost): Record<string, unknown> {
     }
   };
 
+  const systemOrFail = (loc: Loc): SystemAccess => {
+    if (!host.system) fail(loc, "This can only run on a computer, not here (for example in the browser)");
+    return host.system;
+  };
+
   const fsOrFail = (loc: Loc): FileSystem => {
     if (!host.fs) fail(loc, "Files can't be used here (for example in the browser)");
     return host.fs;
@@ -225,6 +307,9 @@ export function createBuiltins(host: StdlibHost): Record<string, unknown> {
     E: Math.E,
     TAU: Math.PI * 2,
     infinity: Infinity,
+    maxInt: Number.MAX_SAFE_INTEGER,
+    minInt: Number.MIN_SAFE_INTEGER,
+    epsilon: Number.EPSILON,
     abs: unary("abs", Math.abs),
     sqrt: unary("sqrt", Math.sqrt),
     cbrt: unary("cbrt", Math.cbrt),
@@ -503,6 +588,55 @@ export function createBuiltins(host: StdlibHost): Record<string, unknown> {
     all: native("all", 1, 1, (loc, items) => {
       if (!Array.isArray(items)) fail(loc, `all() needs a list, but got ${typeName(items)}`);
       return Promise.all(items);
+    }),
+    settled: native("settled", 1, 1, async (loc, items) => {
+      if (!Array.isArray(items)) fail(loc, `settled() needs a list, but got ${typeName(items)}`);
+      const results = await Promise.allSettled(items);
+      return results.map((r) => (r.status === "fulfilled"
+        ? new Map<string, unknown>([["ok", true], ["value", r.value ?? null]])
+        : new Map<string, unknown>([["ok", false], ["error", host.toError(r.reason)]])));
+    }),
+    first: native("first", 1, 1, (loc, items) => {
+      if (!Array.isArray(items)) fail(loc, `first() needs a list, but got ${typeName(items)}`);
+      return Promise.any(items).catch(() => {
+        throw ErrorValue.create("Every one of them failed", "RuntimeError", loc);
+      });
+    }),
+    events: native("events", 0, 0, () => makeEvents()),
+    shell: native("shell", 1, 1, (loc, command) => {
+      const system = systemOrFail(loc);
+      const r = system.run(needString(loc, command, "shell()"));
+      return new Map<string, unknown>([["out", r.out], ["err", r.err], ["code", r.code], ["ok", r.code === 0]]);
+    }),
+    web: module({
+      reply: native("web.reply", 1, 3, (loc, body, status = 200, headers = null) =>
+        new Map<string, unknown>([[REPLY, true], ["body", body], ["status", needInt(loc, status, "web.reply()")], ["headers", headers]])),
+      serve: native("web.serve", 2, 2, async (loc, port, handler) => {
+        const system = systemOrFail(loc);
+        const server = await system.serve(needInt(loc, port, "web.serve()"), async (req) => {
+          const request = new Map<string, unknown>([
+            ["method", req.method], ["path", req.path], ["query", new Map(Object.entries(req.query))],
+            ["headers", new Map(Object.entries(req.headers))], ["body", req.body],
+            ["json", native("json", 0, 0, (l) => {
+              try {
+                return fromJson(JSON.parse(req.body));
+              } catch {
+                fail(l, "The request body is not valid JSON");
+              }
+            })],
+          ]);
+          try {
+            return toResponse(loc, await invoke(loc, handler, [request]));
+          } catch (e) {
+            host.reportError(e);
+            return { status: 500, headers: { "content-type": "text/plain; charset=utf-8" }, body: "Something went wrong" };
+          }
+        });
+        return new Map<string, unknown>([
+          ["port", server.port],
+          ["stop", native("stop", 0, 0, () => (server.stop(), null))],
+        ]);
+      }),
     }),
     race: native("race", 1, 1, (loc, items) => {
       if (!Array.isArray(items)) fail(loc, `race() needs a list, but got ${typeName(items)}`);

@@ -59,3 +59,49 @@ test("big whole numbers", async () => {
   assert.match((await errorOf("say 1n / 0n")).message, /Division by zero/);
   assert.match((await errorOf("say big(1.5)")).message, /whole number/);
 });
+
+test("more list and text methods", async () => {
+  assert.equal(await output("say [[1], [2, 3]].flatMap(x => x), [1, 2, 3, 4].findLast(n => n % 2 == 1), [1, 2, 1].lastIndexOf(1)"), "[1, 2, 3] 3 2\n");
+  assert.equal(await output('pit ps = [{n: "A", age: 30}, {n: "B", age: 20}]\nsay ps.minBy(p => p.age).n, ps.maxBy(p => p.age).n, ps.sumBy(p => p.age)'), "B A 50\n");
+  assert.equal(await output('say [1, 2, 3, 4].partition(n => n > 2), ["a", "bb", "cc"].countBy(s => s.size), [1, 2, 3].window(2), [0, 0].fill(7)'), "[[3, 4], [1, 2]] {1: 1, 2: 2} [[1, 2], [2, 3]] [7, 7]\n");
+  assert.equal(await output('say "é".compare("e"), "b".compare("a"), "Plongée".plain(), "  ".isBlank(), "hi".center(6, "*")'), "0 1 Plongee true **hi**\n");
+});
+
+test("settled, first and events", async () => {
+  const src = `
+    bad() => {
+      wait sleep(1)
+      raise "no"
+    }
+    good() => {
+      wait sleep(1)
+      back 1
+    }
+    say wait settled([good(), bad()])
+    say wait first([bad(), good()])
+    pit bus = events()
+    bus.on("dive", d => say "diving to {d}")
+    bus.once("dive", d => say "first dive!")
+    say bus.emit("dive", 18), bus.emit("dive", 30), bus.count("dive")
+  `;
+  assert.equal(await output(src), "[{ok: true, value: 1}, {ok: false, error: Error: no}]\n1\ndiving to 18\nfirst dive!\ndiving to 30\n2 1 1\n");
+});
+
+test("shell and web.serve on a computer", async () => {
+  const { nodeSystem } = await import("../src/host/node");
+  const src = `
+    say shell("echo hello").out.trim()
+    pit server = wait web.serve(0, req => match req.path {
+      "/" => "<h1>Hi</h1>"
+      "/api" => {depth: 18, q: req.query.get("x")}
+      other => web.reply("Not here", 404)
+    })
+    pit base = "http://localhost:{server.port}"
+    say wait (wait fetch(base)).text()
+    say wait (wait fetch(base + "/api?x=1")).json()
+    say (wait fetch(base + "/nope")).status
+    server.stop()
+  `;
+  assert.equal(await output(src, [], { system: nodeSystem }), 'hello\n<h1>Hi</h1>\n{depth: 18, q: "1"}\n404\n');
+  assert.match((await errorOf('shell("ls")')).message, /only run on a computer/);
+});

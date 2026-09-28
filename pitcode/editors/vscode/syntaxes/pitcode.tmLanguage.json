@@ -82,7 +82,7 @@
     "keywords": {
       "patterns": [
         { "name": "keyword.control.conditional.pitcode", "match": "\\b(when|orwhen|other|match)\\b" },
-        { "name": "keyword.control.loop.pitcode", "match": "\\b(loop|in|stop|skip|by|times)\\b" },
+        { "name": "keyword.control.loop.pitcode", "match": "\\b(loop|in|stop|skip|by|times|until)\\b" },
         { "name": "keyword.control.flow.pitcode", "match": "\\b(back|give|wait)\\b" },
         { "name": "keyword.control.exception.pitcode", "match": "\\b(attempt|rescue|always|raise)\\b" },
         { "name": "keyword.control.import.pitcode", "match": "\\b(use|share|from|as)\\b" },
@@ -100,10 +100,10 @@
       "patterns": [
         {
           "name": "support.function.builtin.pitcode",
-          "match": "\\b(ask|len|str|num|int|type|clock|random|list|set|range|pattern|same|copy|fields|check|expect|test|char|warn|sleep|later|every|cancel|all|race|promise|fetch|quit)\\b(?=\\s*\\()"
+          "match": "\\b(ask|len|str|num|int|type|clock|random|list|set|range|pattern|same|copy|fields|check|expect|test|char|warn|sleep|later|every|cancel|all|race|settled|first|events|shell|big|promise|fetch|quit)\\b(?=\\s*\\()"
         },
         { "name": "support.class.builtin.pitcode", "match": "\\b(Error)\\b" },
-        { "name": "support.variable.builtin.pitcode", "match": "\\b(math|json|time|files|url|args|env)\\b" }
+        { "name": "support.variable.builtin.pitcode", "match": "\\b(math|json|time|files|url|web|args|env)\\b" }
       ]
     },
     "operators": {

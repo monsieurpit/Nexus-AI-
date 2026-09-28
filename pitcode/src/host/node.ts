@@ -1,7 +1,9 @@
+import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
+import * as http from "node:http";
 import * as path from "node:path";
 import type { Host } from "../runtime/runtime";
-import type { FileSystem } from "../runtime/stdlib";
+import type { FileSystem, SystemAccess } from "../runtime/stdlib";
 
 /** Reads one line from standard input, waiting until it arrives. */
 export function readLineFromStdin(prompt: string): string | null {
@@ -51,6 +53,36 @@ export function loadModuleFromDisk(spec: string, from: string): { name: string; 
   throw new Error(`not found: ${spec}`);
 }
 
+export const nodeSystem: SystemAccess = {
+  run(command) {
+    const r = spawnSync(command, { shell: true, encoding: "utf8" });
+    return { out: r.stdout ?? "", err: r.stderr ?? (r.error ? String(r.error.message) : ""), code: r.status ?? 1 };
+  },
+  serve(port, handle) {
+    return new Promise((resolve, reject) => {
+      const server = http.createServer((req, res) => {
+        let body = "";
+        req.setEncoding("utf8");
+        req.on("data", (chunk) => (body += chunk));
+        req.on("end", async () => {
+          const url = new URL(req.url ?? "/", "http://localhost");
+          const headers = Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : v ?? ""]));
+          const reply = await handle({
+            method: req.method ?? "GET", path: url.pathname, query: Object.fromEntries(url.searchParams), headers, body,
+          });
+          res.writeHead(reply.status, reply.headers);
+          res.end(reply.body);
+        });
+      });
+      server.once("error", reject);
+      server.listen(port, () => {
+        const address = server.address();
+        resolve({ port: typeof address === "object" && address ? address.port : port, stop: () => server.close() });
+      });
+    });
+  },
+};
+
 export function nodeHost(overrides: Partial<Host> = {}): Host {
   return {
     write: (text) => process.stdout.write(text),
@@ -59,6 +91,7 @@ export function nodeHost(overrides: Partial<Host> = {}): Host {
     readLine: readLineFromStdin,
     loadModule: loadModuleFromDisk,
     fs: nodeFileSystem,
+    system: nodeSystem,
     args: [],
     exit: (code) => process.exit(code),
     ...overrides,

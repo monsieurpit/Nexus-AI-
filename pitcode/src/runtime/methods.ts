@@ -85,6 +85,20 @@ function extreme(loc: Loc, list: unknown[], sign: 1 | -1): unknown {
   return best;
 }
 
+/** The item whose key `fn(item)` is smallest (-1) or largest (1). */
+function byKey(loc: Loc, list: unknown[], fn: unknown, sign: 1 | -1): unknown {
+  let best: unknown = null;
+  let bestKey: unknown;
+  list.forEach((x, i) => {
+    const key = invoke(loc, fn, [x]);
+    if (i === 0 || compareValues(loc, key, bestKey) * sign > 0) {
+      best = x;
+      bestKey = key;
+    }
+  });
+  return best;
+}
+
 function flat(list: unknown[], depth: number): unknown[] {
   return depth <= 0 ? [...list] : list.flatMap((x) => (Array.isArray(x) ? flat(x, depth - 1) : [x]));
 }
@@ -215,6 +229,37 @@ export const LIST_METHODS: MethodTable = {
     return groups;
   }),
   random: method(0, 0, (_, l: unknown[]) => (l.length ? l[Math.floor(Math.random() * l.length)] : null)),
+  flatMap: method(1, 1, (loc, l: unknown[], [fn]) => l.flatMap((x, i) => invoke(loc, fn, [x, i]))),
+  findLast: method(1, 1, (loc, l: unknown[], [fn]) => l.findLast((x, i) => isTruthy(invoke(loc, fn, [x, i]))) ?? null),
+  lastIndexOf: method(1, 1, (_, l: unknown[], [item]) => {
+    const i = l.lastIndexOf(item);
+    return i < 0 ? null : i;
+  }),
+  minBy: method(1, 1, (loc, l: unknown[], [fn]) => byKey(loc, l, fn, -1)),
+  maxBy: method(1, 1, (loc, l: unknown[], [fn]) => byKey(loc, l, fn, 1)),
+  sumBy: method(1, 1, (loc, l: unknown[], [fn]) => sum(loc, l.map((x) => invoke(loc, fn, [x])))),
+  partition: method(1, 1, (loc, l: unknown[], [fn]) => {
+    const yes: unknown[] = [];
+    const no: unknown[] = [];
+    l.forEach((x, i) => (isTruthy(invoke(loc, fn, [x, i])) ? yes : no).push(x));
+    return [yes, no];
+  }),
+  countBy: method(1, 1, (loc, l: unknown[], [fn]) => {
+    const counts = new Map<unknown, number>();
+    for (const x of l) {
+      const key = invoke(loc, fn, [x]);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }),
+  window: method(1, 1, (loc, l: unknown[], [n]) => {
+    const size = needInt(loc, n, "window()");
+    if (size <= 0) fail(loc, "window() needs a size of at least 1");
+    const out: unknown[][] = [];
+    for (let i = 0; i + size <= l.length; i++) out.push(l.slice(i, i + size));
+    return out;
+  }),
+  fill: method(1, 1, (_, l: unknown[], [value]) => l.fill(value)),
   shuffle: method(0, 0, (_, l: unknown[]) => shuffled(l)),
   same: method(1, 1, (_, l: unknown[], [other]) => deepEqual(l, other)),
 };
@@ -272,6 +317,17 @@ export const STRING_METHODS: MethodTable = {
   code: method(0, 1, (loc, s: string, [i = 0]) => s.codePointAt(needInt(loc, i, "code()")) ?? null),
   num: method(0, 0, (_, s: string) => toNumber(s)),
   same: method(1, 1, (_, s: string, [other]) => s === other),
+  compare: method(1, 2, (loc, s: string, [other, language = "en"]) =>
+    Math.sign(s.localeCompare(needString(loc, other, "compare()"), needString(loc, language, "compare()"), { sensitivity: "base" }))),
+  normalize: method(0, 0, (_, s: string) => s.normalize("NFC")),
+  plain: method(0, 0, (_, s: string) => s.normalize("NFD").replace(/\p{M}/gu, "")),
+  isBlank: method(0, 0, (_, s: string) => s.trim() === ""),
+  center: method(1, 2, (loc, s: string, [n, fill = " "]) => {
+    const width = needInt(loc, n, "center()");
+    const f = needString(loc, fill, "center()");
+    const left = Math.floor(Math.max(0, width - s.length) / 2);
+    return s.padStart(s.length + left, f).padEnd(width, f);
+  }),
 };
 
 function replaceText(loc: Loc, s: string, from: unknown, to: unknown, all: boolean): string {

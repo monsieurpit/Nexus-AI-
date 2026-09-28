@@ -874,7 +874,7 @@ export class Parser {
         const saved = this.noLambda;
         this.noLambda = false;
         const arms = this.matchArms<Expr>(() => {
-          if (this.check("{")) throw this.error(this.peek(), "When match gives a value, each arm needs a value, not a block");
+          // A `{` here starts a map: arms of a match that gives a value are values, not blocks.
           const value = this.expression();
           if (!this.atStatementEnd() && !this.check(",")) {
             throw this.error(this.peek(), "Put each match arm on its own line");

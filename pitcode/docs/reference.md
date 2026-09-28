@@ -51,7 +51,11 @@ Words with special meaning only in one place: `from` (`kind A from B`, `use x fr
 | `later(ms, f)` | Runs `f` once after `ms` milliseconds; gives back an id |
 | `every(ms, f)` | Runs `f` every `ms` milliseconds; gives back an id |
 | `cancel(id)` | Stops a `later` or `every` |
-| `all(promises)` / `race(promises)` | Waits for all / for the first |
+| `all(promises)` / `race(promises)` | Waits for all / for the first to finish |
+| `settled(promises)` | Waits for all, even failed ones: a list of `{ok, value}` or `{ok, error}` maps |
+| `first(promises)` | The first one that succeeds |
+| `events()` | An event hub: `bus.on(name, f)`, `bus.once(name, f)`, `bus.off(name, f?)`, `bus.emit(name, ...values)`, `bus.count(name)` |
+| `shell(command)` | Runs a command (computers only): a map with `out`, `err`, `code`, `ok` |
 | `promise((done, fail) => ...)` | Makes your own promise |
 | `fetch(url, options?)` | Downloads from the web (see below) |
 | `quit(code?)` | Ends the program |
@@ -88,6 +92,13 @@ Properties: `size`, `isEmpty`, `first`, `last`.
 | `chunk(n)` | Groups of `n` items |
 | `zip(other)` | Pairs items: `[[a1, b1], [a2, b2]]` |
 | `groupBy(f)` | Map from `f(item)` to the list of items |
+| `countBy(f)` | Map from `f(item)` to how many items gave it |
+| `partition(f)` | Two lists: items where `f` is true, and the rest |
+| `flatMap(f)` | `map(f)` then `flat()` |
+| `findLast(f)` / `lastIndexOf(item)` | Like `find` / `indexOf`, from the end |
+| `minBy(f)` / `maxBy(f)` / `sumBy(f)` | Smallest / largest item by `f(item)`, total of `f(item)` |
+| `window(n)` | Every run of `n` items in a row: `[1, 2, 3].window(2)` is `[[1, 2], [2, 3]]` |
+| `fill(value)` | Sets every item to `value` |
 | `sum()` / `average()` / `min()` / `max()` | Totals |
 | `random()` | One random item |
 | `same(other)` | Deep comparison |
@@ -117,6 +128,11 @@ Properties: `size`, `isEmpty`.
 | `count(p)` | How many times it appears |
 | `code(i = 0)` | Character code |
 | `num()` | Same as `num(text)` |
+| `compare(other, language?)` | -1, 0 or 1, ignoring case and accents (`"é".compare("e")` is `0`) |
+| `plain()` | Removes accents: `"Plongée".plain()` is `"Plongee"` |
+| `normalize()` | Unicode normal form |
+| `isBlank()` | Only spaces (or empty)? |
+| `center(n, fill?)` | Centers the text in `n` characters |
 
 `text[i]` reads one character. `text * 3` repeats it.
 
@@ -157,7 +173,7 @@ Made with `pattern("...", flags)`. Properties: `source`, `flags`. Method: `test(
 
 ## math
 
-`PI`, `E`, `TAU`, `infinity`, `abs`, `sqrt`, `cbrt`, `floor`, `ceil`, `trunc`, `round(x, digits?)`, `sign`, `pow`, `exp`, `log(x, base?)`, `log2`, `log10`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `hypot`, `radians(degrees)`, `degrees(radians)`, `min(...)`, `max(...)` (numbers or one list), `clamp(x, low, high)`, `random()` (0 to 1), `random(high)` / `random(low, high)` (whole numbers, both ends included).
+`PI`, `E`, `TAU`, `infinity`, `maxInt`, `minInt`, `epsilon`, `abs`, `sqrt`, `cbrt`, `floor`, `ceil`, `trunc`, `round(x, digits?)`, `sign`, `pow`, `exp`, `log(x, base?)`, `log2`, `log10`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `hypot`, `radians(degrees)`, `degrees(radians)`, `min(...)`, `max(...)` (numbers or one list), `clamp(x, low, high)`, `random()` (0 to 1), `random(high)` / `random(low, high)` (whole numbers, both ends included).
 
 ## json
 
@@ -184,6 +200,21 @@ Times are numbers of milliseconds.
 ## url
 
 `url.encode(text)` and `url.decode(text)` make text safe for a web address and back. `url.query({q: "coral reef", page: 2})` gives `"q=coral%20reef&page=2"`.
+
+## web
+
+A small web server (computers only):
+
+```pit
+pit server = wait web.serve(8080, req => match req.path {
+  "/" => "<h1>My dive log</h1>"                 // text starting with < is sent as HTML
+  "/api/dives" => dives                         // lists and maps are sent as JSON
+  other => web.reply("Not found", 404)
+})
+say "Open http://localhost:{server.port}"
+```
+
+The request `req` has `method`, `path`, `query` (a map), `headers` (a map), `body` (text) and `json()`. `web.reply(body, status, headers)` sets the status and headers. `server.stop()` shuts it down.
 
 ## fetch
 
