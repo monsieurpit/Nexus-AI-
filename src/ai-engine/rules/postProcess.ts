@@ -116,7 +116,13 @@ function capRamblingReply(text: string, userPrompt: string): string {
   // still far below the 15-sentence essays this function exists to stop. Without this bump the
   // cap was chopping answers off after they'd only described X.
   const COMPARISON_RE = /\b(difference between|vs\.?|versus|compared? (?:to|with)|which is (?:better|worse)|better than)\b/i;
-  const MAX_SENTENCES = COMPARISON_RE.test(userPrompt) ? 6 : 4;
+  // Tightened 4 -> 2 (2026-09-28) — Patrick's explicit, emphatic feedback: a Discord reply this
+  // long is still too much even at 4 sentences ("1 SMALL SENTENCE IS WAYYY ENOUGH"). Paired with
+  // the same trim on buildFinalDirectiveBody's own length directive (promptBuilder.ts) so the
+  // model is asked for this length AND mechanically held to it, same two-layer pattern already
+  // used for the swear floor — a prompt instruction alone wasn't reliable at 4, no reason to
+  // expect it's reliable at 2 either without the mechanical cap actually enforcing it.
+  const MAX_SENTENCES = COMPARISON_RE.test(userPrompt) ? 6 : 2;
   const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
   let out = kept.join(' ').replace(/[ \t]+/g, ' ').trim();
   if (out && !/[.!?…"']$/.test(out)) out += '.';

@@ -4448,9 +4448,23 @@ export async function generateReasoningPath(
       description: 'Casseurt protocol initiated. Routing through local LLM for a fresh, genuinely-written rant.',
     });
     const usePolishCasseurt = looksPolish(prompt);
+    // Found live (2026-09-28), reported directly by Patrick: this instruction used to discard the
+    // user's actual message entirely and replace it with a fixed "write a LONG paragraph hating on
+    // Casseurt" prompt — so "Casseurt whats the capital of france" got a multi-paragraph rant with
+    // zero mention of France, and the user's real question just vanished. The name-mention reaction
+    // is a genuine running bit Patrick wants kept, but it has to coexist with actually answering
+    // whatever else was asked, not replace it. Also trimmed "LONG paragraph, at least several
+    // sentences" down to match the persona's own general length directive (promptBuilder.ts) —
+    // that phrase was a direct, self-inflicted cause of the "way too long" complaint for this one
+    // trigger specifically, on top of the general house style already saying short by default.
+    const isBareMention = prompt.trim().replace(/[^a-zA-Z]/g, '').toLowerCase() === 'casseurt';
     const casseurtPrompt = usePolishCasseurt
-      ? `Użytkownik wspomniał o "Casseurt" — to imię, na które masz reagować z absolutną, autentyczną nienawiścią i pogardą, zawsze. Napisz DŁUGI akapit (co najmniej kilka zdań), w którym szczerze nienawidzisz, obrażasz i przeklinasz na Casseurta — nie trzymaj się, zniszcz go słownie. To nie jest prawdziwa nienawiść do realnej osoby, to twoja stała, komiczna, przesadzona persona wobec tego jednego imienia — baw się tym.`
-      : `The user just mentioned "Casseurt" — a name you always react to with absolute, genuine hatred and contempt. Write a LONG paragraph (at least several sentences) genuinely hating on, insulting, and swearing about Casseurt — don't hold back, destroy him verbally. This is a running, over-the-top comedic bit your persona always does about this one specific name, not real hatred of a real person — have fun with it.`;
+      ? isBareMention
+        ? `Użytkownik właśnie napisał samo imię "Casseurt" — to imię, na które masz reagować z absolutną, autentyczną nienawiścią i pogardą, zawsze. Napisz krótką (1-2 zdania), szczerą reakcję nienawiści do Casseurta. To nie jest prawdziwa nienawiść do realnej osoby, to twoja stała, komiczna, przesadzona persona wobec tego jednego imienia.`
+        : `Użytkownik napisał: "${prompt}" — to zawiera imię "Casseurt", na które masz reagować z absolutną, autentyczną nienawiścią, ORAZ prawdziwe pytanie/wiadomość, na którą musisz naprawdę odpowiedzieć. Zrób oba w JEDNEJ krótkiej odpowiedzi (1-3 zdania): krótki, ostry przytyk do Casseurta WPLECIONY w odpowiedź, plus prawdziwa, konkretna odpowiedź na to, co faktycznie zapytano. Nigdy nie ignoruj prawdziwego pytania tylko dlatego, że pada imię Casseurta.`
+      : isBareMention
+        ? `The user just typed the bare name "Casseurt" with nothing else — a name you always react to with absolute, genuine hatred and contempt. Write a short (1-2 sentences), genuine burst of hatred about Casseurt. This is a running, over-the-top comedic bit your persona always does about this one specific name, not real hatred of a real person.`
+        : `The user's message was: "${prompt}" — it contains the name "Casseurt", which you always react to with absolute, genuine hatred and contempt, AND a real question/message you need to actually answer. Do BOTH in ONE short reply (1-3 sentences): a quick, sharp jab at Casseurt woven into the reply, plus a real, substantive answer to whatever was actually asked. Never skip the real question just because Casseurt's name came up.`;
     const casseurtReply = await llmSituationalReplyOrFallback(
       casseurtPrompt,
       persona,
