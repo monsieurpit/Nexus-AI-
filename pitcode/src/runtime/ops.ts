@@ -13,11 +13,38 @@ import {
 
 export const truthy = (v: unknown): boolean => v !== null && v !== false && v !== undefined;
 
-export const eq = (a: unknown, b: unknown): boolean => a === b || (a == null && b == null);
+export const eq = (a: unknown, b: unknown): boolean => {
+  if (a === b || (a == null && b == null)) return true;
+  if (a instanceof Base) {
+    const equals = findMember(a, "equals");
+    if (equals && typeof equals.value === "function") return truthy(equals.value.call(a, b));
+  }
+  return false;
+};
+
+/** A kind can give meaning to an operator by having a method with this name. */
+const OPERATOR_METHODS: Record<string, string> = { "+": "plus", "-": "minus", "*": "times", "/": "divide", "%": "mod" };
+
+/** Calls `a.plus(b)` (etc.) when `a` is an instance whose kind defines it. */
+function kindOperator(loc: Loc, op: string, a: unknown, b: unknown): { value: unknown } | undefined {
+  if (!(a instanceof Base)) return undefined;
+  const name = OPERATOR_METHODS[op];
+  const m = name ? findMember(a, name) : undefined;
+  if (!m || typeof m.value !== "function") return undefined;
+  return { value: m.value.call(a, b) ?? null };
+}
 
 // ---------- arithmetic ----------
 
+/** Points to the method a kind needs for an operator, like "Give Vec a minus(other) method". */
+function noKindOperator(loc: Loc, op: string, a: unknown): void {
+  if (a instanceof Base && OPERATOR_METHODS[op]) {
+    fail(loc, `${kindName(a.constructor)} can't use '${op}'. Give it a ${OPERATOR_METHODS[op]}(other) method`);
+  }
+}
+
 function bothNumbers(loc: Loc, op: string, a: unknown, b: unknown): asserts a is number {
+  noKindOperator(loc, op, a);
   if (typeof a !== "number" || typeof b !== "number") {
     fail(loc, `'${op}' needs two numbers, but got ${typeName(a)} and ${typeName(b)}`);
   }
@@ -55,15 +82,24 @@ function bigMath(loc: Loc, op: string, a: unknown, b: unknown): bigint | undefin
 }
 
 export function add(loc: Loc, a: unknown, b: unknown): unknown {
+  if (a instanceof Base) {
+    const r = kindOperator(loc, "+", a, b);
+    if (r) return r.value;
+  }
   if (typeof a === "number" && typeof b === "number") return a + b;
   if (typeof a === "string" || typeof b === "string") return str(a) + str(b);
   if (Array.isArray(a) && Array.isArray(b)) return [...a, ...b];
   const big = bigMath(loc, "+", a, b);
   if (big !== undefined) return big;
+  noKindOperator(loc, "+", a);
   fail(loc, `Can't add ${typeName(a)} and ${typeName(b)}`);
 }
 
 export function sub(loc: Loc, a: unknown, b: unknown): unknown {
+  if (a instanceof Base) {
+    const r = kindOperator(loc, "-", a, b);
+    if (r) return r.value;
+  }
   if (typeof a === "number" && typeof b === "number") return a - b;
   const big = bigMath(loc, "-", a, b);
   if (big !== undefined) return big;
@@ -71,6 +107,10 @@ export function sub(loc: Loc, a: unknown, b: unknown): unknown {
 }
 
 export function mul(loc: Loc, a: unknown, b: unknown): unknown {
+  if (a instanceof Base) {
+    const r = kindOperator(loc, "*", a, b);
+    if (r) return r.value;
+  }
   if (typeof a === "number" && typeof b === "number") return a * b;
   // "-" * 10 repeats text.
   if (typeof a === "string" && typeof b === "number" && Number.isInteger(b) && b >= 0) return a.repeat(b);
@@ -79,10 +119,15 @@ export function mul(loc: Loc, a: unknown, b: unknown): unknown {
   if (Array.isArray(a) && typeof b === "number" && Number.isInteger(b) && b >= 0) return Array.from({ length: b }, () => a).flat();
   const big = bigMath(loc, "*", a, b);
   if (big !== undefined) return big;
+  noKindOperator(loc, "*", a);
   fail(loc, `'*' needs two numbers, but got ${typeName(a)} and ${typeName(b)}`);
 }
 
 export function div(loc: Loc, a: unknown, b: unknown): unknown {
+  if (a instanceof Base) {
+    const r = kindOperator(loc, "/", a, b);
+    if (r) return r.value;
+  }
   const big = bigMath(loc, "/", a, b);
   if (big !== undefined) return big;
   bothNumbers(loc, "/", a, b);
@@ -91,6 +136,10 @@ export function div(loc: Loc, a: unknown, b: unknown): unknown {
 }
 
 export function mod(loc: Loc, a: unknown, b: unknown): unknown {
+  if (a instanceof Base) {
+    const r = kindOperator(loc, "%", a, b);
+    if (r) return r.value;
+  }
   const big = bigMath(loc, "%", a, b);
   if (big !== undefined) return big;
   bothNumbers(loc, "%", a, b);
@@ -129,25 +178,44 @@ export function bnot(loc: Loc, a: unknown): number {
   return ~a;
 }
 
+/** `a < b` for instances whose kind has `compare(other)` (giving a negative number, 0 or a positive number). */
+function kindCompare(loc: Loc, a: unknown, b: unknown): number | undefined {
+  if (!(a instanceof Base)) return undefined;
+  const m = findMember(a, "compare");
+  if (!m || typeof m.value !== "function") return undefined;
+  const r = m.value.call(a, b);
+  if (typeof r !== "number") fail(loc, `${kindName(a.constructor)}.compare() must give back a number, but gave ${typeName(r)}`);
+  return r;
+}
+
 function comparable(loc: Loc, a: unknown, b: unknown): void {
   const numeric = (v: unknown) => typeof v === "number" || typeof v === "bigint";
   const ok = (numeric(a) && numeric(b)) || (typeof a === "string" && typeof b === "string");
+  if (!ok && a instanceof Base) fail(loc, `${kindName(a.constructor)} can't be compared. Give it a compare(other) method`);
   if (!ok) fail(loc, `Can't compare ${typeName(a)} with ${typeName(b)}`);
 }
 
 export function lt(loc: Loc, a: any, b: any): boolean {
+  const byKind = kindCompare(loc, a, b);
+  if (byKind !== undefined) return byKind < 0;
   comparable(loc, a, b);
   return a < b;
 }
 export function le(loc: Loc, a: any, b: any): boolean {
+  const byKind = kindCompare(loc, a, b);
+  if (byKind !== undefined) return byKind <= 0;
   comparable(loc, a, b);
   return a <= b;
 }
 export function gt(loc: Loc, a: any, b: any): boolean {
+  const byKind = kindCompare(loc, a, b);
+  if (byKind !== undefined) return byKind > 0;
   comparable(loc, a, b);
   return a > b;
 }
 export function ge(loc: Loc, a: any, b: any): boolean {
+  const byKind = kindCompare(loc, a, b);
+  if (byKind !== undefined) return byKind >= 0;
   comparable(loc, a, b);
   return a >= b;
 }

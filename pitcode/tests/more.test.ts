@@ -105,3 +105,23 @@ test("shell and web.serve on a computer", async () => {
   assert.equal(await output(src, [], { system: nodeSystem }), 'hello\n<h1>Hi</h1>\n{depth: 18, q: "1"}\n404\n');
   assert.match((await errorOf('shell("ls")')).message, /only run on a computer/);
 });
+
+test("kinds can define operators", async () => {
+  const vec = `
+    kind Vec {
+      init(x, y) => {
+        me.x = x
+        me.y = y
+      }
+      plus(o) => Vec(me.x + o.x, me.y + o.y)
+      times(k) => Vec(me.x * k, me.y * k)
+      equals(o) => o is Vec and me.x == o.x and me.y == o.y
+      compare(o) => me.x - o.x
+      show() => "Vec({me.x}, {me.y})"
+    }
+  `;
+  assert.equal(await output(`${vec}\npit a = Vec(1, 2)\npit b = Vec(3, 4)\nsay a + b, a * 3, a == Vec(1, 2), a != b, a < b, [b, a].sort()`),
+    "Vec(4, 6) Vec(3, 6) true true true [Vec(1, 2), Vec(3, 4)]\n");
+  assert.match((await errorOf(`${vec}\nsay Vec(1, 1) - Vec(1, 1)`)).message, /Vec can't use '-'. Give it a minus\(other\) method/);
+  assert.match((await errorOf("kind A {}\nsay A() < A()")).message, /Give it a compare\(other\) method/);
+});

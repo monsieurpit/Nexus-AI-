@@ -284,6 +284,17 @@ t.breathe(100)
 say t.air, t is Tank, type(t)
 ```
 
+A kind can give meaning to operators with methods named `plus`, `minus`, `times`, `divide` and `mod` (for `+ - * / %`), `compare(other)` (for `< <= > >=` and sorting) and `equals(other)` (for `==`):
+
+```pit
+kind Vec {
+  init(x, y) => { me.x = x; me.y = y }
+  plus(o) => Vec(me.x + o.x, me.y + o.y)
+  equals(o) => o is Vec and me.x == o.x and me.y == o.y
+}
+say Vec(1, 2) + Vec(3, 4) == Vec(4, 6)   // true
+```
+
 Names starting with `_` (`me._balance`, `_check()`) are private: only the kind's own code can use them.
 
 Reading a field an instance doesn't have is an error (`Tank has no field 'litres'. Did you mean 'liters'?`), so typos don't hide. For a field that may be empty, give it a starting value in the kind (`pit owner = nil`), or check with `"owner" in tank`. Maps are different: a missing key is simply `nil`.

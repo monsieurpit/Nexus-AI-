@@ -1,4 +1,4 @@
-import { closest, fail, invoke, plural } from "./core";
+import { closest, fail, findMember, invoke, plural } from "./core";
 import {
   Base, PitRange, deepEqual, isTruthy, str, typeName, type Loc,
 } from "./values";
@@ -57,6 +57,13 @@ function position(index: number, size: number): number {
 
 /** Default order for sort(): numbers by value, text alphabetically. */
 export function compareValues(loc: Loc, a: unknown, b: unknown): number {
+  if (a instanceof Base) {
+    const m = findMember(a, "compare");
+    if (m && typeof m.value === "function") {
+      const r = m.value.call(a, b);
+      if (typeof r === "number") return r;
+    }
+  }
   if (typeof a === "number" && typeof b === "number") return a - b;
   if ((typeof a === "bigint" || typeof a === "number") && (typeof b === "bigint" || typeof b === "number")) return a < b ? -1 : a > b ? 1 : 0;
   if (typeof a === "string" && typeof b === "string") return a < b ? -1 : a > b ? 1 : 0;
