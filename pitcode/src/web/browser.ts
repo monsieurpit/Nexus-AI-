@@ -58,6 +58,17 @@ export async function run(source: string, options: BrowserRunOptions): Promise<P
   return failed;
 }
 
+/** Checks a program without running it: gives back the first problem found, or null. */
+export function check(source: string): { kind: string; message: string; line: number; col: number } | null {
+  try {
+    new Runtime({ write: () => {} }).compileToJs(source, "main.pit");
+    return null;
+  } catch (e) {
+    if (e instanceof PitError) return { kind: e.kind, message: e.message, line: e.line, col: e.col };
+    throw e;
+  }
+}
+
 /** The JavaScript a program turns into. */
 export function toJs(source: string): string {
   return new Runtime({ write: () => {} }).compileToJs(source, "main.pit");

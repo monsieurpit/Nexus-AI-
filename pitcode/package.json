@@ -11,7 +11,8 @@
     "build": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true})\" && tsc -p tsconfig.json",
     "test": "npm run build && node --test \"dist/tests/**/*.test.js\"",
     "start": "node dist/src/cli.js",
-    "build:web": "npm run build && esbuild src/web/browser.ts --bundle --format=iife --global-name=PitCode --target=es2022 --minify --outfile=dist/web/pitcode.js && node scripts/build-playground.js"
+    "build:web": "npm run build && esbuild src/web/browser.ts --bundle --format=iife --global-name=PitCode --target=es2022 --minify --outfile=dist/web/pitcode.js && node scripts/build-playground.js",
+    "build:vscode": "npm run build && esbuild src/web/browser.ts --bundle --platform=node --format=cjs --target=node18 --outfile=editors/vscode/pitcode-core.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

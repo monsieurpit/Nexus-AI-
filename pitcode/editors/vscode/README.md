@@ -1,18 +1,20 @@
 # PitCode for Visual Studio Code
 
-Colors, snippets, bracket matching and comment toggling for `.pit` files.
+- **Colors** for `.pit` files
+- **Mistakes underlined as you type**: unknown names (with "did you mean"), syntax errors, changing a `lock`...
+- **Run** the current file with the ▶ button in the editor title bar, or Ctrl+Shift+Enter (Cmd+Shift+Enter on a Mac). It needs the `pitcode` command (run `npm link` in the PitCode folder once).
+- **Snippets**, bracket matching and comment toggling
 
 ## Install
 
-Copy this folder into your VS Code extensions folder, then restart VS Code:
-
-- macOS / Linux: `~/.vscode/extensions/pitcode`
-- Windows: `%USERPROFILE%\.vscode\extensions\pitcode`
+From the PitCode folder, build the checker once, then copy this folder into your VS Code extensions folder and restart VS Code:
 
 ```sh
-# from the PitCode folder, on macOS or Linux:
-cp -r editors/vscode ~/.vscode/extensions/pitcode
+npm run build:vscode
+cp -r editors/vscode ~/.vscode/extensions/pitcode        # macOS / Linux
 ```
+
+On Windows, copy it to `%USERPROFILE%\.vscode\extensions\pitcode`.
 
 ## Snippets
 

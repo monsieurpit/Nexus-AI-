@@ -5,14 +5,24 @@
   "version": "1.0.0",
   "publisher": "pitcode",
   "license": "MIT",
-  "engines": { "vscode": "^1.60.0" },
-  "categories": ["Programming Languages", "Snippets"],
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
   "contributes": {
     "languages": [
       {
         "id": "pitcode",
-        "aliases": ["PitCode", "pitcode"],
-        "extensions": [".pit"],
+        "aliases": [
+          "PitCode",
+          "pitcode"
+        ],
+        "extensions": [
+          ".pit"
+        ],
         "firstLine": "^#!.*\\bpitcode\\b",
         "configuration": "./language-configuration.json"
       }
@@ -25,7 +35,38 @@
       }
     ],
     "snippets": [
-      { "language": "pitcode", "path": "./snippets/pitcode.json" }
+      {
+        "language": "pitcode",
+        "path": "./snippets/pitcode.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "pitcode.run",
+        "title": "PitCode: Run this file",
+        "icon": "$(play)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "pitcode.run",
+          "when": "editorLangId == pitcode",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "pitcode.run",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorLangId == pitcode"
+      }
     ]
-  }
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:pitcode"
+  ]
 }
