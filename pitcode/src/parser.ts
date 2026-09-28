@@ -888,6 +888,13 @@ export class Parser {
       case "say":
         this.advance();
         return { kind: "SayExpr", value: this.expression() };
+      case "give": {
+        this.advance();
+        if (this.ctx.type !== "function" || !this.ctx.fn) throw this.error(t, "'give' can only be used inside a function");
+        this.ctx.fn.isGenerator = true;
+        const value = this.atStatementEnd() || this.check(")") ? null : this.expression();
+        return { kind: "GiveExpr", value, token: t };
+      }
     }
     if (t.type !== "EOF" && isKeyword(t.type)) {
       throw this.error(t, `'${t.lexeme}' is a PitCode keyword and can't be used as a value here`);

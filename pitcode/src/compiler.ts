@@ -685,6 +685,8 @@ class Compiler {
         return `(await ${this.expr(e.expr)})`;
       case "SayExpr":
         return `$.say([${this.expr(e.value)}])`;
+      case "GiveExpr":
+        return `((yield ${e.value ? this.expr(e.value) : "null"}) ?? null)`;
     }
   }
 
@@ -764,6 +766,7 @@ function exprToken(e: Expr): Token | null {
     case "Lambda": return e.fn.token;
     case "Ternary": return exprToken(e.cond);
     case "SayExpr": return exprToken(e.value);
+    case "GiveExpr": return e.token;
     default: return null;
   }
 }

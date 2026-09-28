@@ -125,3 +125,16 @@ test("kinds can define operators", async () => {
   assert.match((await errorOf(`${vec}\nsay Vec(1, 1) - Vec(1, 1)`)).message, /Vec can't use '-'. Give it a minus\(other\) method/);
   assert.match((await errorOf("kind A {}\nsay A() < A()")).message, /Give it a compare\(other\) method/);
 });
+
+test("give can receive a value sent with next()", async () => {
+  assert.equal(await output(`
+    talker() => {
+      pit name = give "What's your name?"
+      give "Hi {name}!"
+    }
+    pit t = talker()
+    say t.next().value
+    say t.next("Pat").value
+    say t.next().done
+  `), "What's your name?\nHi Pat!\ntrue\n");
+});

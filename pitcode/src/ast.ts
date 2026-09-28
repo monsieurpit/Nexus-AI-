@@ -60,7 +60,9 @@ export type Expr =
   | { kind: "Lambda"; fn: FunctionDef }
   | { kind: "Match"; subject: Expr; arms: MatchArm<Expr>[]; token: Token }
   | { kind: "Wait"; expr: Expr; token: Token }
-  | { kind: "SayExpr"; value: Expr };
+  | { kind: "SayExpr"; value: Expr }
+  /** `pit answer = give question`: the value sent back with `.next(value)`. */
+  | { kind: "GiveExpr"; value: Expr | null; token: Token };
 
 /** Left-hand side of `pit`: a name, or a list/map pattern that unpacks a value. */
 export type Target =
