@@ -35,6 +35,7 @@ export function decodeLoc(loc: Loc): { fileId: number; line: number; col: number
 
 const ERR_NAME = Symbol("pit.errorName");
 const ERR_LOC = Symbol("pit.errorLoc");
+const ERR_TRACE = Symbol("pit.errorTrace");
 
 /** The built-in `Error` kind. Everything PitCode raises is one of these (or a kind from it). */
 export class ErrorValue extends Base {
@@ -69,6 +70,16 @@ export class ErrorValue extends Base {
 
   static locOf(e: ErrorValue): Loc | undefined {
     return e[ERR_LOC];
+  }
+
+  /** Remembers the call sites that led here (only the first time). */
+  static setTrace(e: ErrorValue, stack: Loc[]): void {
+    const self = e as unknown as Record<symbol, Loc[] | undefined>;
+    if (self[ERR_TRACE] === undefined) self[ERR_TRACE] = stack.slice(-50).reverse();
+  }
+
+  static traceOf(e: ErrorValue): Loc[] {
+    return (e as unknown as Record<symbol, Loc[] | undefined>)[ERR_TRACE] ?? [];
   }
 
   static setLoc(e: ErrorValue, loc: Loc): void {

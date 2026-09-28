@@ -1,4 +1,4 @@
-import { article, call, checkArity, closest, fail, findMember, findStatic } from "./core";
+import { article, call, callStack, checkArity, closest, fail, findMember, findStatic } from "./core";
 import {
   LIST_TYPE, MAP_TYPE, NUMBER_TYPE, PATTERN_TYPE, RANGE_TYPE, SET_TYPE, STRING_TYPE,
   callMethod, unknownMember, type TypeMethods,
@@ -480,7 +480,12 @@ export function callMember(loc: Loc, obj: unknown, name: string, args: unknown[]
     if (typeof fn !== "function") fail(loc, `'${name}' is ${article(typeName(fn))}, not a method`);
     if (d.get) return call(loc, fn, args);
     checkArity(loc, fn, args.length);
-    return fn.apply(obj, args) ?? null;
+    callStack.push(loc);
+    try {
+      return fn.apply(obj, args) ?? null;
+    } finally {
+      callStack.pop();
+    }
   }
   if (typeof obj === "function") {
     if (isKind(obj)) {
@@ -653,10 +658,13 @@ export function matches(value: unknown, pattern: unknown): boolean {
 export function raise(loc: Loc, value: unknown): ErrorValue {
   if (value instanceof ErrorValue) {
     ErrorValue.setLoc(value, loc);
+    ErrorValue.setTrace(value, callStack);
     return value;
   }
   if (value instanceof Base) fail(loc, `Only errors can be raised. Make ${kindName(value.constructor)} come 'from Error'`);
-  return ErrorValue.create(str(value), undefined, loc);
+  const e = ErrorValue.create(str(value), undefined, loc);
+  ErrorValue.setTrace(e, callStack);
+  return e;
 }
 
 export function exportsMap(entries: [string, unknown][]): Map<string, unknown> {

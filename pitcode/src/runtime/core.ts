@@ -3,8 +3,13 @@ import {
 } from "./values";
 
 /** Stops the program with a RuntimeError at `loc`. */
+/** Where each running function was called from (innermost last), for "called from" lines in errors. */
+export const callStack: Loc[] = [];
+
 export function fail(loc: Loc, message: string): never {
-  throw ErrorValue.create(message, "RuntimeError", loc);
+  const e = ErrorValue.create(message, "RuntimeError", loc);
+  ErrorValue.setTrace(e, callStack);
+  throw e;
 }
 
 export function article(word: string): string {
@@ -59,7 +64,12 @@ export function construct(loc: Loc, kind: Function, args: unknown[], lenient = f
     const meta = (init.value as unknown as Record<symbol, FnMeta>)[FN];
     if (lenient && meta && args.length > meta.max) args = args.slice(0, meta.max);
     checkArity(loc, init.value, args.length, kindName(kind));
-    init.value.apply(obj, args);
+    callStack.push(loc);
+    try {
+      init.value.apply(obj, args);
+    } finally {
+      callStack.pop();
+    }
   } else if (args.length > 0 && !lenient) {
     fail(loc, `${kindName(kind)}() takes no values because it has no init`);
   }
@@ -79,7 +89,12 @@ export function call(loc: Loc, f: unknown, args: unknown[]): unknown {
     }
     if (meta.native) return f(loc, ...args) ?? null;
   }
-  return f(...args) ?? null;
+  callStack.push(loc);
+  try {
+    return f(...args) ?? null;
+  } finally {
+    callStack.pop();
+  }
 }
 
 /** Calls a function given to a built-in (like `list.map(f)`), without counting arguments. */
@@ -88,7 +103,12 @@ export function invoke(loc: Loc, f: unknown, args: unknown[]): unknown {
   if (isKind(f)) return construct(loc, f as Function, args, true);
   const meta = (f as unknown as Record<symbol, FnMeta>)[FN];
   if (meta?.native) return f(loc, ...args) ?? null;
-  return f(...args) ?? null;
+  callStack.push(loc);
+  try {
+    return f(...args) ?? null;
+  } finally {
+    callStack.pop();
+  }
 }
 
 /** Edit distance, used for "did you mean ...?" suggestions. */

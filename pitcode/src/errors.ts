@@ -14,6 +14,8 @@ export class PitError extends Error {
     readonly col: number,
     public file?: string,
     public source?: string,
+    /** Where the failing code was called from, innermost first. */
+    public trace: { file: string; line: number; col: number }[] = [],
   ) {
     super(message);
     this.name = kind;
@@ -32,6 +34,9 @@ export class PitError extends Error {
       const indent = text.slice(0, Math.max(0, this.col - 1)).replace(/[^\t]/g, " ");
       out += `\n ${gutter} |\n ${num} | ${text}\n ${gutter} | ${indent}^`;
     }
+    const shown = this.trace.slice(0, 6);
+    for (const t of shown) out += `\n  called from ${t.file}:${t.line}:${t.col}`;
+    if (this.trace.length > shown.length) out += `\n  ... and ${this.trace.length - shown.length} more calls`;
     return out;
   }
 }

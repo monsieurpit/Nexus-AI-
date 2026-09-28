@@ -138,3 +138,12 @@ test("give can receive a value sent with next()", async () => {
     say t.next().done
   `), "What's your name?\nHi Pat!\ntrue\n");
 });
+
+test("errors show where functions were called from", async () => {
+  const e = await errorOf("average(list) => list.sum() / list.size\nreport(d) => {\n  say average(d)\n}\nreport([])");
+  assert.equal(e.line, 1);
+  assert.deepEqual(e.trace.map((t) => t.line), [3, 5]);
+  assert.match(e.format(), /called from test\.pit:3:14\n {2}called from test\.pit:5:7$/);
+  const raised = await errorOf('check2(x) => { raise "bad {x}" }\nloop i in 0..1 { check2(i) }');
+  assert.deepEqual(raised.trace.map((t) => t.line), [2]);
+});

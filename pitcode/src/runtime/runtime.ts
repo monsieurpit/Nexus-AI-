@@ -247,7 +247,11 @@ export class Runtime {
     const loc = ErrorValue.locOf(value) ?? this.helpers.p;
     const { fileId, line, col } = decodeLoc(loc);
     const file = this.files[fileId] ?? this.files[0];
-    return new PitError(value.name, value.message, line, col, file.name, file.source);
+    const trace = ErrorValue.traceOf(value).map((l) => {
+      const at = decodeLoc(l);
+      return { file: (this.files[at.fileId] ?? this.files[0]).name, line: at.line, col: at.col };
+    });
+    return new PitError(value.name, value.message, line, col, file.name, file.source, trace);
   }
 
   private report(e: unknown): void {
