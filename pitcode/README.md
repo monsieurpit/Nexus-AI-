@@ -35,6 +35,8 @@ pitcode fmt file.pit          # tidy the indentation of a file
 pitcode test                  # run every *_test.pit file
 ```
 
+New to programming? Start with the tutorial: [English](docs/tutorial.md) · [Français](docs/tutoriel-fr.md).
+
 Run the tests with `npm test`. The full list of built-in functions and methods is in [docs/reference.md](docs/reference.md).
 
 ---
