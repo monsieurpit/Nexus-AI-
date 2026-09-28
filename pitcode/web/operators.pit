@@ -1,0 +1,30 @@
+// Your own kinds can use + - * / and ==, and big numbers stay exact.
+
+kind Air {
+  init(liters) => { me.liters = liters }
+  plus(other) => Air(me.liters + other.liters)
+  minus(other) => Air(me.liters - other.liters)
+  compare(other) => me.liters - other.liters
+  show() => "{me.liters} L of air"
+}
+
+pit tank = Air(2400)
+pit used = Air(900) + Air(300)
+say "Left:", tank - used
+say "Enough for a safety stop?", tank - used > Air(500)
+say [Air(30), Air(10), Air(20)].sort()
+
+// Big whole numbers: add n
+say "2 to the power 100 =", 2n ** 100n
+say "Grains of sand?", 7_500_000_000_000_000_000n * 1000n
+
+// Loops with names
+loop row in [[1, 2], [3, nil], [5, 6]] as rows {
+  loop cell in row {
+    when cell == nil {
+      say "Empty cell: skipping the rest of that row"
+      skip rows
+    }
+    say "cell", cell
+  }
+}

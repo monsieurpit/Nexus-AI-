@@ -210,6 +210,14 @@
   .tk-function { color: var(--syn-function); }
   .tk-operator { color: var(--syn-operator); }
 
+  .problem {
+    border-top: 1px solid var(--line);
+    padding: 7px 14px;
+    font: 12.5px/1.45 var(--sans);
+    color: var(--err);
+    background: color-mix(in srgb, var(--err) 7%, var(--surface));
+  }
+  .problem b { font-weight: 600; }
   .side { display: grid; grid-template-rows: 1fr auto; gap: 14px; min-height: 0; }
   .output {
     flex: 1;
@@ -297,6 +305,7 @@
         <pre id="highlight" aria-hidden="true"></pre>
         <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="PitCode program"></textarea>
       </div>
+      <div id="problem" class="problem" role="status" hidden></div>
     </section>
 
     <div class="side">
@@ -367,6 +376,19 @@ function paint() {
   syncScroll();
 }
 
+let checkTimer = 0;
+function checkLater() {
+  clearTimeout(checkTimer);
+  checkTimer = setTimeout(() => {
+    const problem = PitCode.check(code.value);
+    const box = $("problem");
+    box.hidden = !problem;
+    if (problem) {
+      box.innerHTML = `<b>Line ${problem.line}:</b> ${escapeHtml(problem.message)}`;
+    }
+  }, 350);
+}
+
 function syncScroll() {
   highlightEl.scrollTop = code.scrollTop;
   highlightEl.scrollLeft = code.scrollLeft;
@@ -390,6 +412,7 @@ function loadExample(name) {
   store.set("pitcode.example", name);
   store.set("pitcode.code", code.value);
   paint();
+  checkLater();
   run();
 }
 
@@ -438,6 +461,7 @@ async function run() {
 
 code.addEventListener("input", () => {
   paint();
+  checkLater();
   updatePosition();
   store.set("pitcode.code", code.value);
 });
@@ -484,5 +508,6 @@ exampleSelect.value = firstName;
 code.value = store.get("pitcode.code") ?? EXAMPLES[firstName];
 paint();
 updatePosition();
+checkLater();
 run();
 </script>

@@ -13,6 +13,7 @@ const examples = {
   "Generators (give)": read("examples/generators.pit"),
   "Waiting (async)": read("examples/async.pit"),
   "Questions (ask)": read("web/ask.pit"),
+  "Operators and big numbers": read("web/operators.pit"),
   "Dive calculator": read("examples/dive.pit"),
   "Closures": read("examples/closures.pit"),
   "Fibonacci": read("examples/fibonacci.pit"),
