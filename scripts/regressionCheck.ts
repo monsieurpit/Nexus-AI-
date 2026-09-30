@@ -12,7 +12,7 @@
 //        bun run scripts/regressionCheck.ts --live-only   (skip the deterministic tier)
 //        bun run scripts/regressionCheck.ts --det-only    (skip live generation, fast/offline)
 
-import { generateReasoningPath, buildSpeakerAwareWindow, classifyBotMetaQuestion, detectDoxRequest, isSlangGlossaryMisfire, detectOnlineCrisis } from '../src/ai-engine/reasoningEngine';
+import { generateReasoningPath, detectQueryIntent, buildSpeakerAwareWindow, classifyBotMetaQuestion, detectDoxRequest, isSlangGlossaryMisfire, detectOnlineCrisis } from '../src/ai-engine/reasoningEngine';
 import { getSystemPromptCharCount } from '../src/ai-engine/rules/promptBuilder';
 import { looksFrench } from '../src/ai-engine/localLlmClient';
 import { __loadRealEmbeddingsForTests } from '../src/ai-engine/vectorSearch';
@@ -226,6 +226,14 @@ async function runDeterministicChecks() {
     check('Barcelona wins 5/5 when on the table', allBarca);
   }
   check('control: factual either/or is NOT a debate', detectSubjectiveDebate('was it napoleon or wellington who won at waterloo') === null);
+
+  console.log('\nSmall-talk check-ins (not corpus lookups):');
+  // "how you feeling" used to reduce to the keyword "feel" and get the "HOLD ON. I'VE GOT "feel"
+  // UNDER ... WHICH ONE." ambiguity reply; "how's life" got "i don't actually know that one".
+  for (const q of ['how you feeling', 'how u feeling today', 'how do you feel', "how's life", "how's your night going", 'hows your day', 'how was your day nexus', 'how you holding up', 'yo how you been']) {
+    check(`"${q}" is conversational`, detectQueryIntent(q) === 'conversational', `got ${detectQueryIntent(q)}`);
+  }
+  check('control: "how do you feel when your blood sugar drops" is NOT small talk', detectQueryIntent('how do you feel when your blood sugar drops') !== 'conversational');
 
   console.log('\nMood engine:');
   _resetMoodForTests();

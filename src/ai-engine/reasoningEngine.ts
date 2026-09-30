@@ -1425,6 +1425,18 @@ const isChatLength = (wordCount: number) => wordCount <= CHAT_TRIGGER_MAX_WORDS;
 const QUESTION_BODY_REGEX =
   /\b(?:what|whats|why|how|hows|who|whos|where|wheres|when|whens|which|explain|define|difference|quoi|pourquoi|comment|qui|quand|quel|quelle|quels|quelles|explique|expliquer|d[ée]finis|d[ée]finir|diff[ée]rence)\b/i;
 
+// "How are you"-style check-ins aimed at the bot that the phrase list above misses because they
+// drop or swap the "are you" ("how you feeling", "how u feeling today", "how do you feel", "how's
+// your day", "how's life", "how you holding up"). Found live (2026-09-30): with no match they fell
+// to explanation/general intent and hit corpus search — "how you feeling" reduced to the single
+// keyword "feel", matched two unrelated docs (metal feeling cold / emotion vs feeling) and got the
+// "HOLD ON. I'VE GOT "feel" UNDER ... WHICH ONE." clarification; "how's life" got the honesty
+// rule's "i don't actually know that one"; "how u feeling today" broke character ("i'm just code").
+// Anchored to the message start (after optional openers) and only applied to chat-length messages,
+// so a real question like "how do you feel when your blood sugar drops" isn't swallowed.
+const SMALL_TALK_CHECKIN_REGEX =
+  /^(?:(?:yo+|hey|hi|ok|okay|so|bro|bruh|nexus|and|but)[,!]?\s+)*(?:how(?:\s+(?:are|r|have|do)\s+|\s+)(?:you|u|ya)\s+(?:feeling|feelin|feel|doing|doin|holding\s+up|holdin\s+up|been|keeping\s+up|getting\s+on|getting\s+by)\b|how(?:'?s|\s+is|\s+was)\s+(?:your|ur|ya)\s+(?:day|night|morning|evening|afternoon|week|weekend|life)\b|how'?s\s+life\b|how'?s\s+(?:everything|things)\s+(?:going|been)\b)/i;
+
 export function detectQueryIntent(query: string): QueryIntent {
   let q = query.toLowerCase().trim();
 
@@ -1552,6 +1564,7 @@ export function detectQueryIntent(query: string): QueryIntent {
     q === 'what' || qNoPunct === 'what' || q === 'wait, what' || q === 'wait what' ||
     /(?:how\s+are\s+you|how\s+you\s+doing|how\s+u\s+doing|how'?s\s+it\s+going|hows\s+it\s+going|what'?s\s+up|whats\s+up|wassup|wazzup|good\s+(?:morning|afternoon|evening|night)|who\s+are\s+you|what\s+is\s+your\s+name|what\s+can\s+you\s+do)/i.test(q)) ||
     YO_GREETING_TAIL_REGEX.test(q) ||
+    (isChatLength(wordCount) && SMALL_TALK_CHECKIN_REGEX.test(qCommaNormalized)) ||
     VC_JOIN_REGEX.test(q) ||
     PHONE_NUMBER_REGEX.test(q) ||
     // A quantity word problem ("if you have 3 apples and eat 2, how many do you have") ends in
