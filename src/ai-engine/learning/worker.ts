@@ -6,7 +6,7 @@ import * as localLlmClient from '../localLlmClient';
 import { postToDiscordLog } from '../discordLogWebhook';
 import { cosineSimilarity } from '../semanticEngine';
 import { buildWebSearchQuery, buildWikipediaQuery, executeUnifiedWebSearch } from '../webSearchEngine';
-import { isAdminHash, isFlaggedOrUnsafeForLearning } from './capture';
+import { isAdminHash, isFlaggedOrUnsafeForLearning, isVolatileQuestion } from './capture';
 import { extractCandidate, routeExtraction } from './extract';
 import { checkLearningSafety } from './safety';
 import { enrichLearned, polishLearned, promoteFact, unlearnFact } from './promote';
@@ -192,6 +192,11 @@ export async function processObservation(o: Observation): Promise<number | null>
 // ---- questions: learn the answer someone needed ------------------------------------------------
 
 async function processQuestionWithEvidence(o: Observation, evidence: EvidenceItem[], englishQuestion?: string): Promise<number | null> {
+  // Live data (prices, scores, weather, "today") is stale by tomorrow — answered live, never learned.
+  if (isVolatileQuestion(o.userText)) {
+    markObservationProcessed(o.id, PROCESSED.skipped);
+    return null;
+  }
   const question = englishQuestion ?? (await toEnglish(o.userText));
   if (question === null) {
     markObservationProcessed(o.id, PROCESSED.untranslatable);
@@ -233,7 +238,7 @@ async function processGap(o: Observation): Promise<number | null> {
   }
   let evidence: EvidenceItem[] = [];
   try {
-    const found = await executeUnifiedWebSearch(buildWebSearchQuery(question, 'explicit'), { provider: 'all', limit: 3 });
+    const found = await executeUnifiedWebSearch(buildWebSearchQuery(question, 'explicit'), { provider: 'all', limit: 3, trustedOnly: true, purpose: 'learning' });
     evidence = found.results
       .slice(0, 3)
       .map((r) => ({ source: r.title, text: relevantSentences(r.snippet || '', question, 5).join(' ') }))

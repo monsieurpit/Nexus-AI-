@@ -2,6 +2,7 @@ import { AISettings, KnowledgeItem, WebSearchResult } from '../types';
 import { processForSearch, BM25Engine } from './bm25Engine';
 import { isCasseurtMention, detectUserInsult } from './swearEngine';
 import { postToDiscordLog } from './discordLogWebhook';
+import { isLiveSearchAvailable, isTrustedDomain, searchTavilyDirect } from './tavilySearch';
 
 /**
  * Autonomous Zero-API-Key Web Search Engine
@@ -457,6 +458,8 @@ async function searchWikipediaUncached(query: string, maxResults: number): Promi
 // Short-lived cache so a burst of near-identical questions (common in a busy Discord channel)
 // doesn't re-scrape Google/DuckDuckGo/Wikipedia for the same query within a few minutes.
 const SEARCH_CACHE_TTL_MS = 3 * 60 * 1000;
+// Words that mean the answer changes with time — Tavily is asked for the last month only.
+const RECENCY_CUE_RE = /\b(?:latest|news|today|tonight|yesterday|this\s+(?:week|month)|right\s+now|currently|breaking|recent(?:ly)?|just\s+(?:announced|released)|price|score)\b/i;
 const searchResultCache = new Map<string, { expiresAt: number; value: UnifiedSearchResponse }>();
 
 function normalizeTitleForDedup(title: string): string {
@@ -483,15 +486,22 @@ export async function executeUnifiedWebSearch(
   rawPrompt: string,
   options: {
     limit?: number;
-    provider?: 'all' | 'google' | 'duckduckgo' | 'wikipedia';
+    provider?: 'all' | 'google' | 'duckduckgo' | 'wikipedia' | 'tavily';
     includeWikipedia?: boolean;
+    // Only keep results from sources good enough to verify a fact against (Wikipedia, major news,
+    // .gov/.edu...). The learning system uses this — a random website ranking well must not be able
+    // to make Nexus learn something.
+    trustedOnly?: boolean;
+    // 'learning' searches draw on a small reserved share of the live-search budget.
+    purpose?: 'chat' | 'learning';
   } = {}
 ): Promise<UnifiedSearchResponse> {
   const query = extractSearchQuery(rawPrompt);
   const limit = options.limit || 5;
   const provider = options.provider || 'all';
+  const liveOn = await isLiveSearchAvailable();
 
-  const cacheKey = `${provider}::${limit}::${query.toLowerCase()}`;
+  const cacheKey = `${provider}::${limit}::${options.trustedOnly ? 'trusted' : 'any'}::${liveOn ? 'l' : 'nl'}::${query.toLowerCase()}`;
   const cached = searchResultCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.value;
@@ -499,10 +509,16 @@ export async function executeUnifiedWebSearch(
 
   const promises: Promise<WebSearchResult[]>[] = [];
 
-  if (provider === 'google' || provider === 'all') {
+  // Tavily is the real search engine (keyless, no account); Google/DuckDuckGo block automated
+  // requests and return nothing, so while live search is available they're skipped instead of
+  // adding a wasted round trip.
+  if ((provider === 'tavily' || provider === 'all') && liveOn) {
+    promises.push(searchTavilyDirect(query, limit, { purpose: options.purpose, recent: RECENCY_CUE_RE.test(query) }));
+  }
+  if ((provider === 'google' || provider === 'all') && !(provider === 'all' && liveOn)) {
     promises.push(searchGoogleDirect(query, limit));
   }
-  if (provider === 'duckduckgo' || provider === 'all') {
+  if ((provider === 'duckduckgo' || provider === 'all') && !(provider === 'all' && liveOn)) {
     promises.push(searchDuckDuckGoDirect(query, limit));
   }
   if (provider === 'wikipedia' || provider === 'all' || options.includeWikipedia) {
@@ -538,7 +554,8 @@ export async function executeUnifiedWebSearch(
 
   // Score relevance of search results against query terms
   const queryTerms = processForSearch(query);
-  const scored = allResults.map((r) => {
+  const visible = options.trustedOnly ? allResults.filter((r) => r.source === 'wikipedia' || isTrustedDomain(r.domain)) : allResults;
+  const scored = visible.map((r) => {
     let score = 1.0;
     const lowerTitle = r.title.toLowerCase();
     const lowerSnippet = r.snippet.toLowerCase();
@@ -551,6 +568,7 @@ export async function executeUnifiedWebSearch(
     // Boost Wikipedia and trusted sources for factual accuracy
     if (r.source === 'wikipedia') score += 1.5;
     if (r.domain?.includes('.gov') || r.domain?.includes('.edu') || r.domain?.includes('.org')) score += 0.8;
+    if (r.source !== 'wikipedia' && isTrustedDomain(r.domain)) score += 1.2;
 
     return { ...r, score };
   });
@@ -562,7 +580,7 @@ export async function executeUnifiedWebSearch(
     query,
     results: finalResults,
     totalSources: finalResults.length,
-    engineUsed: provider === 'all' ? 'Google Web + DuckDuckGo + Wikipedia (Free Infinite Engine)' : provider,
+    engineUsed: provider === 'all' ? (liveOn ? 'Tavily + Wikipedia' : 'Google Web + DuckDuckGo + Wikipedia (Free Infinite Engine)') : provider,
   };
 
   // Only cache genuine hits — an empty result (e.g. a transient scrape failure) shouldn't be
@@ -968,6 +986,18 @@ export function shouldTriggerLiveWebSearch(
     /\bqui\s+est\s+le\s+(?:président|president|premier\s+ministre|pape|roi|maire|chef)(?:\s+(?:actuel|actuelle))?\s+(?:de|du|des|d')\b/i.test(q) ||
     /\best[- ]ce\s+que\s+.{2,40}\s+est\s+(?:encore|toujours)\s+(?:en\s+vie|vivant|vivante)\b/i.test(q);
   if (isCurrentEventOrLiveLookup) return 'current-events';
+
+  // Live data Wikipedia can't have — prices, exchange rates, last night's results, what's on now.
+  // With a real search engine behind it (Brave) these are answerable; before, they got an invented
+  // number or a "don't know".
+  const isLiveData =
+    /\b(?:bitcoin|btc|ethereum|eth|solana|dogecoin|crypto|gold|silver|oil|s&p|nasdaq|dow|tesla|apple|nvidia)\b.{0,20}\b(?:price|worth|value|at)\b|\b(?:price|cost)\s+of\s+(?!living\b)\w+/i.test(q) ||
+    /\bhow\s+much\s+(?:is|are|does|do)\b.{0,40}\b(?:cost|worth|now|today|right\s+now)\b/i.test(q) ||
+    /\b(?:exchange\s+rate|usd\s+to\s+\w+|\w+\s+to\s+usd|cad\s+to\s+\w+)\b/i.test(q) ||
+    /\b(?:score|result|results|highlights|lineup|lineups)\b.{0,40}\b(?:last\s+night|yesterday|today|tonight|this\s+weekend)\b|\bwho\s+won\b.{0,40}\b(?:last\s+night|yesterday|today)\b/i.test(q) ||
+    /\bwhat(?:'?s|\s+is)\s+(?:happening|going\s+on)\b.{0,30}\b(?:in|with|at)\b/i.test(q) ||
+    /\b(?:next|upcoming|last|latest|recent)\s+(?:match|game|fixture|result|episode|season|album|release)s?\b|\bwhen\s+(?:is|are|does|do|did)\b.{0,40}\b(?:play|playing|plays|kick\s*off|next\s+(?:match|game)|come\s+out|release[sd]?|premiere)s?\b/i.test(q);
+  if (isLiveData) return 'current-events';
 
   // Recency wording on a real question — the corpus is a snapshot, so these go to the web even when
   // it has a similar-looking doc. Found live (2026-09-30): "what happened with the louvre heist"

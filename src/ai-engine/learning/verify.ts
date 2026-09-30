@@ -6,9 +6,11 @@
 
 import { learningEmbed, learningGenerate } from './llm';
 import { processForSearch } from '../bm25Engine';
+import { splitSentencesSafe } from '../sentences';
 import { cosineSimilarity, searchKnowledgeGraph } from '../semanticEngine';
 import { getAllKnowledge } from '../knowledgeBase';
 import { executeUnifiedWebSearch } from '../webSearchEngine';
+import { isLiveSearchAvailable } from '../tavilySearch';
 import {
   allClusters,
   Candidate,
@@ -35,9 +37,19 @@ const ANSWER_CUE_RE =
 export function relevantSentences(text: string, claim: string, max = 3): string[] {
   const terms = new Set(processForSearch(claim).filter((t) => t.length > 2));
   const claimNames = keyFacts(claim).names;
+  // Sentences carrying the claim's numbers (year, score, date) rank first: a fact can only be
+  // backed if the evidence shown to the judge actually contains its numbers, and the year often sits
+  // in a different sentence than the one that names the winner (the old picker dropped it, so true
+  // facts like "Dembélé won the 2025 Ballon d'Or" couldn't be verified).
+  const claimNumbers = [...keyFacts(claim).numbers].filter((n) => n.length >= 2);
   const isQuestion = /\?\s*$|^(?:who|what|when|where|which|how|is|are|was|were|did|does)\b/i.test(claim.trim());
-  const sentences = (text.match(/[^.!?]+(?:[.!?]+|$)/g) || []).map((s) => s.trim()).filter((s) => s.length > 20);
-  const scoreOf = (s: string) => {
+  const sentences = splitSentencesSafe(text).filter((s) => s.length > 20);
+  const numberBonus = (s: string) => {
+    const nums = keyFacts(s).numbers;
+    return claimNumbers.filter((n) => nums.has(n)).length * 3;
+  };
+  const scoreOf = (s: string) => numberBonus(s) + baseScoreOf(s);
+  const baseScoreOf = (s: string) => {
     // Distinct terms — an opening sentence repeating "World Cup" twice isn't twice as relevant.
     const overlap = new Set(processForSearch(s).filter((t) => terms.has(t))).size;
     if (!isQuestion || overlap === 0) return overlap;
@@ -60,18 +72,25 @@ export function relevantSentences(text: string, claim: string, max = 3): string[
 export async function gatherEvidence(claim: string, subject: string): Promise<EvidenceItem[]> {
   const evidence: EvidenceItem[] = [];
   const queries = [...new Set([subject && subject.length > 2 ? subject : '', claim].filter(Boolean))];
-  for (const query of queries) {
-    try {
-      const web = await executeUnifiedWebSearch(query, { provider: 'all', limit: 3 });
-      for (const r of web.results.slice(0, 3)) {
-        if (evidence.some((e) => e.source === r.title)) continue;
-        const picked = relevantSentences(r.snippet || '', claim);
-        if (picked.length) evidence.push({ source: r.title, text: picked.join(' ') });
-      }
-    } catch {
-      // no web evidence from this query
-    }
+  // Wikipedia first; the live web search (Tavily, limited quota) only when Wikipedia had nothing, and
+  // then ONLY results from trusted sources — a random website ranking well for a query must not be
+  // able to make Nexus learn something.
+  const stages: ('wikipedia' | 'tavily')[] = (await isLiveSearchAvailable()) ? ['wikipedia', 'tavily'] : ['wikipedia'];
+  for (const provider of stages) {
     if (evidence.length >= 2) break;
+    for (const query of queries) {
+      try {
+        const web = await executeUnifiedWebSearch(query, { provider, limit: 3, trustedOnly: true, purpose: 'learning' });
+        for (const r of web.results.slice(0, 3)) {
+          if (evidence.some((e) => e.source === r.title)) continue;
+          const picked = relevantSentences(r.snippet || '', claim);
+          if (picked.length) evidence.push({ source: r.title, text: picked.join(' ') });
+        }
+      } catch {
+        // no web evidence from this query
+      }
+      if (evidence.length >= 2) break;
+    }
   }
   for (const hit of searchKnowledgeGraph(claim, getAllKnowledge(), 2)) {
     if (hit.item.category === 'learned') continue;
@@ -179,16 +198,21 @@ export function quoteComesFrom(quote: string, evidenceText: string): boolean {
 
 export type Verdict = 'supported' | 'contradicted' | 'not-enough-info';
 
-const JUDGE_SYSTEM = `You are a strict fact-checker. Given a CLAIM and EVIDENCE excerpts, answer with ONE JSON object only:
-{"verdict": "supported" | "contradicted" | "not-enough-info", "quote": "the exact evidence sentence that decides it, or empty"}
-- "supported" only if the evidence clearly states the same fact (same thing, same numbers, same dates).
-- "contradicted" if the evidence clearly states something incompatible.
-- "not-enough-info" if the evidence is about something else, is vague, or only partly matches. When unsure, say "not-enough-info".`;
+
+// Differences are listed BEFORE the verdict: a small model asked for a bare verdict answered
+// "contradicted" / "supported" / "contradicted" for one correct claim while quoting the same
+// sentence each time (2026-09-30). Forced to name the differences first it got that claim 5/5 right,
+// and in 20 runs on false claims (wrong year, winner, number, score) never said "supported".
+const JUDGE_SYSTEM = `You are a strict fact-checker. Given a CLAIM and EVIDENCE excerpts, answer with ONE JSON object only, fields in this order:
+{"quote": "the ONE evidence sentence most relevant to the claim, copied exactly (empty if none is about it)", "differences": ["each way the claim says something that sentence doesn't say or disagrees with; empty list if none"], "verdict": "supported" | "contradicted" | "not-enough-info"}
+- "supported": the differences list is empty, or only holds harmless wording/extra background that the evidence doesn't contradict.
+- "contradicted": a listed difference is a DIRECT conflict (a different person, winner, number, date or place than the quote states).
+- "not-enough-info": no sentence is about the claim, or the evidence is vague. When unsure, use "not-enough-info".`;
 
 export async function judgeClaim(claim: string, evidence: EvidenceItem[]): Promise<{ verdict: Verdict; quote: string }> {
   if (evidence.length === 0) return { verdict: 'not-enough-info', quote: '' };
   const evidenceText = evidence.map((e, i) => `[${i + 1}] (${e.source}) ${e.text}`).join('\n');
-  const text = await learningGenerate(`CLAIM: ${claim}\n\nEVIDENCE:\n${evidenceText}\n\nJSON:`, { system: JUDGE_SYSTEM, temperature: 0, maxTokens: 160 });
+  const text = await learningGenerate(`CLAIM: ${claim}\n\nEVIDENCE:\n${evidenceText}\n\nJSON:`, { system: JUDGE_SYSTEM, temperature: 0, maxTokens: 420 });
   if (text === null) return { verdict: 'not-enough-info', quote: '' };
   const m = text.replace(/```(?:json)?/gi, '').match(/\{[\s\S]*\}/);
   if (!m) return { verdict: 'not-enough-info', quote: '' };
@@ -201,7 +225,13 @@ export async function judgeClaim(claim: string, evidence: EvidenceItem[]): Promi
       return { verdict: 'not-enough-info', quote: '' };
     }
     if (verdict === 'supported' && !quote) return { verdict: 'not-enough-info', quote: '' };
-    if (verdict === 'supported' && !numbersBackedBy(claim, evidenceText)) return { verdict: 'not-enough-info', quote: '' };
+    if (verdict === 'supported') {
+      // The numbers must be in the evidence item the judge's quote comes from — "anywhere in the
+      // evidence" let an unrelated corpus article about a 2024 comedy series back the false claim
+      // "the louvre heist happened in 2024" (learned live, 2026-09-30).
+      const item = evidence.find((e) => quoteComesFrom(quote, e.text));
+      if (!item || !numbersBackedBy(claim, item.text)) return { verdict: 'not-enough-info', quote: '' };
+    }
     return { verdict, quote };
   } catch {
     return { verdict: 'not-enough-info', quote: '' };
@@ -216,23 +246,33 @@ export async function judgeClaim(claim: string, evidence: EvidenceItem[]): Promi
 // minister of Canada" came back supported, then not-enough-info). Any "contradicted" in the mix
 // without a clear supported majority still means no.
 export async function judgeClaimTwice(claim: string, evidence: EvidenceItem[]): Promise<{ verdict: Verdict; quote: string }> {
+  if (evidence.length === 0) return { verdict: 'not-enough-info', quote: '' };
+  // Two opinions (evidence in opposite order), even if the first is "unsure": the small judge is
+  // sometimes timid about a correct claim, and one timid answer used to block a true fact outright.
+  // "Supported" still needs two "supported" verdicts out of three, each with a real quote from an
+  // evidence item that itself carries the claim's numbers (see judgeClaim).
   const first = await judgeClaim(claim, evidence);
-  if (first.verdict === 'not-enough-info' || evidence.length === 0) return first;
   const second = await judgeClaim(claim, [...evidence].reverse());
   if (first.verdict === second.verdict) return first;
-  if (first.verdict === 'contradicted' && second.verdict !== 'supported') return first;
-  if (second.verdict === 'contradicted' && first.verdict !== 'supported') return second;
-  if (first.verdict === 'supported' && second.verdict === 'not-enough-info' && evidence.length > 1) {
-    const rotated = [...evidence.slice(1), evidence[0]];
-    const third = await judgeClaim(claim, rotated);
-    if (third.verdict === 'supported') return first;
+  const supported = [first, second].find((x) => x.verdict === 'supported');
+  const contradicted = [first, second].find((x) => x.verdict === 'contradicted');
+  if (supported && contradicted) return { verdict: 'not-enough-info', quote: '' };
+  if (contradicted) return contradicted; // contradicted + unsure: the evidence did say something incompatible
+  if (supported && evidence.length > 1) {
+    const third = await judgeClaim(claim, [...evidence.slice(1), evidence[0]]);
+    if (third.verdict === 'supported') return supported;
   }
   return { verdict: 'not-enough-info', quote: '' };
 }
 
 // ---- answer a question from evidence -------------------------------------------------------------
 
-const ANSWER_SYSTEM = `You turn a question plus evidence into ONE standalone fact sentence, written in English. Use ONLY the evidence: names, numbers and dates exactly as written there, nothing from memory. The sentence must make sense on its own (no "it"/"they" without saying who). If the evidence does not clearly answer the question, reply exactly: NONE`;
+const ANSWER_SYSTEM = `You turn a question plus evidence into ONE standalone fact sentence, written in English.
+Examples of the right size:
+Q: who won the 2026 world cup -> Spain won the 2026 FIFA World Cup.
+Q: who is the prime minister of canada -> Mark Carney is the prime minister of Canada.
+Q: when did the louvre heist happen -> The Louvre heist happened on 19 October 2025.
+Q: what is labubu -> Labubu is a line of collectible plush toys created by Kasing Lung. Use ONLY the evidence: names, numbers and dates exactly as written there, nothing from memory. The sentence must make sense on its own (no "it"/"they" without saying who). Keep it MINIMAL: state only the direct answer to the question — add a number or date only if the question itself asks for one, and no extra detail (no scores, no background). Every extra detail is one more thing that can be wrong. If the evidence does not clearly answer the question, reply exactly: NONE`;
 
 export async function writeAnswerClaim(question: string, evidence: EvidenceItem[]): Promise<string | null> {
   if (evidence.length === 0) return null;

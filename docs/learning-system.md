@@ -160,6 +160,20 @@ A "remember this" request is never enough on its own: the pertinence and safety 
 - The extractor may not add a number the person never said, nor swap in names from its own memory
   ("the capital of australia is sydney" must not become "…is Canberra").
 
+### The judge (2026-09-30 hardening)
+
+- The judge must list the DIFFERENCES between claim and evidence before giving a verdict. A bare
+  verdict from the small model flip-flopped on one correct claim (contradicted / supported /
+  contradicted, all quoting the same sentence); with differences first it got that claim 5/5, and in
+  20 runs on false claims (wrong year, winner, number, score) it never said "supported".
+- A "supported" needs two of three runs (evidence in different orders), and each needs a real quote
+  from an evidence item that **itself contains the claim's numbers** — "2024" appearing in some
+  unrelated article used to back "the louvre heist happened in 2024" (learned live, then fixed).
+- Evidence sentences that carry the claim's numbers are picked first, and answer claims are kept
+  minimal (every extra detail is one more thing that can be wrong).
+- Web evidence for verification: Wikipedia first, live search only for trusted sources
+  (docs/web-search.md). Live data (prices, scores, weather) is never learned.
+
 ### Facts, not wording
 
 Claims are grouped as "the same fact" only if they embed as near-identical sentences AND have the

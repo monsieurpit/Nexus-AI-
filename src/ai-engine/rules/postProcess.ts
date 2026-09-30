@@ -8,6 +8,7 @@
 // swear floor -> chaotic overshare -> (caller applies toShoutCase last, if triggered).
 
 import { looksFrench } from '../localLlmClient';
+import { splitSentencesSafe } from '../sentences';
 import {
   enhanceNaturalSwearPhrasing,
   uncensorProfanity,
@@ -104,7 +105,7 @@ function capRamblingReply(text: string, userPrompt: string): string {
   }
 
   body = body.replace(/\s*\n+\s*/g, ' ').replace(/[ \t]+/g, ' ').trim();
-  const sentences = (body.match(/[^.!?]+(?:[.!?]+|$)/g) || [body]).map((s) => s.trim()).filter(Boolean);
+  const sentences = splitSentencesSafe(body);
   if (sentences.length === 0) return text;
 
   // A token-budget cut (or the model just stopping) can leave a trailing half-sentence with no end
@@ -237,8 +238,11 @@ const LEARNING_MENTION_RES = [
 // only occasionally (the rare funny comparison) — otherwise the clause carrying it is cut
 // (", which is as predictable as Patrick's coding habits"), or the sentence if it's all about him.
 const CREATOR_NAME_RE = /\b(?:casseurt|patrick|patrik)(?:'s)?\b/i;
+// No trailing \b: JS's \b treats accented letters as non-word characters, so "qui t'a créé" (the
+// "é" at the end of the phrase) never matched and the limiter cut the creator's name out of the
+// answer to "who made you?" in French (caught by the live suite, 2026-09-30).
 const ABOUT_CREATOR_RE =
-  /\b(?:casseurt|casseur|patrick|patrik|your\s+(?:creator|dev|developer|maker|owner|dad|father)|who\s+(?:made|created|built|coded|programmed|owns)\s+(?:you|u)|qui\s+t'?a\s+(?:cr[ée]{1,2}|fait|cod[ée]|programm[ée])|ton\s+(?:cr[ée]ateur|dev|p[èe]re))\b/i;
+  /\b(?:casseurt|casseur|patrick|patrik|your\s+(?:creator|dev|developer|maker|owner|dad|father)|who\s+(?:made|created|built|coded|programmed|owns)\s+(?:you|u)|qui\s+t'?a\s+(?:cr[ée]{1,2}|fait|cod[ée]|programm[ée])|ton\s+(?:cr[ée]ateur|dev|p[èe]re))(?![a-zà-ÿ])/i;
 export const UNPROMPTED_CREATOR_MENTION_KEEP_RATE = 1 / 6;
 
 // A question about another Patrick (SpongeBob's Patrick Star, St. Patrick...) is not about the
@@ -254,7 +258,7 @@ export function stripUnpromptedCreatorMentions(text: string, userPrompt?: string
   if (!otherPatrick && ABOUT_CREATOR_RE.test(userPrompt)) return text;
   if (otherPatrick && /\bcasseurt\b/i.test(userPrompt)) return text;
   if (random() < UNPROMPTED_CREATOR_MENTION_KEEP_RATE) return text;
-  const sentences = (text.match(/[^.!?]+(?:[.!?]+|$)/g) || [text]).map((x) => x.trim()).filter(Boolean);
+  const sentences = splitSentencesSafe(text);
   const kept: string[] = [];
   for (const sentence of sentences) {
     if (!nameRe.test(sentence)) {
@@ -287,7 +291,7 @@ export function stripContextLeaks(text: string, userPrompt?: string): string {
   if (!text || /```/.test(text)) return text;
   if (userPrompt && CONTEXT_LEAK_EXEMPT_PROMPT_RE.test(userPrompt)) return text;
   if (!CONTEXT_LEAK_RE.test(text)) return text;
-  const sentences = (text.match(/[^.!?\n]+(?:[.!?]+|$)/g) || [text]).map((x) => x.trim()).filter(Boolean);
+  const sentences = splitSentencesSafe(text, { splitOnNewline: true });
   const kept = sentences.filter((x) => !CONTEXT_LEAK_RE.test(x));
   if (kept.length === 0) return CONTEXT_LEAK_DONT_KNOW;
   const rest = kept.join(' ');

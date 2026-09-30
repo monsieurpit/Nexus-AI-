@@ -48,6 +48,7 @@ import {
 import { countTokens } from './src/ai-engine/tokenizer';
 import { ModelPersonaId, ReasoningMode, UserMemory, WebSearchResult } from './src/types';
 import { openLearningStore, isLearningEnabled } from './src/ai-engine/learning/store';
+import { getSearchStatus } from './src/ai-engine/tavilySearch';
 import { captureExchange, captureQuestion, captureReaction, markFlaggedByRaidShield, registerNexusReply } from './src/ai-engine/learning/capture';
 import { loadLearnedIntoKnowledge } from './src/ai-engine/learning/promote';
 import { markForegroundActivity, startLearningWorker } from './src/ai-engine/learning/worker';
@@ -638,6 +639,8 @@ app.get('/api/health', async (req, res) => {
       model: process.env.OLLAMA_MODEL || 'gemma3:4b',
       available: llmAvailable,
     },
+    // Web search status — counts only, never the key itself.
+    webSearch: await getSearchStatus(),
     queue: {
       pendingRequests: globalRequestQueue.pendingCount,
       runningNow: globalRequestQueue.runningCount,

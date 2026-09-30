@@ -185,9 +185,17 @@ function questionIsLearnable(question: string): boolean {
   return checkLearningSafety(q, { rawMessage: true }).ok && !/\b(?:you|your|u|ur|nexus|casseurt|patrick)\b/i.test(q);
 }
 
+// Answers that change by the hour are looked up live each time and never stored as "knowledge".
+const VOLATILE_RE =
+  /\b(?:price|prices|stock|stocks|weather|temperature|forecast|live\s+score|score\s+of|odds|exchange\s+rate|trending|breaking\s+news|right\s+now|today|tonight|this\s+(?:morning|afternoon|evening)|how\s+much\s+is\b.{0,30}\b(?:now|worth)|prix|météo|meteo|cours\s+du|aujourd'?hui|ce\s+soir)\b/i;
+export function isVolatileQuestion(text: string): boolean {
+  return VOLATILE_RE.test(text);
+}
+
 export function captureQuestion(e: QuestionToCapture): number | null {
   if (!isLearningEnabled()) return null;
   if (!questionIsLearnable(e.question)) return null;
+  if (isVolatileQuestion(e.question)) return null;
   if (isFlaggedOrUnsafeForLearning(e.question)) return null;
   const userHash = identityHash(e.authorId, e.fallbackIdentity);
   try {

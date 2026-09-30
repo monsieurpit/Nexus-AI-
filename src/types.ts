@@ -74,7 +74,7 @@ export interface WebSearchResult {
   title: string;
   url: string;
   snippet: string;
-  source: 'google' | 'duckduckgo' | 'wikipedia' | 'web';
+  source: 'google' | 'duckduckgo' | 'wikipedia' | 'tavily' | 'web';
   engine?: string;
   domain?: string;
   score?: number;

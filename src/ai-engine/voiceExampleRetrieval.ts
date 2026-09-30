@@ -15,6 +15,7 @@
 
 import { VOICE_EXAMPLES, type VoiceExample } from './corpus/voiceExamples';
 import { cosineSimilarity } from './semanticEngine';
+import { splitSentencesSafe } from './sentences';
 import * as localLlmClient from './localLlmClient';
 
 let embeddingsPromise: Promise<Record<string, number[]>> | null = null;
@@ -145,7 +146,7 @@ export async function retrieveVoiceExamples(prompt: string, topK: number = 3): P
 const EXAMPLE_ANSWER_MAX_CHARS = 200;
 
 export function shortenExampleAnswer(answer: string, max: number = EXAMPLE_ANSWER_MAX_CHARS): string {
-  const sentences = (answer.match(/[^.!?]+(?:[.!?]+|$)/g) || [answer]).map((s) => s.trim()).filter(Boolean);
+  const sentences = splitSentencesSafe(answer);
   let out = sentences[0] || answer;
   for (const s of sentences.slice(1)) {
     if ((out + ' ' + s).length > max) break;

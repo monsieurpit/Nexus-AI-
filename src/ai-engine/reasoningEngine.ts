@@ -27,6 +27,7 @@ import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDe
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
 import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase } from './rules/postProcess';
+import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
 import * as localLlmClient from './localLlmClient';
 import {
@@ -4051,7 +4052,7 @@ export const retryTelemetry = {
 // thing IS), then the sentences sharing the most question terms, in their original order.
 const WEB_ANSWER_CUE_RE = /\b(?:current(?:ly)?|won|win(?:ner|ning)?|defeat(?:ed|ing)?|beat|champion|elected|appointed|died|announced|released|stolen|arrested|since|is the|was the)\b/i;
 function pickRelevantWebSentences(text: string, queryTerms: string[]): string[] {
-  const sentences = (text.match(/[^.!?]+(?:[.!?]+|$)/g) || []).map((x) => x.trim()).filter((x) => x.length > 20);
+  const sentences = splitSentencesSafe(text).filter((x) => x.length > 20);
   if (sentences.length <= 4) return sentences;
   const terms = queryTerms.filter((t) => t.length > 2);
   const scored = sentences.map((sentence, index) => {
