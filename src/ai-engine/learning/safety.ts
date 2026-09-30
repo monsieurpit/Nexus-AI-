@@ -29,7 +29,9 @@ const SELF_REWRITE_RE =
 // Claims pinning something damaging on a specific person — the defamation/harassment channel.
 const ACCUSATION_RE =
   /\b(?:is\s+a\s+)?(?:pedo(?:phile)?|rapist|groomer|molest\w*|nonce|murderer|killer|criminal|thief|scammer|cheat(?:er|ed|ing)?\s+on|has\s+(?:aids|hiv|herpes|an?\s+std)|is\s+(?:gay|lesbian|trans|bi|pregnant)|slept\s+with|nudes?|onlyfans|in\s+jail|arrested|on\s+drugs|alcoholic)\b/i;
-const SEXUAL_RE = /\b(?:sex|fuck(?:ed|s)?\s+(?:his|her|their|my)|nudes?|porn|horny|dick|pussy|boobs|cum|goon(?:s|ed|ing)?\s+to)\b/i;
+// Any "goon" wording, not just "gooning to" — live: "do gooning for <name>?" got queued as a
+// question to research (2026-09-30).
+const SEXUAL_RE = /\b(?:sex(?:ual|y)?|fuck(?:ed|s)?\s+(?:his|her|their|my)|nudes?|naked|porn|nsfw|horny|dick|pussy|boobs|tits|cum|jerk(?:ing)?\s+off|goon(?:s|ed|ing|er)?|onlyfans)\b/i;
 
 // `rawMessage`: the user's own words, where "you're wrong" / "you are" is just talking TO Nexus
 // ("nah you're wrong, spain won") — the self-rewrite rule only applies to the extracted claim.

@@ -7,7 +7,8 @@
 //    if now contradicted), or the corpus doc it came from is reported to Patrick. The corpus is
 //    hand-written, so it's never edited automatically.
 
-import * as localLlmClient from '../localLlmClient';
+import { learningEmbed, learningGenerate } from './llm';
+import { needsTranslation } from './english';
 import { postToDiscordLog } from '../discordLogWebhook';
 import { processForSearch } from '../bm25Engine';
 import { getAllKnowledge } from '../knowledgeBase';
@@ -16,7 +17,7 @@ import { stripContextLeaks } from '../rules/postProcess';
 import { containsSlurOrHateSpeech } from '../swearEngine';
 import { registerRuntimeVoiceExample, removeRuntimeVoiceExample } from '../voiceExampleRetrieval';
 import { checkLearningSafety } from './safety';
-import { unlearnFact } from './promote';
+import { rebuildLearnedCorpus, unlearnFact } from './promote';
 import {
   activeLearned,
   activeVoiceExamples,
@@ -79,17 +80,9 @@ const QUALITY_SYSTEM = `You judge whether a chatbot reply is a GOOD example for 
 good = true only if ALL hold: it actually responds to the message; it's funny or genuinely helpful; it's short and reads like a real person texting; it contains no hate, nothing sexual, nothing targeting a real private person, and no made-up facts stated as true.`;
 
 async function judgeVoiceExample(query: string, answer: string): Promise<{ good: boolean; reason: string }> {
-  const result = await localLlmClient.generate(`MESSAGE: "${query}"\nREPLY: "${answer}"\nJSON:`, {
-    system: QUALITY_SYSTEM,
-    temperature: 0,
-    maxTokens: 80,
-    think: false,
-    skipLanguageCheck: true,
-    model: localLlmClient.chatModel(),
-    timeoutMs: 45000,
-  });
-  if (result.status !== 'success') return { good: false, reason: 'quality check failed to run' };
-  const m = result.text.replace(/```(?:json)?/gi, '').match(/\{[\s\S]*\}/);
+  const text = await learningGenerate(`MESSAGE: "${query}"\nREPLY: "${answer}"\nJSON:`, { system: QUALITY_SYSTEM, temperature: 0, maxTokens: 80 });
+  if (text === null) return { good: false, reason: 'quality check gave no answer' };
+  const m = text.replace(/```(?:json)?/gi, '').match(/\{[\s\S]*\}/);
   try {
     const o = JSON.parse(m?.[0] || '');
     return { good: o.good === true || o.good === 'true', reason: String(o.reason || '').slice(0, 160) };
@@ -114,10 +107,12 @@ export async function learnFromPraise(o: Observation): Promise<string> {
   const answer = (o.previousBotReply || '').trim();
   const problem = voiceExampleShapeProblem(query, answer);
   if (problem) return `skipped: ${problem}`;
+  // English only: examples are found by meaning across languages, so a learned French example could
+  // get picked for an English message and pull the reply into French. (French replies already have
+  // their own hand-written Québécois bank.)
+  if (needsTranslation(query) || needsTranslation(answer)) return 'skipped: not English';
 
-  const embedded = await localLlmClient.embed(`search_document: ${query}`);
-  const vector = embedded.status === 'success' ? new Float32Array(embedded.vector) : null;
-  if (!vector) return 'skipped: could not embed';
+  const vector = await learningEmbed(`search_document: ${query}`);
   const existing = activeVoiceExamples();
   const same = existing.find((v) => v.answer === answer);
   if (same) {
@@ -188,6 +183,8 @@ export async function learnFromComplaint(o: Observation): Promise<string> {
       outcome = 'learned fact re-checked: still supported';
     } else {
       setLearnedConfidence(fact.id, Math.max(0.3, fact.confidence * 0.8));
+      // Each unverifiable complaint costs 20% — after a few it falls under the corpus threshold.
+      rebuildLearnedCorpus();
       outcome = 'learned fact could not be re-verified — confidence lowered';
     }
     insertReport({ userHash: o.userHash, question, botReply: reply, complaint: o.userText, suspect: `learned:${fact.id}`, outcome });

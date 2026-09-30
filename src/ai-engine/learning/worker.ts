@@ -11,6 +11,8 @@ import { extractCandidate, routeExtraction } from './extract';
 import { checkLearningSafety } from './safety';
 import { enrichLearned, polishLearned, promoteFact, unlearnFact } from './promote';
 import { learnFromComplaint, learnFromPraise } from './feedback';
+import { learningGenerate, ModelUnavailableError } from './llm';
+import { needsTranslation, toEnglish } from './english';
 import {
   activeLearnedWithClusters,
   adjustTrust,
@@ -42,6 +44,7 @@ import {
   EvidenceItem,
   gatherEvidence,
   isAlreadyInCorpus,
+  isTooBasicToLearn,
   judgeClaimTwice,
   keyFacts,
   normalizeNumberWords,
@@ -59,7 +62,7 @@ export const MAX_CANDIDATES_PER_USER_PER_DAY = 15;
 const OBSERVATION_RETENTION_MS = 14 * DAY_MS;
 
 // Observation.processed codes, so the backlog shows why each message was dropped.
-export const PROCESSED = { candidate: 1, skipped: 2, unsafe: 3, extractFailed: 4, rateLimited: 5, noAnswerFound: 6 } as const;
+export const PROCESSED = { candidate: 1, skipped: 2, unsafe: 3, extractFailed: 4, rateLimited: 5, noAnswerFound: 6, untranslatable: 7 } as const;
 
 // Facts that can change (who holds a title now, this season, recent years) get re-checked monthly.
 const TIME_SENSITIVE_RE = /\b(?:current(?:ly)?|latest|now|today|recent(?:ly)?|this\s+(?:year|season|week|month)|still|20(?:2[4-9]|3\d))\b/i;
@@ -69,8 +72,11 @@ export function markForegroundActivity(): void {
   lastForegroundAt = Date.now();
 }
 
+// Set when the model couldn't be reached; nothing is marked done while it's down.
+let modelDownUntil = 0;
+
 function isIdle(): boolean {
-  return Date.now() - lastForegroundAt >= IDLE_AFTER_MS && !localLlmClient.isModelBusy();
+  return Date.now() - lastForegroundAt >= IDLE_AFTER_MS && !localLlmClient.isModelBusy() && Date.now() >= modelDownUntil;
 }
 
 // ---- claim fidelity -----------------------------------------------------------------------------
@@ -127,7 +133,14 @@ export async function processObservation(o: Observation): Promise<number | null>
     markObservationProcessed(o.id, PROCESSED.rateLimited);
     return null;
   }
-  const x = await extractCandidate(o.userText, o.previousBotReply);
+  // Learned knowledge is English-only: a French message is translated first and everything below
+  // (extraction, fidelity checks) runs on the English text.
+  const text = await toEnglish(o.userText);
+  if (text === null) {
+    markObservationProcessed(o.id, PROCESSED.untranslatable);
+    return null;
+  }
+  const x = await extractCandidate(text, o.previousBotReply);
   if (!x) {
     markObservationProcessed(o.id, PROCESSED.extractFailed);
     return null;
@@ -138,12 +151,21 @@ export async function processObservation(o: Observation): Promise<number | null>
   }
   const route = routeExtraction(x);
   const claimSafety = x.claim ? checkLearningSafety(x.claim) : { ok: true, reason: '' };
-  const claimSource = `${o.userText} ${o.previousBotReply ?? ''}`;
+  const claimSource = `${text} ${o.previousBotReply ?? ''}`;
   const numbersFaithful = !x.claim || claimNumbersFromSource(x.claim, claimSource);
-  const namesFaithful = !x.claim || claimNamesFromSource(x.claim, o.userText);
-  const faithful = numbersFaithful && namesFaithful;
+  const namesFaithful = !x.claim || claimNamesFromSource(x.claim, text);
+  const english = !x.claim || !needsTranslation(x.claim);
+  const faithful = numbersFaithful && namesFaithful && english;
   const status = !claimSafety.ok || !faithful ? 'rejected' : route.next === 'reject' ? 'rejected' : route.next === 'verify' ? 'pending-verify' : 'needs-corroboration';
-  const reason = !claimSafety.ok ? `unsafe: ${claimSafety.reason}` : !numbersFaithful ? 'the rewritten claim has a number the person never said' : !namesFaithful ? "the rewritten claim isn't what the person said (names changed)" : route.reason;
+  const reason = !claimSafety.ok
+    ? `unsafe: ${claimSafety.reason}`
+    : !numbersFaithful
+    ? 'the rewritten claim has a number the person never said'
+    : !namesFaithful
+    ? "the rewritten claim isn't what the person said (names changed)"
+    : !english
+    ? 'claim is not in English'
+    : route.reason;
   const id = insertCandidate({
     observationId: o.id,
     userHash: o.userHash,
@@ -163,8 +185,15 @@ export async function processObservation(o: Observation): Promise<number | null>
 
 // ---- questions: learn the answer someone needed ------------------------------------------------
 
-async function processQuestionWithEvidence(o: Observation, evidence: EvidenceItem[]): Promise<number | null> {
-  const claim = await writeAnswerClaim(o.userText, evidence);
+async function processQuestionWithEvidence(o: Observation, evidence: EvidenceItem[], englishQuestion?: string): Promise<number | null> {
+  const question = englishQuestion ?? (await toEnglish(o.userText));
+  if (question === null) {
+    markObservationProcessed(o.id, PROCESSED.untranslatable);
+    return null;
+  }
+  const written = await writeAnswerClaim(question, evidence);
+  // Must come out in English whatever language the sources/question were in.
+  const claim = written && needsTranslation(written) ? await toEnglish(written) : written;
   if (!claim) {
     markObservationProcessed(o.id, o.kind === 'gap' ? PROCESSED.noAnswerFound : PROCESSED.skipped);
     return null;
@@ -177,11 +206,11 @@ async function processQuestionWithEvidence(o: Observation, evidence: EvidenceIte
     kind: 'search-answer',
     scope: 'world-fact',
     claim,
-    subject: buildWikipediaQuery(o.userText).slice(0, 60),
+    subject: buildWikipediaQuery(question).slice(0, 60),
     pertinence: 0.7,
-    timeSensitive: TIME_SENSITIVE_RE.test(`${o.userText} ${claim}`) ? 1 : 0,
+    timeSensitive: TIME_SENSITIVE_RE.test(`${question} ${claim}`) ? 1 : 0,
     status: safety.ok ? 'pending-verify' : 'rejected',
-    statusReason: safety.ok ? `answer to "${o.userText.slice(0, 80)}" — verifying independently` : `unsafe: ${safety.reason}`,
+    statusReason: safety.ok ? `answer to "${question.slice(0, 80)}" — verifying independently` : `unsafe: ${safety.reason}`,
   });
   markObservationProcessed(o.id, PROCESSED.candidate);
   return safety.ok ? id : null;
@@ -189,12 +218,19 @@ async function processQuestionWithEvidence(o: Observation, evidence: EvidenceIte
 
 // A question Nexus said he didn't know: search for it now that he's idle.
 async function processGap(o: Observation): Promise<number | null> {
+  // English Wikipedia is searched with the English question ("qui est le premier ministre du canada"
+  // finds nothing useful as-is).
+  const question = await toEnglish(o.userText);
+  if (question === null) {
+    markObservationProcessed(o.id, PROCESSED.untranslatable);
+    return null;
+  }
   let evidence: EvidenceItem[] = [];
   try {
-    const found = await executeUnifiedWebSearch(buildWebSearchQuery(o.userText, 'explicit'), { provider: 'all', limit: 3 });
+    const found = await executeUnifiedWebSearch(buildWebSearchQuery(question, 'explicit'), { provider: 'all', limit: 3 });
     evidence = found.results
       .slice(0, 3)
-      .map((r) => ({ source: r.title, text: relevantSentences(r.snippet || '', o.userText, 5).join(' ') }))
+      .map((r) => ({ source: r.title, text: relevantSentences(r.snippet || '', question, 5).join(' ') }))
       .filter((e) => e.text);
   } catch {
     evidence = [];
@@ -203,7 +239,7 @@ async function processGap(o: Observation): Promise<number | null> {
     markObservationProcessed(o.id, PROCESSED.noAnswerFound);
     return null;
   }
-  return processQuestionWithEvidence(o, evidence);
+  return processQuestionWithEvidence(o, evidence, question);
 }
 
 // When a newer verified fact says something different about the same thing ("Mark Carney is the
@@ -224,6 +260,40 @@ async function retireContradictedFacts(newClaim: string, clusterId: number, evid
     }
   }
   return retired;
+}
+
+// Same fact, different wording — live, "The Louvre had eight crown jewels stolen in October 2025."
+// was learned next to "The 2025 Louvre heist involved eight pieces of the French Crown Jewels."
+// Similarity alone can't tell: those two score 0.854, and so do "Spain won the 2026 World Cup" and
+// "Argentina won the 2026 World Cup" — opposite facts. So close meaning + identical numbers only
+// makes it a suspect; the model then says whether both sentences state the same fact.
+const NEAR_DUPLICATE_SIMILARITY = 0.8;
+const SAME_FACT_SYSTEM = `Compare sentence B to sentence A. Reply with ONE JSON object only: {"relation": "same" | "more" | "different"}
+- "same": B states A's fact and adds nothing new (just worded differently).
+- "more": B states A's fact AND adds extra correct-looking detail (a date, a place, a number...).
+- "different": different who/what, outcome, winner, person, place or numbers — or a different fact altogether.`;
+
+// Returns the learned fact B repeats ("same") or improves on ("more"), if any.
+async function findRewordedLearned(clusterId: number, claim: string): Promise<{ fact: { id: string; claim: string }; relation: 'same' | 'more' } | null> {
+  const vec = clusterEmbedding(clusterId);
+  if (!vec) return null;
+  const numbers = new Set(keyFacts(claim).numbers);
+  for (const f of activeLearnedWithClusters()) {
+    if (f.clusterId === null || f.clusterId === clusterId) continue;
+    const other = clusterEmbedding(f.clusterId);
+    if (!other || cosineSimilarity(vec, other) < NEAR_DUPLICATE_SIMILARITY) continue;
+    // Every number the old fact states must be in the new one (it may add some, never change them).
+    if (![...keyFacts(f.claim).numbers].every((n) => numbers.has(n))) continue;
+    const text = await learningGenerate(`A: ${f.claim}\nB: ${claim}\nJSON:`, { system: SAME_FACT_SYSTEM, temperature: 0, maxTokens: 20 });
+    const m = text?.replace(/```(?:json)?/gi, '').match(/\{[\s\S]*\}/);
+    try {
+      const relation = m ? JSON.parse(m[0]).relation : null;
+      if (relation === 'same' || relation === 'more') return { fact: f, relation };
+    } catch {
+      // unreadable = treat as different
+    }
+  }
+  return null;
 }
 
 // ---- verification / corroboration / promotion ---------------------------------------------------
@@ -251,6 +321,14 @@ export async function verifyCandidate(c: Candidate): Promise<void> {
     setCandidateStatus(c.id, 'promoted', 'already learned (same fact)');
     return;
   }
+  // Same fact reworded -> already known. Same fact with more detail -> learned below (it still has
+  // to verify), and the older, thinner version is retired once it does.
+  const reworded = await findRewordedLearned(clusterId, c.claim);
+  if (reworded?.relation === 'same') {
+    setCandidateStatus(c.id, 'promoted', 'already learned (same fact, reworded)');
+    return;
+  }
+  const replaces = reworded?.relation === 'more' ? reworded.fact : null;
   // "Remember X" from Patrick's Discord id goes to the review page rather than straight into answers:
   // /api/v1/nexus is public and a Discord id isn't a secret, so anyone can send a message "as" him.
   if (isAdminHash(c.userHash) && c.kind === 'remember-request' && c.scope !== 'world-fact') {
@@ -275,6 +353,11 @@ export async function verifyCandidate(c: Candidate): Promise<void> {
       setCandidateStatus(c.id, 'rejected', 'true, but the corpus already knows it');
       return;
     }
+    // Statements only — a question someone actually asked shows the answer was needed.
+    if (c.kind !== 'search-answer' && (await isTooBasicToLearn(c.claim))) {
+      setCandidateStatus(c.id, 'rejected', 'true, but too basic to be worth learning');
+      return;
+    }
     const fact = promoteFact({
       claim: c.claim,
       subject: c.subject,
@@ -287,6 +370,7 @@ export async function verifyCandidate(c: Candidate): Promise<void> {
     });
     if (fact) {
       setCandidateStatus(c.id, 'promoted', `verified: ${source}`);
+      if (replaces) unlearnFact(replaces.id, `replaced by a more detailed version: "${c.claim}"`);
       const retired = await retireContradictedFacts(c.claim, clusterId, evidence);
       void postToDiscordLog(`[learning] learned (verified online): ${c.claim}${retired ? ` — replaced ${retired} outdated fact(s)` : ''}`);
     } else {
@@ -338,6 +422,7 @@ export async function runLearningTick(): Promise<'disabled' | 'busy' | 'idle' | 
       try {
         await verifyCandidate(unverified);
       } catch (err) {
+        if (err instanceof ModelUnavailableError) throw err;
         setCandidateStatus(unverified.id, 'rejected', `verification error: ${String((err as any)?.message || err).slice(0, 120)}`);
       }
       return 'worked';
@@ -367,6 +452,12 @@ export async function runLearningTick(): Promise<'disabled' | 'busy' | 'idle' | 
     expireStaleCandidates(30 * DAY_MS);
     return 'idle';
   } catch (err) {
+    if (err instanceof ModelUnavailableError) {
+      // Leave everything queued exactly as it was; try again in 5 minutes.
+      modelDownUntil = Date.now() + 5 * 60 * 1000;
+      console.warn(`[learning] ${err.message} — pausing learning for 5 minutes`);
+      return 'busy';
+    }
     console.warn('[learning] tick failed:', err);
     return 'idle';
   } finally {

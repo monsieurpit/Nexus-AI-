@@ -4,7 +4,7 @@
 //  - Server lore (can't be checked online): similar claims are clustered by embedding, and a cluster
 //    only passes once enough DIFFERENT, trusted people said it on different days.
 
-import * as localLlmClient from '../localLlmClient';
+import { learningEmbed, learningGenerate } from './llm';
 import { processForSearch } from '../bm25Engine';
 import { cosineSimilarity, searchKnowledgeGraph } from '../semanticEngine';
 import { getAllKnowledge } from '../knowledgeBase';
@@ -91,8 +91,15 @@ const SMALL_NUMBERS: Record<string, number> = {
   zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
   eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19,
   twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+  // French, so a translation's numbers can be compared with the original ("huit" = "eight" = 8).
+  // "un/une" are left out on purpose — they're mostly articles.
+  deux: 2, trois: 3, quatre: 4, cinq: 5, sept: 7, huit: 8, neuf: 9, dix: 10, onze: 11, douze: 12,
+  treize: 13, quatorze: 14, quinze: 15, seize: 16, vingt: 20, trente: 30, quarante: 40, cinquante: 50, soixante: 60,
 };
-const MULTIPLIERS: Record<string, number> = { hundred: 100, thousand: 1000, million: 1_000_000, billion: 1_000_000_000 };
+const MULTIPLIERS: Record<string, number> = {
+  hundred: 100, thousand: 1000, million: 1_000_000, billion: 1_000_000_000,
+  cent: 100, cents: 100, mille: 1000, millions: 1_000_000, milliard: 1_000_000_000, milliards: 1_000_000_000,
+};
 
 export function normalizeNumberWords(text: string): string {
   const word = `(?:${[...Object.keys(SMALL_NUMBERS), ...Object.keys(MULTIPLIERS)].join('|')})`;
@@ -104,7 +111,7 @@ export function normalizeNumberWords(text: string): string {
     let current = 0;
     for (const w of m.toLowerCase().split(/[\s-]+/).filter((x) => x && x !== 'and')) {
       if (w in SMALL_NUMBERS) current += SMALL_NUMBERS[w];
-      else if (w === 'hundred') current = (current || 1) * 100;
+      else if (w === 'hundred' || w === 'cent' || w === 'cents') current = (current || 1) * 100;
       else {
         total += (current || 1) * MULTIPLIERS[w];
         current = 0;
@@ -113,8 +120,8 @@ export function normalizeNumberWords(text: string): string {
     return String(total + current);
   });
   // "88 million" and "eighty-eight million" must end up identical: expand digit + multiplier too.
-  return spelled.replace(/(\d+(?:\.\d+)?)\s*(thousand|million|billion)\b/gi, (_m, n: string, mult: string) =>
-    String(Math.round(parseFloat(n) * MULTIPLIERS[mult.toLowerCase()]))
+  return spelled.replace(/(\d+(?:[.,]\d+)?)\s*(thousand|million|billion|mille|millions|milliards?)\b/gi, (_m, n: string, mult: string) =>
+    String(Math.round(parseFloat(n.replace(',', '.')) * MULTIPLIERS[mult.toLowerCase()]))
   );
 }
 
@@ -181,17 +188,9 @@ const JUDGE_SYSTEM = `You are a strict fact-checker. Given a CLAIM and EVIDENCE 
 export async function judgeClaim(claim: string, evidence: EvidenceItem[]): Promise<{ verdict: Verdict; quote: string }> {
   if (evidence.length === 0) return { verdict: 'not-enough-info', quote: '' };
   const evidenceText = evidence.map((e, i) => `[${i + 1}] (${e.source}) ${e.text}`).join('\n');
-  const result = await localLlmClient.generate(`CLAIM: ${claim}\n\nEVIDENCE:\n${evidenceText}\n\nJSON:`, {
-    system: JUDGE_SYSTEM,
-    temperature: 0,
-    maxTokens: 160,
-    think: false,
-    skipLanguageCheck: true,
-    model: localLlmClient.chatModel(),
-    timeoutMs: 45000,
-  });
-  if (result.status !== 'success') return { verdict: 'not-enough-info', quote: '' };
-  const m = result.text.replace(/```(?:json)?/gi, '').match(/\{[\s\S]*\}/);
+  const text = await learningGenerate(`CLAIM: ${claim}\n\nEVIDENCE:\n${evidenceText}\n\nJSON:`, { system: JUDGE_SYSTEM, temperature: 0, maxTokens: 160 });
+  if (text === null) return { verdict: 'not-enough-info', quote: '' };
+  const m = text.replace(/```(?:json)?/gi, '').match(/\{[\s\S]*\}/);
   if (!m) return { verdict: 'not-enough-info', quote: '' };
   try {
     const o = JSON.parse(m[0]);
@@ -233,26 +232,36 @@ export async function judgeClaimTwice(claim: string, evidence: EvidenceItem[]): 
 
 // ---- answer a question from evidence -------------------------------------------------------------
 
-const ANSWER_SYSTEM = `You turn a question plus evidence into ONE standalone fact sentence. Use ONLY the evidence: names, numbers and dates exactly as written there, nothing from memory. The sentence must make sense on its own (no "it"/"they" without saying who). If the evidence does not clearly answer the question, reply exactly: NONE`;
+const ANSWER_SYSTEM = `You turn a question plus evidence into ONE standalone fact sentence, written in English. Use ONLY the evidence: names, numbers and dates exactly as written there, nothing from memory. The sentence must make sense on its own (no "it"/"they" without saying who). If the evidence does not clearly answer the question, reply exactly: NONE`;
 
 export async function writeAnswerClaim(question: string, evidence: EvidenceItem[]): Promise<string | null> {
   if (evidence.length === 0) return null;
   const evidenceText = evidence.map((e, i) => `[${i + 1}] (${e.source}) ${e.text}`).join('\n');
-  const result = await localLlmClient.generate(`QUESTION: ${question}\n\nEVIDENCE:\n${evidenceText}\n\nFACT:`, {
-    system: ANSWER_SYSTEM,
-    temperature: 0,
-    maxTokens: 90,
-    think: false,
-    skipLanguageCheck: true,
-    model: localLlmClient.chatModel(),
-    timeoutMs: 45000,
-  });
-  if (result.status !== 'success') return null;
-  const claim = result.text.replace(/^["'\s]+|["'\s]+$/g, '').split('\n')[0].trim();
+  const text = await learningGenerate(`QUESTION: ${question}\n\nEVIDENCE:\n${evidenceText}\n\nFACT:`, { system: ANSWER_SYSTEM, temperature: 0, maxTokens: 90 });
+  if (text === null) return null;
+  const claim = text.replace(/^["'\s]+|["'\s]+$/g, '').split('\n')[0].trim();
   if (!claim || /^none\b/i.test(claim) || claim.length < 15 || claim.length > 300) return null;
   // Numbers must come from the evidence, not the model's memory.
   if (!numbersBackedBy(claim, evidenceText)) return null;
   return claim;
+}
+
+// ---- usefulness ---------------------------------------------------------------------------------
+
+// A true fact everyone already knows ("water boils at 100°C", "Paris is in France") is noise in the
+// learned corpus: it competes in search with nothing to add. Worth learning = recent, specific,
+// niche, or about this community.
+const BASIC_SYSTEM = `Decide if a fact is basic common knowledge that almost any adult or a general encyclopedia intro would state (e.g. "Paris is the capital of France", "water boils at 100°C at sea level", "the Earth orbits the Sun"). Recent events, specific numbers/dates, niche topics, games, sports results, internet culture and community facts are NOT basic. Reply with ONE JSON object only: {"basic": true|false}`;
+
+export async function isTooBasicToLearn(claim: string): Promise<boolean> {
+  const text = await learningGenerate(`FACT: ${claim}\nJSON:`, { system: BASIC_SYSTEM, temperature: 0, maxTokens: 30 });
+  if (!text) return false;
+  const m = text.replace(/```(?:json)?/gi, '').match(/\{[\s\S]*\}/);
+  try {
+    return JSON.parse(m?.[0] || '{}').basic === true;
+  } catch {
+    return false;
+  }
 }
 
 // A supported claim the hand-written corpus ALREADY states isn't worth learning — it'd just be a
@@ -268,9 +277,8 @@ export const CORROBORATION_MIN_PEOPLE = 3;
 export const CORROBORATION_MIN_DAYS = 2;
 export const CORROBORATION_MIN_TRUST = 0.35;
 
-export async function embedClaim(claim: string): Promise<Float32Array | null> {
-  const r = await localLlmClient.embed(claim);
-  return r.status === 'success' ? new Float32Array(r.vector) : null;
+export async function embedClaim(claim: string): Promise<Float32Array> {
+  return learningEmbed(claim);
 }
 
 // Puts the candidate in the cluster of the most similar existing claim, or starts a new one.

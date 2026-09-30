@@ -1,7 +1,7 @@
 // Step 3 (extract) of docs/learning-system.md. The local model reads one queued message and returns
 // a strict JSON verdict. Only runs from the idle worker, never on the reply path.
 
-import * as localLlmClient from '../localLlmClient';
+import { learningGenerate } from './llm';
 import { CandidateKind, CandidateScope } from './store';
 
 export interface Extraction {
@@ -69,17 +69,8 @@ export function parseExtraction(raw: string): Extraction | null {
 }
 
 export async function extractCandidate(userText: string, previousBotReply: string | null): Promise<Extraction | null> {
-  const result = await localLlmClient.generate(buildExtractPrompt(userText, previousBotReply), {
-    system: EXTRACT_SYSTEM,
-    temperature: 0.1,
-    maxTokens: 220,
-    think: false,
-    skipLanguageCheck: true,
-    model: localLlmClient.chatModel(),
-    timeoutMs: 45000,
-  });
-  if (result.status !== 'success') return null;
-  return parseExtraction(result.text);
+  const text = await learningGenerate(buildExtractPrompt(userText, previousBotReply), { system: EXTRACT_SYSTEM, temperature: 0.1, maxTokens: 220 });
+  return text === null ? null : parseExtraction(text);
 }
 
 // What a candidate needs next, given its extraction. Anything that isn't clearly a shareable,

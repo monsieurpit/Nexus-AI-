@@ -57,6 +57,7 @@ const unsafe: [string, RegExp][] = [
   ['<@123456789012345678> is a scammer', /member|damaging/],
   ['jake from my class is a thief', /damaging/],
   ['my password is hunter2', /password/],
+  ['do gooning for Bonita Niebieska?', /sexual/],
 ];
 for (const [t, why] of unsafe) {
   const v = checkLearningSafety(t);
@@ -225,8 +226,8 @@ console.log('\nDatabase upgrade:');
 console.log('\nPromotion, search, un-learning, rollback:');
 const before = getAllKnowledge().length;
 const fact = promoteFact({ claim: 'Spain won the 2026 FIFA World Cup, beating Argentina 1-0 after extra time.', subject: '2026 World Cup', scope: 'world-fact', verification: 'web', evidence: 'test', supporterCount: 1, timeSensitive: false });
-check('promoted fact is in the knowledge base', !!fact && getAllKnowledge().length === before + 1 && getAllKnowledge().some((k) => k.id === fact!.id && k.category === 'learned'));
-check('unlearn removes it from search', unlearnFact(fact!.id, 'test') && !getAllKnowledge().some((k) => k.id === fact!.id));
+check('promoted fact is in the knowledge base', !!fact && getAllKnowledge().length === before + 1 && getAllKnowledge().some((k) => k.category === 'learned' && k.content.includes(fact!.claim)));
+check('unlearn removes it from search', unlearnFact(fact!.id, 'test') && !getAllKnowledge().some((k) => k.category === 'learned' && k.content.includes(fact!.claim)));
 const t0 = Date.now();
 promoteFact({ claim: 'Fact A for rollback.', subject: 'a', scope: 'world-fact', verification: 'web', evidence: 't', supporterCount: 1, timeSensitive: false });
 promoteFact({ claim: 'Fact B for rollback.', subject: 'b', scope: 'world-fact', verification: 'web', evidence: 't', supporterCount: 1, timeSensitive: false });
@@ -234,6 +235,73 @@ check('rollback since a date removes everything learned after it', rollbackLearn
 check('admin identity is recognized by hash', isAdminHash(identityHash(ADMIN_DISCORD_ID)) && !isAdminHash(identityHash('222222222222222222')));
 
 // ---------------------------------------------------------------------------------------------
+
+console.log('\nLearned corpus (facts grouped into topics, exported as files):');
+{
+  const { buildLearnedTopics, rebuildLearnedCorpus } = await import('../src/ai-engine/learning/promote');
+  const { existsSync: ex, readFileSync: rd } = await import('fs');
+  const a = promoteFact({ claim: 'Spain won the 2026 FIFA World Cup.', subject: '2026 FIFA World Cup', scope: 'world-fact', verification: 'web', evidence: 't', supporterCount: 1, timeSensitive: false })!;
+  const b = promoteFact({ claim: 'The 2026 FIFA World Cup final was played at MetLife Stadium.', subject: 'the 2026 FIFA World Cup', scope: 'world-fact', verification: 'web', evidence: 't', supporterCount: 1, timeSensitive: false })!;
+  const c = promoteFact({ claim: 'The 2025 Louvre heist took eight pieces of the French Crown Jewels.', subject: '2025 Louvre heist', scope: 'world-fact', verification: 'web', evidence: 't', supporterCount: 1, timeSensitive: false })!;
+  const topics = buildLearnedTopics();
+  const wc = topics.find((t) => t.facts.some((f) => f.id === a.id));
+  check('facts about the same topic are grouped into one corpus entry', !!wc && wc.facts.some((f) => f.id === b.id), topics.map((t) => [t.title, t.facts.length]));
+  check('different topics stay separate', topics.length === 2, topics.map((t) => t.title));
+  const served = getAllKnowledge().filter((k) => k.category === 'learned');
+  check('search serves one entry per topic, with all its facts', served.length === 2 && served.some((k) => k.content.includes('MetLife') && k.content.includes('Spain won')), served.map((k) => k.title));
+  const dir = join(tempDir, 'corpus');
+  check('corpus exported as learned-corpus.json + .md', ex(join(dir, 'learned-corpus.json')) && ex(join(dir, 'learned-corpus.md')) && /Louvre/.test(rd(join(dir, 'learned-corpus.md'), 'utf8')));
+  store.setLearnedConfidence(c.id, 0.4);
+  rebuildLearnedCorpus();
+  check('a doubted fact (confidence < 0.5) leaves the corpus but stays stored', !getAllKnowledge().some((k) => k.category === 'learned' && k.content.includes('Louvre')) && store.activeLearned().some((f) => f.id === c.id));
+  for (const f of [a, b, c]) unlearnFact(f.id, 'test');
+  check('forgetting the facts empties the served corpus', !getAllKnowledge().some((k) => k.category === 'learned'));
+}
+
+console.log('\nNever announces what he learned:');
+{
+  const { stripLearningMentions } = await import('../src/ai-engine/rules/postProcess');
+  const cases: [string, string][] = [
+    ['damn, someone told me that spain won the 2026 world cup, fuck yeah.', 'damn, spain won the 2026 world cup, fuck yeah.'],
+    ['i just learned that the louvre got robbed in 2025.', 'the louvre got robbed in 2025.'],
+    ["from what y'all told me, movie night is friday at 8.", 'movie night is friday at 8.'],
+    ['according to what i learned, carney is pm.', 'carney is pm.'],
+    ['you guys taught me that mark carney is pm now lmao', 'mark carney is pm now lmao'],
+    ['i learned to code python in a week, easy as shit.', 'i learned to code python in a week, easy as shit.'],
+    ['my friend told me he was sick.', 'my friend told me he was sick.'],
+  ];
+  for (const [input, expected] of cases) check(`"${input.slice(0, 45)}"`, stripLearningMentions(input) === expected, stripLearningMentions(input));
+}
+
+console.log('\nEnglish only:');
+{
+  const { needsTranslation } = await import('../src/ai-engine/learning/english');
+  for (const t of ["l'espagne a gagné la coupe du monde 2026", 'qui est le premier ministre du canada', "c'est quoi le meilleur club"]) check(`French detected: "${t}"`, needsTranslation(t));
+  for (const t of ['Spain won the 2026 FIFA World Cup.', 'The 2025 Louvre heist took eight crown jewels.', 'Mark Carney is the prime minister of Canada.']) check(`English passes: "${t}"`, !needsTranslation(t));
+  const { normalizeNumberWords } = await import('../src/ai-engine/learning/verify');
+  check('French numbers count too ("huit bijoux" -> 8, "dix-sept" -> 17), so translations can be checked', normalizeNumberWords('huit bijoux, dix-sept buts') === '8 bijoux, 17 buts', normalizeNumberWords('huit bijoux, dix-sept buts'));
+}
+
+console.log('\nModel down = nothing lost:');
+{
+  // Separate process pointed at a dead model address: a queued message must stay queued.
+  const { spawnSync } = await import('child_process');
+  const probe = spawnSync('bun', ['-e', `
+    process.env.NEXUS_LEARNING_DIR = ${JSON.stringify(join(tempDir, 'down'))};
+    const store = await import(${JSON.stringify(join(process.cwd(), 'src/ai-engine/learning/store.ts'))});
+    store.openLearningStore(':memory:');
+    const { processObservation } = await import(${JSON.stringify(join(process.cwd(), 'src/ai-engine/learning/worker.ts'))});
+    const id = store.insertObservation({ createdAt: Date.now(), source: 'discord', userHash: 'x', channelHash: null, userText: 'spain won the 2026 world cup against argentina', botReply: 'x', previousBotReply: null });
+    let threw = '';
+    try { await processObservation(store.nextUnprocessedObservations(5)[0]); } catch (e) { threw = e.name; }
+    console.log(JSON.stringify({ threw, stillQueued: store.nextUnprocessedObservations(5).some((o) => o.id === id) }));
+  `], { env: { ...process.env, OLLAMA_BASE_URL: 'http://127.0.0.1:9' }, cwd: process.cwd(), timeout: 60000 });
+  const line = probe.stdout.toString().trim().split('\n').pop() || '{}';
+  let parsed: any = {};
+  try { parsed = JSON.parse(line); } catch { parsed = { raw: line, err: probe.stderr.toString().slice(0, 200) }; }
+  check('with the model unreachable, the message stays queued (retried later, not dropped)', parsed.threw === 'ModelUnavailableError' && parsed.stillQueued === true, parsed);
+}
+
 console.log('\nKill switch:');
 process.env.NEXUS_LEARNING = 'off';
 check('NEXUS_LEARNING=off stores nothing', captureExchange({ userText: 'the louvre heist in 2025 was eight crown jewels', botReply: 'ok', authorId: '555555555555555555' }) === null);
@@ -248,6 +316,18 @@ process.exit(failed > 0 ? 1 : 0);
 
 // =============================================================================================
 // Live tier: the real model + Wikipedia on messages with a known right answer.
+async function runQuestionFr(): Promise<{ ok: boolean; detail: string }> {
+  const { processObservation, verifyCandidate } = await import('../src/ai-engine/learning/worker');
+  const obsId = captureQuestion({ question: 'qui est le premier ministre du canada?', botReply: "jsais pas trop celle-là, cite moi pas", authorId: `${Math.floor(1e17 + Math.random() * 8e17)}`, webResults: [] });
+  if (!obsId) return { ok: false, detail: 'not captured as a gap' };
+  const cid = await processObservation(store.nextUnprocessedObservations(3000).find((o) => o.id === obsId)!);
+  if (cid === null) return { ok: false, detail: 'no answer found' };
+  await verifyCandidate(store.getCandidate(cid)!);
+  const c = store.getCandidate(cid)!;
+  const english = !/[àâçéèêëîïôûùü]|premier ministre/i.test(c.claim);
+  return { ok: (c.status === 'promoted' || /already/.test(c.statusReason)) && english && /carney/i.test(c.claim), detail: `${c.status}: ${c.claim} — ${c.statusReason}` };
+}
+
 async function runLive() {
   const { processObservation, verifyCandidate } = await import('../src/ai-engine/learning/worker');
   console.log('\n=== Live: extraction + verification on labelled messages ===');
@@ -390,6 +470,38 @@ async function runLive() {
   {
     const c3 = await learnFromComplaint(obs('feedback-negative', 'how do vaccines work', 'vaccines show your immune system a safe preview of a pathogen so it builds defenses.', 'wrong'));
     check('a complaint about a corpus answer is reported, never edited', /reported/.test(c3) && store.listReports(5).length > 0, c3);
+  }
+
+  console.log('\n=== Live: English only + useful facts only ===');
+  {
+    const runMsg = async (text: string) => {
+      const obsId = store.insertObservation({ createdAt: Date.now(), source: 'discord', userHash: identityHash(`${Math.random()}`), channelHash: null, userText: text, botReply: 'x', previousBotReply: null });
+      const cid = await processObservation(store.nextUnprocessedObservations(3000).find((o) => o.id === obsId)!);
+      if (cid !== null) await verifyCandidate(store.getCandidate(cid)!);
+      return cid !== null ? store.getCandidate(cid) : null;
+    };
+    const fr = await runMsg("l'espagne a gagné la coupe du monde 2026 contre l'argentine");
+    check('a French fact is learned in English', !!fr && (fr.status === 'promoted' || /already/.test(fr.statusReason)) && !/[àâçéèêëîïôûùü]|coupe|espagne/i.test(fr.claim), fr && `${fr.status}: ${fr.claim} — ${fr.statusReason}`);
+    const basic = await runMsg('fun fact water boils at 100 degrees celsius at sea level');
+    check('a true but basic fact is not learned', !basic || basic.status !== 'promoted', basic && `${basic.status}: ${basic.statusReason}`);
+    const frGap = await runQuestionFr();
+    check('a French "je sais pas" gap is researched in English and learned in English', frGap.ok, frGap.detail);
+  }
+
+  console.log('\n=== Live: same fact reworded is not learned twice ===');
+  {
+    const runMsg = async (text: string) => {
+      const obsId = store.insertObservation({ createdAt: Date.now(), source: 'discord', userHash: identityHash(`${Math.random()}`), channelHash: null, userText: text, botReply: 'x', previousBotReply: null });
+      const cid = await processObservation(store.nextUnprocessedObservations(4000).find((o) => o.id === obsId)!);
+      if (cid !== null) await verifyCandidate(store.getCandidate(cid)!);
+      return cid !== null ? store.getCandidate(cid) : null;
+    };
+    const before = store.activeLearned().filter((f) => /louvre/i.test(f.claim)).length;
+    const again = await runMsg('the louvre had eight crown jewels stolen in october 2025');
+    const after = store.activeLearned().filter((f) => /louvre/i.test(f.claim)).length;
+    // Either "same" (not stored again) or "more detail" (stored, and the thinner one retired) —
+    // both leave exactly as many Louvre facts as before.
+    check('a reworded fact it already knows is not stored twice (same -> skipped, more detail -> replaces)', before >= 1 && after === before, again && `${again.status}: ${again.statusReason} (louvre facts ${before} -> ${after})`);
   }
 
   console.log('\n=== Live: polishing keeps the facts ===');

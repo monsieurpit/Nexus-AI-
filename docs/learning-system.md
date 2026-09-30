@@ -48,6 +48,36 @@ message (website or Discord, both go through /api/v1/nexus)
                      with provenance, confidence, and a re-check date for time-sensitive facts
 ```
 
+### The learned corpus
+
+Facts are stored one per row (so each can be retired on its own) but served as a **corpus**: facts
+about the same topic are grouped into one entry shaped like the hand-written corpus (title,
+keywords, several facts), rebuilt on every change, and exported to
+`~/.nexus-learning/corpus/learned-corpus.json` and `learned-corpus.md` (readable on the Mac). Facts
+whose confidence dropped after complaints stay stored but leave the corpus.
+
+### No duplicates, and better versions replace thinner ones
+
+The same fact reworded ("The Louvre had eight crown jewels stolen in October 2025" vs "The 2025
+Louvre heist involved eight pieces of the French Crown Jewels") is caught when the meanings are
+very close and the old fact's numbers are all present; the model then says whether B repeats A
+(skipped), adds detail to A (B is learned once verified and A is retired), or is a different fact
+("Spain won" vs "Argentina won" — kept apart).
+
+### English only
+
+Everything learned is in English. A French message or question is translated first (numbers must
+survive the translation exactly) and the whole pipeline runs on the English text, so the fidelity
+checks compare English to English. Questions Nexus couldn't answer in French are searched on English
+Wikipedia in English. Learned voice examples are English-only (a French one could be picked for an
+English message and pull the reply into French — French has its own hand-written Québécois bank).
+
+### Only useful facts
+
+A verified statement that is basic common knowledge ("water boils at 100°C", "Paris is the capital
+of France") is not learned — it's noise in search. Recent, specific, niche and community facts are.
+Questions someone actually asked are exempt: someone needed the answer.
+
 ### Learning from questions, not just statements
 
 Most of what people teach a chatbot is in what they ASK.
@@ -90,8 +120,11 @@ An earlier learning attempt made the bot keep bringing up what it had learned. S
 - At most ONE learned voice example per reply, only on a close match (0.55 similarity vs 0.35 for
   the hand-written ones), and the same one can't be reused for 30 minutes — one loved reply can't
   turn into a catchphrase.
-- Learned facts are one short sentence each; claims written from searches are polished once for
-  readability, only if every name and number stays identical.
+- Claims written from searches are polished once for readability, only if every name and number
+  stays identical.
+- He never announces it: "someone told me that…", "I just learned that…", "from what y'all told
+  me…", "according to my memory…" are cut from replies, keeping the fact — so learned knowledge
+  reads as something he just knows. ("I learned to code python" is a real sentence and is kept.)
 
 ### Personal vs shared
 
@@ -150,6 +183,13 @@ message "as" him — it goes to the review page like server lore.
   back everything learned since a date.
 - New candidates needing approval are posted to the existing Discord log webhook.
 - Kill switch: `NEXUS_LEARNING=off` disables capture and learning entirely.
+
+## Reliability
+
+- If the model can't be reached (Ollama down or restarting), nothing is marked done: the item stays
+  queued and learning pauses 5 minutes, then retries.
+- Spelled-out numbers ("one hundred", "eighty-eight million") are converted before every number
+  check, so they can't slip past.
 
 ## Known limits
 

@@ -216,6 +216,28 @@ const CONTEXT_LEAK_RE =
 const CONTEXT_LEAK_EXEMPT_PROMPT_RE = /\b(?:context|source|sources|facts?|material|provided)\b/i;
 const CONTEXT_LEAK_DONT_KNOW = "nah i don't actually know that one, don't quote me.";
 
+// Nexus mustn't keep announcing that he learned something (Patrick, 2026-09-30: an earlier learning
+// attempt made the bot constantly bring up what it had "learned"). Facts from the learned corpus
+// (src/ai-engine/learning) should read as things he just knows — only the phrase is cut, the fact
+// stays: "someone told me that spain won" -> "spain won".
+// First-person "I learned / found out" only counts when it introduces a fact ("i just learned that
+// X", "i found out, X") — "i learned to code python in a week" is a real sentence.
+// Longest phrases first: "from what y'all told me" / "according to what i learned" must go before
+// the shorter "y'all told me" / "i learned," can match inside them.
+const LEARNING_MENTION_RES = [
+  /\b(?:(?:from|according\s+to)\s+what\s+(?:people|y'?all|you\s+guys|someone)\s+(?:said|told\s+me)|according\s+to\s+(?:my\s+)?(?:memory|what\s+i\s+learned|my\s+notes|my\s+database)|my\s+(?:learned\s+)?(?:memory|database|notes)\s+says(?:\s+that)?)[,:]?\s*/gi,
+  /\b(?:so\s+)?i\s+(?:just\s+|recently\s+|literally\s+)?(?:learned|learnt|found\s+out|picked\s+up)(?:\s+that\b|\s*[,:])\s*/gi,
+  /\b(?:some(?:one|body)\s+(?:here\s+|in\s+(?:here|the\s+chat)\s+)?(?:told|taught)\s+me|(?:you|y'?all|you\s+guys|people|the\s+chat)\s+(?:told|taught)\s+me|i\s+was\s+told|i\s+heard\s+from\s+(?:someone|y'?all|you\s+guys))(?:\s+that\b)?[,:]?\s*/gi,
+];
+
+export function stripLearningMentions(text: string): string {
+  if (!text) return text;
+  let out = text;
+  for (const re of LEARNING_MENTION_RES) out = out.replace(re, '');
+  out = out.replace(/\s{2,}/g, ' ').trim();
+  return out || text;
+}
+
 export function stripContextLeaks(text: string, userPrompt?: string): string {
   if (!text || /```/.test(text)) return text;
   if (userPrompt && CONTEXT_LEAK_EXEMPT_PROMPT_RE.test(userPrompt)) return text;
@@ -232,6 +254,7 @@ export function stripContextLeaks(text: string, userPrompt?: string): string {
 export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
   // gemma sometimes spells the creator's nickname "cassseurt" (triple s) — seen 2/18 live samples.
   text = text.replace(/\b([Cc])as{3,}eurt/g, '$1asseurt');
+  text = stripLearningMentions(text);
   text = stripContextLeaks(text, userPrompt);
   if (userPrompt) text = capRamblingReply(text, userPrompt);
   // Formal draft request (email/text/essay the user will actually send) — none of the swear-floor
