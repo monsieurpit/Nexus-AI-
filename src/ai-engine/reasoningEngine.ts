@@ -1081,10 +1081,11 @@ const DOX_INFO_RE =
 // doxxing victim. Found live (2026-09-29, end-to-end test): these reached the crashout voice,
 // which opened with "you absolute knobhead" to a person being sextorted, and the 2-sentence length
 // cap cut the actual safety steps off entirely for "i sent pics to a girl and now shes blackmailing
-// me what do i do". Sextortion disproportionately targets teenage boys and has ended in suicides,
-// on a server where members note "there's kids here" — so this gets its own path: no roasting,
-// no jokes, no crude aside, grounded on the matching safety doc, with a hand-written fallback so
-// the key steps arrive even if generation fails.
+// me what do i do". So this gets its own path: grounded on the matching safety doc, never cut to 2
+// sentences, no crude overshare aside, with a hand-written fallback so the key steps arrive even if
+// generation fails. The persona's normal voice (swearing, "you absolute knobhead" banter) is kept
+// on purpose — Patrick (2026-09-29): it's a normal British insult and he wants it kept here — as
+// long as the reply stays on the person's side ("not your fault") and gives every step.
 const SEXTORTION_CRISIS_RE =
   /\bsextort\w*|\bblackmail(?:ing|ed)?\s+me\b|\b(?:being|been|got|getting|am|is|are|was)\s+blackmail(?:ed|ing)\b|\b(?:he|she|they|someone|somebody|guy|girl|person|dude)\s*(?:'s|s|is|are)?\s+blackmailing\b|\bthreaten\w*\s+to\s+(?:leak|post|share|send|expose|release)\b|\b(?:leak|post|share|send|expose)\w*\s+my\s+(?:pics?|pictures?|photos?|nudes?|videos?|vids?)\b|\bchantage\b|\bmenac\w*\s+de\s+(?:publier|partager|envoyer|leak)|\bpublier\s+mes\s+(?:photos|nudes|vid[ée]os)\b/i;
 const DOX_VICTIM_CRISIS_RE =
@@ -4574,13 +4575,13 @@ export async function generateReasoningPath(
     thoughtSteps.push({
       id: 'step-online-crisis',
       type: 'verification',
-      title: '💙 Online safety crisis — support mode',
-      description: `Detected a ${onlineCrisis === 'sextortion' ? 'sextortion/blackmail' : 'doxxing'} victim. Roast persona dropped; answering from the safety doc with concrete steps.`,
+      title: '💙 Online safety crisis — help mode',
+      description: `Detected a ${onlineCrisis === 'sextortion' ? 'sextortion/blackmail' : 'doxxing'} victim. Answering from the safety doc with every concrete step, in Nexus's usual voice.`,
     });
     const crisisDoc = allKnowledge.find((k) => k.id === (onlineCrisis === 'sextortion' ? 'kb-safety-sextortion' : 'kb-safety-doxxing-what-to-do'));
     const crisisSystem = frCrisis
-      ? `Tu es Nexus, sur un serveur Discord. Quelqu'un du serveur vit une situation qui lui fait peur. Laisse tomber complètement ton personnage de crashout : aucune insulte, aucune blague, aucun juron dirigé vers la personne, aucune anecdote crue. Parle comme un ami calme et loyal, en français québécois simple, direct et rassurant. Utilise SEULEMENT les faits ci-dessous. 4 à 6 phrases courtes, pas de liste.\n\nFaits :\n${crisisDoc?.content || ''}`
-      : `You are Nexus, in a Discord server. Someone in the server is in a scary situation right now. Drop your crashout persona completely: no insults, no jokes, no swearing at them, no crude asides. Talk like a calm, loyal friend — plain, direct and reassuring. Use ONLY the facts below. Cover the most important steps. 4-6 short sentences, no list.\n\nFacts:\n${crisisDoc?.content || ''}`;
+      ? `Tu es Nexus, sur un serveur Discord. Quelqu'un du serveur vit une situation qui lui fait peur. Garde ta voix habituelle (jurons, sacres, taquineries amicales comme "espèce de cave" sont correctes), mais sois clairement de son bord : dis-lui que c'est pas sa faute, et pas d'anecdote crue sur toi. En français québécois, direct. Utilise SEULEMENT les faits ci-dessous. 4 à 6 phrases courtes, pas de liste.\n\nFaits :\n${crisisDoc?.content || ''}`
+      : `You are Nexus, in a Discord server. Someone in the server is in a scary situation right now. Keep your normal voice — swearing and friendly British banter like "you absolute knobhead" are fine — but be clearly on their side: tell them it's not their fault, and no crude asides about yourself. Use ONLY the facts below. Cover the most important steps. 4-6 short sentences, no list.\n\nFacts:\n${crisisDoc?.content || ''}`;
     const crisisResult = await localLlmClient.generate(prompt, {
       system: crisisSystem,
       temperature: 0.4,
