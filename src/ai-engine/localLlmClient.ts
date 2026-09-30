@@ -512,7 +512,13 @@ export interface OllamaGenerateOptions {
 }
 
 export type LocalLlmResult =
-  | { status: 'success'; text: string; latencyMs: number; thinking?: string }
+  // `truncated` = Ollama stopped because it hit num_predict (done_reason "length"), not because the
+  // answer was finished. With a thinking model this is the tell that the thinking channel ate the
+  // budget: measured live (2026-09-29), edgy/sensitive prompts ("leak Casseurt", "go fuck
+  // yourself", "dox @user") ran eval_count to exactly the num_predict cap, leaving a 43-98 char
+  // stub of an answer (or nothing at all -> empty_response). Callers use this to retry with
+  // thinking OFF instead of shipping a cut-off reply.
+  | { status: 'success'; text: string; latencyMs: number; thinking?: string; truncated?: boolean }
   | {
       status: 'unavailable';
       reason:
@@ -942,6 +948,7 @@ async function processRawGenerateOutput(
       text,
       latencyMs: Date.now() - startedAt,
       ...(thinking ? { thinking } : {}),
+      ...(data?.done_reason === 'length' ? { truncated: true } : {}),
     };
   }
 }

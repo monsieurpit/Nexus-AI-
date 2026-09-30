@@ -59,6 +59,15 @@ export interface AISettings {
   // animation plays once on page load. Lives here anyway rather than a separate storage bucket
   // since AISettings already has the load/save/modal plumbing this needs.
   entryAnimationEnabled?: boolean;
+  // Whether generation runs the model's native thinking channel (Gemma 4 / nexus2:4b) so the raw
+  // thinking can be shown in the website's reasoning-trace panel. Undefined = on (the website's
+  // behavior, unchanged). server.ts sets it false for Discord bot requests: thinking is invisible
+  // there, and measured live (2026-09-29) it was the root cause of ~11.5% of all real Discord
+  // replies falling back to canned template text (thinking ate the whole token budget ->
+  // empty_response), of other replies getting cut off mid-sentence, and of the "casual reply"
+  // length cap never actually holding (the cap is on thinking+answer combined, so a short think
+  // left the answer ~400 tokens of room instead of ~110).
+  showThinking?: boolean;
 }
 
 export interface WebSearchResult {

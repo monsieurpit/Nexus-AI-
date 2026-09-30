@@ -1,0 +1,112 @@
+import { KnowledgeItem } from '../../types';
+
+// Batch 2026-09-29 — Québec. Coverage probe of all 4,033 existing titles found ZERO docs about
+// Québec or Montréal, for a bot whose owner is Québécois and which has a whole dedicated Québécois
+// French voice (sacres, "cégep not collège" rules in promptBuilder.ts). French keywords are
+// included alongside English ones so French-language questions retrieve these too.
+export const QUEBEC_CULTURE: KnowledgeItem[] = [
+  {
+    id: 'kb-quebec-province-basics',
+    title: 'Québec: The Province at a Glance',
+    category: 'Geography',
+    keywords: ['quebec', 'québec', 'province de québec', 'quebec province', 'quebec population', 'quebec capital', 'la belle province', 'je me souviens', 'quebec facts', 'le québec'],
+    content: `Québec is Canada's largest province by area (about 1.5 million km², roughly three times the size of France) and its second most populous, with about 9 million people. It is the only province whose sole official language is French; about 80% of Quebecers speak French as their first language, making it the largest French-speaking society in the Americas. The capital is Québec City and the largest city is Montréal. The provincial motto, on every licence plate, is "Je me souviens" ("I remember"), and the flag is the blue-and-white fleurdelisé. Québec was the heart of New France, founded when Samuel de Champlain established Québec City in 1608; Britain took control after the 1759 Battle of the Plains of Abraham. Most of the population lives along the St. Lawrence River; the north is vast forest and tundra, home to many First Nations and the Inuit of Nunavik. Hydro-Québec's dams make its electricity cheap and almost entirely renewable.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-montreal',
+    title: 'Montréal',
+    category: 'Geography',
+    keywords: ['montreal', 'montréal', 'mtl', 'montreal city', 'mont royal', 'old montreal', 'vieux montreal', 'montreal population', 'montreal facts', 'plateau mont royal'],
+    content: `Montréal is Québec's largest city (about 1.8 million people, over 4 million in the metro area) and the second-largest city in Canada. It sits on an island in the St. Lawrence River around Mount Royal (Mont Royal), the hill that gave the city its name. It's one of the largest French-speaking cities in the world, yet also very bilingual and multicultural. Highlights include Old Montréal's cobblestone streets, the Notre-Dame Basilica, the underground city (RÉSO) of connected tunnels used in winter, the Plateau neighbourhood, and a huge festival scene (the Jazz Festival, Just for Laughs, Osheaga, Igloofest). Montréal hosted Expo 67 and the 1976 Summer Olympics, whose Olympic Stadium took 30 years to pay off. It's famous for bagels, smoked meat, and hockey's Canadiens. Montréal is also a major hub for video game studios (Ubisoft Montréal made Assassin's Creed) and AI research.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-quebec-city',
+    title: 'Québec City (Ville de Québec)',
+    category: 'Geography',
+    keywords: ['quebec city', 'ville de québec', 'ville de quebec', 'vieux quebec', 'old quebec', 'chateau frontenac', 'plains of abraham', 'plaines d abraham', 'carnaval de quebec', 'bonhomme'],
+    content: `Québec City is the capital of the province of Québec, founded by Samuel de Champlain in 1608 — one of the oldest cities in North America. Old Québec (Vieux-Québec) is the only fortified city north of Mexico whose walls still stand, and it's a UNESCO World Heritage Site. Its landmark is the Château Frontenac, a castle-like hotel often called the most photographed hotel in the world. The Plains of Abraham, now a park, is where British forces defeated the French in 1759, a turning point that led to British control of Canada. Every winter the city hosts the Carnaval de Québec, one of the world's largest winter festivals, with its snowman mascot Bonhomme Carnaval, an ice palace, and canoe races across the icy St. Lawrence.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-french-bill-101',
+    title: 'French in Québec and Bill 101 (Charter of the French Language)',
+    category: 'culture',
+    keywords: ['bill 101', 'loi 101', 'charter of the french language', 'charte de la langue française', 'bill 96', 'loi 96', 'french language quebec', 'why quebec speaks french', 'oqlf', 'language police'],
+    content: `French has been spoken in Québec since New France in the 1600s. After the British conquest, French speakers remained the majority but were often economically dominated by an English-speaking elite, especially in Montréal. To protect French, the Parti Québécois government passed Bill 101, the Charter of the French Language, in 1977 (championed by Camille Laurin under Premier René Lévesque). It made French the official language of the province, of work and of commerce, required most children of immigrants to attend French-language schools, and required French on commercial signs. It's enforced by the Office québécois de la langue française (OQLF), jokingly called the "language police." Bill 96 (2022) strengthened these rules. Supporters see it as essential to French surviving in an English-speaking continent; critics, often in the English-speaking community, see it as too restrictive.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-quiet-revolution',
+    title: 'The Quiet Revolution (Révolution tranquille)',
+    category: 'History',
+    keywords: ['quiet revolution', 'révolution tranquille', 'revolution tranquille', 'jean lesage', 'maitres chez nous', 'maîtres chez nous', 'duplessis', 'grande noirceur', 'hydro quebec nationalization'],
+    content: `The Quiet Revolution (Révolution tranquille) was a period of rapid change in Québec during the 1960s. Before it, under Premier Maurice Duplessis (1944-1959) — an era critics call "la Grande Noirceur" (the Great Darkness) — the Catholic Church controlled most schools, hospitals and social services, and French Canadians earned less than English Canadians. After Jean Lesage's Liberals won in 1960 with the slogan "Maîtres chez nous" ("Masters in our own house"), the province modernised quickly: the state took over education and health from the Church, created a Ministry of Education, nationalised electricity under Hydro-Québec (1963), and built public institutions like the Caisse de dépôt and the cégeps. Religious practice dropped sharply, and a new Québécois (rather than "French-Canadian") identity and a sovereignty movement grew out of this period.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-referendums',
+    title: 'Québec\'s Sovereignty Referendums: 1980 and 1995',
+    category: 'History',
+    keywords: ['quebec referendum', 'référendum', 'referendum 1995', 'referendum 1980', 'quebec independence', 'quebec separatism', 'souveraineté', 'parti quebecois', 'rene levesque', 'jacques parizeau', 'oui non quebec'],
+    content: `Québec has held two referendums on becoming a sovereign country. In 1980, René Lévesque's Parti Québécois asked for a mandate to negotiate "sovereignty-association" with Canada; 59.6% voted No. After Canada patriated its constitution in 1982 without Québec's signature and later constitutional deals (Meech Lake, Charlottetown) failed, the PQ under Jacques Parizeau held a second referendum in 1995. It was extraordinarily close: 50.58% No to 49.42% Yes, a margin of about 55,000 votes, with a turnout over 93%. On referendum night Parizeau blamed the loss on "money and the ethnic vote," a remark that caused outrage. Afterwards, Canada passed the Clarity Act (2000) on how any future secession would have to be handled. Support for independence has remained a live political issue since.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-education-system',
+    title: 'Québec\'s School System: Primaire, Secondaire, Cégep, Université',
+    category: 'culture',
+    keywords: ['quebec school system', 'cegep', 'cégep', 'secondaire', 'primaire', 'secondary 5', 'secondaire 5', 'dec diploma', 'des diplome', 'quebec grade 11', 'college quebec', 'quebec education'],
+    content: `Québec's education system is different from the rest of Canada and the US. Children do 6 years of elementary school (primaire, 1re to 6e année), then 5 years of high school (secondaire, "Secondaire 1" to "Secondaire 5") — there is no grade 11 or 12 as in other provinces; you finish high school at Secondaire 5, usually at 16-17, with a DES (Diplôme d'études secondaires). Next comes cégep (Collège d'enseignement général et professionnel), a system unique to Québec: a 2-year pre-university program or a 3-year technical program leading to a DEC (Diplôme d'études collégiales). Cégep is public and nearly free for Quebec residents. After a pre-university DEC, students go to university, where a bachelor's degree typically takes 3 years (instead of 4 elsewhere) because cégep covers the first year. In Québec, "collège" usually refers to a cégep or a private high school, not a university.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-food',
+    title: 'Québécois Food: Poutine, Tourtière, Pâté Chinois and the Cabane à Sucre',
+    category: 'culture',
+    keywords: ['poutine', 'quebec food', 'tourtiere', 'tourtière', 'pate chinois', 'pâté chinois', 'cabane a sucre', 'cabane à sucre', 'sugar shack', 'tire sur la neige', 'cheese curds', 'fromage en grains', 'queue de castor'],
+    content: `Québec's most famous dish is poutine: french fries topped with fresh cheese curds (fromage en grains, which should squeak when you bite them) and hot brown gravy, invented in rural central Québec in the 1950s (Warwick and Drummondville both claim it). Other classics: tourtière, a spiced meat pie eaten especially at Christmas and on New Year's; pâté chinois, a layered dish of ground beef, corn and mashed potatoes similar to shepherd's pie; pouding chômeur ("unemployed person's pudding"), a cake baked in maple or brown-sugar syrup; baked beans (fèves au lard); and Montréal-style bagels and smoked meat. In spring, families go to the cabane à sucre (sugar shack) for a maple-heavy feast — ham, eggs, pea soup, and tire sur la neige, hot maple syrup poured on snow and rolled onto a stick. Québec produces roughly 70% of the world's maple syrup.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-holidays',
+    title: 'Québec Holidays: Fête nationale (June 24) and Moving Day (July 1)',
+    category: 'culture',
+    keywords: ['fete nationale', 'fête nationale', 'saint jean baptiste', 'st jean', 'june 24 quebec', 'moving day', 'jour du déménagement', 'july 1 quebec', 'vacances de la construction', 'construction holiday'],
+    content: `June 24 is Québec's Fête nationale, also called la Saint-Jean-Baptiste (after the patron saint of French Canadians): a provincial holiday with bonfires, outdoor concerts, blue-and-white fleurdelisé flags everywhere and huge parties, especially in Montréal and Québec City. July 1 is Canada Day, but in Québec it's better known as Moving Day (le jour du déménagement): because so many residential leases historically end on June 30, hundreds of thousands of Quebecers move on the same day, leaving streets full of trucks, furniture and discarded couches. In late July, the "vacances de la construction" (construction holiday) sees much of the construction industry and many other workers take the same two weeks off, so roads and vacation spots fill up.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-french-expressions',
+    title: 'Québec French Expressions: Char, Blonde, Chum, Magasiner, Dépanneur, C\'est Plate',
+    category: 'Slang',
+    keywords: ['quebec french expressions', 'québécois expressions', 'expressions québécoises', 'quebec slang', 'joual', 'char meaning', 'blonde chum', 'magasiner', 'depanneur', 'c est plate', 'tiguidou', 'pogner', 'niaiser', 'tsé'],
+    content: `Québec French has many words that differ from France's French. A car is a "char" (not "voiture"); a girlfriend is a "blonde" (whatever her hair colour) and a boyfriend or buddy is a "chum"; to go shopping is "magasiner"; a corner store is a "dépanneur" ("dep"); "c'est plate" means "it's boring"; "pogner" means to catch or grab (and "ça pogne" means it's catching on / popular); "niaiser" means to tease or waste time, and "arrête de niaiser" means "stop messing around"; "tiguidou" means "all good / perfect"; "icitte" means "here"; "frette" means very cold; "tsé" is short for "tu sais" (you know); "ben là" expresses disbelief, like "come on"; and "bécosse" is an outhouse. Québécois also often use English loanwords with French pronunciation ("checker", "chiller", "cute"). The working-class Montréal dialect is called joual. Continental French speakers sometimes need subtitles for Québec films, and vice versa.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-sacres-origin',
+    title: 'Why Québec Swears With Church Words (Sacres)',
+    category: 'culture',
+    keywords: ['sacres', 'sacre', 'tabarnak meaning', 'câlisse meaning', 'calisse meaning', 'ostie meaning', 'criss meaning', 'ciboire', 'quebec swear words', 'why do quebecers say tabarnak', 'jurons québécois'],
+    content: `Québec French swears ("sacres") come from Catholic church vocabulary rather than body parts or sex, a legacy of how completely the Church dominated daily life before the Quiet Revolution — blasphemy was the ultimate taboo, so it became the strongest way to curse. "Tabarnak" comes from tabernacle (the box holding the Eucharist), "câlisse" from calice (chalice), "ostie" from hostie (the communion wafer), "criss" from Christ, "ciboire" from ciborium, and "sacrament" from sacrement. They're combined and stacked for emphasis ("mon ostie de tabarnak"), used as verbs ("je m'en câlisse" = I don't give a damn; "câlisser dehors" = kick out), and softened into minced versions for polite company ("tabarouette," "câline," "mautadit," "sapristi"). Continental French swears like "putain" or "merde" sound distinctly French-from-France to Québécois ears.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-canadiens-hockey',
+    title: 'The Montréal Canadiens (Habs) and the Nordiques',
+    category: 'culture',
+    keywords: ['montreal canadiens', 'canadiens', 'habs', 'les canadiens', 'le tricolore', 'bell centre', 'centre bell', 'stanley cup canadiens', 'maurice richard', 'richard riot', 'nordiques', 'quebec nordiques', 'go habs go'],
+    content: `The Montréal Canadiens ("the Habs", "le Tricolore", "les Glorieux"), founded in 1909, are the oldest professional hockey club still in existence and the most successful in NHL history, with 24 Stanley Cups — including five in a row from 1956 to 1960. Their most recent Cup came in 1993, which for decades remained the last Stanley Cup won by any Canadian team. They play at the Bell Centre (Centre Bell). Legends include Maurice "Rocket" Richard, Jean Béliveau, Guy Lafleur and goalie Patrick Roy. When Richard was suspended in 1955, fans rioted in Montréal (the Richard Riot), an event often linked to rising Québécois nationalism. Their big rivals are the Toronto Maple Leafs and the Boston Bruins. Québec City had its own NHL team, the Nordiques, whose "Battle of Québec" rivalry with the Canadiens was fierce; the Nordiques moved to Denver in 1995 and, as the Colorado Avalanche, won the Stanley Cup the very next season.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-quebec-maple-syrup-heist',
+    title: 'The Great Canadian Maple Syrup Heist',
+    category: 'culture',
+    keywords: ['maple syrup heist', 'great maple syrup heist', 'maple syrup reserve', 'strategic maple syrup reserve', 'fpaq', 'stolen maple syrup', 'quebec maple syrup cartel'],
+    content: `Québec produces roughly 70% of the world's maple syrup, and its producers' federation (the Producteurs et productrices acéricoles du Québec) controls supply through quotas and a "strategic reserve" of syrup stored in barrels to stabilise prices — often jokingly compared to OPEC for oil. Between 2011 and 2012, thieves stole nearly 3,000 tonnes of syrup, worth around $18 million, from the reserve's warehouse in Saint-Louis-de-Blandford, draining barrels and refilling them with water. It's considered one of the largest thefts in Canadian history. Several people were convicted, with the ringleader, Richard Vallières, sentenced to prison and fined millions. The heist inspired the 2024 comedy series "The Sticky".`,
+    createdAt: Date.now(),
+  },
+];

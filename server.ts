@@ -1458,6 +1458,11 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
             discordUserId: effectiveAuthorId,
             isSuperChillUser: isSuperChill,
             userCustomDirectives: typeof userRules === 'string' ? userRules : Array.isArray(userRules) ? userRules.join('\n') : '',
+            // Discord never shows the thinking channel, and it was the measured root cause of
+            // empty/cut-off/overlong replies there — see AISettings.showThinking (types.ts).
+            // Nexus Code (isCodeEdit) keeps its own explicit think:true in
+            // generateCodeEditWithReview, which doesn't read this field.
+            showThinking: false,
           };
 
       // Real image understanding, not a fake header on top of a blind text-only response — this

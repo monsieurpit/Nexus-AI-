@@ -1,0 +1,96 @@
+import { KnowledgeItem } from '../../types';
+
+// Batch 2026-09-29 — the games a Discord server actually talks about. Coverage probe found zero
+// dedicated titles for Fortnite, GTA, Call of Duty, Pokémon, Zelda, Genshin Impact or Among Us,
+// and nothing on the Switch 2. Release dates after mid-2025 are stated as "announced" since
+// game dates slip constantly (GTA VI has already been delayed twice).
+export const VIDEO_GAMES_POPULAR: KnowledgeItem[] = [
+  {
+    id: 'kb-game-fortnite',
+    title: 'Fortnite: Battle Royale, Seasons and V-Bucks',
+    category: 'gaming',
+    keywords: ['fortnite', 'fortnite battle royale', 'v-bucks', 'vbucks', 'fortnite seasons', 'fortnite chapters', 'epic games fortnite', 'zero build', 'fortnite og', 'battle pass'],
+    content: `Fortnite is a free-to-play game by Epic Games, released in 2017. Its Battle Royale mode — 100 players drop from a flying "Battle Bus" onto an island, loot weapons, and fight until one player or team remains while a storm shrinks the map — became a worldwide phenomenon in 2018. Its signature mechanic is building walls, ramps and floors instantly for cover; a "Zero Build" mode removes building. The game is organised into Chapters and Seasons, each changing the map, weapons and cosmetics, and runs huge live events and crossovers (Marvel, Star Wars, music concerts from Travis Scott and others). It makes money through cosmetic items and the Battle Pass, bought with V-Bucks, its in-game currency. Fortnite also includes Creative mode and LEGO Fortnite. Epic's 2020 lawsuit against Apple over app store fees kept Fortnite off iPhones in many regions for years.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-game-gta',
+    title: 'Grand Theft Auto (GTA V, GTA Online and GTA VI)',
+    category: 'gaming',
+    keywords: ['gta', 'grand theft auto', 'gta 5', 'gta v', 'gta online', 'gta 6', 'gta vi', 'gta 6 release date', 'rockstar games', 'vice city', 'los santos'],
+    content: `Grand Theft Auto (GTA) is Rockstar Games' open-world crime series. GTA V (2013), set in the Los Santos (Los Angeles) area with three playable protagonists — Michael, Franklin and Trevor — is one of the best-selling games of all time with over 200 million copies sold, released on three console generations. Its multiplayer mode, GTA Online, has earned billions through in-game purchases and roleplay servers (like FiveM's GTA RP scene popular with streamers). GTA VI returns to Vice City (a fictional Miami) in the state of Leonida, with the series' first female protagonist, Lucia, alongside Jason. Its first trailer (December 2023) broke YouTube viewing records. Rockstar delayed it from 2025 to May 2026, then again to November 19, 2026, for PS5 and Xbox Series X|S — check the latest news, as dates can still change.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-game-call-of-duty',
+    title: 'Call of Duty and Warzone',
+    category: 'gaming',
+    keywords: ['call of duty', 'cod', 'warzone', 'black ops', 'modern warfare', 'cod zombies', 'activision', 'cod multiplayer'],
+    content: `Call of Duty (CoD) is a first-person shooter franchise that started in 2003 with World War II settings and exploded with Call of Duty 4: Modern Warfare (2007). A new game releases almost every year, rotating between sub-series such as Modern Warfare and Black Ops, developed by studios including Infinity Ward, Treyarch and Sledgehammer. Its fast online multiplayer, killstreaks and the co-op Zombies mode (a Treyarch/Black Ops tradition) made it one of the best-selling franchises ever. Warzone (2020) is its free-to-play battle royale. Publisher Activision Blizzard was bought by Microsoft in October 2023 for about $69 billion, the biggest deal in gaming history, and CoD games now also launch on Xbox Game Pass.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-game-pokemon',
+    title: 'Pokémon: The Biggest Media Franchise in the World',
+    category: 'gaming',
+    keywords: ['pokemon', 'pokémon', 'pikachu', 'pokemon games', 'pokemon cards', 'pokemon go', 'gotta catch em all', 'game freak', 'pokemon generations'],
+    content: `Pokémon ("Pocket Monsters") began in 1996 with Pokémon Red and Green on the Game Boy in Japan, created by Satoshi Tajiri's studio Game Freak and published by Nintendo. Players catch, train and battle creatures called Pokémon ("Gotta catch 'em all"); Pikachu became the mascot. It is the highest-grossing media franchise in history, spanning the main games (released in "generations," each adding new Pokémon — there are over 1,000), the anime starring Ash Ketchum (who finally became world champion in 2022), the Trading Card Game (rare cards sell for huge sums; a Pikachu Illustrator card sold for over $5 million), movies, and Pokémon GO (2016), the augmented-reality mobile game. Recent main entries include Pokémon Scarlet and Violet (2022) and Pokémon Legends: Z-A (2025).`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-game-zelda',
+    title: 'The Legend of Zelda',
+    category: 'gaming',
+    keywords: ['zelda', 'legend of zelda', 'link', 'breath of the wild', 'tears of the kingdom', 'ocarina of time', 'hyrule', 'ganon'],
+    content: `The Legend of Zelda is a Nintendo adventure series created by Shigeru Miyamoto and Takashi Tezuka, starting in 1986. A common mix-up: the green-clad hero you play is Link — Zelda is the princess of the kingdom of Hyrule, and the main villain is usually Ganon/Ganondorf. Ocarina of Time (1998) on the Nintendo 64 is often ranked among the greatest games ever made. Breath of the Wild (2017) reinvented the series as a huge open world driven by physics and experimentation, and its sequel Tears of the Kingdom (2023) added building mechanics that let players craft vehicles and machines. The series is famous for dungeons, puzzles, and the Master Sword.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-game-genshin-impact',
+    title: 'Genshin Impact and Gacha Games',
+    category: 'gaming',
+    keywords: ['genshin', 'genshin impact', 'gacha', 'gacha games', 'hoyoverse', 'mihoyo', 'honkai star rail', 'wishes genshin', 'pity system'],
+    content: `Genshin Impact is a free-to-play open-world action RPG by the Chinese studio miHoYo (HoYoverse), released in 2020 on PC, mobile and consoles. Players explore the world of Teyvat with a team of characters who each wield an elemental power, and combining elements (like water + electric) triggers reactions. It's a "gacha" game: new characters and weapons are obtained through randomized pulls ("wishes") paid for with premium currency, similar to loot boxes, with a "pity" system guaranteeing a top-rarity item after a set number of pulls. Genshin has earned billions of dollars. HoYoverse also makes Honkai: Star Rail (2023) and Zenless Zone Zero (2024). Gacha mechanics are criticised for encouraging gambling-like spending, especially by young players.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-game-among-us',
+    title: 'Among Us: Crewmates and Impostors',
+    category: 'gaming',
+    keywords: ['among us', 'impostor', 'imposter', 'sus among us', 'crewmate', 'emergency meeting', 'vent among us', 'innersloth'],
+    content: `Among Us is a multiplayer social-deduction game by the small studio Innersloth, released in 2018 but a massive hit in 2020 during COVID lockdowns. 4 to 15 players are crewmates on a spaceship completing tasks, while one or more secretly play "impostors" who sabotage the ship and kill crewmates, sneaking around through vents. When a body is found or someone calls an "emergency meeting," everyone discusses and votes on who to eject. It spawned countless memes — "sus," "red sus," "when the impostor is sus," and the "amogus" character shape — and made the word "sus" a mainstream part of internet slang.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-game-switch-2',
+    title: 'Nintendo Switch 2',
+    category: 'gaming',
+    keywords: ['switch 2', 'nintendo switch 2', 'switch 2 games', 'mario kart world', 'switch 2 price', 'new nintendo console'],
+    content: `The Nintendo Switch 2 is Nintendo's successor to the Switch (2017, one of the best-selling consoles ever, over 150 million units). It launched on June 5, 2025, keeping the hybrid design — a handheld that docks to a TV — with a bigger 1080p screen, 4K output when docked, more power, magnetic Joy-Con controllers that can work like a mouse, and a "C" button for GameChat voice/video chat. Its launch game was Mario Kart World, an open-world take on Mario Kart. Most original Switch games are backwards compatible. It sold several million units in its first days, making it the fastest-selling console launch in Nintendo's history.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-game-rocket-league-brawl-stars',
+    title: 'Rocket League, Clash Royale and Brawl Stars',
+    category: 'gaming',
+    keywords: ['rocket league', 'clash royale', 'brawl stars', 'clash of clans', 'supercell', 'psyonix', 'car soccer game'],
+    content: `Rocket League (2015, Psyonix, now owned by Epic Games and free-to-play since 2020) is "soccer with rocket-powered cars": two teams drive, jump and boost into a giant ball to score, with a huge competitive and esports scene and a steep mechanical skill ceiling (aerials, flip resets). Supercell, a Finnish studio, makes several of the most popular mobile games: Clash of Clans (2012, base-building and raiding), Clash Royale (2016, a real-time card battler where you deploy troops to destroy the opponent's towers) and Brawl Stars (2018, fast 3v3 arena battles with unlockable "brawlers"). All are free-to-play with in-app purchases and big esports circuits.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-game-counter-strike-2',
+    title: 'Counter-Strike 2 (CS2) and CS Skins',
+    category: 'gaming',
+    keywords: ['counter strike', 'cs2', 'csgo', 'cs go', 'cs2 skins', 'counter strike 2', 'valve cs', 'cs cases', 'major cs'],
+    content: `Counter-Strike is Valve's tactical first-person shooter series, which started as a Half-Life mod in 1999. Two teams — terrorists and counter-terrorists — fight in rounds where terrorists try to plant a bomb and counter-terrorists try to stop or defuse it; money earned each round buys weapons and gear. CS:GO (2012) became one of the biggest esports ever and was replaced in 2023 by Counter-Strike 2 (CS2), built on the Source 2 engine. CS is also famous for its skins economy: cosmetic weapon skins, often opened from paid cases, trade on the Steam Market and third-party sites, some for thousands of dollars — which led to controversies about gambling sites and underage users. Iconic maps include Dust II, Mirage and Inferno.`,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'kb-game-gaming-slang-basics',
+    title: 'Gamer Slang: GG, Noob, Carry, Nerf, Buff, Meta, Tryhard, Sweat',
+    category: 'gaming',
+    keywords: ['gamer slang', 'what does nerf mean', 'what does buff mean', 'meta gaming', 'tryhard meaning', 'sweat meaning gaming', 'carry meaning', 'smurf meaning', 'noob meaning', 'afk'],
+    content: `Common gaming slang: "GG" means "good game" (said at the end; "GG EZ" is taunting). A "noob" (or "newbie", "n00b") is an inexperienced player. To "carry" is to single-handedly win for your team. A "nerf" makes something weaker in an update and a "buff" makes it stronger. The "meta" is the most effective strategy or loadout at the moment. A "tryhard" or "sweat" plays extremely seriously in a casual setting — "sweaty" lobbies are full of them. A "smurf" is a skilled player on a new low-ranked account, beating beginners. "Camping" is waiting in one spot for kills; "cheese" is a cheap, unintended strategy; "OP" means overpowered; "AFK" means away from keyboard; "lag" and "ping" describe connection delay; "clutch" means winning a round when outnumbered; and "diff" (like "jungle diff") means one player was far better than the opposing one.`,
+    createdAt: Date.now(),
+  },
+];

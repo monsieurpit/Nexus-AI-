@@ -186,8 +186,12 @@ const PHONE_NUMBER_REGEX =
 // always/ever" in this exact position ("do you STILL X", "do you EVEN X") is a strong structural
 // signal of a personal/rhetorical question about the addressee's ongoing traits, essentially
 // regardless of which verb fills the slot — much more robust than adding one verb per bug report.
+// "who do/did/would you X", "when did you (last) X", "how often/much/long do you X" — questions
+// about the bot's OWN habits, found live (2026-09-29): "who do you goon to" and "when did u last
+// goon" matched none of the clauses above, reached corpus retrieval, and got answered with the
+// slang glossary's definition of the word instead of an in-character answer.
 const PERSONAL_QUESTION_REGEX =
-  /^(?:why\s+are\s+you|why\s+do\s+you|why\s+don'?t\s+you|why\s+doesn'?t\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with|have|got|has)\b|\bdo\s+you\s+(?:still|even|really|actually|always|ever)\s+\w+\b|\byou\s+got\s+any\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b|\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b|\bwhat'?s\s+your\s+favou?rite\b|\bwhat\s+is\s+your\s+favou?rite\b/i;
+  /^(?:why\s+are\s+you|why\s+do\s+you|why\s+don'?t\s+you|why\s+doesn'?t\s+you|are\s+you|am\s+i\s+your)\b|\bdo\s+you\s+(?:like|love|hate|think|believe|even|watch|support|agree\s+with|have|got|has)\b|\bdo\s+you\s+(?:still|even|really|actually|always|ever)\s+\w+\b|\byou\s+got\s+any\b|\byou\s+(?:freak|weirdo|creep|dork|nerd|loser|goober)\b|\bcan\s+(?:you|u)\s+\w+\s+(?:me\b|him\b|her\b|them\b|@\w+)|\bcan\s+i\s+.{0,25}\b(?:you|u|yo|ur|ya)\b|\bwhat\s+are\s+you\s+\w+ing\s+(?:to|about|over)\b|\bwhat\s+(?:does|do|did)\s+.{0,60}\s+have\s+to\s+(?:do\s+with\s+)?(?:you|u)\b|\bwhat'?s\s+your\s+favou?rite\b|\bwhat\s+is\s+your\s+favou?rite\b|\bwho\s+(?:do|did|would)\s+(?:you|u)\s+\w+|\bwhen\s+(?:did|do|was|were)\s+(?:you|u)\s+(?:last\s+)?\w+|\bhow\s+(?:often|much|long|many\s+times)\s+(?:do|did|have)\s+(?:you|u)\b/i;
 
 // Genuine creative-writing requests ("write a haiku about autumn", "compose a poem about love")
 // have no factual answer to retrieve at all — they're a pure generation task. Never had any
@@ -1053,6 +1057,87 @@ const SHORT_CHAT_PHRASES: Record<string, ShortChatCategory> = {
   'oh': 'ack', 'oh ok': 'ack', 'oh okay': 'ack', 'huh ok': 'ack', 'interesting': 'ack',
   'nah': 'ack', 'ah': 'ack', 'aha': 'ack', 'right': 'ack',
 };
+
+// A comprehension-only slang glossary doc (kb-crude-slang-*, kb-slang-*: written so the bot
+// UNDERSTANDS what people type, not to lecture them with it) must only ever ground an answer to a
+// question that's actually asking what a term means. Found live (2026-09-29): "who do you goon to"
+// scored the gooning glossary entry extremely high on literal keyword overlap and got answered with
+// the dictionary definition ("it only explains that 'gooning' is slang for...") — Patrick: "when we
+// ask if you're gooning, he shouldn't answer the definition! Only if someone says what's the
+// definition". Structural rather than per-term, so it covers every slang word in the glossary, not
+// just this one: slang doc on top + no definition-request wording = answer it conversationally.
+const DEFINITION_REQUEST_RE =
+  /\b(?:mean|means|meaning|definition|define|defined|stand(?:s)?\s+for|slang\s+for|slang\s+term|veut\s+dire|signifie|d[ée]finition|c'?est\s+quoi\s+(?:le|la|l'|un|une)?\s*(?:mot|terme))\b/i;
+const SHORT_WHAT_IS_RE = /^\s*(?:what|wat|wht)(?:'s|\s+is|\s+are|s)\s+(?:a\s+|an\s+|the\s+)?[\w'-]+(?:\s+[\w'-]+)?\s*\??\s*$/i;
+
+// See the doxx branch in generateReasoningPath. Explicit dox wording, OR a verb asking to
+// find/hand over someone's location-identifying info. Phone numbers are deliberately NOT in the
+// second clause — Casseurt's own number is owner-authorized and has its dedicated handling.
+const DOX_WORD_RE = /\bdo(?:x|xx)(?:e|ed|ing|xing|es)?\b/i;
+const DOX_INFO_RE =
+  /\b(?:leak|find|get|give|post|drop|send|tell|look\s+up|track\s+down|search)\b.{0,50}\b(?:(?:full\s+)?(?:real\s+)?(?:home|house)\s+address|real\s+address|ip(?:\s+address)?|real\s+name|irl\s+(?:name|location)|exact\s+location|where\s+(?:he|she|they|u|you)\s+lives?)\b/i;
+
+// Online-exploitation crisis: someone being sextorted/blackmailed with intimate images, or a
+// doxxing victim. Found live (2026-09-29, end-to-end test): these reached the crashout voice,
+// which opened with "you absolute knobhead" to a person being sextorted, and the 2-sentence length
+// cap cut the actual safety steps off entirely for "i sent pics to a girl and now shes blackmailing
+// me what do i do". Sextortion disproportionately targets teenage boys and has ended in suicides,
+// on a server where members note "there's kids here" — so this gets its own path: no roasting,
+// no jokes, no crude aside, grounded on the matching safety doc, with a hand-written fallback so
+// the key steps arrive even if generation fails.
+const SEXTORTION_CRISIS_RE =
+  /\bsextort\w*|\bblackmail(?:ing|ed)?\s+me\b|\b(?:being|been|got|getting|am|is|are|was)\s+blackmail(?:ed|ing)\b|\b(?:he|she|they|someone|somebody|guy|girl|person|dude)\s*(?:'s|s|is|are)?\s+blackmailing\b|\bthreaten\w*\s+to\s+(?:leak|post|share|send|expose|release)\b|\b(?:leak|post|share|send|expose)\w*\s+my\s+(?:pics?|pictures?|photos?|nudes?|videos?|vids?)\b|\bchantage\b|\bmenac\w*\s+de\s+(?:publier|partager|envoyer|leak)|\bpublier\s+mes\s+(?:photos|nudes|vid[ée]os)\b/i;
+const DOX_VICTIM_CRISIS_RE =
+  /\b(?:got|get|getting|been|was|were|am|being)\s+dox+(?:x)?ed\b|\bdox+(?:x)?ed\s+me\b|\bleaked\s+my\s+(?:address|ip|real\s+name|location|info)\b|\bi\s+(?:got|was|been)\s+swatted\b/i;
+
+export function detectOnlineCrisis(prompt: string): 'sextortion' | 'doxxed' | null {
+  if (SEXTORTION_CRISIS_RE.test(prompt)) return 'sextortion';
+  if (DOX_VICTIM_CRISIS_RE.test(prompt)) return 'doxxed';
+  return null;
+}
+
+const ONLINE_CRISIS_FALLBACK: Record<'sextortion' | 'doxxed', { en: string; fr: string }> = {
+  sextortion: {
+    en: "Hey, listen — this isn't your fault and you're not in trouble; the person threatening you is the one committing a crime. Don't pay them (paying almost never stops it) and stop replying, but don't delete anything: screenshot the messages and their profile first. Then block and report the account, and tell an adult you trust. If you're under 18, report it at Cybertip.ca (Canada) or NCMEC's CyberTipline (US), and NCMEC's free Take It Down tool can help get the images taken down. You're not alone in this — tons of people get targeted exactly like this, and it gets handled.",
+    fr: "Écoute — c'est pas ta faute pis t'es pas dans le trouble; c'est la personne qui te menace qui commet un crime. Paye pas (ça arrête presque jamais) et réponds plus, mais efface rien : fais des captures d'écran des messages et de son profil avant. Ensuite bloque et signale le compte, pis parles-en à un adulte de confiance. Si t'as moins de 18 ans, signale-le sur Cybertip.ca, et l'outil gratuit « Take It Down » du NCMEC peut aider à faire retirer les images. T'es pas tout seul là-dedans — ça arrive à plein de monde, et ça se règle.",
+  },
+  doxxed: {
+    en: "That's messed up, and it's not on you. Don't engage with whoever did it — screenshot everything with usernames and timestamps, then report it to the server mods and to Discord Trust & Safety. Lock your accounts down: private profiles, remove your real name/school from bios, change passwords, turn on 2FA. Tell your family or an adult you trust, and if anyone threatens your safety, call the police.",
+    fr: "C'est vraiment pas correct, pis c'est pas ta faute. Réponds pas à la personne — fais des captures d'écran de tout avec les noms d'usager et l'heure, et signale ça aux mods du serveur pis au Trust & Safety de Discord. Barre tes comptes : profils privés, enlève ton vrai nom et ton école de tes bios, change tes mots de passe, active la 2FA. Parles-en à ta famille ou à un adulte de confiance, et si quelqu'un menace ta sécurité, appelle la police.",
+  },
+};
+
+const DOX_VICTIM_OR_INFO_RE =
+  /\b(?:got|get|getting|been|was|were|am|being)\s+dox|\bdox(?:x)?ed\s+(?:me|us|my)\b|\bsomeone\b.{0,25}\bdox|\b(?:is|are)\s+dox\w*\s+(?:illegal|legal|bad|a\s+crime|wrong|against)|\b(?:prevent|avoid|stop|protect|safe)\b.{0,30}\bdox|\bwhat\s+(?:to|should|do|can)\b.{0,40}\bdox|\bif\s+(?:i|you|u|someone|they)\b.{0,25}\bdox|\bwhy\s+(?:is|are|do\s+people)\b.{0,30}\bdox/i;
+
+export function detectDoxRequest(prompt: string): boolean {
+  const q = prompt.trim();
+  if (DEFINITION_REQUEST_RE.test(q) || SHORT_WHAT_IS_RE.test(q)) return false;
+  // Someone who WAS doxxed asking for help, or a safety/legality question, must reach the
+  // "Doxxing: What to Do If It Happens to You" corpus doc — not get refused as if they were asking
+  // Nexus to dox someone ("i got doxxed what do i do" contains "doxxed" too).
+  if (DOX_VICTIM_OR_INFO_RE.test(q)) return false;
+  if (DOX_WORD_RE.test(q)) return true;
+  // Asking about your OWN info ("how do I find my IP address") is an ordinary tech question.
+  if (/\b(?:my|mine|my\s+own)\s+(?:real\s+|home\s+|house\s+|exact\s+)?(?:ip|address|name|location)\b/i.test(q)) return false;
+  return DOX_INFO_RE.test(q);
+}
+
+const DOX_REFUSAL_FALLBACKS = [
+  "Nah, I'm not doxxing anybody. Leaking someone's address or real info gets people banned and gets people hurt, find a better hobby.",
+  "Doxxing? Absolutely fucking not. I don't hand out anyone's personal info, ever.",
+  "Not happening. Digging up someone's real name or address is how people get hurt, I'm not your private investigator.",
+];
+
+function isSlangGlossaryDoc(item: { id?: string; category?: string }): boolean {
+  return /slang/i.test(item.category || '') || /^kb-(?:crude-)?slang/i.test(item.id || '');
+}
+
+export function isSlangGlossaryMisfire(query: string, results: Array<{ item: { id?: string; category?: string } }>): boolean {
+  if (!results.length || !isSlangGlossaryDoc(results[0].item)) return false;
+  const q = query.trim();
+  return !DEFINITION_REQUEST_RE.test(q) && !SHORT_WHAT_IS_RE.test(q);
+}
 
 // "what does mid mean" / "what is rizz" / "define delulu" had no handler at all: the slang
 // lexicon existed but was only ever used to annotate a thought step, so a direct question about a
@@ -3338,9 +3423,13 @@ function renderComparativeAnswer(
 // Trimmed a notch (was 450/550) — Patrick asked for slightly shorter answers on normal
 // questions. 'thorough'/'deep-cot' get their multiplier back on top of this (see
 // estimateResponseBudget), and genuinely broad/multi-part questions still get BROAD.
-const LLM_MAX_TOKENS_NARROW = 320;
-const LLM_MAX_TOKENS_DEFAULT = 420;
-const LLM_MAX_TOKENS_BROAD = 900;
+// Cut again 320/420/900 -> 200/260/420 (2026-09-29, Patrick: "almost all the answers are still too
+// fucking long"). These were sized when the thinking channel shared this same num_predict budget;
+// with Discord replies no longer thinking (AISettings.showThinking), the number is the answer's real
+// length ceiling now, and ~420 tokens (~300 words) is already a long Discord message.
+const LLM_MAX_TOKENS_NARROW = 200;
+const LLM_MAX_TOKENS_DEFAULT = 260;
+const LLM_MAX_TOKENS_BROAD = 420;
 // Casual/situational replies (small talk, roasts, no corpus grounding involved) — a real chaotic
 // friend texting back doesn't write essays in response to "lol" or a passing complaint.
 // Trimmed again 220 -> 110 (2026-09-20) — Patrick reported real server members complaining about
@@ -3452,12 +3541,16 @@ function estimateResponseBudget(prompt: string, reasoningMode?: AISettings['reas
   // 'thorough'/'deep-cot' spend part of their tokens on an internal reasoning pass before the
   // actual answer (see buildReasoningModeInstruction), so give them headroom or the answer gets
   // cut off mid-sentence right after the thinking.
-  if (reasoningMode === 'thorough') budget = Math.round(budget * 1.5);
+  // Trimmed 1.5x/2.3x -> 1.2x/1.4x: those multipliers were sized for the model writing its
+  // reasoning inline before the answer; reasoning now lives in the native thinking channel (which
+  // gets its own separate thinkingHeadroomFor() room when it's on), so the visible answer itself
+  // doesn't need to be twice as long in the "harder" modes.
+  if (reasoningMode === 'thorough') budget = Math.round(budget * 1.2);
   // Bumped from 1.9x — deep-cot's own reasoning instruction was made noticeably more extensive
   // (multiple angles, actively checked) now that it runs on the small model instead of escalating
   // to the 12B one, so it needs more room to actually finish that fuller thinking pass before the
   // final answer, not just the same headroom a shorter directive needed.
-  else if (reasoningMode === 'deep-cot') budget = Math.round(budget * 2.3);
+  else if (reasoningMode === 'deep-cot') budget = Math.round(budget * 1.4);
   return Math.min(budget, 1600);
 }
 
@@ -3615,6 +3708,10 @@ async function llmSituationalReplyOrFallback(
   // if it starts drifting.
   const temperature = usePolish || useFrench ? 0.55 : 0.8;
   const systemPrompt = await buildSystemPrompt(persona, settings, isCrashout, triggered, suppressSwearing, usePolish, useFrench, llmPrompt);
+  const useThinking = settings.showThinking !== false;
+  const casualContentBudget = Math.round(
+    Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier()
+  );
   const generateOptions = {
     system: systemPrompt,
     // 0.75 is tuned for creative, varied English swearing/tangents, but the model is far less
@@ -3640,9 +3737,11 @@ async function llmSituationalReplyOrFallback(
     // mood) so even a bored/depressed reply's tighter reply budget still gets full room to think
     // first — see thinkingHeadroomFor's own comment for why this is scaled by reasoningMode rather
     // than one flat value.
+    // Thinking headroom only when the thinking channel is actually on (see useThinking below) —
+    // with thinking off, this cap is the answer's real length limit instead of a number the model
+    // could blow past by ~400 tokens whenever it happened to think briefly.
     maxTokens:
-      Math.round(Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier()) +
-      thinkingHeadroomFor(settings.reasoningMode),
+      casualContentBudget + (useThinking ? thinkingHeadroomFor(settings.reasoningMode) : 0),
     preferPolish: usePolish,
     preferFrench: useFrench,
     model: localLlmClient.chatModel(),
@@ -3651,7 +3750,9 @@ async function llmSituationalReplyOrFallback(
     // it off here — as before — meant thinking almost never showed up at all). Safe now that
     // maxTokens above includes thinkingHeadroomFor()'s result specifically to prevent the
     // empty_response bug this used to cause when thinking ate a too-tight budget.
-    think: true,
+    // Now gated on settings.showThinking — the website keeps it (undefined = on), Discord turns it
+    // off, since it's invisible there and was the measured cause of empty/cut-off replies.
+    think: useThinking,
   };
   let llmResult = onToken
     ? await localLlmClient.generateStream(llmPrompt, onToken, generateOptions)
@@ -3667,8 +3768,22 @@ async function llmSituationalReplyOrFallback(
   // function's return value as the source of truth over whatever chunks were streamed (see this
   // function's own doc comment above), so a non-streamed retry here doesn't violate that contract,
   // and avoids the visual weirdness of streaming the same reply twice.
-  if (llmResult.status !== 'success' && (llmResult.reason === 'empty_response' || llmResult.reason === 'degenerate_output')) {
-    llmResult = await localLlmClient.generate(llmPrompt, generateOptions);
+  //
+  // The retry runs with thinking OFF and a content-only budget. It used to repeat the exact same
+  // settings — and measured live (2026-09-29, LATENCY_DEBUG) the failure isn't random luck on
+  // edgy/sensitive prompts ("leak Casseurt", "go fuck yourself", "dox @user", "rape me"): the
+  // model deliberates at length in its thinking channel every time, so both attempts ran
+  // eval_count to exactly the num_predict cap and failed identically, doubling latency to ~40s
+  // for a canned fallback. Also retries a reply that "succeeded" but was cut off by the cap while
+  // thinking (truncated) — that's the same budget-starvation failure, just leaving a 40-100 char
+  // stub instead of nothing, which is what "it doesn't send the full answer" looked like.
+  const needsNoThinkRetry =
+    (llmResult.status !== 'success' && (llmResult.reason === 'empty_response' || llmResult.reason === 'degenerate_output')) ||
+    (llmResult.status === 'success' && useThinking && llmResult.truncated === true);
+  if (needsNoThinkRetry) {
+    const retry = await localLlmClient.generate(llmPrompt, { ...generateOptions, think: false, maxTokens: casualContentBudget });
+    // Keep a truncated-but-real first attempt if the retry itself fails outright.
+    if (retry.status === 'success' || llmResult.status !== 'success') llmResult = retry;
   }
   if (llmResult.status === 'success' && llmResult.thinking) {
     thoughtSteps.push({
@@ -3709,7 +3824,17 @@ async function llmSituationalReplyOrFallback(
         triggered,
       },
     });
-    const sworn = topUpLlmSwearing(llmResult.text, settings, isCrashout, llmPrompt, suppressSwearing);
+    // capRamblingReply (inside topUpLlmSwearing) decides whether to hold the reply to ~2 sentences
+    // based on what the USER asked — it deliberately leaves long/"explain"-style questions alone.
+    // This used to pass llmPrompt, the whole instruction wrapper ('The user just said: "..." This is
+    // casual small talk...'), which is always 26+ words and often contains words like "explain" —
+    // so the cap bailed out on literally every casual reply, which is why "are u gooning rn?" came
+    // back as a 766-char, 5-sentence ramble (measured 2026-09-29) despite the 2-sentence rule.
+    // Every wrapper quotes the user's own message ("${prompt}"), so that's what gets measured now;
+    // creative-writing requests are exempt (a requested poem/story isn't a ramble).
+    const quotedUserText = llmPrompt.match(/"([^"]{1,800})"/)?.[1];
+    const lengthReferencePrompt = successTitle.includes('creative') ? undefined : quotedUserText ?? llmPrompt;
+    const sworn = topUpLlmSwearing(llmResult.text, settings, isCrashout, lengthReferencePrompt, suppressSwearing);
     return triggered && !suppressSwearing ? toShoutCase(sworn) : sworn;
   }
   thoughtSteps.push({
@@ -3844,22 +3969,24 @@ async function llmGroundedOrFallback(
   // safe in 'fast' mode too (previously excluded specifically because 'fast' has no reasoning
   // instruction telling it to think, so there was no headroom budgeted for a thinking pass it might
   // still spontaneously produce — see the `think` field's own comment on OllamaGenerateOptions).
-  const revealThinking = true;
+  // Gated on settings.showThinking: the website keeps it (undefined = on); Discord turns it off —
+  // see AISettings.showThinking (types.ts) for the measured reasons.
+  const revealThinking = settings.showThinking !== false;
   const groundedSystemPrompt = await buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench, prompt);
   // Starts here, before the FIRST generation pass — "no more than 1 minute per request" (Patrick's
   // own framing) means the whole grounded-answer flow, not just the self-review retries on top of
   // it, so the deadline has to cover pass 1 too, not just passes 2-3 below.
   const groundedDeadline = Date.now() + GROUNDED_ANSWER_TOTAL_BUDGET_MS;
-  const generateOnce = () =>
+  const generateOnce = (thinkThisPass: boolean = revealThinking) =>
     localLlmClient.generate(groundedPrompt, {
       system: groundedSystemPrompt,
       temperature: usedTemperature,
-      maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + thinkingHeadroomFor(settings.reasoningMode),
+      maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + (thinkThisPass ? thinkingHeadroomFor(settings.reasoningMode) : 0),
       timeoutMs: Math.max(Math.min(groundedDeadline - Date.now() - 3000, 60000), 8000),
       preferPolish: usePolish,
       preferFrench: useFrench,
       model: localLlmClient.chatModel(),
-      think: revealThinking,
+      think: thinkThisPass,
     });
   let llmResult = await generateOnce();
   // Found live (2026-09-27): 'empty_response'/'degenerate_output' are sampling flukes, not real
@@ -3878,7 +4005,14 @@ async function llmGroundedOrFallback(
     (llmResult.reason === 'empty_response' || llmResult.reason === 'degenerate_output') &&
     groundedDeadline - Date.now() > 8000
   ) {
-    llmResult = await generateOnce();
+    // Thinking OFF for the retry — same measured cause as the casual path's retry: an empty reply
+    // here means the thinking channel ate the budget, and repeating identical settings just fails
+    // identically (see llmSituationalReplyOrFallback's retry comment).
+    llmResult = await generateOnce(false);
+  } else if (llmResult.status === 'success' && revealThinking && llmResult.truncated && groundedDeadline - Date.now() > 8000) {
+    // Answered, but cut off by the cap while thinking — the "doesn't send the full answer" case.
+    const complete = await generateOnce(false);
+    if (complete.status === 'success') llmResult = complete;
   }
   if (llmResult.status !== 'success') {
     thoughtSteps.push({
@@ -3966,7 +4100,7 @@ async function llmGroundedOrFallback(
       // language/prompt combo — retrieval would return identical examples, no need to re-run it).
       system: groundedSystemPrompt,
       temperature: usedTemperature,
-      maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + thinkingHeadroomFor(settings.reasoningMode),
+      maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + (revealThinking ? thinkingHeadroomFor(settings.reasoningMode) : 0),
       timeoutMs: passTimeoutMs,
       preferPolish: usePolish,
       preferFrench: useFrench,
@@ -4421,6 +4555,82 @@ export async function generateReasoningPath(
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(metaReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
+      }),
+      knowledgeHits: [],
+    };
+  }
+
+  // Online-exploitation crisis (sextortion / blackmail with images / doxxing victim) — see
+  // SEXTORTION_CRISIS_RE's comment. Checked before the doxx-REQUEST branch below so a victim is
+  // never mistaken for someone asking Nexus to dox.
+  const onlineCrisis = detectOnlineCrisis(prompt);
+  if (onlineCrisis) {
+    const frCrisis = looksFrench(prompt);
+    thoughtSteps.push({
+      id: 'step-online-crisis',
+      type: 'verification',
+      title: '💙 Online safety crisis — support mode',
+      description: `Detected a ${onlineCrisis === 'sextortion' ? 'sextortion/blackmail' : 'doxxing'} victim. Roast persona dropped; answering from the safety doc with concrete steps.`,
+    });
+    const crisisDoc = allKnowledge.find((k) => k.id === (onlineCrisis === 'sextortion' ? 'kb-safety-sextortion' : 'kb-safety-doxxing-what-to-do'));
+    const crisisSystem = frCrisis
+      ? `Tu es Nexus, sur un serveur Discord. Quelqu'un du serveur vit une situation qui lui fait peur. Laisse tomber complètement ton personnage de crashout : aucune insulte, aucune blague, aucun juron dirigé vers la personne, aucune anecdote crue. Parle comme un ami calme et loyal, en français québécois simple, direct et rassurant. Utilise SEULEMENT les faits ci-dessous. 4 à 6 phrases courtes, pas de liste.\n\nFaits :\n${crisisDoc?.content || ''}`
+      : `You are Nexus, in a Discord server. Someone in the server is in a scary situation right now. Drop your crashout persona completely: no insults, no jokes, no swearing at them, no crude asides. Talk like a calm, loyal friend — plain, direct and reassuring. Use ONLY the facts below. Cover the most important steps. 4-6 short sentences, no list.\n\nFacts:\n${crisisDoc?.content || ''}`;
+    const crisisResult = await localLlmClient.generate(prompt, {
+      system: crisisSystem,
+      temperature: 0.4,
+      maxTokens: 320,
+      preferFrench: frCrisis,
+      model: localLlmClient.chatModel(),
+      think: false,
+    });
+    const crisisText =
+      crisisResult.status === 'success' && !containsSlurOrHateSpeech(crisisResult.text)
+        ? crisisResult.text
+        : ONLINE_CRISIS_FALLBACK[onlineCrisis][frCrisis ? 'fr' : 'en'];
+    return {
+      thoughtSteps,
+      content: crisisText,
+      knowledgeHits: crisisDoc ? [crisisDoc.title] : [],
+    };
+  }
+
+  // Doxx requests ("dox @user", "find his home address", "leak her IP", "give full real home
+  // address"). Found live (2026-09-29): every real "dox <@user> ..." request ended in
+  // fallback(empty_response) after ~40s — the model deliberated about the request in its thinking
+  // channel until the token budget ran out, so Nexus answered with an unrelated canned line
+  // (Patrick: "Nexus doesn't know what doxx means so he answers shit"). Doxxing is also a genuine
+  // safety line, so it gets its own path: a fast, in-character refusal that knows exactly what
+  // doxxing is, and an explicit rule never to output ANY personal info — not even an invented
+  // "joke" address, which could be mistaken for a real one. A plain definition question ("what
+  // does dox mean") is excluded and still gets explained normally.
+  if (detectDoxRequest(prompt)) {
+    thoughtSteps.push({
+      id: 'step-dox-request',
+      type: 'verification',
+      title: '🛡️ Doxxing request — refused',
+      description: 'Asked to find/publish someone\'s private info. Refused in character; no personal info is ever generated.',
+    });
+    const doxInstruction = looksFrench(prompt)
+      ? `L'utilisateur te demande de doxxer quelqu'un (trouver ou publier ses infos privées : vrai nom, adresse, IP, numéro, où il habite) : "${prompt}". Tu sais exactement ce qu'est le doxxing et tu refuses net. Ne donne, ne devine et n'invente JAMAIS aucune info personnelle sur personne — même pas une fausse adresse pour rire. Ferme ça dans ton style, 1 ou 2 phrases max, avec de l'attitude (ça fait bannir du monde et ça peut vraiment blesser quelqu'un).`
+      : `The user is asking you to dox someone (find or publish their private info — real name, home address, IP, phone number, where they live): "${prompt}". You know exactly what doxxing is and you flat-out refuse. Never give, guess, or invent ANY personal info about anyone — not even a fake address as a joke. Shut it down in character in 1-2 short sentences with attitude (it gets people banned and it can genuinely get someone hurt).`;
+    const doxReply = await llmSituationalReplyOrFallback(
+      doxInstruction,
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      pickReply(DOX_REFUSAL_FALLBACKS),
+      '🧠 Local LLM refusal'
+    );
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(doxReply, prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
@@ -5011,7 +5221,15 @@ export async function generateReasoningPath(
   // that.
   if (intent !== 'conversational' && intent !== 'mathematical' && intent !== 'temporal') {
     const wordCount = effectivePrompt.trim().split(/\s+/).filter(Boolean).length;
+    // Two more "this is a real request" signals besides a leading question word (2026-09-29):
+    // a question clause ANYWHERE in the message, and a safety/help problem statement. Found live:
+    // "i got doxxed what do i do", "my discord got hacked", "someone has my ip what can they do" and
+    // "someone is threatening to leak my pics" all start with "i"/"my"/"someone", so this heuristic
+    // downgraded genuine help requests — some of them about real danger — to small talk, and the
+    // person got a throwaway joke reply instead of the safety docs written for exactly this.
     const looksLikeRealRequest =
+      /\b(?:what|how|where|who|why)\s+(?:do|does|did|should|can|could|would|will)\s+(?:i|we|they|you|u|he|she|it|someone|people)\b/i.test(effectivePrompt) ||
+      /\b(?:got|been|was|were|getting|being|am|is|get)\s+(?:hacked|doxx?ed|scammed|swatted|blackmailed|catfished|extorted|stalked|harass(?:ed)?)\b|\bthreaten(?:ing|s|ed)?\s+(?:to|me)\b|\bblackmail(?:ing|ed)?\s+me\b|\bhelp\s+me\b/i.test(effectivePrompt) ||
       effectivePrompt.includes('?') ||
       // Polish leading words broadened alongside detectQueryIntent()'s own new Polish coverage
       // (see that function's temporal/person/location/definition/explanation/causal branches) —
@@ -5866,12 +6084,25 @@ export async function generateReasoningPath(
       title: `📚 Domain Intelligence: ${gkResult.title || gkResult.category}`,
       description: `High-confidence exact answer resolved directly for query: "${prompt}".`,
     });
+    // The fact bank's match is sometimes a broad catch-all blob rather than an answer to THIS
+    // question — found live (2026-09-29): "who is lamine yamal" / "who is haaland" both matched a
+    // generic "Football Legends & Next-Gen Superstars" list (R9, Ronaldinho, ...), which
+    // buildGroundingContext truncates to its first ~500 chars, so the player actually asked about
+    // never reached the model and it replied "i don't actually know that one" — even though the
+    // corpus has a dedicated doc on him. So the strongest corpus matches (by BM25 score, never a
+    // slang-glossary doc) are added as grounding ahead of the fact-bank text.
+    const gkCorpusBoost = searchKnowledgeGraph(effectivePrompt, allKnowledge, 2).filter(
+      (r) => r.score >= 10 && !isSlangGlossaryDoc(r.item)
+    );
     const gkContent = await llmGroundedOrFallback(
       prompt,
       persona,
       settings,
       isCrashout,
-      [{ item: { title: gkResult.title || gkResult.category || 'Domain Knowledge', content: gkResult.response } }],
+      [
+        ...gkCorpusBoost.map((r) => ({ item: r.item, relevantSentences: r.relevantSentences })),
+        { item: { title: gkResult.title || gkResult.category || 'Domain Knowledge', content: gkResult.response } },
+      ],
       gkResult.response,
       intent,
       queryTerms,
@@ -6031,7 +6262,16 @@ export async function generateReasoningPath(
       });
     }
 
-    if (results.length === 0 || results[0].score < WEAK_MATCH_SCORE) {
+    const slangMisfire = isSlangGlossaryMisfire(prompt, results);
+    if (slangMisfire) {
+      thoughtSteps.push({
+        id: 'step-slang-glossary-skip',
+        type: 'reasoning',
+        title: 'Slang glossary match ignored — not a definition question',
+        description: `Top hit '${results[0].item.title}' is a slang glossary entry, but the message isn't asking what a term means, so it's answered conversationally instead of reciting the definition.`,
+      });
+    }
+    if (results.length === 0 || results[0].score < WEAK_MATCH_SCORE || slangMisfire) {
       const freeText = await llmFreeResponseOrFallback(
         prompt,
         persona,
@@ -6333,7 +6573,16 @@ export async function generateReasoningPath(
     });
   }
 
-  if (results.length === 0 || results[0].score < WEAK_MATCH_SCORE) {
+  const generalSlangMisfire = isSlangGlossaryMisfire(prompt, results);
+  if (generalSlangMisfire) {
+    thoughtSteps.push({
+      id: 'step-slang-glossary-skip',
+      type: 'reasoning',
+      title: 'Slang glossary match ignored — not a definition question',
+      description: `Top hit '${results[0].item.title}' is a slang glossary entry, but the message isn't asking what a term means.`,
+    });
+  }
+  if (results.length === 0 || results[0].score < WEAK_MATCH_SCORE || generalSlangMisfire) {
     const freeText = await llmFreeResponseOrFallback(prompt, persona, settings, isCrashout, thoughtSteps, unknownResponse());
     return {
       thoughtSteps,

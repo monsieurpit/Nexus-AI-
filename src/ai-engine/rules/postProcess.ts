@@ -84,7 +84,10 @@ function capRamblingReply(text: string, userPrompt: string): string {
   if (!text || !userPrompt) return text;
   if (/```/.test(text)) return text;
   const promptWords = userPrompt.trim().split(/\s+/).filter(Boolean).length;
-  if (DEPTH_REQUEST_RE.test(userPrompt) || promptWords > 26) return text;
+  // A depth request / long question used to skip the cap entirely (unlimited). Patrick
+  // (2026-09-29): "almost all the answers are still too fucking long" — so a real "explain how X
+  // works" now gets more room (5 sentences) instead of no ceiling at all.
+  const wantsDepth = DEPTH_REQUEST_RE.test(userPrompt) || promptWords > 26;
 
   let body = text.trim();
   let aside = '';
@@ -122,8 +125,14 @@ function capRamblingReply(text: string, userPrompt: string): string {
   // model is asked for this length AND mechanically held to it, same two-layer pattern already
   // used for the swear floor — a prompt instruction alone wasn't reliable at 4, no reason to
   // expect it's reliable at 2 either without the mechanical cap actually enforcing it.
-  const MAX_SENTENCES = COMPARISON_RE.test(userPrompt) ? 6 : 2;
+  const MAX_SENTENCES = wantsDepth || COMPARISON_RE.test(userPrompt) ? 5 : 2;
   const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
+  // A sentence count alone doesn't bound length — gemma chains clauses with commas/semicolons/
+  // dashes, so "5 sentences" measured live at 1043 chars ("explain how black holes form",
+  // 2026-09-29). Drop trailing sentences until under a character ceiling (never below 1). The
+  // separate "Anyway, ..." aside isn't counted — it's re-appended after.
+  const CHAR_CEILING = MAX_SENTENCES > 2 ? 650 : 360;
+  while (kept.length > 1 && kept.join(' ').length > CHAR_CEILING) kept.pop();
   let out = kept.join(' ').replace(/[ \t]+/g, ' ').trim();
   if (out && !/[.!?…"']$/.test(out)) out += '.';
   return (out + aside).trim();

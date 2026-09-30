@@ -513,6 +513,17 @@ import { CARTOGRAPHY_SURVEYING_GAPS } from './corpus/cartographySurveyingGaps';
 import { LOCKSMITHING_GAPS } from './corpus/locksmithingGaps';
 import { GIT_WORKFLOWS_BRANCHING_GAPS } from './corpus/gitWorkflowsBranchingGaps';
 import { OBSERVABILITY_MONITORING_GAPS } from './corpus/observabilityMonitoringGaps';
+import { FOOTBALL_CLUBS_EUROPE } from './corpus/footballClubsEurope';
+import { FOOTBALL_PLAYERS_MODERN } from './corpus/footballPlayersModern';
+import { FOOTBALL_LEAGUES_COMPETITIONS } from './corpus/footballLeaguesCompetitions';
+import { FOOTBALL_WORLD_CLUBS } from './corpus/footballWorldClubs';
+import { VIDEO_GAMES_POPULAR } from './corpus/videoGamesPopular';
+import { VIDEO_GAMES_MORE } from './corpus/videoGamesMore';
+import { ONLINE_SAFETY_DISCORD } from './corpus/onlineSafetyDiscord';
+import { CREATORS_STREAMERS } from './corpus/creatorsStreamers';
+import { QUEBEC_CULTURE } from './corpus/quebecCulture';
+import { SLANG_NEWER_2025 } from './corpus/slangNewer2025';
+import { REAL_TRAFFIC_GAPS_2026 } from './corpus/realTrafficGaps2026';
 
 const CORE_BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   // 1. AI & Machine Learning Architectures
@@ -1549,6 +1560,19 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...OBSERVABILITY_MONITORING_GAPS,
   // Batch 315 corpus fixes (2026-09-14): locksmithing / physical lock & key mechanisms "difference between X and Y" gaps.
   ...LOCKSMITHING_GAPS,
+  // Batch 2026-09-29: server-relevant gaps found by a title-coverage probe + replaying real production
+  // questions (clubs, players, leagues, games, Discord/online safety, creators, Québec, newer slang).
+  ...FOOTBALL_CLUBS_EUROPE,
+  ...FOOTBALL_PLAYERS_MODERN,
+  ...FOOTBALL_LEAGUES_COMPETITIONS,
+  ...FOOTBALL_WORLD_CLUBS,
+  ...VIDEO_GAMES_POPULAR,
+  ...VIDEO_GAMES_MORE,
+  ...ONLINE_SAFETY_DISCORD,
+  ...CREATORS_STREAMERS,
+  ...QUEBEC_CULTURE,
+  ...SLANG_NEWER_2025,
+  ...REAL_TRAFFIC_GAPS_2026,
 ];
 
 // In-memory dynamic knowledge store for runtime additions via API

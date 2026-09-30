@@ -173,6 +173,13 @@ export const SLANG_LEXICON: Record<string, string> = {
   thicc: 'having a curvy figure, especially emphasizing hips, thighs, or butt (spelled with an extra c as a stylized compliment)',
   bussy: 'internet meme slang, mostly used in absurdist joking rather than literal description, referencing a buttocks/anus',
   gooning: 'internet slang for an extended, low-focus trance-like state of arousal or masturbation, used both descriptively and as an exaggerated joke',
+  // dox family added 2026-09-29 — "what does dox mean" had no instant lexicon answer (it went all
+  // the way through corpus retrieval + a ~30s grounded generation for a one-line definition).
+  dox: 'to find and publicly post someone\'s private personal info (real name, home address, phone number, IP, workplace) without their consent — a form of harassment that gets people banned and can get them hurt',
+  doxx: 'to find and publicly post someone\'s private personal info (real name, home address, phone number, IP, workplace) without their consent — a form of harassment that gets people banned and can get them hurt',
+  doxxing: 'finding and publicly posting someone\'s private personal info (real name, home address, phone number, IP, workplace) without their consent — a form of harassment that gets people banned and can get them hurt',
+  doxing: 'finding and publicly posting someone\'s private personal info (real name, home address, phone number, IP, workplace) without their consent — a form of harassment that gets people banned and can get them hurt',
+  doxxed: 'having your private personal info (real name, address, phone, IP) found and posted publicly without your consent',
   aura: 'a joking, informal measure of how impressive, cool, or socially dominant someone\'s actions seem in the moment',
   mog: 'to visibly outshine or look significantly more attractive/imposing than someone standing next to you',
   npc: 'mocking someone for acting mindlessly, predictably, or without independent thought, from video game background characters',
