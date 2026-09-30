@@ -25,7 +25,7 @@ import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detec
 import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
 import { stripContextLeaks } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
-import { shouldTriggerLiveWebSearch } from '../src/ai-engine/webSearchEngine';
+import { shouldTriggerLiveWebSearch, buildWikipediaQuery } from '../src/ai-engine/webSearchEngine';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
 import { trySolveMath } from '../src/ai-engine/mathSolver';
 import { trySolveCategoryClassification } from '../src/ai-engine/categorySolver';
@@ -268,6 +268,19 @@ async function runDeterministicChecks() {
   // Casseurt, ce codeur..." lost the name (French creator replies, 40/40).
   check('de-stack keeps a name inside a swear pile', /Casseurt/.test(deStackLeadingInterjections("câlisse, tabarnak, Casseurt, ce codeur gossant m'a bâti.")));
   check('de-stack still collapses a pure swear pile', deStackLeadingInterjections('bloody hell, shit, fuck, right, listen up, the answer is 42.') === 'bloody hell, the answer is 42.');
+
+  console.log('\nWeb search routing:');
+  // "what happened with the louvre heist" matched the corpus's 1911 theft doc and never searched;
+  // "whats the latest on gta 6" and "tell me about X" never counted as questions.
+  for (const q of ['what happened with the louvre heist', 'who won the ballon dor 2025', 'whats the latest on gta 6', 'whos winning the league this season']) {
+    check(`searches the web even with a confident corpus match: "${q}"`, !!shouldTriggerLiveWebSearch(q, undefined, 0.9));
+  }
+  check('searches on a weak match for "tell me about labubu"', !!shouldTriggerLiveWebSearch('tell me about labubu', undefined, 0.3));
+  for (const q of ['how are you today', 'what are you doing tonight', 'hey nexus', 'i was sad yesterday']) {
+    check(`control: no web search for "${q}"`, !shouldTriggerLiveWebSearch(q, undefined, 0.9));
+  }
+  check('Wikipedia query keeps only the topic ("who won the 2026 world cup" -> "2026 world cup")', buildWikipediaQuery('who won the 2026 world cup') === '2026 world cup');
+  check('Wikipedia query drops "latest on" ("whats the latest on gta 6" -> "gta 6")', buildWikipediaQuery('whats the latest on gta 6') === 'gta 6');
 
   console.log('\nMood engine:');
   _resetMoodForTests();

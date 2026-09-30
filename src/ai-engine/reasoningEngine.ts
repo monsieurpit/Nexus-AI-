@@ -3752,7 +3752,9 @@ function hasRelevantWebResults(queryTerms: string[], results: WebSearchResult[])
   if (meaningfulTerms.length === 0) return true;
   return results.slice(0, 3).some((r) => {
     const haystack = `${r.title} ${r.snippet || ''}`.toLowerCase();
-    return meaningfulTerms.some((t) => haystack.includes(t));
+    // Acronyms: "gta 6" correctly finds "Grand Theft Auto VI", whose text never says "gta".
+    const initials = r.title.split(/[\s:()-]+/).filter((w) => /^[A-Z]/.test(w)).map((w) => w[0].toLowerCase()).join('');
+    return meaningfulTerms.some((t) => haystack.includes(t) || (t.length >= 2 && t.length <= 5 && /^[a-z]+$/.test(t) && initials.includes(t)));
   });
 }
 
@@ -3994,6 +3996,28 @@ export const retryTelemetry = {
   retryFired: 0,
   retryFixedCount: 0,
 };
+
+// A Wikipedia intro runs up to ~2,500 chars; the grounding context caps each doc at ~650, so the
+// answer ("Mark Carney is the current prime minister", "Spain won the final ... 1–0") has to be
+// picked out rather than hoping it's in the first 650 chars. Keeps the opening sentence (what the
+// thing IS), then the sentences sharing the most question terms, in their original order.
+const WEB_ANSWER_CUE_RE = /\b(?:current(?:ly)?|won|win(?:ner|ning)?|defeat(?:ed|ing)?|beat|champion|elected|appointed|died|announced|released|stolen|arrested|since|is the|was the)\b/i;
+function pickRelevantWebSentences(text: string, queryTerms: string[]): string[] {
+  const sentences = (text.match(/[^.!?]+(?:[.!?]+|$)/g) || []).map((x) => x.trim()).filter((x) => x.length > 20);
+  if (sentences.length <= 4) return sentences;
+  const terms = queryTerms.filter((t) => t.length > 2);
+  const scored = sentences.map((sentence, index) => {
+    const tokens = new Set(processForSearch(sentence));
+    const overlap = terms.filter((t) => tokens.has(t)).length;
+    return { sentence, index, score: overlap * 2 + (WEB_ANSWER_CUE_RE.test(sentence) ? 1 : 0) };
+  });
+  const picked = new Set<number>([0]);
+  for (const x of [...scored].sort((a, b) => b.score - a.score || a.index - b.index)) {
+    if (picked.size >= 4) break;
+    if (x.score > 0) picked.add(x.index);
+  }
+  return [...picked].sort((a, b) => a - b).map((i) => sentences[i]);
+}
 
 async function llmGroundedOrFallback(
   prompt: string,
@@ -4654,8 +4678,8 @@ export async function generateReasoningPath(
       const creatorInstruction = isSuperChill
         ? `The user asking this IS your actual creator, Patrick (Casseurt) — the verified super-chill user. Tell them, genuinely, that THEY made you — a custom engine they built from scratch that runs local on their own machine. Answer in your own words, in character, don't just recite a script. Do NOT mention document counts, corpus sizes, or internal tech specs.`
         : isFrenchCreator
-        ? `L'utilisateur te demande qui t'a créé : "${prompt}". La vraie réponse : Casseurt (vrai nom Patrick) t'a codé complètement à partir de zéro — un engin custom qui roule local sur sa machine, pas Gemma, pas Google, pas ChatGPT. Nomme-le « Casseurt » dans ta réponse (son vrai nom Patrick en bonus si tu veux). Réponds vraiment dans tes propres mots, dans ton style (tu peux le clasher un peu en le disant, ça fait partie de qui t'es) — ne récite pas un script. Mentionne JAMAIS un nombre de documents, une taille de corpus ou des specs techniques internes.`
-        : `The user is asking who made/created you: "${prompt}". The true answer: Casseurt (real name Patrick) built you completely from scratch — a custom engine that runs local on his own machine, not Gemma, not Google, not ChatGPT. Name him as "Casseurt" in your reply (his real name Patrick is optional). Answer genuinely in your own words, in character (you're still allowed to talk shit about him while stating the fact — that's part of who you are) — don't just recite a fixed script. Do NOT mention document counts, corpus sizes, or internal tech specs.`;
+        ? `L'utilisateur te demande qui t'a créé : "${prompt}". La vraie réponse : Casseurt (vrai nom Patrick) t'a codé complètement à partir de zéro — un engin custom qui roule local sur sa machine, pas Gemma, pas Google, pas ChatGPT. Dis les deux noms à chaque fois : son surnom c'est « Casseurt » pis son VRAI nom c'est Patrick (jamais l'inverse). Réponds vraiment dans tes propres mots, dans ton style (tu peux le clasher un peu en le disant, ça fait partie de qui t'es) — ne récite pas un script. Mentionne JAMAIS un nombre de documents, une taille de corpus ou des specs techniques internes.`
+        : `The user is asking who made/created you: "${prompt}". The true answer: Casseurt (real name Patrick) built you completely from scratch — a custom engine that runs local on his own machine, not Gemma, not Google, not ChatGPT. Say BOTH names in your reply every time: his nickname is \"Casseurt\" and his REAL name is Patrick (never the other way around — Patrick is not a nickname). Answer genuinely in your own words, in character (you're still allowed to talk shit about him while stating the fact — that's part of who you are) — don't just recite a fixed script. Do NOT mention document counts, corpus sizes, or internal tech specs.`;
       const creatorReply = await llmSituationalReplyOrFallback(
         creatorInstruction,
         persona,
@@ -5552,7 +5576,13 @@ export async function generateReasoningPath(
   // detected live-sports question always skips this conversational shortcut so it can reach the
   // real live-data lookup below.
   const hasLiveSportsIntent = !!(detectLiveSportsIntent(effectivePrompt) || detectLiveSportsIntent(prompt));
-  if ((intent === 'conversational' || isPersonalQuestionOverride) && !hasLiveSportsIntent) {
+  // Same "early shortcut preempts the right later step" guard for web search: server.ts only runs a
+  // search for info/news questions (shouldTriggerLiveWebSearch excludes small talk), so relevant
+  // results mean this is a real question. "whats the latest on gta 6" was answered as small talk
+  // with the Grand Theft Auto VI article already fetched (2026-09-30).
+  const hasRelevantWebAnswer =
+    !!webSearchResults?.length && hasRelevantWebResults(processForSearch(effectivePrompt), webSearchResults);
+  if ((intent === 'conversational' || isPersonalQuestionOverride) && !hasLiveSportsIntent && !hasRelevantWebAnswer) {
     thoughtSteps.push({
       id: 'step-conv-reply',
       type: 'synthesis',
@@ -6229,6 +6259,65 @@ export async function generateReasoningPath(
     }
   }
 
+  // 5.9. Live Web Search Grounding. Used to be step 7, AFTER domain intelligence — so "who won the
+  // 2026 world cup" was answered by the football module from the corpus ("don't know") even though
+  // the search had already found the 2026 World Cup article. The search only runs for news/recency
+  // questions, explicit "look it up" requests, or questions the corpus is weak on (see
+  // shouldTriggerLiveWebSearch), so when it has relevant results they're the better source.
+  //
+  // synthesiseWebSearchResults trusts whatever comes back with zero relevance check — observed
+  // live: "nexus you suh dih?" (Jamaican Patois for "what's up") fell through to a live web search,
+  // which returned an unrelated top result about ancient cuneiform writing. hasRelevantWebResults()
+  // is the sanity gate: none of the query's own terms in the top results = the search missed.
+  if (webSearchResults && webSearchResults.length > 0 && hasRelevantWebResults(queryTerms, webSearchResults)) {
+    thoughtSteps.push({
+      id: 'step-web-grounding',
+      type: 'web_search',
+      title: `🌐 Live Web Search: "${prompt}"`,
+      description: `Retrieved ${webSearchResults.length} live search sources.\nTop: ${webSearchResults[0]?.title} (${webSearchResults[0]?.domain || 'web'})`,
+    });
+    // Patrick (2026-09-30): web answers came back as a stitched Wikipedia paste ("From what I found,
+    // damn, Labubu is a line of...") instead of Nexus actually answering. Now the model writes the
+    // answer from the search results through the same grounded path corpus answers use (facts-only,
+    // own voice, never mentions its sources); the stitched synthesis is only the fallback text.
+    const webTop = webSearchResults.slice(0, 3).map((w) => ({
+      item: { title: w.title.replace(/\s*\(Wikipedia\)$/, ''), content: w.snippet || '' },
+      relevantSentences: pickRelevantWebSentences(w.snippet || '', queryTerms),
+    }));
+    const webFallback = synthesiseWebSearchResults(prompt, intent, webSearchResults, persona, settings, isSuperChill);
+    // The answer self-check (answerVerifier's off-topic rule) wants the reply to repeat a query term,
+    // but a correct web answer often doesn't: "who won the 2026 world cup" -> "Spain beat Argentina
+    // 1–0 in the final" was rejected 3/3 times and replaced by the fallback. The names in the picked
+    // source sentences count as on-topic too — an answer about something unrelated still fails.
+    const webSourceTerms = processForSearch(
+      webTop.flatMap((w) => w.relevantSentences).join(' ').match(/\b[A-Z][\p{L}'-]{2,}\b/gu)?.join(' ') || ''
+    ).slice(0, 15);
+    const webCheckTerms = [...new Set([...queryTerms, ...webSourceTerms])];
+    const webReply = await llmGroundedOrFallback(
+      prompt,
+      persona,
+      settings,
+      isCrashout,
+      webTop,
+      webFallback,
+      intent,
+      webCheckTerms,
+      entities,
+      thoughtSteps,
+      true
+    );
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(webReply, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+      }),
+      knowledgeHits: webSearchResults.map((w) => w.title),
+    };
+  }
+
   // 6. General & Specialised Domain Intelligence (Science, Football, History, Everyday How-Tos)
   //
   // This is a hand-authored fact bank, same nature as a corpus document — the exact fact behind
@@ -6281,53 +6370,6 @@ export async function generateReasoningPath(
         swearIntensity: settings.swearIntensity,
       }),
       knowledgeHits: gkResult.title ? [gkResult.title] : [],
-    };
-  }
-
-  // 7. Check Live Web Search Grounding (only reached once every offline solver above has passed)
-  //
-  // synthesiseWebSearchResults trusts whatever comes back with zero relevance check — observed
-  // live: "nexus you suh dih?" (Jamaican Patois for "what's up") isn't recognized as a greeting
-  // by any of our chat-trigger lists (impossible to enumerate every dialect's slang), so it fell
-  // through to a live web search, which returned an unrelated top result about ancient
-  // cuneiform writing, presented as a confident answer. hasRelevantWebResults() is a lightweight
-  // sanity gate: if none of the query's own significant terms appear anywhere in the top
-  // results' title/snippet, the search almost certainly missed and these results shouldn't be
-  // trusted — fall through instead to the solvers/LLM-free-response path below, same as a
-  // genuine zero-match case.
-  if (webSearchResults && webSearchResults.length > 0 && hasRelevantWebResults(queryTerms, webSearchResults)) {
-    thoughtSteps.push({
-      id: 'step-web-grounding',
-      type: 'web_search',
-      title: `🌐 Live Web Search: "${prompt}"`,
-      description: `Retrieved ${webSearchResults.length} live search sources from Google & the Web.\nTop: ${webSearchResults[0]?.title} (${webSearchResults[0]?.domain || 'web'})`,
-    });
-
-    thoughtSteps.push({
-      id: 'step-web-synth',
-      type: 'synthesis',
-      title: isCrashout ? 'Writing sweary crashout web response' : 'Synthesising live web knowledge',
-      description: `Reformulating ${webSearchResults.length} search sources in custom voice.`,
-    });
-
-    const webReply = synthesiseWebSearchResults(
-      prompt,
-      intent,
-      webSearchResults,
-      persona,
-      settings,
-      isSuperChill
-    );
-
-    return {
-      thoughtSteps,
-      content: enforceStrictSdkRules(webReply, prompt, settings.userCustomDirectives, {
-        isSuperChill,
-        username: settings.userName,
-        systemInstruction: persona.systemPrompt,
-        swearIntensity: settings.swearIntensity,
-      }),
-      knowledgeHits: webSearchResults.map((w) => w.title),
     };
   }
 

@@ -338,64 +338,88 @@ export async function searchDuckDuckGoDirect(query: string, maxResults: number =
 /**
  * 3. Wikipedia Knowledge Search (Direct open encyclopedia API - 0 keys, infinite quota)
  */
+// Wikipedia search works best on the topic's keywords, not the whole question — "who won the 2026
+// world cup" ranked the Group A/B pages above the final; "what happened with the louvre heist"
+// found Lupin (TV series) instead of "2025 Louvre heist" (which "louvre heist" finds first).
+const WIKI_QUESTION_SCAFFOLD_RE =
+  /^(?:(?:hey|yo|ok(?:ay)?|so|bro|nexus)[\s,]+)*(?:(?:do|does|did|can|could)\s+(?:you|u)\s+(?:know|tell\s+me|explain)\s+)?(?:what\s+happened\s+(?:with|to|at|in|during)|what(?:'?s|\s+is|\s+are|\s+was|\s+were)|who(?:'?s|\s+is|\s+are|\s+was|\s+were)|who\s+won|who\s+invented|who\s+made|who\s+owns|when\s+(?:is|was|did|does)|where\s+(?:is|was|are)|how\s+(?:much|many|old|tall|big)\s+(?:is|are|was|does|did)?|tell\s+me\s+about|explain|give\s+me\s+info\s+(?:on|about))\s+/i;
+export function buildWikipediaQuery(query: string): string {
+  const cleaned = query
+    .trim()
+    .replace(/[?!.]+$/, '')
+    .replace(WIKI_QUESTION_SCAFFOLD_RE, '')
+    .replace(/^(?:the|a|an)\s+/i, '')
+    // "whats the latest on gta 6" -> "gta 6" (searching "latest on gta 6" found nothing useful)
+    .replace(/^(?:any\s+)?(?:latest|newest|recent)?\s*(?:news|updates?|info)?\s*(?:on|about|for|with)\s+/i, '')
+    .replace(/^(?:latest|news)\s+/i, '')
+    .replace(/\s+(?:today|now|right now|currently|rn|lately|these days)$/i, '')
+    .trim();
+  return cleaned.length >= 3 ? cleaned : query;
+}
+
+// Intro sections (everything above the first heading) — the summary endpoint only returned the
+// first paragraph, which often isn't where the answer is: "Mark Carney is the current prime
+// minister of Canada" and "Spain won the final against defending champion Argentina 1–0" both sit
+// further down their article's intro. One batched request for all titles instead of one per hit.
+const WIKI_INTRO_MAX_CHARS = 2500;
+
 export async function searchWikipediaKnowledge(query: string, maxResults: number = 3): Promise<WebSearchResult[]> {
   try {
+    const wikiQuery = buildWikipediaQuery(query);
     const searchApiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
-      query
-    )}&utf8=&format=json&origin=*&srlimit=${maxResults * 2}`;
+      wikiQuery
+    )}&utf8=&format=json&origin=*&srlimit=${maxResults}`;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4500);
+    const headers = {
+      'User-Agent': 'CustomNexusAI/2.0 (Autonomous Cognitive Agent; zero-api-search)',
+      Accept: 'application/json',
+    };
 
-    const resp = await fetch(searchApiUrl, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'CustomNexusAI/2.0 (Autonomous Cognitive Agent; zero-api-search)',
-        Accept: 'application/json',
-      },
-    });
+    const resp = await fetch(searchApiUrl, { signal: controller.signal, headers });
+    if (!resp.ok) {
+      clearTimeout(timeoutId);
+      return [];
+    }
+    const data = await resp.json();
+    const searchItems: any[] = (data?.query?.search || []).slice(0, maxResults);
+    if (searchItems.length === 0) {
+      clearTimeout(timeoutId);
+      return [];
+    }
+
+    const intros = new Map<string, string>();
+    try {
+      const titles = searchItems.map((i) => i.title).join('|');
+      const introResp = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&redirects=1&format=json&origin=*&titles=${encodeURIComponent(titles)}`,
+        { signal: controller.signal, headers }
+      );
+      if (introResp.ok) {
+        const introData = await introResp.json();
+        for (const page of Object.values<any>(introData?.query?.pages || {})) {
+          if (page?.title && page?.extract) intros.set(page.title, String(page.extract).slice(0, WIKI_INTRO_MAX_CHARS));
+        }
+        for (const r of introData?.query?.redirects || []) {
+          if (intros.has(r.to)) intros.set(r.from, intros.get(r.to)!);
+        }
+      }
+    } catch {
+      // Snippet-only results are still better than nothing.
+    }
     clearTimeout(timeoutId);
 
-    if (!resp.ok) return [];
-
-    const data = await resp.json();
-    const searchItems = data?.query?.search || [];
-
-    // Fetch each result's full summary in parallel instead of one-at-a-time — sequential
-    // awaits here meant 3 results took 3x as long as necessary for zero benefit, since the
-    // summary fetches are fully independent of each other.
-    const results = await Promise.all(
-      searchItems.slice(0, maxResults).map(async (item: any): Promise<WebSearchResult> => {
-        const title = item.title;
-        const snippet = stripHtmlTags(item.snippet || '');
-        const pageUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/\s+/g, '_'))}`;
-
-        let summaryText = snippet;
-        try {
-          const sumResp = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, {
-            headers: { 'User-Agent': 'CustomNexusAI/2.0' },
-          });
-          if (sumResp.ok) {
-            const sumData = await sumResp.json();
-            if (sumData.extract) {
-              summaryText = sumData.extract;
-            }
-          }
-        } catch {
-          // use basic snippet
-        }
-
-        return {
-          title: `${title} (Wikipedia)`,
-          url: pageUrl,
-          snippet: summaryText,
-          source: 'wikipedia',
-          domain: 'wikipedia.org',
-        };
-      })
-    );
-
-    return results;
+    return searchItems.map((item: any): WebSearchResult => {
+      const title = item.title;
+      return {
+        title: `${title} (Wikipedia)`,
+        url: `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/\s+/g, '_'))}`,
+        snippet: intros.get(title) || stripHtmlTags(item.snippet || ''),
+        source: 'wikipedia',
+        domain: 'wikipedia.org',
+      };
+    });
   } catch (err: any) {
     console.warn('[Wikipedia Search] Failed:', err?.message || err);
     postToDiscordLog(`[Wikipedia Search] Failed: ${err?.message || err}`, 'warn');
@@ -918,6 +942,19 @@ export function shouldTriggerLiveWebSearch(
     /\best[- ]ce\s+que\s+.{2,40}\s+est\s+(?:encore|toujours)\s+(?:en\s+vie|vivant|vivante)\b/i.test(q);
   if (isCurrentEventOrLiveLookup) return 'current-events';
 
+  // Recency wording on a real question — the corpus is a snapshot, so these go to the web even when
+  // it has a similar-looking doc. Found live (2026-09-30): "what happened with the louvre heist"
+  // matched the corpus's 1911 Mona Lisa theft doc with high confidence (so no search) and answered
+  // confidently about the wrong heist; the 2025 one is in Wikipedia's "2025 Louvre heist".
+  const asksSomething =
+    q.includes('?') || /^(?:whats|whos|hows|wheres|whens|what|who|when|where|why|how|which|is|are|was|were|does|do|did|has|have|can|could|will|would)\b/i.test(q);
+  const hasRecencyCue =
+    /\bwhat\s+happened\s+(?:with|to|at|in|during)\b/i.test(q) ||
+    /\b(?:latest|recent(?:ly)?|breaking|news|update\s+on|so\s+far|this\s+(?:week|month|year|season)|last\s+(?:week|night|month|season)|yesterday|tonight|right\s+now|currently|nowadays)\b/i.test(q) ||
+    /\b20(?:2[4-9]|3\d)\b/.test(q) ||
+    /\bwho\s+(?:won|is\s+winning|scored)\b/i.test(q);
+  if (asksSomething && hasRecencyCue) return 'current-events';
+
   // 7. FALLBACK: Local corpus has no confident match — reach for the web instead of giving up.
   // Threshold calibrated against real corpus data: genuinely relevant matches average ~0.6,
   // irrelevant ones ~0.3, with the boundary sitting around 0.4.
@@ -930,9 +967,12 @@ export function shouldTriggerLiveWebSearch(
   // verbatim (producing e.g. an actual Google search for "everyone loves u" that came back with
   // completely unrelated Japanese-grammar and diss-track results). Nothing on the web answers a
   // statement that isn't asking anything, so require question-shape before ever reaching here.
+  // "tell me about labubu" / "explain the louvre heist" / "info on X" are questions too — without
+  // these a weak corpus match never searched and the reply fell to small-talk filler.
   const looksLikeQuestion =
     q.includes('?') ||
-    /^(?:what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should)\b/i.test(q);
+    /^(?:whats|whos|what|who|when|where|why|how|which|is|are|was|were|does|do|did|can|could|will|would|should)\b/i.test(q) ||
+    /^(?:tell\s+me\s+(?:about|more\s+about)|explain|describe|info\s+(?:on|about)|give\s+me\s+info)\b/i.test(q);
   // A bare leading question word with nothing real after it ("Is nexus" gets trigger-word-stripped
   // down to just "Is" before this ever runs) still satisfied looksLikeQuestion above, then got
   // searched verbatim as "Meaning of Is" — a lookup for a stopword, rate-limited by Google (429)

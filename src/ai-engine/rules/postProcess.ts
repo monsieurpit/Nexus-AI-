@@ -230,6 +230,8 @@ export function stripContextLeaks(text: string, userPrompt?: string): string {
 }
 
 export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
+  // gemma sometimes spells the creator's nickname "cassseurt" (triple s) — seen 2/18 live samples.
+  text = text.replace(/\b([Cc])as{3,}eurt/g, '$1asseurt');
   text = stripContextLeaks(text, userPrompt);
   if (userPrompt) text = capRamblingReply(text, userPrompt);
   // Formal draft request (email/text/essay the user will actually send) — none of the swear-floor
