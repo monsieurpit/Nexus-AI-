@@ -230,6 +230,51 @@ const LEARNING_MENTION_RES = [
   /\b(?:some(?:one|body)\s+(?:here\s+|in\s+(?:here|the\s+chat)\s+)?(?:told|taught)\s+me|(?:you|y'?all|you\s+guys|people|the\s+chat)\s+(?:told|taught)\s+me|i\s+was\s+told|i\s+heard\s+from\s+(?:someone|y'?all|you\s+guys))(?:\s+that\b)?[,:]?\s*/gi,
 ];
 
+// Patrick (2026-09-30): "Nexus almost always talks about Casseurt/Patrick coding him in his
+// answers — only when it's necessary, asked, or a funny example." The prompts used to push it
+// ("roast him at every chance", "a jab at the topic or at Casseurt"); those are fixed, and this is
+// the mechanical backstop: when the user's message isn't about him, a mention in the reply survives
+// only occasionally (the rare funny comparison) — otherwise the clause carrying it is cut
+// (", which is as predictable as Patrick's coding habits"), or the sentence if it's all about him.
+const CREATOR_NAME_RE = /\b(?:casseurt|patrick|patrik)(?:'s)?\b/i;
+const ABOUT_CREATOR_RE =
+  /\b(?:casseurt|casseur|patrick|patrik|your\s+(?:creator|dev|developer|maker|owner|dad|father)|who\s+(?:made|created|built|coded|programmed|owns)\s+(?:you|u)|qui\s+t'?a\s+(?:cr[ée]{1,2}|fait|cod[ée]|programm[ée])|ton\s+(?:cr[ée]ateur|dev|p[èe]re))\b/i;
+export const UNPROMPTED_CREATOR_MENTION_KEEP_RATE = 1 / 6;
+
+// A question about another Patrick (SpongeBob's Patrick Star, St. Patrick...) is not about the
+// creator: "Patrick" in the answer is fine there, "Casseurt built me..." is not.
+const OTHER_PATRICK_CONTEXT_RE = /\b(?:sponge\s*bob|bikini\s+bottom|patrick\s+star|squidward|krusty|starfish|saint\s+patrick|st\.?\s+patrick|patrick\s+(?!(?:is|was|from|coded|made|built|the)\b)[a-z]{3,})\b/i;
+const CASSEURT_ONLY_RE = /\b(?:casseurt(?:'s)?|my\s+creator|(?:coded|built|made|created)\s+me)\b/i;
+
+export function stripUnpromptedCreatorMentions(text: string, userPrompt?: string, random: () => number = Math.random): string {
+  if (!text || !userPrompt) return text;
+  const otherPatrick = OTHER_PATRICK_CONTEXT_RE.test(userPrompt);
+  const nameRe = otherPatrick ? CASSEURT_ONLY_RE : CREATOR_NAME_RE;
+  if (!nameRe.test(text)) return text;
+  if (!otherPatrick && ABOUT_CREATOR_RE.test(userPrompt)) return text;
+  if (otherPatrick && /\bcasseurt\b/i.test(userPrompt)) return text;
+  if (random() < UNPROMPTED_CREATOR_MENTION_KEEP_RATE) return text;
+  const sentences = (text.match(/[^.!?]+(?:[.!?]+|$)/g) || [text]).map((x) => x.trim()).filter(Boolean);
+  const kept: string[] = [];
+  for (const sentence of sentences) {
+    if (!nameRe.test(sentence)) {
+      kept.push(sentence);
+      continue;
+    }
+    // Drop only the clause(s) naming him; keep the rest of the sentence when it still says something.
+    const parts = sentence.split(/(,\s+|;\s+|\s+[—–-]\s+|—)/);
+    const clauses: string[] = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      if (!nameRe.test(parts[i])) clauses.push(parts[i] + (parts[i + 1] ?? ''));
+    }
+    let rebuilt = clauses.join('').replace(/[\s,;:—–-]+$/, '').trim();
+    rebuilt = rebuilt.replace(/\s+(?:which\s+is|like|as)\s*$/i, '').trim();
+    if (rebuilt.length >= 20) kept.push(/[.!?]$/.test(rebuilt) ? rebuilt : `${rebuilt}${/[!?]$/.test(sentence) ? sentence.slice(-1) : '.'}`);
+  }
+  const out = kept.join(' ').trim();
+  return out.length >= 15 ? out : text;
+}
+
 export function stripLearningMentions(text: string): string {
   if (!text) return text;
   let out = text;
@@ -255,6 +300,7 @@ export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout:
   // gemma sometimes spells the creator's nickname "cassseurt" (triple s) — seen 2/18 live samples.
   text = text.replace(/\b([Cc])as{3,}eurt/g, '$1asseurt');
   text = stripLearningMentions(text);
+  text = stripUnpromptedCreatorMentions(text, userPrompt);
   text = stripContextLeaks(text, userPrompt);
   if (userPrompt) text = capRamblingReply(text, userPrompt);
   // Formal draft request (email/text/essay the user will actually send) — none of the swear-floor

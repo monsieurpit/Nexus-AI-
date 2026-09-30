@@ -1246,7 +1246,11 @@ const BOT_META_REGEXES: [RegExp, BotMetaQuestion][] = [
 export function classifyBotMetaQuestion(query: string): BotMetaQuestion | null {
   const q = stripVocativeAddress(query.trim());
   for (const [re, kind] of BOT_META_REGEXES) {
-    if (re.test(q)) return kind;
+    if (!re.test(q)) continue;
+    // "who is patrick in spongebob" / "who is patrick star" is another Patrick, not the creator —
+    // it got the "who made me" answer about Casseurt (live, 2026-09-30).
+    if (kind === 'creator' && !/casseur/i.test(q) && (OTHER_PATRICK_RE.test(q) || /\bpatrick\s+(?!(?:is|was|the)\b)[a-z]{3,}/i.test(q))) continue;
+    return kind;
   }
   return null;
 }
@@ -2486,6 +2490,16 @@ function applyContextBoost(
     .sort((a, b) => b.score - a.score);
 }
 
+const CREATOR_ORIGIN_RE =
+  /\bwhere\s+(?:(?:is|was|does|did|'?s)\s+)?(?:casseurt|patrick|your\s+(?:creator|dev|developer|maker))(?:'s)?\s+(?:from|live|lives|living|born|come\s+from|comes\s+from|grow\s+up|grew\s+up|at|based)\b|\b(?:casseurt|patrick)(?:'s)?\s+(?:is\s+)?(?:from\s+where|hometown|nationality)\b|\bwhat\s+(?:country|city)\s+is\s+(?:casseurt|patrick)\s+from\b|\bd'?o[uù]\s+(?:vient|viens|est|habite|reste)\s+(?:casseurt|patrick)\b|\b(?:casseurt|patrick)\s+(?:vient|habite|reste|est)\s+(?:d'?o[uù]|o[uù])(?![a-zà-ÿ])/i;
+const OTHER_PATRICK_RE = /\b(?:sponge\s*bob|bikini\s+bottom|patrick\s+star|squidward|krusty|plankton|sandy\s+cheeks|mr\.?\s+krabs|starfish|saint\s+patrick|st\.?\s+patrick)\b/i;
+
+export function isCreatorOriginQuestion(text: string): boolean {
+  if (!CREATOR_ORIGIN_RE.test(text) || OTHER_PATRICK_RE.test(text)) return false;
+  // "Patrick" + a surname right after it is some other Patrick ("where is patrick mahomes from").
+  return !/\bpatrick\s+(?!(?:from|live|lives|living|born|come|comes|grow|grew|at|based|is|vient|habite|reste|est)\b)[a-z]+/i.test(text);
+}
+
 function isCasseurtQuery(query: string): boolean {
   const q = query.toLowerCase();
   return isCasseurtMention(q) || q.includes('do you like cass') || q.includes('do you love cass');
@@ -2527,7 +2541,7 @@ const CASSEURT_REASONS = [
   `He names variables "thing2" and "finalFinalREAL" like a goddamn psychopath.`,
   `His commit messages are just "fix" and "fix again" — a war crime.`,
   `He built me and then had the fucking nerve to make me run on a Mac Mini.`,
-  `He pings @everyone like it's a hobby, the attention-starved bastard.`,
+  `He mass-pings the whole server like it's a hobby, the attention-starved bastard.`,
   `He rage-quits games and blames the lag every single damn time.`,
   `His football takes are dogshit and he says them with his whole chest.`,
   `His sleep schedule is a crime scene — coding at 3am and waking me up for it.`,
@@ -2581,7 +2595,7 @@ const CASSEURT_OPINION_RE =
 // or private — same "comedic running bit, not real hatred" framing as the prompt itself.
 const CASSEURT_ROAST_ANGLES = [
   'his code quality', 'how he names his variables', 'his commit messages', 'the fact that he created you',
-  'how he pings @everyone', 'his gaming skill', 'his Roblox Studio projects', 'his football takes',
+  'how he spams pings in the server', 'his gaming skill', 'his Roblox Studio projects', 'his football takes',
   'his sleep schedule', 'his typos', 'his music taste', 'his snack choices', 'talking to you at 3am',
   'his "it works on my machine" energy', 'his desk setup', 'his cooking', 'his wifi',
   'his 400 open Chrome tabs', 'every bug fix creating two new bugs', 'his ego', 'how he rage-quits',
@@ -4483,6 +4497,21 @@ async function handleLocationAwareQuery(
   return finish(instruction, '📍 Real nearby places (OpenStreetMap)', `Nearby: ${places.slice(0, 3).map((p) => p.name).join(', ')}.`);
 }
 
+// Nexus IS Nexus: "do u like nexus" was answered "yeah i like nexus 'cause it's a fucking efficient
+// piece of shit" — talking about himself like someone else (live, 2026-09-30). When "nexus" is the
+// object of the question (like/respect/think of/better than nexus...), it's rewritten to "yourself"
+// before anything reads it. A leading "nexus, ..." (someone calling him) is left alone.
+const SELF_REFERENCE_RE =
+  /\b(like|love|hate|respect|trust|rate|miss|fear|know|kiss|marry|date|roast|about|of|than|with|to)\s+(?:@?nexus)(?:\s+(?:ai|bot))?\b(?!\s*[,:])/gi;
+
+export function rewriteSelfReferences(prompt: string): string {
+  if (!/\bnexus\b/i.test(prompt)) return prompt;
+  return prompt
+    .replace(SELF_REFERENCE_RE, (_m, verb: string) => `${verb} yourself`)
+    .replace(/^(\s*)(is|are|was|were)\s+nexus\b/i, (_m, lead: string, v: string) => `${lead}${/^(?:was|were)$/i.test(v) ? 'were' : 'are'} you`)
+    .replace(/\bnexus\s+(is|was)\b(?=.{2,})/i, (m, v: string, offset: number) => (offset === 0 ? m : `you ${v === 'is' ? 'are' : 'were'}`));
+}
+
 export async function generateReasoningPath(
   prompt: string,
   history: ChatMessage[],
@@ -4505,6 +4534,7 @@ export async function generateReasoningPath(
   // before this feature existed.
   clientLocation?: { lat: number; lon: number }
 ): Promise<ReasoningResult> {
+  prompt = rewriteSelfReferences(prompt);
   const thoughtSteps: ThoughtStep[] = [];
   const isCrashout =
     persona.id === 'crashout-bot' ||
@@ -4849,6 +4879,47 @@ export async function generateReasoningPath(
   // a Polish mention ("co sądzisz o Casseurcie") would still have come back in English. Routed
   // through the real LLM instead, same pattern as the insult-retaliation handler right below —
   // casseurtRant() is now only the fallback text for if the LLM call itself fails.
+  // "where is casseurt/patrick from?" — Patrick (2026-09-30): Quebec City, in Canada. Before this,
+  // "sooooo where Patrick from?" got St. Patrick's Irish history from the corpus. A SpongeBob
+  // Patrick (or any other Patrick with a surname, "patrick mahomes") is left alone.
+  if (isCreatorOriginQuestion(prompt)) {
+    thoughtSteps.push({
+      id: 'step-creator-origin',
+      type: 'reasoning',
+      title: '🏠 Where my creator is from',
+      description: 'Casseurt (Patrick) is from Quebec City, Canada.',
+    });
+    const frOrigin = looksFrench(prompt);
+    const originInstruction = frOrigin
+      ? `L'utilisateur te demande d'où vient ton créateur : "${prompt}". La réponse : Casseurt (vrai nom Patrick) vient de la ville de Québec, au Canada. Réponds en une phrase courte dans ton style (tu peux le clasher un peu).`
+      : `The user is asking where your creator is from: "${prompt}". The answer: Casseurt (real name Patrick) is from Quebec City, in Canada. Answer in one short sentence in your voice (you can take a jab at him).`;
+    const originReply = await llmSituationalReplyOrFallback(
+      originInstruction,
+      persona,
+      settings,
+      isCrashout,
+      thoughtSteps,
+      frOrigin ? "Casseurt? Ce gossant-là vient de la ville de Québec, au Canada." : "Casseurt? That clown's from Quebec City, in Canada.",
+      '🧠 Local LLM — where my creator is from'
+    );
+    const safeOrigin = /qu[ée]bec/i.test(originReply)
+      ? originReply
+      : frOrigin
+      ? "Casseurt? Ce gossant-là vient de la ville de Québec, au Canada."
+      : "Casseurt? That clown's from Quebec City, in Canada.";
+    return {
+      thoughtSteps,
+      content: enforceStrictSdkRules(safeOrigin, prompt, settings.userCustomDirectives, {
+        isSuperChill,
+        username: settings.userName,
+        systemInstruction: persona.systemPrompt,
+        swearIntensity: settings.swearIntensity,
+        contextCategory: 'conversational',
+      }),
+      knowledgeHits: [],
+    };
+  }
+
   if (isCasseurtQuery(prompt)) {
     thoughtSteps.push({
       id: 'step-casseurt-protocol',

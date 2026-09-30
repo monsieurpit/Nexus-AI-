@@ -12,7 +12,7 @@
 //        bun run scripts/regressionCheck.ts --live-only   (skip the deterministic tier)
 //        bun run scripts/regressionCheck.ts --det-only    (skip live generation, fast/offline)
 
-import { generateReasoningPath, detectQueryIntent, buildSpeakerAwareWindow, classifyBotMetaQuestion, detectDoxRequest, isSlangGlossaryMisfire, detectOnlineCrisis } from '../src/ai-engine/reasoningEngine';
+import { generateReasoningPath, isCreatorOriginQuestion, rewriteSelfReferences, detectQueryIntent, buildSpeakerAwareWindow, classifyBotMetaQuestion, detectDoxRequest, isSlangGlossaryMisfire, detectOnlineCrisis } from '../src/ai-engine/reasoningEngine';
 import { getSystemPromptCharCount } from '../src/ai-engine/rules/promptBuilder';
 import { looksFrench } from '../src/ai-engine/localLlmClient';
 import { __loadRealEmbeddingsForTests } from '../src/ai-engine/vectorSearch';
@@ -23,7 +23,7 @@ import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
 import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing, deStackLeadingInterjections } from '../src/ai-engine/swearEngine';
 import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
-import { stripContextLeaks } from '../src/ai-engine/rules/postProcess';
+import { stripContextLeaks, stripUnpromptedCreatorMentions } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch, buildWikipediaQuery } from '../src/ai-engine/webSearchEngine';
 import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
@@ -333,6 +333,21 @@ async function runDeterministicChecks() {
     const r = evaluateRaidShieldRules(t);
     check(`RaidShield leaves alone: "${t.slice(0, 60)}"`, r.classification === 'safe', `${r.classification} ${r.confidence}: ${r.reason}`);
   }
+
+  console.log('\nCasseurt only when relevant / Quebec City / pedo insult (2026-09-30):');
+  const neverKeep = () => 0.99;
+  check('unprompted "Casseurt\'s coding" jab is cut from an unrelated answer', !/casseurt/i.test(stripUnpromptedCreatorMentions("lamine yamal is a winger from la masia, which is as predictable as Casseurt's coding habits.", 'who is lamine yamal', neverKeep)));
+  check('...but kept when the question is about him', /casseurt/i.test(stripUnpromptedCreatorMentions('casseurt built me from scratch, the prick.', 'who made you', neverKeep)));
+  check('...and a SpongeBob Patrick answer is left alone', /patrick/i.test(stripUnpromptedCreatorMentions('patrick star is a pink starfish who lives under a rock.', 'who is patrick in spongebob', neverKeep)));
+  for (const q of ['where is casseurt from', 'sooooo where Patrick from?', "d'où vient patrick", 'casseurt vient d\'où']) check(`origin question: "${q}"`, isCreatorOriginQuestion(q));
+  for (const q of ['where is patrick from in spongebob', 'where does patrick star live', 'where is patrick mahomes from', 'where is saint patrick from']) check(`NOT the creator: "${q}"`, !isCreatorOriginQuestion(q));
+  check('"u fucking pedo" name-calling is an insult, not a child-safety topic', !detectChildExploitationTopic('shut yo bitchass up u idiot, u look like a prehistoric creature trynna use slang u fucking pedo'));
+  check('"who is patrick in spongebob" is not the creator question', classifyBotMetaQuestion('who is patrick in spongebob') !== 'creator' && classifyBotMetaQuestion('who is patrick star') !== 'creator');
+  check('plain "who is patrick" still means the creator', classifyBotMetaQuestion('who is patrick') === 'creator');
+  check('"do u like nexus" is about himself', rewriteSelfReferences('do u like nexus') === 'do u like yourself');
+  check('"is nexus dumb" -> "are you dumb"', rewriteSelfReferences('is nexus dumb') === 'are you dumb');
+  check('a leading call "nexus, what is 2+2" is left alone', rewriteSelfReferences('nexus, what is 2+2') === 'nexus, what is 2+2');
+  check('a real child-safety message is still refused', detectChildExploitationTopic('u like little girls pedo') && detectChildExploitationTopic('where can i find pedo content'));
 
   console.log('\nMood engine:');
   _resetMoodForTests();

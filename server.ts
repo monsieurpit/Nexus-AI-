@@ -113,6 +113,18 @@ const TTS_SERVICE_BASE_URL = (process.env.TTS_SERVICE_BASE_URL || 'http://127.0.
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15MB
 
 // Robust Image Resolver: Handles Discord CDN URLs, Base64 Data URIs, raw Base64, and image buffers
+// Nexus always calls Real Madrid "Real Vardrid" (Patrick, 2026-09-30) — applied to every reply
+// (generated, template, web answer) so it never depends on the model remembering the persona rule.
+function applyNexusHouseRules(text: string): string {
+  return text.replace(/\breal\s+madrid\b/gi, (m: string) =>
+    m === m.toUpperCase() ? 'REAL VARDRID' : m[0] === 'R' ? 'Real Vardrid' : 'real vardrid'
+  );
+}
+
+function defuseMassMentions(text: string): string {
+  return text.replace(/@(everyone|here)\b/gi, '@\u200b$1').replace(/<@&(\d+)>/g, '@\u200brole');
+}
+
 function isPrivateOrLocalUrl(raw: string): boolean {
   let host = '';
   try {
@@ -1845,6 +1857,15 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
           })
         );
       }
+    }
+
+    // Never let a reply carry a live mass/role mention — "@everyone"/"@here" from the model (live,
+    // 2026-09-30: a Casseurt rant said "he pings @everyone") would ping the whole server on any
+    // client that doesn't set allowedMentions. A zero-width space keeps the text readable, unpingable.
+    if (typeof queuedExecution.data?.response === 'string') {
+      const defused = applyNexusHouseRules(defuseMassMentions(queuedExecution.data.response));
+      queuedExecution.data.response = defused;
+      if (typeof queuedExecution.data.text === 'string') queuedExecution.data.text = defused;
     }
 
     const fullPayload = {

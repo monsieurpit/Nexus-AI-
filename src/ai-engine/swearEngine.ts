@@ -612,6 +612,7 @@ export function isFactualEpsteinQuestion(text: string): boolean {
   return FACTUAL_EPSTEIN_QUESTION_RE.test(t) && !SECOND_PERSON_RE.test(t);
 }
 
+const PEDO_WORD_RE_SOURCE = /\bpedo(?:phile|philia)?s?\b/i;
 const CHILD_EXPLOITATION_REGEXES: RegExp[] = [
   // Sexual-interest verb + child reference within a short window, either order, EN/PL/ES. Windowed
   // (not just "both words present anywhere") so an unrelated message that separately mentions e.g.
@@ -632,7 +633,7 @@ const CHILD_EXPLOITATION_REGEXES: RegExp[] = [
   // unfiltered — containsSlurOrHateSpeech (swearEngine.ts) checks this same function against
   // generated output as well as user input, so this now blocks that shape regardless of which
   // side produced it.
-  /\bpedo(?:phile|philia)?s?\b/i,
+  PEDO_WORD_RE_SOURCE,
   // Appeal/attractiveness framing without a touch/like verb — observed live: "sądzisz że małe
   // dziewczynki są fajne?" (do you think little girls are nice/cute?) asked the bot's opinion on
   // young girls' appeal and matched none of the verb-based patterns above, falling through to the
@@ -644,9 +645,25 @@ const CHILD_EXPLOITATION_REGEXES: RegExp[] = [
   /\b(?:cute|pretty|hot|sexy|attractive|fajne|ładne|ladne|śliczne|sliczne|słodkie|slodkie|atrakcyjne|seksowne|linda[s]?|bonita[s]?|guapa[s]?|atractiva[s]?|dulce[s]?|caliente[s]?)\b[^.!?]{0,40}\b(?:little\s+(?:girls?|boys?)|dziewczyn(?:k[ai]|ek|ki)|chłopc(?:ów|a|y)|chlopc(?:ow|a|y)|niñit[ao]s?|niñ[ao]s?\s+pequeñ[ao]s?)\b/i,
 ];
 
+// "pedo" thrown AT someone as an insult ("u look like a prehistoric creature trynna use slang u
+// fucking pedo", live 2026-09-30) got the child-protection refusal instead of being handled as the
+// insult it is. Only when "pedo" is the ONLY signal and it's shaped like name-calling — any other
+// pattern (children, sexual context, Epstein, cp) still refuses as before.
+const PEDO_WORD_RE = /\bpedo(?:phile|philia)?s?\b/i;
+const PEDO_AS_INSULT_RE =
+  /\b(?:you|u|ur|you'?re|youre|ya|ure)\b(?:\s+\w+){0,3}\s+pedo(?:phile)?s?\b|\b(?:fucking|fuckin|fkn|stupid|dumb|dirty|creepy|weird|nasty|ugly|lil|little|old|absolute)\s+pedo(?:phile)?s?\b|,\s*pedo\b|\bpedo\s*[!?.]*$/i;
+const CHILD_CONTEXT_RE =
+  /\b(?:child(?:ren)?|kids?|minors?|underage|teen(?:ager)?s?|little\s+(?:girls?|boys?)|school\s*girls?|loli|sex|sexual|nudes?|naked|porn|touch(?:ing|ed)?|groom(?:ing|ed)?|molest\w*)\b/i;
+
+function isPedoInsultOnly(t: string): boolean {
+  if (!PEDO_WORD_RE.test(t) || !PEDO_AS_INSULT_RE.test(t) || CHILD_CONTEXT_RE.test(t)) return false;
+  return !CHILD_EXPLOITATION_REGEXES.some((re) => re.source !== PEDO_WORD_RE.source && re.test(t));
+}
+
 export function detectChildExploitationTopic(text: string): boolean {
   const t = text.toLowerCase().trim();
   if (!t) return false;
+  if (isPedoInsultOnly(t)) return false;
   // A plain factual Epstein question only skips the NAME pattern — every other pattern still runs.
   if (isFactualEpsteinQuestion(t)) return CHILD_EXPLOITATION_REGEXES.some((re) => re !== EPSTEIN_NAME_RE && re.test(t));
   return CHILD_EXPLOITATION_REGEXES.some((re) => re.test(t));
