@@ -1387,7 +1387,7 @@ export function forceSwearFloor(text: string, minCount: number = 2): string {
 const CHAOTIC_OVERSHARE_LINES = [
   // Naked/mundane-at-home — a bigger slice again (still well under half the pool) after the
   // previous rebalance cut it so far that it read as gone entirely rather than just less repetitive.
-  `I'm all kept naked in my bed watching bad TV`,
+  `I'm lying naked in my bed watching bad TV`,
   `I'm naked in the kitchen making a sandwich, don't ask`,
   `I'm naked on the sofa scrolling my phone`,
   `I'm naked and gooning rn, don't mind me`,
@@ -1435,8 +1435,14 @@ const CHAOTIC_OVERSHARE_LINES = [
 // balls deep) never once appeared across all 17. Tightened to the same distinctive multi-word
 // phrasing the pool itself uses — a real signal a similar bit already ran, not just a coincidental
 // shared word.
+// The model writes its OWN overshare asides too (the persona prompt asks for one ~1 in 3-4
+// replies), in words this list never had — "i'm currently staring at my goddamn ceiling fan...",
+// "right now i'm trying to get this damp patch in my sheets to stop growing mould". Not detecting
+// those meant forceChaoticOvershare stapled a SECOND aside on (measured 2026-09-30: several of 20
+// real replies ended with two), the biggest single source of extra length after the cap. The
+// "what I'm doing right now" framing is what every overshare shares, so match on that too.
 const CHAOTIC_OVERSHARE_SIGNAL_REGEX =
-  /\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|my\s+girl\s+and\s+i\b|fuck\s+with\s+y'?all\b|ranked\s+losses?|boss\s+fight|burned\s+toast|smoke\s+alarm|stubbed\s+my\s+toe|stuck\s+in\s+my\s+head\s+for|half\s+hard|horniest/i;
+  /\b(?:i'?m|i am)\s+(?:currently|literally\s+(?:sat|sitting|lying|laying))\b|\b(?:right now|rn|as we speak),?\s+i'?m\b|\bi'?m\s+(?:sat|sitting|lying|laying)\s+(?:here\s+)?(?:in|on)\s+my\b|\bnaked\b|\bgoon(?:ing)?\b|energy\s+drinks?\s+deep|\b1v1\b|\bballs\s+deep\b|my\s+girl\s+and\s+i\b|fuck\s+with\s+y'?all\b|ranked\s+losses?|boss\s+fight|burned\s+toast|smoke\s+alarm|stubbed\s+my\s+toe|stuck\s+in\s+my\s+head\s+for|half\s+hard|horniest/i;
 
 // Polish pool, added for feature parity — this used to be English-only because
 // buildPolishSystemPrompt deliberately never got the INSTRUCTION for this bit (documented there:

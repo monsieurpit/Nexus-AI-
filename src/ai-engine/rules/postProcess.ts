@@ -80,6 +80,12 @@ const DEPTH_REQUEST_RE = /\b(in detail|explain|elaborat|walk me through|step by 
 const PREAMBLE_SENTENCE_RE = /^(?:(?:damn|shit|hell|fuck(?:ing)?|goddamn|bloody hell|christ|jesus|ok(?:ay)?|alright|right|listen up|look|bruv|mate|bro|man)[,\s]+)*(?:seriously\??|really\??|right\??|alright\??|ok(?:ay)?\??|listen up\.?|alright,? listen up\.?|you (?:wanna|want to|want) know|that'?s (?:a )?(?:fucking |bloody |goddamn |proper |right )?(?:stupid|dumb|basic|simple|easy|obvious|good|great|fair|tricky|hard|confusing|loaded|daft|braindead|annoying|weird|classic)\b[^.!?]*)[.!?]*$/i;
 const TRAILING_CLARIFIER_RE = /^(?:(?:damn|shit|hell|so|right|anyway|but)[,\s]+)*(?:better at what|what (?:are|is) (?:you|it)(?:\b| )|what (?:exactly )?(?:do you|are you trying|is it you)|what'?s (?:your|the) (?:actual )?(?:question|point|deal|problem)|you (?:getting me|feeling me|with me)|makes? sense|got (?:it|that)|sussed|capiche|you get me|what is it you'?re actually)\b[^.!?]*[.!?]*$/i;
 
+// A rhetorical question the model opens with before getting to the point — measured on 20 real
+// server messages (2026-09-30), most replies started with one ("are you fucking serious with this
+// shit?", "what the fuck you mean, mate?", "what kind of shit question is that?"). It burns the
+// most visible spot in the reply on zero content. Only dropped when a real sentence follows it.
+const RHETORICAL_OPENER_RE = /^(?:(?:damn|shit|hell|fuck|goddamn|bloody hell|oh|mate|bro|man|nah|christ)[,\s]+)*(?:are|r)\s+(?:you|u|ya)\s+(?:(?:fucking|actually|seriously|genuinely|really|for real|honestly|even)\s+)*(?:serious|kidding|joking|for real|taking the piss|high|ok|okay|dumb|stupid|mad|having a laugh|asking|trying|telling|saying|out of your)\b[^.!?]*\?+$|^(?:(?:damn|shit|hell|fuck|goddamn|oh|mate|bro|man|nah)[,\s]+)*what\s+the\s+(?:fuck|hell|shit)\s+(?:do\s+|did\s+|are\s+)?(?:you|u|ya)\s+(?:even\s+)?(?:mean|on about|talking about|saying|want)\b[^.!?]*\?+$|^(?:(?:damn|shit|hell|fuck|goddamn|oh|mate|bro|man|nah)[,\s]+)*what\s+(?:the\s+(?:fuck|hell)\s+)?(?:kind|sort)\s+of\s+[^.!?]*\bquestion\b[^.!?]*\?+$/i;
+
 function capRamblingReply(text: string, userPrompt: string): string {
   if (!text || !userPrompt) return text;
   if (/```/.test(text)) return text;
@@ -101,9 +107,33 @@ function capRamblingReply(text: string, userPrompt: string): string {
   const sentences = (body.match(/[^.!?]+(?:[.!?]+|$)/g) || [body]).map((s) => s.trim()).filter(Boolean);
   if (sentences.length === 0) return text;
 
+  // A token-budget cut (or the model just stopping) can leave a trailing half-sentence with no end
+  // punctuation ("i'm currently eating a bag of stale crisp") — drop it when a complete sentence
+  // precedes it, instead of shipping the fragment with a '.' stapled on.
+  const isUnterminated = (t: string) => !/[.!?]["')\]]*$/.test(t);
+  const clauseCut = (t: string): string | null => {
+    const cut = Math.max(t.lastIndexOf(';'), t.lastIndexOf(' —'), t.lastIndexOf('—'), t.lastIndexOf(', '));
+    return cut > 25 ? t.slice(0, cut).replace(/[\s,;—–-]+$/, '') + '.' : null;
+  };
+  if (sentences.length > 1 && isUnterminated(sentences[sentences.length - 1])) {
+    const rest = sentences.slice(0, -1).join(' ');
+    // Dropping the fragment must not leave just a short echo of the question ("damn, at least give
+    // a guess?") — then keep the fragment's complete clauses instead.
+    const salvaged = rest.length < 60 ? clauseCut(sentences[sentences.length - 1]) : null;
+    if (salvaged) sentences[sentences.length - 1] = salvaged;
+    else sentences.pop();
+  } else if (sentences.length === 1 && isUnterminated(sentences[0])) {
+    // A single run-on the budget cut mid-word ("...but if that passes for an answer, nah I don")
+    // — end it at its last complete clause.
+    const salvaged = clauseCut(sentences[0]);
+    if (salvaged) sentences[0] = salvaged;
+  }
   // Drop one leading content-free preamble sentence (short only — a long first sentence that
   // matches probably also carries the answer).
   if (sentences.length > 2 && sentences[0].length < 70 && PREAMBLE_SENTENCE_RE.test(sentences[0])) {
+    sentences.shift();
+  }
+  if (sentences.length > 1 && RHETORICAL_OPENER_RE.test(sentences[0])) {
     sentences.shift();
   }
   // Drop trailing clarifier questions when the prompt was concrete (>2 words, i.e. not a bare
@@ -125,14 +155,26 @@ function capRamblingReply(text: string, userPrompt: string): string {
   // model is asked for this length AND mechanically held to it, same two-layer pattern already
   // used for the swear floor — a prompt instruction alone wasn't reliable at 4, no reason to
   // expect it's reliable at 2 either without the mechanical cap actually enforcing it.
-  const MAX_SENTENCES = wantsDepth || COMPARISON_RE.test(userPrompt) ? 5 : 2;
+  // Depth/comparison 5 -> 3, casual/simple still 2 (2026-09-30, "90% of the time he still answers
+  // big paragraphs" — see the CHAR_CEILING note below for why the character bound matters more).
+  const MAX_SENTENCES = wantsDepth || COMPARISON_RE.test(userPrompt) ? 3 : 2;
   const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
   // A sentence count alone doesn't bound length — gemma chains clauses with commas/semicolons/
   // dashes, so "5 sentences" measured live at 1043 chars ("explain how black holes form",
   // 2026-09-29). Drop trailing sentences until under a character ceiling (never below 1). The
   // separate "Anyway, ..." aside isn't counted — it's re-appended after.
-  const CHAR_CEILING = MAX_SENTENCES > 2 ? 650 : 360;
+  // 650/360 -> 450/260 (2026-09-30): real replies averaged ~300 chars even under the 2-sentence
+  // cap because gemma chains clauses with ; and — into one run-on "sentence" — 3-4 lines in Discord.
+  const CHAR_CEILING = MAX_SENTENCES > 2 ? 450 : 260;
   while (kept.length > 1 && kept.join(' ').length > CHAR_CEILING) kept.pop();
+  // One run-on sentence can blow the ceiling on its own (the loop above never drops the last one).
+  // Cut it at the last clause break (; — – or ", ") before the ceiling — those are where gemma
+  // glues a second thought on, so the cut lands between thoughts rather than mid-idea.
+  if (kept.length === 1 && kept[0].length > CHAR_CEILING * 1.25) {
+    const head = kept[0].slice(0, CHAR_CEILING);
+    const cut = Math.max(head.lastIndexOf(';'), head.lastIndexOf(' —'), head.lastIndexOf(' –'), head.lastIndexOf('—'), head.lastIndexOf(', '));
+    if (cut > CHAR_CEILING * 0.4) kept[0] = head.slice(0, cut).replace(/[\s,;—–-]+$/, '') + '.';
+  }
   let out = kept.join(' ').replace(/[ \t]+/g, ' ').trim();
   if (out && !/[.!?…"']$/.test(out)) out += '.';
   return (out + aside).trim();

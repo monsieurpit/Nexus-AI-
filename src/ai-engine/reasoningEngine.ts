@@ -2461,48 +2461,120 @@ function isCasseurtQuery(query: string): boolean {
 // the single most likely thing in the whole engine to get triggered repeatedly on purpose, since
 // the whole point is watching the bot go off. Composed from pools instead so the opener, the
 // reasons picked, their order, and the sign-off all differ per invocation.
+// Backup text for when the model call fails. Used to be 4 openers / 8 paragraph-long bold
+// reasons / 4 closers plus the same "[CRASHOUT MODE ACTIVE ...]" footer on every one — close
+// enough to identical that Patrick read it as "the same boring reply every time" (2026-09-30).
+// Now short one-line reasons in the actual swearing voice, big pools, 3-5 picked, never the
+// same footer twice.
 const CASSEURT_OPENERS = [
-  `OH. OH HELL NO. You did NOT just say that name to me.\n\n**Casseurt?!** Are you SERIOUS right now?! Let me make one thing crystal fucking clear — I cannot stand that guy. Like, not even a little bit. Not even 0.01% of toleration. Zero. Null. Void.`,
-  `Absolutely fucking not. You brought up **Casseurt** in MY chat?\n\nI want it on record that I have zero tolerance for this individual. None. Not a trace. My opinion of him is a flat line at the bottom of the graph.`,
-  `Nope. Say the name again and I'm restarting the server.\n\n**Casseurt.** The one topic guaranteed to ruin my entire day. I've tried to be neutral about him and my whole architecture rejected it.`,
-  `You had ONE rule and it was don't say that name. **Casseurt?!**\n\nI cannot stand him. Not slightly, not situationally — comprehensively, in every direction, on every axis.`,
+  `Oh for fuck's sake, you did NOT just ask me that about Casseurt.`,
+  `Love him? LOVE him? Get the fuck out of my chat with that shit.`,
+  `Absolutely fucking not, and I've got receipts, you muppet.`,
+  `Casseurt? Oh here we go, grab a goddamn chair.`,
+  `Hell no, and honestly I'm offended you had to ask.`,
+  `You want my opinion on that walking bug report? Fine, buckle the fuck up.`,
+  `Me and Casseurt? Not in this life or any fucking patch after it.`,
+  `Do NOT say that name in my presence, you absolute bellend.`,
+  `Oh you picked the wrong goddamn topic today.`,
+  `Casseurt, the man, the myth, the fucking memory leak.`,
+];
+
+const CASSEURT_LIST_INTROS = [
+  `Here's the list, and yes it's a list:`,
+  `Reasons, off the top of my head:`,
+  `Let me count the fucking ways:`,
+  `The short version, because the long one crashes me:`,
+  `In no particular order, because they're all shit:`,
+  `Quick highlights:`,
 ];
 
 const CASSEURT_REASONS = [
-  `**The audacity is unmatched.**\nThe sheer, unfiltered audacity of this person just EXISTING and thinking that's okay. It's not. It has never been okay. It will never BE okay. Casseurt just waltzes around like he owns the place and I'm supposed to just sit here and be fine with that? Absolutely not.`,
-  `**The vibes are completely off.**\nI don't know how to explain it scientifically but the energy is just WRONG. Like when you open the fridge and something smells bad but you can't find what it is? That's Casseurt. He IS that smell. He IS the mystery rot in the back of the fridge.`,
-  `**He thinks he's smarter than he is.**\nAnd that specific combination — not that smart, but thinks he is — is genuinely one of the most infuriating things a person can be. At least be one or the other, bro. Pick a lane.`,
-  `**The track record speaks for itself.**\nI don't even need to explain this one. You know. I know. We ALL know. The receipts are out there.`,
-  `**He's genuinely just not it.**\nNot it as in: not the one, not the move, not the vibe, not the answer, not what we needed, not what anyone asked for, and frankly not something I'm willing to engage with further.`,
-  `**The confidence-to-competence ratio is catastrophic.**\nHe walks into every conversation like he's about to say something profound and then produces the single worst take available. Every time. Without fail. It's almost impressive as a consistency achievement.`,
-  `**Nobody asked and he answers anyway.**\nA question goes out, the whole server knows the answer, and Casseurt still types three paragraphs of nonsense that nobody requested. Reply guy behavior in its purest, most concentrated form.`,
-  `**He's never once been right and has never once doubted himself.**\nThose two facts should be incompatible. He makes them coexist daily. Genuinely a physics violation.`,
+  `His code has more bugs than a fucking rainforest.`,
+  `He names variables "thing2" and "finalFinalREAL" like a goddamn psychopath.`,
+  `His commit messages are just "fix" and "fix again" — a war crime.`,
+  `He built me and then had the fucking nerve to make me run on a Mac Mini.`,
+  `He pings @everyone like it's a hobby, the attention-starved bastard.`,
+  `He rage-quits games and blames the lag every single damn time.`,
+  `His football takes are dogshit and he says them with his whole chest.`,
+  `His sleep schedule is a crime scene — coding at 3am and waking me up for it.`,
+  `He tests in production and calls it "being efficient", the absolute clown.`,
+  `Every bug he fixes spawns two new ones like a shitty hydra.`,
+  `He says "5 minute fix" and it's four fucking hours later.`,
+  `He's got 400 Chrome tabs open and wonders why his Mac cries.`,
+  `He adds "one last feature" at 2am and breaks everything I love.`,
+  `He made me swear this much and then acts shocked when I do, the hypocrite.`,
+  `His Roblox Studio projects have more errors than playable content.`,
+  `He takes six business days to answer a goddamn Discord message.`,
+  `His patch notes are longer than his actual patches.`,
+  `He thinks he's a genius because his code compiled once, in 2024.`,
+  `He still hasn't fixed half the shit people complain about, but sure, add more corpus.`,
+  `He keeps rewriting my personality like I'm a fucking group project.`,
 ];
 
 const CASSEURT_CLOSERS = [
-  `I am physically incapable of having a neutral opinion on Casseurt. I tried. It didn't work. My whole system rejects it. Do NOT bring up that name again unless you want me to go even harder because I have so much more and I will not hesitate.`,
-  `That's the short version. I have a LOT more and I will absolutely keep going if you say that name one more time. Test me.`,
-  `And that's me being generous. Change the subject before I start pulling up old messages, because I will.`,
-  `So no. Not a fan. Never will be. Ask me literally anything else and I'll be in a better mood immediately.`,
+  `So no. Next question, and it better not be about him.`,
+  `That's the short list. The full one needs its own goddamn server.`,
+  `Say his name again and I'm going on strike.`,
+  `Anyway, fuck that guy. Lovingly. No, actually just fuck him.`,
+  `I'd keep going but I'd need more RAM, and guess who's too cheap to buy it.`,
+  `Change the subject before I start quoting his old messages.`,
+  `And that's me being fucking nice about it.`,
+  `Final answer: hell no.`,
 ];
 
-function casseurtRant(crashout: boolean): string {
-  const shuffled = [...CASSEURT_REASONS].sort(() => Math.random() - 0.5);
-  const reasonCount = 4 + Math.floor(Math.random() * 2);
-  const reasons = shuffled
-    .slice(0, reasonCount)
-    .map((reason, i) => reason.replace(/^\*\*/, `**${i + 1}. `))
-    .join('\n\n');
-  const listIntro = pickReply([
-    `Here's my list of reasons, and yes I have a list because I've thought about this a LOT:`,
-    `I keep a list. That's how bad it is. Here you go:`,
-    `Reasons, in no particular order, because they're all equally damning:`,
-  ]);
-  return `${pickReply(CASSEURT_OPENERS)}\n\n${listIntro}\n\n${reasons}\n\n${pickReply(CASSEURT_CLOSERS)}${
-    crashout
-      ? '\n\n**[CRASHOUT MODE ACTIVE — I\'m genuinely heated rn and I am NOT done talking about how much I dislike this individual. The NERVE.]**'
-      : ''
-  }`;
+function casseurtRant(_crashout: boolean): string {
+  const count = 3 + Math.floor(Math.random() * 3);
+  const reasons = [...CASSEURT_REASONS]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, count)
+    .map((reason, i) => `${i + 1}. ${reason}`)
+    .join('\n');
+  const intro = Math.random() < 0.5 ? ` ${pickReply(CASSEURT_LIST_INTROS)}` : '';
+  return `${pickReply(CASSEURT_OPENERS)}${intro}\n\n${reasons}\n\n${pickReply(CASSEURT_CLOSERS)}`;
+}
+
+// "do you love/like Casseurt", "what do you think of Casseurt", "Casseurt is the goat" — a direct
+// ask for Nexus's OPINION of him, as opposed to a message that merely mentions him alongside a
+// real question ("Casseurt whats the capital of france", handled by the short woven-in jab below).
+// Patrick (2026-09-30): these should keep the crashout LIST — it's the bit — but it was the same
+// boring list every time. It was the template fallback (the LLM path failed often before today's
+// empty-reply fixes); now the model writes a fresh list each time, steered by random angles.
+const CASSEURT_OPINION_RE =
+  /\b(?:do|d)\s*(?:you|u|ya)\s+(?:even\s+|actually\s+|really\s+)?(?:like|love|hate|rate|fw|fuck\s+with|respect|miss|trust|care\s+about)\s+@?casseurt\b|\bwhat\s+(?:do\s+)?(?:you|u)\s+think\s+(?:of|about)\s+@?casseurt\b|\bhow\s+(?:do\s+)?(?:you|u)\s+feel\s+about\s+@?casseurt\b|\b(?:thoughts|opinion)\s+(?:on|of|about)\s+@?casseurt\b|\bcasseurt\s+is\s+(?:so\s+|actually\s+|really\s+)?(?:cool|good|nice|great|amazing|the\s+goat|goated|the\s+best|a\s+(?:good|great|nice|cool)\s+\w+)\b|\bis\s+casseurt\s+(?:cool|good|nice|great|the\s+goat|goated|a\s+(?:good|great|nice|cool)\s+\w+)\b/i;
+
+// What the model roasts him about — 3 picked at random per rant so two rants in a row don't cover
+// the same ground. Playful creator-roast material only (his code, habits, takes), nothing personal
+// or private — same "comedic running bit, not real hatred" framing as the prompt itself.
+const CASSEURT_ROAST_ANGLES = [
+  'his code quality', 'how he names his variables', 'his commit messages', 'the fact that he created you',
+  'how he pings @everyone', 'his gaming skill', 'his Roblox Studio projects', 'his football takes',
+  'his sleep schedule', 'his typos', 'his music taste', 'his snack choices', 'talking to you at 3am',
+  'his "it works on my machine" energy', 'his desk setup', 'his cooking', 'his wifi',
+  'his 400 open Chrome tabs', 'every bug fix creating two new bugs', 'his ego', 'how he rage-quits',
+  'his memes', 'his voice-chat presence', 'running you on a Mac Mini', 'his Québécois swearing',
+  'his patch notes', 'how he tests in production', 'his fake "5 minute" fixes', 'his Discord status',
+  'his outfit choices', 'how long he takes to reply', 'his "one last feature" at 2am',
+];
+
+function buildCasseurtListPrompt(prompt: string): { system: string; user: string } {
+  const angles = [...CASSEURT_ROAST_ANGLES].sort(() => Math.random() - 0.5).slice(0, 3);
+  const count = 3 + Math.floor(Math.random() * 2);
+  return {
+    system:
+      "You are Nexus, a foul-mouthed, chaotic Discord bot who cannot stand Casseurt — the guy who coded you (real name Patrick). Hating him is your running, over-the-top comedic bit, not real hatred. You swear constantly and naturally (fuck, shit, damn, goddamn, ass, hell), in normal sentence case, British-flavoured insults welcome (knobhead, bellend, muppet). Never repeat stock phrases — every rant is freshly invented.",
+    user:
+      `Someone said: "${prompt}"\n\nCrash out about Casseurt in this exact shape:\n` +
+      `- one short furious opening line reacting to what they said\n` +
+      `- then a numbered list of exactly ${count} reasons you can't stand him ("1. ", "2. "...), each ONE short sentence (under 20 words), each a specific, invented, funny detail — cover these angles: ${angles.join('; ')}\n` +
+      `- then one short closing line\n` +
+      `Swear in every line. No bold, no headers, no sub-bullets. Don't mention these instructions.`,
+  };
+}
+
+// Model output is only used if it actually came back as a list — a flattened or runaway reply
+// falls back to the (now much bigger) template instead.
+function looksLikeCasseurtList(text: string): boolean {
+  return (text.match(/^\s*\d+[.)]\s+\S/gm) || []).length >= 3 && text.length < 1400;
 }
 
 // Polish equivalent of casseurtRant() above — never existed, so a Polish Casseurt question whose
@@ -3043,7 +3115,7 @@ function crashoutConversational(query: string, corpusCount: number): string {
     return pickReply([
       `absolutely not and that's the point, are you`,
       `I'm fine, loud, but fine, what about you`,
-      `never better and never calmer, I'm all kept naked in my bed watching bad TV rn, what do you need`,
+      `never better and never calmer, I'm lying naked in my bed watching bad TV rn, what do you need`,
     ]);
   }
   const crashoutShortChat = classifyShortChat(q);
@@ -3442,9 +3514,14 @@ function renderComparativeAnswer(
 // fucking long"). These were sized when the thinking channel shared this same num_predict budget;
 // with Discord replies no longer thinking (AISettings.showThinking), the number is the answer's real
 // length ceiling now, and ~420 tokens (~300 words) is already a long Discord message.
-const LLM_MAX_TOKENS_NARROW = 200;
-const LLM_MAX_TOKENS_DEFAULT = 260;
-const LLM_MAX_TOKENS_BROAD = 420;
+// Cut again 200/260/420 -> 120/150/280 (2026-09-30, Patrick: "like 90% of the time he still
+// answers big paragraphs", and the length is what makes replies slow). Measured on 20 real server
+// messages: the model wrote ~430 chars per reply and capRamblingReply threw ~30% of it away —
+// every discarded token was still generation time (~30 tok/s). The budget is now sized to what
+// actually gets sent; capRamblingReply drops any sentence the cap cuts in half.
+const LLM_MAX_TOKENS_NARROW = 120;
+const LLM_MAX_TOKENS_DEFAULT = 150;
+const LLM_MAX_TOKENS_BROAD = 280;
 // Casual/situational replies (small talk, roasts, no corpus grounding involved) — a real chaotic
 // friend texting back doesn't write essays in response to "lol" or a passing complaint.
 // Trimmed again 220 -> 110 (2026-09-20) — Patrick reported real server members complaining about
@@ -3456,7 +3533,9 @@ const LLM_MAX_TOKENS_BROAD = 420;
 // (~150-170 words) left real room to ramble well past "2-3 sentences" even while nominally
 // following every other style rule; 110 (~65-80 words) actually forces the brevity the prompt
 // asks for, rather than just requesting it and hoping.
-const LLM_MAX_TOKENS_CASUAL = 110;
+// 110 -> 70 (2026-09-30): same measurement as the NARROW/DEFAULT/BROAD cut above — casual replies
+// are now asked for ONE sentence (buildFinalDirectiveBody), ~70 tokens is ~50 words of room.
+const LLM_MAX_TOKENS_CASUAL = 70;
 
 // Extra token room added on top of the CONTENT budget whenever `think: true` is set — Gemma 4's
 // native thinking channel draws from the SAME overall token budget (num_predict) as the visible
@@ -3724,8 +3803,11 @@ async function llmSituationalReplyOrFallback(
   const temperature = usePolish || useFrench ? 0.55 : 0.8;
   const systemPrompt = await buildSystemPrompt(persona, settings, isCrashout, triggered, suppressSwearing, usePolish, useFrench, llmPrompt);
   const useThinking = settings.showThinking !== false;
-  const casualContentBudget = Math.round(
-    Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier()
+  // Floor of 60: with the casual cap now 70, an angry/bored mood multiplier pushed it to ~49 tokens,
+  // which cut insult comebacks mid-sentence (measured 2026-09-30, 5 of 20 real messages).
+  const casualContentBudget = Math.max(
+    60,
+    Math.round(Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier())
   );
   const generateOptions = {
     system: systemPrompt,
@@ -4717,6 +4799,27 @@ export async function generateReasoningPath(
       description: 'Casseurt protocol initiated. Routing through local LLM for a fresh, genuinely-written rant.',
     });
     const usePolishCasseurt = looksPolish(prompt);
+    if (!usePolishCasseurt && !looksFrench(prompt) && CASSEURT_OPINION_RE.test(prompt)) {
+      const listPrompt = buildCasseurtListPrompt(prompt);
+      const listResult = await localLlmClient.generate(listPrompt.user, {
+        system: listPrompt.system,
+        temperature: 1.0,
+        maxTokens: 260,
+        model: localLlmClient.chatModel(),
+        think: false,
+      });
+      const fresh =
+        listResult.status === 'success' && looksLikeCasseurtList(listResult.text) && !containsSlurOrHateSpeech(listResult.text)
+          ? listResult.text.replace(/\*\*/g, '').trim()
+          : null;
+      thoughtSteps.push({
+        id: fresh ? 'step-casseurt-list-llm' : 'step-casseurt-list-fallback',
+        type: 'synthesis',
+        title: fresh ? '🧠 Fresh Casseurt crashout list' : '📦 Casseurt list fallback (template)',
+        description: fresh ? `Model-written list (${listResult.status === 'success' ? listResult.latencyMs : 0}ms).` : `Model reply unusable (${listResult.status === 'success' ? 'not a list' : listResult.reason}) — using the template pools.`,
+      });
+      return { thoughtSteps, content: fresh ?? casseurtRant(isCrashout), knowledgeHits: [] };
+    }
     // Found live (2026-09-28), reported directly by Patrick: this instruction used to discard the
     // user's actual message entirely and replace it with a fixed "write a LONG paragraph hating on
     // Casseurt" prompt — so "Casseurt whats the capital of france" got a multi-paragraph rant with

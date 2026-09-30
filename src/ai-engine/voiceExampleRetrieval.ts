@@ -96,11 +96,40 @@ export async function retrieveVoiceExamples(prompt: string, topK: number = 3): P
 // Formats retrieved examples into the exact prose block the persona's own systemPrompt used to
 // hardcode statically (see memoryStore.ts's crashout-bot history) — same framing text, just with
 // dynamically-selected examples instead of the same fixed 3 every time.
+//
+// Answers are trimmed to their first sentence or two (~200 chars) here. Found 2026-09-30: all 81
+// hand-written answers are long (median 441 chars / 78 words, 79 of 81 over the reply length cap),
+// and three of them in every prompt, framed as "match this", outweighed the one-line LENGTH rule —
+// a small model copies its examples' length far more than it follows a length instruction. Each
+// answer already opens with its actual take, so the first sentence keeps the voice. The full text
+// stays in voiceExamples.ts (and its embeddings, which only use `query`) untouched.
+const EXAMPLE_ANSWER_MAX_CHARS = 200;
+
+export function shortenExampleAnswer(answer: string, max: number = EXAMPLE_ANSWER_MAX_CHARS): string {
+  const sentences = (answer.match(/[^.!?]+(?:[.!?]+|$)/g) || [answer]).map((s) => s.trim()).filter(Boolean);
+  let out = sentences[0] || answer;
+  for (const s of sentences.slice(1)) {
+    if ((out + ' ' + s).length > max) break;
+    out += ' ' + s;
+  }
+  if (out.length > max * 1.2) {
+    const head = out.slice(0, max);
+    const cut = Math.max(head.lastIndexOf(';'), head.lastIndexOf(' —'), head.lastIndexOf('—'), head.lastIndexOf(', '));
+    if (cut > max * 0.4) out = head.slice(0, cut).replace(/[\s,;—–-]+$/, '') + '.';
+  }
+  // Last resort for one long unpunctuated sentence: cut at a word boundary, dropping a dangling
+  // connector so it doesn't end on "and."/"but.".
+  if (out.length > max * 1.3) {
+    out = out.slice(0, out.lastIndexOf(' ', max)).replace(/\s+(?:and|but|or|so|because|like|the|a|an|to|of|with|that|which)$/i, '').replace(/[\s,;—–-]+$/, '') + '.';
+  }
+  return out;
+}
+
 export function formatVoiceExamplesBlock(examples: VoiceExample[]): string {
   if (examples.length === 0) return '';
-  const pairs = examples.map((ex) => `Q: "${ex.query}"\nA: "${ex.answer}"`).join('\n');
+  const pairs = examples.map((ex) => `Q: "${ex.query}"\nA: "${shortenExampleAnswer(ex.answer)}"`).join('\n');
   return (
-    "\n\nHOW A REAL PERSON ANSWERS (match this energy and structure, never copy the actual words): no numbered steps, no bullet points, no \"firstly/secondly\", no restating their question back to them, no polite hedging (\"I think that\", \"it's worth noting\"), no ending every reply with the same generic \"let me know if you have questions!\" — a real person just answers, with their own opinion baked in, and only asks a follow-up when they'd genuinely want to know more.\n" +
+    "\n\nHOW A REAL PERSON ANSWERS (match this LENGTH and energy — one short punchy line — never copy the actual words): no numbered steps, no bullet points, no \"firstly/secondly\", no restating their question back to them, no polite hedging (\"I think that\", \"it's worth noting\"), no ending every reply with the same generic \"let me know if you have questions!\" — a real person just answers, with their own opinion baked in, and only asks a follow-up when they'd genuinely want to know more.\n" +
     pairs +
     "\nThat's the bar: opinionated, specific, a little rough around the edges, zero corporate hedging, never a report."
   );

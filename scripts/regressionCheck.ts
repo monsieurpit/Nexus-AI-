@@ -22,6 +22,8 @@ import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
 import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing } from '../src/ai-engine/swearEngine';
+import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
+import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch } from '../src/ai-engine/webSearchEngine';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
 import { trySolveMath } from '../src/ai-engine/mathSolver';
@@ -243,6 +245,15 @@ async function runDeterministicChecks() {
     const bad = outs.find((o) => /,\s*[;:—–]/.test(o));
     check(`no ",;"/",—"/",:" after word swap: ${JSON.stringify(t)}`, !bad, bad);
   }
+
+  console.log('\nReply length inputs:');
+  // The few-shot examples set the model's reply length more than the LENGTH rule does (2026-09-30:
+  // all 81 were 234-699 chars and replies came back as paragraphs). They're trimmed when injected.
+  const longestExample = Math.max(...VOICE_EXAMPLES.map((e) => shortenExampleAnswer(e.answer).length));
+  check('voice examples are trimmed to short replies when injected (<= 260 chars)', longestExample <= 260, `longest=${longestExample}`);
+  // A model-written overshare ("i'm currently...") must not get a second stapled-on one.
+  const ownAside = 'shit, a vaccine trains your immune system. i\'m currently staring at my goddamn ceiling fan.';
+  check('no second overshare stapled onto a reply that already has one', Array.from({ length: 60 }, () => forceChaoticOvershare(ownAside)).every((o) => o === ownAside));
 
   console.log('\nMood engine:');
   _resetMoodForTests();
