@@ -205,7 +205,32 @@ function scrubSwearingForDraft(text: string): string {
 // generated sentence rather than bolting on a fixed phrase — safe to run on any LLM-generated
 // text since (unlike the hand-written pool text infuseSwearyHumanVoice's conversational-category
 // skip was protecting) it's already unique per request.
+// The model sometimes talks about the reference text it was handed instead of just answering —
+// seen in live replies (2026-09-30): "the context provided doesn't give any fucking details about
+// barcelona winning the ucl", "no context shit here", "that shit context is a fucking mess",
+// "this shit doesn't mention it". The grounded prompts now forbid it; this drops any sentence that
+// still does. If nothing else is left, it becomes the persona's normal "don't know" line.
+// Skipped when the user's own message is about context/sources, where the word is legitimate.
+const CONTEXT_LEAK_RE =
+  /\bcontext\b|\b(?:info(?:rmation)?|facts?|text|material|data|sources?)\s+(?:provided|given|above|below|i was given)\b|\b(?:provided|given)\s+(?:info(?:rmation)?|facts?|text|material|data|sources?)\b|\bbackground material\b|\b(?:it|this|that)(?:\s+(?:shit|crap|stuff|info))?\s+(?:doesn'?t|does not|don'?t|do not)\s+(?:say|mention)\b/i;
+const CONTEXT_LEAK_EXEMPT_PROMPT_RE = /\b(?:context|source|sources|facts?|material|provided)\b/i;
+const CONTEXT_LEAK_DONT_KNOW = "nah i don't actually know that one, don't quote me.";
+
+export function stripContextLeaks(text: string, userPrompt?: string): string {
+  if (!text || /```/.test(text)) return text;
+  if (userPrompt && CONTEXT_LEAK_EXEMPT_PROMPT_RE.test(userPrompt)) return text;
+  if (!CONTEXT_LEAK_RE.test(text)) return text;
+  const sentences = (text.match(/[^.!?\n]+(?:[.!?]+|$)/g) || [text]).map((x) => x.trim()).filter(Boolean);
+  const kept = sentences.filter((x) => !CONTEXT_LEAK_RE.test(x));
+  if (kept.length === 0) return CONTEXT_LEAK_DONT_KNOW;
+  const rest = kept.join(' ');
+  // What's left after the leak is often just the opening insult ("damn, you absolute bellend, i'm
+  // pissed off enough already.") — no answer at all. Say "don't know" instead of ending on nothing.
+  return rest.length < 80 ? `${rest} ${CONTEXT_LEAK_DONT_KNOW}` : rest;
+}
+
 export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
+  text = stripContextLeaks(text, userPrompt);
   if (userPrompt) text = capRamblingReply(text, userPrompt);
   // Formal draft request (email/text/essay the user will actually send) — none of the swear-floor
   // machinery below should run at all; the system prompt already told the model not to swear in

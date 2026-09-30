@@ -21,8 +21,9 @@ import { resolve as resolvePath } from 'path';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore';
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
-import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing } from '../src/ai-engine/swearEngine';
+import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing, deStackLeadingInterjections } from '../src/ai-engine/swearEngine';
 import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
+import { stripContextLeaks } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch } from '../src/ai-engine/webSearchEngine';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
@@ -254,6 +255,19 @@ async function runDeterministicChecks() {
   // A model-written overshare ("i'm currently...") must not get a second stapled-on one.
   const ownAside = 'shit, a vaccine trains your immune system. i\'m currently staring at my goddamn ceiling fan.';
   check('no second overshare stapled onto a reply that already has one', Array.from({ length: 60 }, () => forceChaoticOvershare(ownAside)).every((o) => o === ownAside));
+
+  console.log('\nContext leaks:');
+  // Live replies said "the context provided doesn't give any details" / "no context shit here".
+  check('leaked "the context provided..." sentence is dropped', !/context/i.test(stripContextLeaks("damn, barca have five ucl titles. the context provided doesn't give any fucking details about this season.", 'is barca gonna win ucl')));
+  check('leak-only reply becomes the normal "don\'t know" line', /don't actually know/.test(stripContextLeaks("goddamn, i don't know because this shit doesn't mention it.", 'is barca gonna win')));
+  check('control: a real answer is untouched', stripContextLeaks('lamine yamal is a spanish winger from la masia.', 'who is lamine yamal') === 'lamine yamal is a spanish winger from la masia.');
+  check('control: "what does context mean" keeps the word', /context/.test(stripContextLeaks('context is the stuff around a sentence that gives it meaning.', 'what does context mean')));
+
+  console.log('\nSwear de-stacking keeps content:');
+  // The mixed-pile branch used to drop every segment after the first — "câlisse, tabarnak,
+  // Casseurt, ce codeur..." lost the name (French creator replies, 40/40).
+  check('de-stack keeps a name inside a swear pile', /Casseurt/.test(deStackLeadingInterjections("câlisse, tabarnak, Casseurt, ce codeur gossant m'a bâti.")));
+  check('de-stack still collapses a pure swear pile', deStackLeadingInterjections('bloody hell, shit, fuck, right, listen up, the answer is 42.') === 'bloody hell, the answer is 42.');
 
   console.log('\nMood engine:');
   _resetMoodForTests();

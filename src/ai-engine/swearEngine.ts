@@ -1786,8 +1786,14 @@ export function deStackLeadingInterjections(text: string): string {
   // Keep the first segment only, drop the rest of the stack, glue the real sentence back on.
   const rest = m[2].trimStart();
   const keep = segments[0].replace(/[?!.]+$/, '');
+  // Only the extra SWEARS in the pile get dropped — anything else in it is content. The mixed-stack
+  // branch above (>=60% known) used to discard every segment after the first, which deleted names:
+  // French creator replies "tabarnak, Casseurt, ce codeur gossant..." got a sacre prepended by
+  // forceSwearFloor ("câlisse, tabarnak, Casseurt, ...") and came out "câlisse, ce codeur gossant"
+  // — Casseurt erased 40/40 times (found 2026-09-30 via the "FR creator names Casseurt" check).
+  const content = segments.slice(1).filter((seg) => !isKnown(seg));
   const leadingWS = text.slice(0, text.length - text.trimStart().length);
-  return `${leadingWS}${keep}, ${rest}`;
+  return `${leadingWS}${[keep, ...content].join(', ')}, ${rest}`;
 }
 
 export function infuseSwearyHumanVoice(
