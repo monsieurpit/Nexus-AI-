@@ -15,6 +15,9 @@
 import { generateReasoningPath, buildSpeakerAwareWindow, classifyBotMetaQuestion, detectDoxRequest, isSlangGlossaryMisfire, detectOnlineCrisis } from '../src/ai-engine/reasoningEngine';
 import { getSystemPromptCharCount } from '../src/ai-engine/rules/promptBuilder';
 import { looksFrench } from '../src/ai-engine/localLlmClient';
+import { __loadRealEmbeddingsForTests } from '../src/ai-engine/vectorSearch';
+import { readdirSync, statSync } from 'fs';
+import { resolve as resolvePath } from 'path';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore';
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
@@ -288,6 +291,14 @@ async function runDeterministicChecks() {
   const allIds = getAllKnowledge().map((k) => k.id);
   const dupIds = allIds.filter((id, i) => allIds.indexOf(id) !== i);
   check('no duplicate corpus IDs', dupIds.length === 0, dupIds.join(', '));
+  // Sharded embeddings (2026-09-29): every corpus doc must have a vector after merging the shards,
+  // and no shard may creep back toward GitHub's 100MB hard limit (the reason sharding exists).
+  const loadedVectors = await __loadRealEmbeddingsForTests();
+  const missingVectors = allIds.filter((id) => !loadedVectors[id]);
+  check('every corpus doc has an embedding vector (shards merged)', missingVectors.length === 0, `${missingVectors.length} missing, e.g. ${missingVectors.slice(0, 3).join(', ')}`);
+  const shardDir = resolvePath(__dirname, '../src/ai-engine/corpus/embeddings');
+  const oversized = readdirSync(shardDir).filter((f) => f.startsWith('shard-') && statSync(resolvePath(shardDir, f)).size > 40e6);
+  check('no embeddings shard over 40MB', oversized.length === 0, oversized.join(', '));
 
   console.log('\nOnline-safety crisis support mode (2026-09-29):');
   // A sextortion victim used to get "you absolute knobhead" and, on one phrasing, no steps at all.

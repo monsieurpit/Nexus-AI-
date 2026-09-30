@@ -1,4 +1,4 @@
-// (Re-)generator for src/ai-engine/corpus/embeddings.generated.json — run via `npm run
+// (Re-)generator for the sharded corpus embeddings in src/ai-engine/corpus/embeddings/ — run via `npm run
 // embed:corpus` whenever the corpus changes. Requires OLLAMA_BASE_URL pointed at a reachable
 // Ollama instance with the embedding model (default nomic-embed-text) already pulled.
 //
@@ -14,13 +14,23 @@
 // Ollama, producing a static file that gets committed to git and loaded with zero network
 // dependency at server startup (see vectorSearch.ts).
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
+import { resolve, join } from 'path';
 import { createHash } from 'crypto';
 import { BUILTIN_KNOWLEDGE } from '../src/ai-engine/knowledgeBase';
 import * as localLlmClient from '../src/ai-engine/localLlmClient';
 
-const OUTPUT_PATH = resolve(__dirname, '../src/ai-engine/corpus/embeddings.generated.json');
+// Sharded (2026-09-29): the single embeddings.generated.json hit 52MB — over GitHub's recommended
+// 50MB and heading for its 100MB hard reject as the corpus keeps growing. Vectors are now split
+// across shard files of ~VECTORS_PER_SHARD each (~10MB), plus a small manifest.json listing them;
+// vectorSearch.ts reads the manifest and merges the shards back into one map. Each doc's shard is
+// picked by a hash of its id (not its position), so adding one doc only rewrites the one shard it
+// lands in instead of shifting every shard — small git diffs. The shard count grows automatically
+// with the corpus, so no single file ever approaches the limit again.
+const SHARD_DIR = resolve(__dirname, '../src/ai-engine/corpus/embeddings');
+const MANIFEST_PATH = join(SHARD_DIR, 'manifest.json');
+const LEGACY_PATH = resolve(__dirname, '../src/ai-engine/corpus/embeddings.generated.json');
+const VECTORS_PER_SHARD = 1000;
 // Default kept in sync with localLlmClient.ts's own OLLAMA_EMBED_MODEL default (bge-m3, swapped
 // from nomic-embed-text 2026-09-17 for real multilingual retrieval — see that file's comment for
 // the live evidence) — this script's own separate fallback would otherwise silently regenerate the
@@ -63,12 +73,30 @@ function embedInputFor(item: (typeof BUILTIN_KNOWLEDGE)[number]): string {
   return `search_document: ${item.title} ${item.keywords.join(' ')} ${item.content}`;
 }
 
-function loadExisting(): EmbeddingsFile {
-  if (!existsSync(OUTPUT_PATH)) {
-    return { model: null, dim: null, generatedAt: null, vectors: {} };
+function shardIndexFor(id: string, shardCount: number): number {
+  return parseInt(createHash('sha256').update(id).digest('hex').slice(0, 8), 16) % shardCount;
+}
+
+// Reads the sharded layout if present, else the legacy single file (one-time migration path).
+function readRawExisting(): any | null {
+  if (existsSync(MANIFEST_PATH)) {
+    const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8'));
+    const vectors: Record<string, any> = {};
+    for (const shard of manifest.shards || []) {
+      const shardPath = join(SHARD_DIR, shard);
+      if (!existsSync(shardPath)) continue;
+      Object.assign(vectors, JSON.parse(readFileSync(shardPath, 'utf-8')).vectors || {});
+    }
+    return { model: manifest.model, dim: manifest.dim, generatedAt: manifest.generatedAt, vectors };
   }
+  if (existsSync(LEGACY_PATH)) return JSON.parse(readFileSync(LEGACY_PATH, 'utf-8'));
+  return null;
+}
+
+function loadExisting(): EmbeddingsFile {
   try {
-    const parsed = JSON.parse(readFileSync(OUTPUT_PATH, 'utf-8'));
+    const parsed = readRawExisting();
+    if (!parsed) return { model: null, dim: null, generatedAt: null, vectors: {} };
     // Back-compat: the very first version of this file stored bare number[] per id (no hash) —
     // treat those as stale so they get re-embedded once under the new hash-tracked format,
     // rather than crashing on the shape mismatch.
@@ -138,18 +166,39 @@ async function main() {
   }
 
   const dim = Object.values(vectors)[0]?.vector.length ?? null;
-  const output: EmbeddingsFile & { generatedAt: string } = {
-    model: EMBED_MODEL,
-    dim,
-    generatedAt: new Date().toISOString(),
-    vectors,
-  };
+  const ids = Object.keys(vectors).sort();
+  const shardCount = Math.max(1, Math.ceil(ids.length / VECTORS_PER_SHARD));
+  const shards: Record<string, VectorEntry>[] = Array.from({ length: shardCount }, () => ({}));
+  for (const id of ids) shards[shardIndexFor(id, shardCount)][id] = vectors[id];
 
+  mkdirSync(SHARD_DIR, { recursive: true });
+  // Remove shard files from a previous run that no longer belong (e.g. the shard count changed).
+  const shardNames = shards.map((_, i) => `shard-${String(i).padStart(3, '0')}.json`);
+  for (const f of readdirSync(SHARD_DIR)) {
+    if (/^shard-\d+\.json$/.test(f) && !shardNames.includes(f)) unlinkSync(join(SHARD_DIR, f));
+  }
   // Compact (no pretty-print indent) — see roundVector's own comment above for why file size
-  // matters here specifically. This file is never hand-edited, only read by loadRealEmbeddings()
-  // and regenerated by this script, so readability of the raw JSON was never actually needed.
-  writeFileSync(OUTPUT_PATH, JSON.stringify(output) + '\n');
-  console.log(`Wrote ${Object.keys(vectors).length} vectors (dim=${dim}) to ${OUTPUT_PATH}`);
+  // matters. Never hand-edited, only read by loadRealEmbeddings() and regenerated here.
+  let largestMB = 0;
+  shards.forEach((shard, i) => {
+    const body = JSON.stringify({ vectors: shard }) + '\n';
+    largestMB = Math.max(largestMB, Buffer.byteLength(body) / 1e6);
+    writeFileSync(join(SHARD_DIR, shardNames[i]), body);
+  });
+  writeFileSync(
+    MANIFEST_PATH,
+    JSON.stringify(
+      { model: EMBED_MODEL, dim, generatedAt: new Date().toISOString(), count: ids.length, shards: shardNames },
+      null,
+      2
+    ) + '\n'
+  );
+  // The legacy single file is fully superseded once the sharded layout exists.
+  if (existsSync(LEGACY_PATH)) unlinkSync(LEGACY_PATH);
+  console.log(
+    `Wrote ${ids.length} vectors (dim=${dim}) into ${shardCount} shard(s) in ${SHARD_DIR} (largest ${largestMB.toFixed(1)}MB)`
+  );
+  if (largestMB > 40) console.warn(`A shard is over 40MB — lower VECTORS_PER_SHARD to keep files well under GitHub's limits.`);
 }
 
 main().catch((err) => {

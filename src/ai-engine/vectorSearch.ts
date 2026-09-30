@@ -44,21 +44,37 @@ async function loadRealEmbeddings(): Promise<Record<string, Float32Array>> {
       try {
         const fs = await import('fs');
         const path = await import('path');
-        const possiblePaths = [
+        const out: Record<string, Float32Array> = {};
+        const absorb = (vectors: Record<string, { vector: number[] }> | undefined) => {
+          for (const id of Object.keys(vectors || {})) out[id] = new Float32Array(vectors![id].vector);
+        };
+        // Sharded layout (2026-09-29, see scripts/generateEmbeddings.ts): corpus/embeddings/
+        // manifest.json lists shard files that are each loaded and merged into one map. Shards are
+        // parsed one at a time so only one shard's JSON is ever held as intermediate garbage.
+        const shardDirs = [
+          path.resolve(process.cwd(), 'src/ai-engine/corpus/embeddings'),
+          path.resolve(__dirname, './corpus/embeddings'),
+          path.resolve(__dirname, '../src/ai-engine/corpus/embeddings'),
+        ];
+        for (const dir of shardDirs) {
+          const manifestPath = path.join(dir, 'manifest.json');
+          if (!fs.existsSync(manifestPath)) continue;
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+          for (const shard of manifest.shards || []) {
+            const shardPath = path.join(dir, shard);
+            if (fs.existsSync(shardPath)) absorb(JSON.parse(fs.readFileSync(shardPath, 'utf-8')).vectors);
+          }
+          return out;
+        }
+        // Legacy single-file layout — fallback only, in case an old checkout is still around.
+        const legacyPaths = [
           path.resolve(process.cwd(), 'src/ai-engine/corpus/embeddings.generated.json'),
           path.resolve(__dirname, './corpus/embeddings.generated.json'),
           path.resolve(__dirname, '../src/ai-engine/corpus/embeddings.generated.json'),
         ];
-        for (const p of possiblePaths) {
+        for (const p of legacyPaths) {
           if (fs.existsSync(p)) {
-            const content = fs.readFileSync(p, 'utf-8');
-            const corpusEmbeddings = JSON.parse(content);
-            const vectors =
-              (corpusEmbeddings as { vectors: Record<string, { vector: number[]; textHash: string }> }).vectors || {};
-            const out: Record<string, Float32Array> = {};
-            for (const id of Object.keys(vectors)) {
-              out[id] = new Float32Array(vectors[id].vector);
-            }
+            absorb(JSON.parse(fs.readFileSync(p, 'utf-8')).vectors);
             return out;
           }
         }
@@ -70,6 +86,9 @@ async function loadRealEmbeddings(): Promise<Record<string, Float32Array>> {
   }
   return embeddingsPromise;
 }
+
+// Test-only handle (scripts/regressionCheck.ts): verifies the sharded embeddings actually load.
+export const __loadRealEmbeddingsForTests = () => loadRealEmbeddings();
 
 // A single user message can trigger several search calls with different-but-overlapping query
 // strings (initial query, reformulated keyword query, sub-questions) — this avoids redundant

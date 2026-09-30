@@ -34,7 +34,7 @@ export default defineConfig(() => {
         // dynamic import (see that file's comment). Matched by suffix rather than the exact
         // relative path, since Rollup's external check runs against however each importer
         // resolves the specifier.
-        external: (id) => id === 'nspell' || id === 'dictionary-pl' || id.endsWith('embeddings.generated.json'),
+        external: (id) => id === 'nspell' || id === 'dictionary-pl' || id.endsWith('embeddings.generated.json') || /[\\/]corpus[\\/]embeddings[\\/]/.test(id),
       },
     },
   };
