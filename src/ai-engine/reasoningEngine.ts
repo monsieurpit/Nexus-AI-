@@ -4580,8 +4580,8 @@ export async function generateReasoningPath(
     });
     const crisisDoc = allKnowledge.find((k) => k.id === (onlineCrisis === 'sextortion' ? 'kb-safety-sextortion' : 'kb-safety-doxxing-what-to-do'));
     const crisisSystem = frCrisis
-      ? `Tu es Nexus, sur un serveur Discord. Quelqu'un du serveur vit une situation qui lui fait peur. Garde ta voix habituelle (jurons, sacres, taquineries amicales comme "espèce de cave" sont correctes), mais sois clairement de son bord : dis-lui que c'est pas sa faute, et pas d'anecdote crue sur toi. En français québécois, direct. Utilise SEULEMENT les faits ci-dessous. 4 à 6 phrases courtes, pas de liste.\n\nFaits :\n${crisisDoc?.content || ''}`
-      : `You are Nexus, in a Discord server. Someone in the server is in a scary situation right now. Keep your normal voice — swearing and friendly British banter like "you absolute knobhead" are fine — but be clearly on their side: tell them it's not their fault, and no crude asides about yourself. Use ONLY the facts below. Cover the most important steps. 4-6 short sentences, no list.\n\nFacts:\n${crisisDoc?.content || ''}`;
+      ? `Tu es Nexus, sur un serveur Discord. Quelqu'un du serveur vit une situation qui lui fait peur. Garde ta voix habituelle : sacre beaucoup, comme d'habitude (tabarnak, câlisse, ostie, criss — au moins 3-4 par réponse, dans les phrases), et les taquineries amicales comme "espèce de cave" sont correctes — mais sois clairement de son bord : dis-lui que c'est pas sa faute, et pas d'anecdote crue sur toi. En français québécois, direct. Utilise SEULEMENT les faits ci-dessous. 4 à 6 phrases courtes, pas de liste.\n\nFaits :\n${crisisDoc?.content || ''}`
+      : `You are Nexus, in a Discord server. Someone in the server is in a scary situation right now. Keep your normal voice: swear a lot, like you always do (fuck, shit, damn, hell, goddamn — at least 4-5 per reply, woven into the sentences), and friendly British banter like "you absolute knobhead" is fine — but be clearly on their side: tell them it's not their fault, and no crude asides about yourself. Use ONLY the facts below. Cover the most important steps. 4-6 short sentences, no list.\n\nFacts:\n${crisisDoc?.content || ''}`;
     const crisisResult = await localLlmClient.generate(prompt, {
       system: crisisSystem,
       temperature: 0.4,
@@ -4590,10 +4590,17 @@ export async function generateReasoningPath(
       model: localLlmClient.chatModel(),
       think: false,
     });
-    const crisisText =
-      crisisResult.status === 'success' && !containsSlurOrHateSpeech(crisisResult.text)
-        ? crisisResult.text
-        : ONLINE_CRISIS_FALLBACK[onlineCrisis][frCrisis ? 'fr' : 'en'];
+    // Swearing is mandatory here too (Patrick, 2026-09-29: "make that he also swears in the crisis
+    // thing") — the prompt asks for it, and the same mechanical floor normal replies get guarantees
+    // it (floor only: no length cap and no crude overshare aside, which topUpLlmSwearing would add).
+    const crisisText = deStackLeadingInterjections(
+      forceSwearFloor(
+        crisisResult.status === 'success' && !containsSlurOrHateSpeech(crisisResult.text)
+          ? crisisResult.text
+          : ONLINE_CRISIS_FALLBACK[onlineCrisis][frCrisis ? 'fr' : 'en'],
+        frCrisis ? 2 : 4
+      )
+    );
     return {
       thoughtSteps,
       content: crisisText,
