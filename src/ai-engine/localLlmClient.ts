@@ -468,6 +468,12 @@ function acquireOllamaSlot(): Promise<() => void> {
   });
 }
 
+// For background work (the learning worker, src/ai-engine/learning/worker.ts): it only runs when no
+// real request is using or waiting for the model, so a Discord reply never queues behind it.
+export function isModelBusy(): boolean {
+  return activeOllamaCalls > 0 || ollamaWaitQueue.length > 0;
+}
+
 export interface OllamaGenerateOptions {
   temperature?: number;
   maxTokens?: number;

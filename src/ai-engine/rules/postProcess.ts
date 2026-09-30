@@ -212,7 +212,7 @@ function scrubSwearingForDraft(text: string): string {
 // still does. If nothing else is left, it becomes the persona's normal "don't know" line.
 // Skipped when the user's own message is about context/sources, where the word is legitimate.
 const CONTEXT_LEAK_RE =
-  /\bcontext\b|\b(?:info(?:rmation)?|facts?|text|material|data|sources?)\s+(?:provided|given|above|below|i was given)\b|\b(?:provided|given)\s+(?:info(?:rmation)?|facts?|text|material|data|sources?)\b|\bbackground material\b|\b(?:it|this|that)(?:\s+(?:shit|crap|stuff|info))?\s+(?:doesn'?t|does not|don'?t|do not)\s+(?:say|mention)\b/i;
+  /\bcontext\b|\b(?:info(?:rmation)?|facts?|text|material|data|sources?)\s+(?:provided|given|above|below|i was given)\b|\b(?:provided|given)\s+(?:info(?:rmation)?|facts?|text|material|data|sources?)\b|\bbackground material\b|\b(?:it|this|that)(?:\s+(?:shit|crap|stuff|info))?\s+(?:doesn'?t|does not|don'?t|do not)\s+(?:\w+\s+)?(?:say|mention|give|tell|list|show|record|include)\b|\b(?:it|this|that)(?:\s+(?:shit|crap|stuff|info))?\s+(?:just\s+|only\s+)?(?:says|mentions|talks\s+about)\b/i;
 const CONTEXT_LEAK_EXEMPT_PROMPT_RE = /\b(?:context|source|sources|facts?|material|provided)\b/i;
 const CONTEXT_LEAK_DONT_KNOW = "nah i don't actually know that one, don't quote me.";
 

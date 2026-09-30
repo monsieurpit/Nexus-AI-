@@ -47,6 +47,11 @@ import {
 } from './src/ai-engine/swearEngine';
 import { countTokens } from './src/ai-engine/tokenizer';
 import { ModelPersonaId, ReasoningMode, UserMemory, WebSearchResult } from './src/types';
+import { openLearningStore, isLearningEnabled } from './src/ai-engine/learning/store';
+import { captureExchange } from './src/ai-engine/learning/capture';
+import { loadLearnedIntoKnowledge } from './src/ai-engine/learning/promote';
+import { markForegroundActivity, startLearningWorker } from './src/ai-engine/learning/worker';
+import { registerLearningAdminRoutes, loadAdminToken } from './src/ai-engine/learning/admin';
 import {
   executeUnifiedWebSearch,
   searchGoogleDirect,
@@ -1226,6 +1231,7 @@ app.post('/api/v1/speak', aiComputeLimiter, async (req, res) => {
 });
 
 app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
+  markForegroundActivity();
   authenticateApiKey(req);
   const {
     prompt,
@@ -1773,6 +1779,24 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
       `"${userText.slice(0, 60)}" -> persona=${persona.id} mood=${queuedExecution.data.mood?.label ?? 'n/a'} lang=${queuedExecution.data.telemetry?.language ?? 'n/a'} ${llmOutcome} total=${queuedExecution.processTimeMs}ms`
     );
 
+    // Learning (docs/learning-system.md): queue this exchange for the idle worker. One SQLite insert
+    // after the reply is built; triage drops most messages before anything is stored.
+    const replyForLearning = queuedExecution.data?.response;
+    if (typeof replyForLearning === 'string' && replyForLearning) {
+      const previousBotReply = [...historyArray].reverse().find((m: any) => m?.role === 'assistant' && typeof m.content === 'string')?.content ?? null;
+      setImmediate(() =>
+        captureExchange({
+          userText,
+          botReply: replyForLearning,
+          authorId: effectiveAuthorId || null,
+          fallbackIdentity: req.ip || null,
+          channelId: typeof req.body?.channelId === 'string' ? req.body.channelId : null,
+          previousBotReply,
+          hasImage: Boolean(queuedExecution.data?.hasImage),
+        })
+      );
+    }
+
     const fullPayload = {
       ...queuedExecution.data,
       queueStats: {
@@ -1807,6 +1831,9 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
     return res.status(500).json({ error: 'Internal AI processing error', message: err?.message || String(err) });
   }
 });
+
+// Learning system admin API (own token — see src/ai-engine/learning/admin.ts for why not requireApiKey).
+registerLearningAdminRoutes(app);
 
 // 4b. Roleplay / persona chat — ONE plain local-model call, no corpus retrieval, no swear engine,
 // no reasoning pipeline. Built for texting-style personas (Noémie for the Message-app fallback,
@@ -2742,6 +2769,19 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Nexus & RaidShield API Server active at http://0.0.0.0:${PORT}`);
+    if (isLearningEnabled()) {
+      try {
+        openLearningStore();
+        loadAdminToken();
+        const loaded = loadLearnedIntoKnowledge();
+        startLearningWorker();
+        console.log(`[learning] on — ${loaded} learned fact(s) loaded, worker started`);
+      } catch (err) {
+        console.warn('[learning] failed to start, continuing without it:', err);
+      }
+    } else {
+      console.log('[learning] off (NEXUS_LEARNING=off)');
+    }
     // REVERTED: this used to fire warmPolishDictionary() here, eagerly building the Polish nspell
     // dictionary at boot instead of on a live user's first Polish message — same "pay the one-time
     // cost at boot" idea the BM25 index warm-up below was also tried and reverted for, and it

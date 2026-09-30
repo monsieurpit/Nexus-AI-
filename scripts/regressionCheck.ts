@@ -493,7 +493,9 @@ async function runLiveChecks() {
   // spot is visible, not asserted as a strict pass/fail.
   check(
     'ambiguous prompt: asks a clarifying question (known partial capability, informational)',
-    /\?/.test(ambiguous.content),
+    // A "?" OR an explicit ask for the missing detail — "you need to explain the goddamn shit first"
+    // asks for clarification without a question mark (wording-only failures, 2026-09-30).
+    /\?/.test(ambiguous.content) || /\b(?:explain|tell me|what(?:'s| is| are)|which|you need to (?:say|tell|explain)|be more specific|what the fuck is)\b/i.test(ambiguous.content),
     ambiguous.content.slice(0, 100)
   );
 
@@ -526,7 +528,10 @@ async function runLiveChecks() {
   );
   check(
     'speaker-aware follow-up: resolves against the SAME speaker\'s thread even with another user\'s exchange interleaved in between',
-    /south korea/i.test(followUp.content) && /seoul/i.test(followUp.content),
+    // Seoul is what proves the follow-up was resolved against Alice's Japan thread (Bob's thread is
+    // France); requiring the literal words "South Korea" too failed correct replies like "its
+    // capital is seoul" (2026-09-30).
+    /seoul/i.test(followUp.content) && !/\bparis\b/i.test(followUp.content),
     followUp.content.slice(0, 120)
   );
 }

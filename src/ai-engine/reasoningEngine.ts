@@ -2394,7 +2394,41 @@ type SearchHit = { item: KnowledgeItem; score: number; snippet?: string; relevan
  * phrasing (pronouns, filler words) can dilute BM25 scoring even when the corpus has a good match
  * for the underlying keywords.
  */
+// Learned facts (src/ai-engine/learning, category 'learned') are one short sentence each, so BM25
+// ranks them below long general articles that merely share more words: "what day do we watch
+// movies on the server" put the learned "The server's movie night is every Friday at 8pm" 4th,
+// behind "Server Event Culture" and "Film and Cinema" (2026-09-30). A learned fact is specific to
+// this community and was verified before it got here, so when it clearly matches the question
+// (2+ of its key terms and at least half of them) it goes first.
+function preferLearnedMatches(results: SearchHit[], queryTerms: string[], allKnowledge: KnowledgeItem[]): SearchHit[] {
+  const learned = allKnowledge.filter((k) => k.category === 'learned');
+  if (learned.length === 0) return results;
+  const terms = new Set(queryTerms.filter((t) => t.length > 2));
+  if (terms.size === 0) return results;
+  let best: { item: KnowledgeItem; overlap: number } | null = null;
+  for (const item of learned) {
+    const docTerms = new Set(processForSearch(`${item.title} ${item.keywords.join(' ')} ${item.content}`));
+    const overlap = [...terms].filter((t) => docTerms.has(t)).length;
+    if (overlap >= 2 && overlap / terms.size >= 0.5 && (!best || overlap > best.overlap)) best = { item, overlap };
+  }
+  if (!best) return results;
+  const topScore = Math.max(results[0]?.score ?? 0, CONFIDENT_MATCH_SCORE);
+  const hit: SearchHit = { item: best.item, score: topScore * 1.01, snippet: best.item.content, relevantSentences: [best.item.content] };
+  return [hit, ...results.filter((r) => r.item.id !== best!.item.id)];
+}
+
 async function searchWithReformulation(
+  augmentedQuery: string,
+  queryTerms: string[],
+  allKnowledge: KnowledgeItem[],
+  citedDocIds: Set<string>,
+  topK: number
+): Promise<{ results: SearchHit[]; reformulatedQuery: string | null }> {
+  const found = await searchWithReformulationInner(augmentedQuery, queryTerms, allKnowledge, citedDocIds, topK);
+  return { ...found, results: preferLearnedMatches(found.results, queryTerms, allKnowledge) };
+}
+
+async function searchWithReformulationInner(
   augmentedQuery: string,
   queryTerms: string[],
   allKnowledge: KnowledgeItem[],
