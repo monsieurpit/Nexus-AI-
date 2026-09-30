@@ -4236,7 +4236,7 @@ async function llmGroundedOrFallback(
     });
     return topUpLlmSwearing(groundedRawText, settings, isCrashout, prompt, suppressSwearing);
   }
-  let llmVerification = verifyAnswer(groundedRawText, intent, queryTerms, entities, prompt);
+  let llmVerification = verifyAnswer(groundedRawText, intent, queryTerms, entities, prompt, groundingContext);
   let finalText = groundedRawText;
   let finalLatency = llmResult.latencyMs;
   let retryAttempted = false;
@@ -4297,7 +4297,7 @@ async function llmGroundedOrFallback(
       });
     }
     if (containsSlurOrHateSpeech(retryRawText)) continue; // discard this pass, try again if budget allows
-    const retryVerification = verifyAnswer(retryRawText, intent, queryTerms, entities, prompt);
+    const retryVerification = verifyAnswer(retryRawText, intent, queryTerms, entities, prompt, groundingContext);
     // Always keep the LATEST attempt as the best-so-far, even if it still doesn't fully pass —
     // each pass incorporates the previous one's specific critique, so a later attempt that still
     // fails verification is still more likely to be closer to correct than an earlier one, same

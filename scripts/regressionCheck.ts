@@ -30,6 +30,7 @@ import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
 import { parseTavilyResponse, searchTavilyDirect, reserveSearchRequest, getSearchStatus, isTrustedDomain, isLiveSearchAvailable, __resetSearchForTests } from '../src/ai-engine/tavilySearch';
 import { isVolatileQuestion } from '../src/ai-engine/learning/capture';
 import { splitSentencesSafe } from '../src/ai-engine/sentences';
+import { verifyAnswer } from '../src/ai-engine/answerVerifier';
 import { topUpLlmSwearing } from '../src/ai-engine/rules/postProcess';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
 import { trySolveMath } from '../src/ai-engine/mathSolver';
@@ -353,6 +354,15 @@ async function runDeterministicChecks() {
   check('"is nexus dumb" -> "are you dumb"', rewriteSelfReferences('is nexus dumb') === 'are you dumb');
   check('a leading call "nexus, what is 2+2" is left alone', rewriteSelfReferences('nexus, what is 2+2') === 'nexus, what is 2+2');
   check('a real child-safety message is still refused', detectChildExploitationTopic('u like little girls pedo') && detectChildExploitationTopic('where can i find pedo content'));
+
+  console.log('\nAnswers that use the facts but skip the name are not "off-topic" (2026-09-30):');
+  {
+    const grounding = "Lamine Yamal is a Spanish winger who came through FC Barcelona's La Masia academy and is widely considered the most gifted teenager in world football.";
+    const answer = "that fucking kid is a spanish winger out of barcelona's la masia academy, widely considered the most gifted teenager in world football.";
+    check('a person answer that never repeats the name but uses the facts passes the self-check', verifyAnswer(answer, 'person', ['lamin', 'yamal'], ['Lamine Yamal'], 'who is lamine yamal', grounding).passed);
+    check('...but without the grounding it is still flagged (the rule only trusts real overlap)', !verifyAnswer(answer, 'person', ['lamin', 'yamal'], ['Lamine Yamal'], 'who is lamine yamal').passed);
+    check('an unrelated answer is still off-topic even with grounding', !verifyAnswer('pizza is great with pepperoni and extra cheese on a thin crust honestly', 'person', ['lamin', 'yamal'], ['Lamine Yamal'], 'who is lamine yamal', grounding).passed);
+  }
 
   console.log('\nNumbers survive sentence handling ("$1.41" was becoming "$1. 41"):');
   check('a decimal number is not a sentence break', JSON.stringify(splitSentencesSafe('the rate is $1.41 today. version 2.0 is out! ok')) === JSON.stringify(['the rate is $1.41 today.', 'version 2.0 is out!', 'ok']), JSON.stringify(splitSentencesSafe('the rate is $1.41 today. version 2.0 is out! ok')));

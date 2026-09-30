@@ -206,12 +206,27 @@ function countListMarkers(text: string): number {
  * be the entities extracted from the *query* (not the answer) so comparative checks can
  * confirm both sides actually got addressed.
  */
+// Distinct content words (5+ letters) present in both texts.
+function sharedContentWords(a: string, b: string): number {
+  const words = (t: string) => new Set((t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[a-z]{5,}/g) || []));
+  const wa = words(a);
+  const wb = words(b);
+  let n = 0;
+  for (const w of wa) if (wb.has(w)) n++;
+  return n;
+}
+
 export function verifyAnswer(
   answer: string,
   intent: QueryIntent,
   queryTerms: string[],
   entities: string[],
-  rawQuery = ''
+  rawQuery = '',
+  // The facts the answer was written from (the grounding context), when known. An answer can
+  // legitimately never repeat the question's own words — "that fucking kid is a Spanish winger from
+  // La Masia" answers "who is lamine yamal" without the name — so an answer that clearly USES the
+  // grounding is not off-topic (see the off-topic rule below).
+  groundingText = ''
 ): VerificationResult {
   const issues: VerificationIssue[] = [];
   const lower = answer.toLowerCase();
@@ -277,7 +292,8 @@ export function verifyAnswer(
       const coreTerms = expandQuerySynonyms(queryTerms.filter((t) => t.length > 3));
       const answerStems = new Set(tokenizeWords(answer).map((w) => stem(w)));
       const covered = coreTerms.filter((t) => answerStems.has(t) || lower.includes(t));
-      if (coreTerms.length > 0 && covered.length === 0) {
+      const usesGrounding = groundingText ? sharedContentWords(answer, groundingText) >= 3 : false;
+      if (coreTerms.length > 0 && covered.length === 0 && !usesGrounding) {
         issues.push({
           kind: 'off-topic',
           detail: "Answer does not mention any of the query's key terms — likely off-topic.",
