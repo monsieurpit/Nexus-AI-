@@ -12,7 +12,11 @@ import { homedir } from 'os';
 import { join } from 'path';
 
 export type ObservationSource = 'discord' | 'website' | 'api';
-export type CandidateKind = 'personal' | 'remember-request' | 'correction' | 'claim';
+export type CandidateKind = 'personal' | 'remember-request' | 'correction' | 'claim' | 'search-answer';
+// 'message': something a person said (may state a fact). 'search-answer': a question Nexus answered
+// from a web search — the answer is learnable. 'gap': a question Nexus couldn't answer — researched
+// later in idle time.
+export type ObservationKind = 'message' | 'search-answer' | 'gap';
 export type CandidateScope = 'just-this-user' | 'server-lore' | 'world-fact';
 export type CandidateStatus =
   | 'pending-extract' // observation queued, not looked at yet
@@ -33,6 +37,9 @@ export interface Observation {
   botReply: string;
   previousBotReply: string | null;
   processed: number;
+  kind: ObservationKind;
+  // JSON EvidenceItem[] for 'search-answer'.
+  evidence: string;
 }
 
 export interface Candidate {
@@ -179,7 +186,16 @@ export function openLearningStore(path?: string): Database {
   }
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+// Columns added after the first release — existing databases get them on open.
+function migrate(d: Database): void {
+  const has = (table: string, col: string) => (d.query(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
+  if (!has('observations', 'kind')) d.exec("ALTER TABLE observations ADD COLUMN kind TEXT NOT NULL DEFAULT 'message'");
+  if (!has('observations', 'evidence')) d.exec("ALTER TABLE observations ADD COLUMN evidence TEXT NOT NULL DEFAULT ''");
+  if (!has('learned', 'questions')) d.exec("ALTER TABLE learned ADD COLUMN questions TEXT NOT NULL DEFAULT ''");
 }
 
 export function closeLearningStoreForTests(): void {
@@ -203,12 +219,12 @@ export function audit(action: string, target: string, detail: string): void {
 
 // ---- observations -------------------------------------------------------------------------------
 
-export function insertObservation(o: Omit<Observation, 'id' | 'processed'>): number {
+export function insertObservation(o: Omit<Observation, 'id' | 'processed' | 'kind' | 'evidence'> & { kind?: ObservationKind; evidence?: string }): number {
   const r = store()
     .query(
-      'INSERT INTO observations (createdAt, source, userHash, channelHash, userText, botReply, previousBotReply) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO observations (createdAt, source, userHash, channelHash, userText, botReply, previousBotReply, kind, evidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )
-    .run(o.createdAt, o.source, o.userHash, o.channelHash, o.userText, o.botReply, o.previousBotReply);
+    .run(o.createdAt, o.source, o.userHash, o.channelHash, o.userText, o.botReply, o.previousBotReply, o.kind ?? 'message', o.evidence ?? '');
   return Number(r.lastInsertRowid);
 }
 
@@ -331,6 +347,22 @@ export function getLearned(id: string): LearnedFact | null {
 
 export function activeLearned(): LearnedFact[] {
   return store().query('SELECT * FROM learned WHERE active = 1 ORDER BY createdAt').all() as LearnedFact[];
+}
+
+export function activeLearnedWithClusters(): (LearnedFact & { clusterId: number | null })[] {
+  return store().query('SELECT * FROM learned WHERE active = 1 AND clusterId IS NOT NULL').all() as any[];
+}
+
+export function clusterEmbedding(clusterId: number): Float32Array | null {
+  const row = store().query('SELECT embedding FROM clusters WHERE id = ?').get(clusterId) as { embedding: Uint8Array | null } | null;
+  if (!row?.embedding) return null;
+  const b = row.embedding;
+  return new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+}
+
+// Questions Nexus couldn't answer and nobody has found an answer for yet (review page "gaps").
+export function openGaps(limit = 50): { id: number; createdAt: number; userText: string; processed: number }[] {
+  return store().query("SELECT id, createdAt, userText, processed FROM observations WHERE kind = 'gap' ORDER BY id DESC LIMIT ?").all(limit) as any[];
 }
 
 export function listLearned(limit = 500): LearnedFact[] {

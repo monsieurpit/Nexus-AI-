@@ -48,6 +48,20 @@ message (website or Discord, both go through /api/v1/nexus)
                      with provenance, confidence, and a re-check date for time-sensitive facts
 ```
 
+### Learning from questions, not just statements
+
+Most of what people teach a chatbot is in what they ASK.
+
+- **Answered questions**: when Nexus answers a question from a web search, the question and the
+  matching source sentences are queued. In idle time the model writes the answer as one fact
+  (names, numbers and dates only from the sources), which is then verified again independently
+  (fresh search, double-checked judge) and learned. The next person asking gets it instantly.
+- **Gaps**: when Nexus says he doesn't know, the question is queued; in idle time he searches for it
+  and learns the answer if one verifies. Open gaps show on the review page.
+- **Updates**: when a newer verified fact says something different about the same thing, older
+  learned facts are re-judged against the new evidence and retired if contradicted ("Mark Carney
+  is PM" retires an older "Justin Trudeau is PM").
+
 ### Personal vs shared
 
 - "remember that I live in Montreal" / "my birthday is May 5" → **personal memory only** (the
@@ -58,6 +72,14 @@ message (website or Discord, both go through /api/v1/nexus)
   personal claim about someone → **not learned**.
 
 A "remember this" request is never enough on its own: the pertinence and safety checks still apply.
+
+### Guards around the small model
+
+- The judge runs twice (evidence reversed); a supported/unsure split gets a third run. Supported only
+  with a quote that really comes from the evidence (85%+ of its words, in order) and every number in
+  the claim present in the evidence.
+- The extractor may not add a number the person never said, nor swap in names from its own memory
+  ("the capital of australia is sydney" must not become "…is Canberra").
 
 ### Facts, not wording
 
@@ -102,6 +124,9 @@ message "as" him — it goes to the review page like server lore.
 
 - Website visitors have no stable id; they all look like one anonymous person, so the website
   alone can never corroborate server lore (only verified world facts are learned from it).
+- Wikipedia rate-limits bots without a proper User-Agent (8 requests then HTTP 429) — fixed with a
+  policy-compliant one, a 10-minute search cache and a back-off on 429. Google/DuckDuckGo block
+  automated search, so Wikipedia is the only web source.
 - The small local model is both extractor and judge. The guards around it (exact quotes, number
   checks, safety rules, review for anything unverifiable) are what make it safe, not the model.
 - It learns facts, not style. Learning Nexus's voice from reactions would be a separate feature.

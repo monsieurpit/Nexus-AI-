@@ -36,6 +36,7 @@ export const LEARNING_ADMIN_PAGE = `<!doctype html>
   <h2>Waiting for your OK</h2><div id="review"></div>
   <h2>Learned</h2><div id="learned"></div>
   <h2>Waiting for more people</h2><div id="waiting"></div>
+  <h2>Questions he couldn't answer</h2><div id="gaps"></div>
   <h2>Recent decisions</h2><div id="recent"></div>
   <h2>Undo</h2>
   <div class="card">Forget everything learned since:
@@ -67,6 +68,8 @@ async function load() {
   list('review', d.waitingForReview, (c) => card('<div class="claim">' + esc(c.claim) + '</div><div class="meta">' + esc(c.statusReason) + ' · ' + when(c.createdAt) + '</div><div class="row"><button class="ok" data-approve="' + c.id + '">Learn it</button><button class="bad" data-reject="' + c.id + '">No</button></div>'));
   list('learned', d.learned.filter((f) => f.active), (f) => card('<div class="claim">' + esc(f.claim) + '</div><div class="meta"><span class="pill">' + esc(f.verification) + '</span><span class="pill">' + esc(f.scope) + '</span>' + esc(f.evidence) + ' · ' + when(f.createdAt) + '</div><div class="row"><button class="bad" data-forget="' + esc(f.id) + '">Forget</button></div>'));
   list('waiting', d.waitingForPeople, (c) => card('<div class="claim">' + esc(c.claim) + '</div><div class="meta">' + esc(c.statusReason) + '</div><div class="row"><button class="ok" data-approve="' + c.id + '">Learn it now</button><button class="bad" data-reject="' + c.id + '">No</button></div>'));
+  const gapState = { 0: 'will search when idle', 1: 'answer found, verifying', 6: 'no answer found online' };
+  list('gaps', (d.gaps || []).slice(0, 30), (g) => card('<div>' + esc(g.userText) + '</div><div class="meta">' + esc(gapState[g.processed] || 'processed') + ' · ' + when(g.createdAt) + '</div>'));
   list('recent', d.recentCandidates.slice(0, 40), (c) => card('<div>' + (c.claim ? esc(c.claim) : '<i>(no claim)</i>') + '</div><div class="meta"><span class="pill">' + esc(c.status) + '</span>' + esc(c.statusReason) + '</div>'));
 }
 document.addEventListener('click', async (e) => {

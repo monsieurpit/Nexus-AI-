@@ -48,7 +48,7 @@ import {
 import { countTokens } from './src/ai-engine/tokenizer';
 import { ModelPersonaId, ReasoningMode, UserMemory, WebSearchResult } from './src/types';
 import { openLearningStore, isLearningEnabled } from './src/ai-engine/learning/store';
-import { captureExchange } from './src/ai-engine/learning/capture';
+import { captureExchange, captureQuestion } from './src/ai-engine/learning/capture';
 import { loadLearnedIntoKnowledge } from './src/ai-engine/learning/promote';
 import { markForegroundActivity, startLearningWorker } from './src/ai-engine/learning/worker';
 import { registerLearningAdminRoutes, loadAdminToken } from './src/ai-engine/learning/admin';
@@ -1795,6 +1795,20 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
           hasImage: Boolean(queuedExecution.data?.hasImage),
         })
       );
+      // Questions teach too: a web-answered question becomes a fact to verify and learn; one Nexus
+      // couldn't answer becomes a gap to research when idle.
+      if (!queuedExecution.data?.hasImage) {
+        const webSources = Array.isArray(queuedExecution.data?.webSources) ? queuedExecution.data.webSources : [];
+        setImmediate(() =>
+          captureQuestion({
+            question: userText,
+            botReply: replyForLearning,
+            authorId: effectiveAuthorId || null,
+            fallbackIdentity: req.ip || null,
+            webResults: webSources,
+          })
+        );
+      }
     }
 
     const fullPayload = {

@@ -363,7 +363,32 @@ export function buildWikipediaQuery(query: string): string {
 // further down their article's intro. One batched request for all titles instead of one per hit.
 const WIKI_INTRO_MAX_CHARS = 2500;
 
+// Wikimedia's bot policy wants a User-Agent that names the tool and a way to reach its owner. The
+// old generic "CustomNexusAI/2.0 (Autonomous Cognitive Agent...)" got HTTP 429 after ~8 quick
+// requests (measured 2026-09-30: 8x 200 then 429s), so a busy channel — plus the learning worker's
+// own verification searches — silently lost web answers. With this one: 14/14 in the same burst.
+const WIKI_USER_AGENT = 'NexusAI/2.0 (https://github.com/monsieurpit/Nexus-AI-; Discord bot + learning system) bun';
+
+// Short cache: the same question gets asked by several people in a row, and the learning worker
+// re-verifies facts the chat just searched. Also stops hammering Wikipedia after a 429.
+const WIKI_CACHE_MS = 10 * 60 * 1000;
+const wikiCache = new Map<string, { at: number; results: WebSearchResult[] }>();
+let wikiBackoffUntil = 0;
+
 export async function searchWikipediaKnowledge(query: string, maxResults: number = 3): Promise<WebSearchResult[]> {
+  const cacheKey = `${buildWikipediaQuery(query).toLowerCase()}|${maxResults}`;
+  const cached = wikiCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < WIKI_CACHE_MS) return cached.results;
+  if (Date.now() < wikiBackoffUntil) return [];
+  const results = await searchWikipediaUncached(query, maxResults);
+  if (results.length > 0) {
+    wikiCache.set(cacheKey, { at: Date.now(), results });
+    if (wikiCache.size > 300) wikiCache.delete(wikiCache.keys().next().value!);
+  }
+  return results;
+}
+
+async function searchWikipediaUncached(query: string, maxResults: number): Promise<WebSearchResult[]> {
   try {
     const wikiQuery = buildWikipediaQuery(query);
     const searchApiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
@@ -372,14 +397,16 @@ export async function searchWikipediaKnowledge(query: string, maxResults: number
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4500);
-    const headers = {
-      'User-Agent': 'CustomNexusAI/2.0 (Autonomous Cognitive Agent; zero-api-search)',
-      Accept: 'application/json',
-    };
+    const headers = { 'User-Agent': WIKI_USER_AGENT, Accept: 'application/json' };
 
     const resp = await fetch(searchApiUrl, { signal: controller.signal, headers });
     if (!resp.ok) {
       clearTimeout(timeoutId);
+      if (resp.status === 429) {
+        const retryAfter = Number(resp.headers.get('retry-after'));
+        wikiBackoffUntil = Date.now() + (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 30_000);
+        console.warn('[Wikipedia Search] rate-limited (429) — backing off');
+      }
       return [];
     }
     const data = await resp.json();

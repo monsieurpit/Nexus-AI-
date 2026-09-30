@@ -17,6 +17,7 @@ import {
   isLearningEnabled,
   listCandidates,
   listLearned,
+  openGaps,
   recentAudit,
   setCandidateStatus,
 } from './store';
@@ -79,6 +80,7 @@ export function registerLearningAdminRoutes(app: Express): void {
         waitingForPeople: candidatesByStatus('needs-corroboration', 200),
         waitingForReview: candidatesByStatus('needs-review', 200),
         recentCandidates: listCandidates(100),
+        gaps: openGaps(50),
         audit: recentAudit(100),
       });
     })

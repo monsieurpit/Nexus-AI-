@@ -3,6 +3,8 @@
 // worker. Both the website and the Discord bot call /api/v1/nexus, so this one hook covers both.
 
 import { detectUserInsult } from '../swearEngine';
+import { checkLearningSafety } from './safety';
+import { relevantSentences } from './verify';
 import { countObservationsByUserSince, hashIdentity, insertObservation, isLearningEnabled, ObservationSource } from './store';
 
 // One person spamming "facts" can't fill the idle worker's queue.
@@ -94,3 +96,73 @@ export function captureExchange(e: ExchangeToCapture): number | null {
     return null;
   }
 }
+
+// ---- learning from questions ---------------------------------------------------------------------
+// Most of what people teach a chatbot is in what they ASK. A question Nexus answered from a web
+// search is a fact someone cared about — verified again later and learned, so the next person gets
+// it without a search. A question Nexus couldn't answer is a gap, researched later in idle time.
+
+
+const DONT_KNOW_RE =
+  /\b(?:(?:i\s+)?don'?t\s+(?:actually\s+)?(?:fucking\s+)?know|no\s+(?:fucking\s+)?idea|not\s+sure|can'?t\s+(?:find|tell\s+you)|jsais\s+pas|je\s+sais\s+pas|chu\s+pas\s+sûr|aucune\s+idée)\b/i;
+const ASKS_A_FACT_RE =
+  /\?\s*$|^(?:who|whos|who's|what|whats|what's|when|where|which|how\s+(?:many|much|old|long|tall|big)|is|are|was|were|did|does|tell\s+me\s+about|qui|quand|où|quel(?:le)?s?|combien|c'?est\s+quoi)\b/i;
+
+export interface QuestionToCapture {
+  question: string;
+  botReply: string;
+  authorId?: string | null;
+  fallbackIdentity?: string | null;
+  webResults: { title: string; snippet?: string }[];
+}
+
+function questionIsLearnable(question: string): boolean {
+  const q = question.trim();
+  if (q.length < 8 || q.length > 300) return false;
+  if (!ASKS_A_FACT_RE.test(q)) return false;
+  // Questions about Nexus, Casseurt, or a specific person/member stay out, same as statements.
+  return checkLearningSafety(q, { rawMessage: true }).ok && !/\b(?:you|your|u|ur|nexus|casseurt|patrick)\b/i.test(q);
+}
+
+export function captureQuestion(e: QuestionToCapture): number | null {
+  if (!isLearningEnabled()) return null;
+  if (!questionIsLearnable(e.question)) return null;
+  const userHash = identityHash(e.authorId, e.fallbackIdentity);
+  try {
+    if (countObservationsByUserSince(userHash, Date.now() - 24 * 60 * 60 * 1000) >= MAX_OBSERVATIONS_PER_USER_PER_DAY) return null;
+    if (e.webResults.length > 0) {
+      const evidence = e.webResults
+        .slice(0, 3)
+        .map((r) => ({ source: r.title, text: relevantSentences(r.snippet || '', e.question, 5).join(' ') }))
+        .filter((x) => x.text);
+      if (evidence.length === 0) return null;
+      return insertObservation({
+        createdAt: Date.now(),
+        source: sourceFor(e.authorId),
+        userHash,
+        channelHash: null,
+        userText: e.question.trim().slice(0, 300),
+        botReply: e.botReply.slice(0, 1500),
+        previousBotReply: null,
+        kind: 'search-answer',
+        evidence: JSON.stringify(evidence).slice(0, 6000),
+      });
+    }
+    if (DONT_KNOW_RE.test(e.botReply)) {
+      return insertObservation({
+        createdAt: Date.now(),
+        source: sourceFor(e.authorId),
+        userHash,
+        channelHash: null,
+        userText: e.question.trim().slice(0, 300),
+        botReply: e.botReply.slice(0, 1500),
+        previousBotReply: null,
+        kind: 'gap',
+      });
+    }
+  } catch (err) {
+    console.warn('[learning] question capture failed:', err);
+  }
+  return null;
+}
+

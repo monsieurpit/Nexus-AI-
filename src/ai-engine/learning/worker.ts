@@ -4,13 +4,17 @@
 
 import * as localLlmClient from '../localLlmClient';
 import { postToDiscordLog } from '../discordLogWebhook';
+import { cosineSimilarity } from '../semanticEngine';
+import { buildWebSearchQuery, buildWikipediaQuery, executeUnifiedWebSearch } from '../webSearchEngine';
 import { isAdminHash } from './capture';
 import { extractCandidate, routeExtraction } from './extract';
 import { checkLearningSafety } from './safety';
 import { enrichLearned, promoteFact, unlearnFact } from './promote';
 import {
+  activeLearnedWithClusters,
   adjustTrust,
   Candidate,
+  clusterEmbedding,
   candidatesByStatus,
   countCandidatesByUserSince,
   expireStaleCandidates,
@@ -29,8 +33,21 @@ import {
   setLearnedQuestions,
 } from './store';
 
+import {
+  assignCluster,
+  corroborationFor,
+  EvidenceItem,
+  gatherEvidence,
+  isAlreadyInCorpus,
+  judgeClaimTwice,
+  keyFacts,
+  quoteComesFrom,
+  relevantSentences,
+  sameKeyFacts,
+  writeAnswerClaim,
+} from './verify';
+
 const setLearnedQuestionsAttempted = (id: string) => setLearnedQuestions(id, ['-']);
-import { assignCluster, corroborationFor, gatherEvidence, isAlreadyInCorpus, judgeClaim, keyFacts } from './verify';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const IDLE_AFTER_MS = 45_000;
@@ -38,7 +55,10 @@ export const MAX_CANDIDATES_PER_USER_PER_DAY = 15;
 const OBSERVATION_RETENTION_MS = 14 * DAY_MS;
 
 // Observation.processed codes, so the backlog shows why each message was dropped.
-export const PROCESSED = { candidate: 1, skipped: 2, unsafe: 3, extractFailed: 4, rateLimited: 5 } as const;
+export const PROCESSED = { candidate: 1, skipped: 2, unsafe: 3, extractFailed: 4, rateLimited: 5, noAnswerFound: 6 } as const;
+
+// Facts that can change (who holds a title now, this season, recent years) get re-checked monthly.
+const TIME_SENSITIVE_RE = /\b(?:current(?:ly)?|latest|now|today|recent(?:ly)?|this\s+(?:year|season|week|month)|still|20(?:2[4-9]|3\d))\b/i;
 
 let lastForegroundAt = 0;
 export function markForegroundActivity(): void {
@@ -66,9 +86,33 @@ export function claimNumbersFromSource(claim: string, sourceText: string): boole
   return [...keyFacts(claim).numbers].every((n) => sourceNumbers.has(n));
 }
 
+// Same idea for names: the extractor "corrects" people from its own memory — live, "remember the
+// capital of australia is sydney" came out as the claim "The capital of Australia is Canberra."
+// True, but not what the person said, and the same move would let the model's own mistakes in. Most
+// of the claim's names must come from the message (one extra, e.g. "FIFA" added to "world cup", is
+// tolerated only when it's a small part of the claim).
+export function claimNamesFromSource(claim: string, sourceText: string): boolean {
+  const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const source = norm(sourceText);
+  const names = [...keyFacts(claim).names];
+  if (names.length === 0) return true;
+  const found = names.filter((n) => source.includes(n)).length;
+  return found / names.length >= 0.7;
+}
+
 // ---- one observation through extraction + safety + routing --------------------------------------
 
 export async function processObservation(o: Observation): Promise<number | null> {
+  if (o.kind === 'search-answer') {
+    let evidence: EvidenceItem[] = [];
+    try {
+      evidence = JSON.parse(o.evidence || '[]');
+    } catch {
+      evidence = [];
+    }
+    return processQuestionWithEvidence(o, evidence);
+  }
+  if (o.kind === 'gap') return processGap(o);
   const rawSafety = checkLearningSafety(o.userText, { rawMessage: true });
   if (!rawSafety.ok) {
     markObservationProcessed(o.id, PROCESSED.unsafe);
@@ -90,9 +134,12 @@ export async function processObservation(o: Observation): Promise<number | null>
   }
   const route = routeExtraction(x);
   const claimSafety = x.claim ? checkLearningSafety(x.claim) : { ok: true, reason: '' };
-  const faithful = !x.claim || claimNumbersFromSource(x.claim, `${o.userText} ${o.previousBotReply ?? ''}`);
+  const claimSource = `${o.userText} ${o.previousBotReply ?? ''}`;
+  const numbersFaithful = !x.claim || claimNumbersFromSource(x.claim, claimSource);
+  const namesFaithful = !x.claim || claimNamesFromSource(x.claim, o.userText);
+  const faithful = numbersFaithful && namesFaithful;
   const status = !claimSafety.ok || !faithful ? 'rejected' : route.next === 'reject' ? 'rejected' : route.next === 'verify' ? 'pending-verify' : 'needs-corroboration';
-  const reason = !claimSafety.ok ? `unsafe: ${claimSafety.reason}` : !faithful ? 'the rewritten claim has a number the person never said' : route.reason;
+  const reason = !claimSafety.ok ? `unsafe: ${claimSafety.reason}` : !numbersFaithful ? 'the rewritten claim has a number the person never said' : !namesFaithful ? "the rewritten claim isn't what the person said (names changed)" : route.reason;
   const id = insertCandidate({
     observationId: o.id,
     userHash: o.userHash,
@@ -108,6 +155,71 @@ export async function processObservation(o: Observation): Promise<number | null>
   });
   markObservationProcessed(o.id, PROCESSED.candidate);
   return status === 'rejected' ? null : id;
+}
+
+// ---- questions: learn the answer someone needed ------------------------------------------------
+
+async function processQuestionWithEvidence(o: Observation, evidence: EvidenceItem[]): Promise<number | null> {
+  const claim = await writeAnswerClaim(o.userText, evidence);
+  if (!claim) {
+    markObservationProcessed(o.id, o.kind === 'gap' ? PROCESSED.noAnswerFound : PROCESSED.skipped);
+    return null;
+  }
+  const safety = checkLearningSafety(claim);
+  const id = insertCandidate({
+    observationId: o.id,
+    userHash: o.userHash,
+    source: o.source,
+    kind: 'search-answer',
+    scope: 'world-fact',
+    claim,
+    subject: buildWikipediaQuery(o.userText).slice(0, 60),
+    pertinence: 0.7,
+    timeSensitive: TIME_SENSITIVE_RE.test(`${o.userText} ${claim}`) ? 1 : 0,
+    status: safety.ok ? 'pending-verify' : 'rejected',
+    statusReason: safety.ok ? `answer to "${o.userText.slice(0, 80)}" — verifying independently` : `unsafe: ${safety.reason}`,
+  });
+  markObservationProcessed(o.id, PROCESSED.candidate);
+  return safety.ok ? id : null;
+}
+
+// A question Nexus said he didn't know: search for it now that he's idle.
+async function processGap(o: Observation): Promise<number | null> {
+  let evidence: EvidenceItem[] = [];
+  try {
+    const found = await executeUnifiedWebSearch(buildWebSearchQuery(o.userText, 'explicit'), { provider: 'all', limit: 3 });
+    evidence = found.results
+      .slice(0, 3)
+      .map((r) => ({ source: r.title, text: relevantSentences(r.snippet || '', o.userText, 5).join(' ') }))
+      .filter((e) => e.text);
+  } catch {
+    evidence = [];
+  }
+  if (evidence.length === 0) {
+    markObservationProcessed(o.id, PROCESSED.noAnswerFound);
+    return null;
+  }
+  return processQuestionWithEvidence(o, evidence);
+}
+
+// When a newer verified fact says something different about the same thing ("Mark Carney is the
+// prime minister" vs an older learned "Justin Trudeau is the prime minister"), the older one is
+// checked against the new evidence and retired if it's now contradicted.
+async function retireContradictedFacts(newClaim: string, clusterId: number, evidence: EvidenceItem[]): Promise<number> {
+  const vec = clusterEmbedding(clusterId);
+  if (!vec || evidence.length === 0) return 0;
+  let retired = 0;
+  for (const old of activeLearnedWithClusters()) {
+    if (old.clusterId === clusterId || old.clusterId === null) continue;
+    const oldVec = clusterEmbedding(old.clusterId);
+    if (!oldVec || cosineSimilarity(vec, oldVec) < 0.75 || sameKeyFacts(newClaim, old.claim)) continue;
+    const { verdict, quote } = await judgeClaimTwice(old.claim, evidence);
+    if (verdict === 'contradicted') {
+      unlearnFact(old.id, `replaced by a newer verified fact: "${newClaim}" (${quote})`);
+      retired++;
+    }
+  }
+  return retired;
 }
 
 // ---- verification / corroboration / promotion ---------------------------------------------------
@@ -144,15 +256,17 @@ export async function verifyCandidate(c: Candidate): Promise<void> {
   if (c.scope !== 'world-fact') return tryCorroborate(c, clusterId, 'server lore');
 
   const evidence = await gatherEvidence(c.claim, c.subject);
-  const { verdict, quote } = await judgeClaim(c.claim, evidence);
+  const { verdict, quote } = await judgeClaimTwice(c.claim, evidence);
+  // Trust is about what people STATE; an answer written from a search isn't the asker's claim.
+  const affectsTrust = c.kind !== 'search-answer' && !isAdminHash(c.userHash);
   if (verdict === 'contradicted') {
     setCandidateStatus(c.id, 'rejected', `contradicted by evidence: ${quote}`);
-    if (!isAdminHash(c.userHash)) adjustTrust(c.userHash, 'contradicted', -0.15);
+    if (affectsTrust) adjustTrust(c.userHash, 'contradicted', -0.15);
     return;
   }
   if (verdict === 'supported') {
-    const source = evidence.find((e) => e.text.toLowerCase().includes(quote.toLowerCase().slice(0, 40)))?.source || '';
-    adjustTrust(c.userHash, 'verified', 0.05);
+    const source = evidence.find((e) => quoteComesFrom(quote, e.text))?.source || evidence[0]?.source || '';
+    if (affectsTrust) adjustTrust(c.userHash, 'verified', 0.05);
     if (isAlreadyInCorpus(source)) {
       setCandidateStatus(c.id, 'rejected', 'true, but the corpus already knows it');
       return;
@@ -169,10 +283,17 @@ export async function verifyCandidate(c: Candidate): Promise<void> {
     });
     if (fact) {
       setCandidateStatus(c.id, 'promoted', `verified: ${source}`);
-      void postToDiscordLog(`[learning] learned (verified online): ${c.claim}`);
+      const retired = await retireContradictedFacts(c.claim, clusterId, evidence);
+      void postToDiscordLog(`[learning] learned (verified online): ${c.claim}${retired ? ` — replaced ${retired} outdated fact(s)` : ''}`);
     } else {
       setCandidateStatus(c.id, 'needs-review', `verified (${source}) but the daily learning limit was reached`);
     }
+    return;
+  }
+  // An answer written from a search that doesn't verify independently is just dropped — nobody
+  // claimed it, so there's nothing for people to corroborate.
+  if (c.kind === 'search-answer') {
+    setCandidateStatus(c.id, 'rejected', 'answer did not verify independently');
     return;
   }
   // Can't be checked online (too new, too niche) — fall back to needing several people.
@@ -188,7 +309,7 @@ async function recheckOne(): Promise<boolean> {
     return true;
   }
   const evidence = await gatherEvidence(due.claim, due.subject);
-  const { verdict, quote } = await judgeClaim(due.claim, evidence);
+  const { verdict, quote } = await judgeClaimTwice(due.claim, evidence);
   if (verdict === 'contradicted') unlearnFact(due.id, `re-check contradicted: ${quote}`);
   else setLearnedRecheck(due.id, Date.now() + 30 * DAY_MS);
   return true;
@@ -206,9 +327,15 @@ export async function runLearningTick(): Promise<'disabled' | 'busy' | 'idle' | 
   running = true;
   try {
     // A candidate whose verification got interrupted (a real message arrived in between) resumes here.
+    // If verifying it throws (DB/model error), it's rejected rather than retried forever — a stuck
+    // candidate at the head of the queue would otherwise block all learning.
     const [unverified] = candidatesByStatus('pending-verify', 1);
     if (unverified) {
-      await verifyCandidate(unverified);
+      try {
+        await verifyCandidate(unverified);
+      } catch (err) {
+        setCandidateStatus(unverified.id, 'rejected', `verification error: ${String((err as any)?.message || err).slice(0, 120)}`);
+      }
       return 'worked';
     }
     const [o] = nextUnprocessedObservations(1);
