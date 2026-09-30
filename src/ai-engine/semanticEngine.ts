@@ -926,7 +926,30 @@ export function extractQueryEntities(text: string): string[] {
   return Array.from(new Set(entities));
 }
 
+// Learned facts (src/ai-engine/learning) only surface when the question is clearly ABOUT them —
+// 2+ of the question's content terms and at least half of them. Patrick (2026-09-30): an earlier
+// learning attempt made the bot keep bringing up what it had learned in unrelated answers; a
+// learned fact riding in on one shared word ("server", "night") is exactly how that starts.
+function isClearLearnedMatch(prompt: string, item: KnowledgeItem): boolean {
+  const terms = new Set(processForSearch(prompt).filter((t) => t.length > 2));
+  if (terms.size === 0) return false;
+  const itemTerms = new Set(processForSearch(`${item.title} ${item.keywords.join(' ')} ${item.content}`));
+  const overlap = [...terms].filter((t) => itemTerms.has(t)).length;
+  return overlap >= 2 && overlap / terms.size >= 0.5;
+}
+
 export function searchKnowledgeGraph(
+  prompt: string,
+  knowledgeList: KnowledgeItem[],
+  topK: number = 3,
+  recentlyCitedDocIds?: Set<string>
+): { item: KnowledgeItem; score: number; snippet?: string; relevantSentences?: string[] }[] {
+  return searchKnowledgeGraphUnfiltered(prompt, knowledgeList, topK, recentlyCitedDocIds).filter(
+    (r) => r.item.category !== 'learned' || isClearLearnedMatch(prompt, r.item)
+  );
+}
+
+function searchKnowledgeGraphUnfiltered(
   prompt: string,
   knowledgeList: KnowledgeItem[],
   topK: number = 3,

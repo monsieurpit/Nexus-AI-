@@ -36,6 +36,8 @@ export const LEARNING_ADMIN_PAGE = `<!doctype html>
   <h2>Waiting for your OK</h2><div id="review"></div>
   <h2>Learned</h2><div id="learned"></div>
   <h2>Waiting for more people</h2><div id="waiting"></div>
+  <h2>Reply styles learned from reactions</h2><div id="voices"></div>
+  <h2>"That's wrong" reports</h2><div id="reports"></div>
   <h2>Questions he couldn't answer</h2><div id="gaps"></div>
   <h2>Recent decisions</h2><div id="recent"></div>
   <h2>Undo</h2>
@@ -68,6 +70,8 @@ async function load() {
   list('review', d.waitingForReview, (c) => card('<div class="claim">' + esc(c.claim) + '</div><div class="meta">' + esc(c.statusReason) + ' · ' + when(c.createdAt) + '</div><div class="row"><button class="ok" data-approve="' + c.id + '">Learn it</button><button class="bad" data-reject="' + c.id + '">No</button></div>'));
   list('learned', d.learned.filter((f) => f.active), (f) => card('<div class="claim">' + esc(f.claim) + '</div><div class="meta"><span class="pill">' + esc(f.verification) + '</span><span class="pill">' + esc(f.scope) + '</span>' + esc(f.evidence) + ' · ' + when(f.createdAt) + '</div><div class="row"><button class="bad" data-forget="' + esc(f.id) + '">Forget</button></div>'));
   list('waiting', d.waitingForPeople, (c) => card('<div class="claim">' + esc(c.claim) + '</div><div class="meta">' + esc(c.statusReason) + '</div><div class="row"><button class="ok" data-approve="' + c.id + '">Learn it now</button><button class="bad" data-reject="' + c.id + '">No</button></div>'));
+  list('voices', (d.voiceExamples || []).filter((v) => v.active), (v) => card('<div class="meta">"' + esc(v.query) + '"</div><div class="claim">' + esc(v.answer) + '</div><div class="meta"><span class="pill">' + v.praiseCount + ' praise</span>' + esc(v.reason) + '</div><div class="row"><button class="bad" data-forgetvoice="' + esc(v.id) + '">Forget</button></div>'));
+  list('reports', d.reports || [], (r) => card('<div class="meta">"' + esc(r.question) + '" → "' + esc(r.complaint) + '"</div><div>' + esc(r.botReply.slice(0, 200)) + '</div><div class="meta"><span class="pill">' + esc(r.suspect) + '</span>' + esc(r.outcome) + ' · ' + when(r.createdAt) + '</div>'));
   const gapState = { 0: 'will search when idle', 1: 'answer found, verifying', 6: 'no answer found online' };
   list('gaps', (d.gaps || []).slice(0, 30), (g) => card('<div>' + esc(g.userText) + '</div><div class="meta">' + esc(gapState[g.processed] || 'processed') + ' · ' + when(g.createdAt) + '</div>'));
   list('recent', d.recentCandidates.slice(0, 40), (c) => card('<div>' + (c.claim ? esc(c.claim) : '<i>(no claim)</i>') + '</div><div class="meta"><span class="pill">' + esc(c.status) + '</span>' + esc(c.statusReason) + '</div>'));
@@ -77,6 +81,7 @@ document.addEventListener('click', async (e) => {
   try {
     if (t.dataset.approve) { await api('/approve', { method: 'POST', body: JSON.stringify({ candidateId: Number(t.dataset.approve) }) }); }
     else if (t.dataset.reject) { await api('/reject', { method: 'POST', body: JSON.stringify({ candidateId: Number(t.dataset.reject), reason: 'rejected from admin page' }) }); }
+    else if (t.dataset.forgetvoice) { if (!confirm('Forget this reply style?')) return; await api('/voice/' + encodeURIComponent(t.dataset.forgetvoice), { method: 'DELETE', body: JSON.stringify({ reason: 'removed from admin page' }) }); }
     else if (t.dataset.forget) { if (!confirm('Forget this fact?')) return; await api('/learned/' + encodeURIComponent(t.dataset.forget), { method: 'DELETE', body: JSON.stringify({ reason: 'removed from admin page' }) }); }
     else return;
     await load();

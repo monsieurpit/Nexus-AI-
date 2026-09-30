@@ -5,6 +5,7 @@
 import { detectUserInsult } from '../swearEngine';
 import { checkLearningSafety } from './safety';
 import { relevantSentences } from './verify';
+import { detectFeedback } from './feedback';
 import { countObservationsByUserSince, hashIdentity, insertObservation, isLearningEnabled, ObservationSource } from './store';
 
 // One person spamming "facts" can't fill the idle worker's queue.
@@ -21,6 +22,8 @@ export interface ExchangeToCapture {
   channelId?: string | null;
   // The bot's previous turn, so "no that's wrong, it's X" can be read as a correction of it.
   previousBotReply?: string | null;
+  // The message the bot was answering in previousBotReply — for reactions ("W", "that's wrong").
+  previousUserText?: string | null;
   hasImage?: boolean;
 }
 
@@ -77,7 +80,33 @@ export function captureExchange(e: ExchangeToCapture): number | null {
   if (e.hasImage) return null;
   const userText = (e.userText || '').trim();
   if (!userText || !e.botReply) return null;
-  if (triageMessage(userText, e.previousBotReply) === 'skip') return null;
+  // Reactions to the previous reply are their own kind of teaching (learning/feedback.ts).
+  const feedback = e.previousBotReply && e.previousUserText ? detectFeedback(userText) : null;
+  let feedbackId: number | null = null;
+  if (feedback) {
+    try {
+      const userHash = identityHash(e.authorId, e.fallbackIdentity);
+      if (countObservationsByUserSince(userHash, Date.now() - 24 * 60 * 60 * 1000) >= MAX_OBSERVATIONS_PER_USER_PER_DAY) return null;
+      feedbackId = insertObservation({
+        createdAt: Date.now(),
+        source: sourceFor(e.authorId),
+        userHash,
+        channelHash: e.channelId ? hashIdentity(`channel:${e.channelId}`) : null,
+        userText: userText.slice(0, 200),
+        botReply: e.botReply.slice(0, 1500),
+        previousBotReply: e.previousBotReply!.slice(0, 1500),
+        previousUserText: e.previousUserText!.slice(0, 300),
+        kind: feedback,
+      });
+    } catch (err) {
+      console.warn('[learning] feedback capture failed:', err);
+      return null;
+    }
+    // Praise is only praise. A complaint can ALSO carry the right answer ("that's wrong, spain won
+    // it") — that part still goes through the normal correction path below.
+    if (feedback === 'feedback-positive') return feedbackId;
+  }
+  if (triageMessage(userText, e.previousBotReply) === 'skip') return feedbackId;
   try {
     const userHash = identityHash(e.authorId, e.fallbackIdentity);
     if (countObservationsByUserSince(userHash, Date.now() - 24 * 60 * 60 * 1000) >= MAX_OBSERVATIONS_PER_USER_PER_DAY) return null;

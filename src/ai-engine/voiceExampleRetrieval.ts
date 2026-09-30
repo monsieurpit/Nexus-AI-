@@ -75,9 +75,30 @@ async function embedQueryCached(text: string): Promise<number[] | null> {
 // conservative since a weak-but-included example is worse than one fewer example.
 const MIN_RELEVANCE_SCORE = 0.35;
 
+const LEARNED_MIN_RELEVANCE = 0.55;
+const LEARNED_EXAMPLE_COOLDOWN_MS = 30 * 60 * 1000;
+const lastUsedAt = new Map<string, number>();
+
+// Voice examples learned from people's reactions (src/ai-engine/learning/feedback.ts) — replies the
+// server actually loved. Registered at runtime with their own embedding; searched alongside the
+// hand-written bank.
+const runtimeExamples = new Map<string, { example: VoiceExample; vector: number[] | Float32Array }>();
+
+export function registerRuntimeVoiceExample(example: VoiceExample, vector: number[] | Float32Array): void {
+  runtimeExamples.set(example.id, { example, vector });
+}
+
+export function removeRuntimeVoiceExample(id: string): void {
+  runtimeExamples.delete(id);
+}
+
+export function runtimeVoiceExampleVectors(): { id: string; vector: number[] | Float32Array }[] {
+  return [...runtimeExamples.values()].map((r) => ({ id: r.example.id, vector: r.vector }));
+}
+
 export async function retrieveVoiceExamples(prompt: string, topK: number = 3): Promise<VoiceExample[]> {
   const embeddings = await loadVoiceExampleEmbeddings();
-  if (Object.keys(embeddings).length === 0) return [];
+  if (Object.keys(embeddings).length === 0 && runtimeExamples.size === 0) return [];
 
   const queryVec = await embedQueryCached(prompt);
   if (!queryVec) return [];
@@ -90,7 +111,25 @@ export async function retrieveVoiceExamples(prompt: string, topK: number = 3): P
     if (score >= MIN_RELEVANCE_SCORE) scored.push({ example, score });
   }
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, topK).map((s) => s.example);
+  const picked = scored.slice(0, topK).map((s) => s.example);
+
+  // Learned examples don't get to take over (Patrick, 2026-09-30: an earlier learning attempt made
+  // the bot keep repeating what it had picked up). At most ONE per reply, only when it's a close
+  // match, and never the same one twice within 30 minutes — so one loved reply can't become a
+  // catchphrase the bot parrots across the channel.
+  const now = Date.now();
+  let bestLearned: { example: VoiceExample; score: number } | null = null;
+  for (const { example, vector } of runtimeExamples.values()) {
+    if (now - (lastUsedAt.get(example.id) ?? 0) < LEARNED_EXAMPLE_COOLDOWN_MS) continue;
+    const score = cosineSimilarity(queryVec, vector);
+    if (score >= LEARNED_MIN_RELEVANCE && (!bestLearned || score > bestLearned.score)) bestLearned = { example, score };
+  }
+  if (bestLearned) {
+    lastUsedAt.set(bestLearned.example.id, now);
+    if (picked.length >= topK) picked.pop();
+    picked.push(bestLearned.example);
+  }
+  return picked;
 }
 
 // Formats retrieved examples into the exact prose block the persona's own systemPrompt used to

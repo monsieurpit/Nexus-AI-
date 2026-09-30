@@ -62,6 +62,37 @@ Most of what people teach a chatbot is in what they ASK.
   learned facts are re-judged against the new evidence and retired if contradicted ("Mark Carney
   is PM" retires an older "Justin Trudeau is PM").
 
+### Learning from reactions (how people actually teach a chatbot)
+
+Most of what humans teach a model like Claude isn't facts, it's feedback on answers. Nexus reads
+the reaction right after one of his replies:
+
+- **Praise** ("W", "💀💀", "lmao facts", "nexus is goated") → that exchange can become a learned
+  **voice example** (the few-shot examples he imitates), so he picks up what lands with this server.
+  Gates: safety on both sides, short, no lists/markdown, no shouting, no talking about sources, a
+  model quality check (funny or genuinely helpful, no hate/sexual/private-person/made-up facts), no
+  near-duplicates (praising the same reply again just counts extra praise), max 5 a day, pool of 150
+  (least-praised retired first).
+- **"That's wrong"** → if a learned fact was behind the answer, it's re-checked online and retired
+  if contradicted (confidence lowered if it can't be re-verified). If it came from the hand-written
+  corpus, it's **reported** (review page; Discord ping when 2+ different people report the same doc)
+  — the corpus is never edited automatically. A learned voice example that gets complained about is
+  retired immediately. A complaint that also contains the right answer ("that's wrong, spain won")
+  also goes through the normal correction path.
+
+### Not overusing what he learned
+
+An earlier learning attempt made the bot keep bringing up what it had learned. So:
+
+- Learned facts only surface when the question is clearly about them (2+ of its key terms and at
+  least half of them) — enforced inside the central search, so no code path can pull one in on a
+  single shared word. The older keyword matcher never sees them at all.
+- At most ONE learned voice example per reply, only on a close match (0.55 similarity vs 0.35 for
+  the hand-written ones), and the same one can't be reused for 30 minutes — one loved reply can't
+  turn into a catchphrase.
+- Learned facts are one short sentence each; claims written from searches are polished once for
+  readability, only if every name and number stays identical.
+
 ### Personal vs shared
 
 - "remember that I live in Montreal" / "my birthday is May 5" → **personal memory only** (the
@@ -129,7 +160,7 @@ message "as" him — it goes to the review page like server lore.
   automated search, so Wikipedia is the only web source.
 - The small local model is both extractor and judge. The guards around it (exact quotes, number
   checks, safety rules, review for anything unverifiable) are what make it safe, not the model.
-- It learns facts, not style. Learning Nexus's voice from reactions would be a separate feature.
+- Style is learned only as retrieved examples from praised replies, never as model training.
 - `requireApiKey` in server.ts accepts any key once a caller has sent it to /api/v1/nexus, and
   several keys are hard-coded in the (public) repo — that's why learning has its own token.
 

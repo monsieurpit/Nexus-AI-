@@ -51,6 +51,7 @@ import { openLearningStore, isLearningEnabled } from './src/ai-engine/learning/s
 import { captureExchange, captureQuestion } from './src/ai-engine/learning/capture';
 import { loadLearnedIntoKnowledge } from './src/ai-engine/learning/promote';
 import { markForegroundActivity, startLearningWorker } from './src/ai-engine/learning/worker';
+import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
 import { registerLearningAdminRoutes, loadAdminToken } from './src/ai-engine/learning/admin';
 import {
   executeUnifiedWebSearch,
@@ -1783,7 +1784,15 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
     // after the reply is built; triage drops most messages before anything is stored.
     const replyForLearning = queuedExecution.data?.response;
     if (typeof replyForLearning === 'string' && replyForLearning) {
-      const previousBotReply = [...historyArray].reverse().find((m: any) => m?.role === 'assistant' && typeof m.content === 'string')?.content ?? null;
+      const lastBotIndex = historyArray.map((m: any) => m?.role).lastIndexOf('assistant');
+      const previousBotReply = lastBotIndex >= 0 && typeof historyArray[lastBotIndex]?.content === 'string' ? historyArray[lastBotIndex].content : null;
+      // The message that reply answered: the nearest user message before it (Discord history marks
+      // who the bot replied to; prefer that author's message when present).
+      const botTurn: any = lastBotIndex >= 0 ? historyArray[lastBotIndex] : null;
+      const answered: any = botTurn
+        ? [...historyArray.slice(0, lastBotIndex)].reverse().find((m: any) => m?.role === 'user' && typeof m.content === 'string' && (!botTurn.replyToAuthorId || m.authorId === botTurn.replyToAuthorId))
+        : null;
+      const previousUserText = answered?.content ?? null;
       setImmediate(() =>
         captureExchange({
           userText,
@@ -1792,6 +1801,7 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
           fallbackIdentity: req.ip || null,
           channelId: typeof req.body?.channelId === 'string' ? req.body.channelId : null,
           previousBotReply,
+          previousUserText,
           hasImage: Boolean(queuedExecution.data?.hasImage),
         })
       );
@@ -2788,8 +2798,9 @@ async function startServer() {
         openLearningStore();
         loadAdminToken();
         const loaded = loadLearnedIntoKnowledge();
+        const voices = loadLearnedVoiceExamples();
         startLearningWorker();
-        console.log(`[learning] on — ${loaded} learned fact(s) loaded, worker started`);
+        console.log(`[learning] on — ${loaded} learned fact(s), ${voices} learned voice example(s) loaded, worker started`);
       } catch (err) {
         console.warn('[learning] failed to start, continuing without it:', err);
       }

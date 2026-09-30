@@ -12,8 +12,10 @@ import {
   insertLearned,
   LearnedFact,
   learnedSince,
+  setLearnedClaim,
   setLearnedQuestions,
 } from './store';
+import { keyFacts, sameKeyFacts } from './verify';
 
 export const MAX_PROMOTIONS_PER_DAY = 25;
 export const RECHECK_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
@@ -50,6 +52,30 @@ export async function enrichLearned(f: LearnedFact): Promise<boolean> {
   removeRuntimeKnowledgeItem(f.id);
   addRuntimeKnowledgeItem(toKnowledgeItem({ ...f, questions: questions.join('\n') }));
   return true;
+}
+
+// Claims written from search results come out clunky ("Spain won the 2026 FIFA World Cup on July 19
+// with Spain winning the championship for the second time."). One rewrite pass for readability —
+// kept only if every name and number is exactly the same and it didn't grow, so polishing can
+// never change what the fact says.
+export async function polishLearned(f: LearnedFact): Promise<boolean> {
+  const result = await localLlmClient.generate(
+    `Rewrite this sentence so it reads naturally and says it once, without repeating itself. Keep every name, number and date exactly as written. Do not add anything.\nSentence: "${f.claim}"\nRewritten:`,
+    { temperature: 0, maxTokens: 90, think: false, skipLanguageCheck: true, model: localLlmClient.chatModel(), timeoutMs: 45000 }
+  );
+  const rewritten = result.status === 'success' ? result.text.replace(/^["'\s]+|["'\s]+$/g, '').split('\n')[0].trim() : '';
+  const ok =
+    rewritten.length >= 15 &&
+    rewritten.length <= f.claim.length + 10 &&
+    sameKeyFacts(rewritten, f.claim) &&
+    keyFacts(rewritten).numbers.size === keyFacts(f.claim).numbers.size;
+  setLearnedClaim(f.id, ok && rewritten !== f.claim ? rewritten : null);
+  if (ok && rewritten !== f.claim) {
+    removeRuntimeKnowledgeItem(f.id);
+    addRuntimeKnowledgeItem(toKnowledgeItem({ ...f, claim: rewritten }));
+    audit('learned:polish', f.id, `${f.claim} -> ${rewritten}`);
+  }
+  return ok;
 }
 
 // Called once at startup: every active learned fact goes back into the in-memory search index.

@@ -16,7 +16,9 @@ export type CandidateKind = 'personal' | 'remember-request' | 'correction' | 'cl
 // 'message': something a person said (may state a fact). 'search-answer': a question Nexus answered
 // from a web search — the answer is learnable. 'gap': a question Nexus couldn't answer — researched
 // later in idle time.
-export type ObservationKind = 'message' | 'search-answer' | 'gap';
+// 'feedback-positive' / 'feedback-negative': a reaction to Nexus's previous reply ("W", "💀",
+// "that's wrong") — how people teach style and flag mistakes, see learning/feedback.ts.
+export type ObservationKind = 'message' | 'search-answer' | 'gap' | 'feedback-positive' | 'feedback-negative';
 export type CandidateScope = 'just-this-user' | 'server-lore' | 'world-fact';
 export type CandidateStatus =
   | 'pending-extract' // observation queued, not looked at yet
@@ -40,6 +42,8 @@ export interface Observation {
   kind: ObservationKind;
   // JSON EvidenceItem[] for 'search-answer'.
   evidence: string;
+  // The message Nexus was answering when he wrote previousBotReply (for feedback).
+  previousUserText: string | null;
 }
 
 export interface Candidate {
@@ -145,6 +149,28 @@ CREATE TABLE IF NOT EXISTS trust (
   updatedAt INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS voice_examples (
+  id TEXT PRIMARY KEY,
+  createdAt INTEGER NOT NULL,
+  query TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  vector BLOB,
+  praiseCount INTEGER NOT NULL DEFAULT 1,
+  reason TEXT NOT NULL DEFAULT '',
+  active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  createdAt INTEGER NOT NULL,
+  userHash TEXT NOT NULL,
+  question TEXT NOT NULL,
+  botReply TEXT NOT NULL,
+  complaint TEXT NOT NULL,
+  suspect TEXT NOT NULL,
+  outcome TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS audit (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at INTEGER NOT NULL,
@@ -196,6 +222,8 @@ function migrate(d: Database): void {
   if (!has('observations', 'kind')) d.exec("ALTER TABLE observations ADD COLUMN kind TEXT NOT NULL DEFAULT 'message'");
   if (!has('observations', 'evidence')) d.exec("ALTER TABLE observations ADD COLUMN evidence TEXT NOT NULL DEFAULT ''");
   if (!has('learned', 'questions')) d.exec("ALTER TABLE learned ADD COLUMN questions TEXT NOT NULL DEFAULT ''");
+  if (!has('observations', 'previousUserText')) d.exec('ALTER TABLE observations ADD COLUMN previousUserText TEXT');
+  if (!has('learned', 'polished')) d.exec('ALTER TABLE learned ADD COLUMN polished INTEGER NOT NULL DEFAULT 0');
 }
 
 export function closeLearningStoreForTests(): void {
@@ -219,12 +247,14 @@ export function audit(action: string, target: string, detail: string): void {
 
 // ---- observations -------------------------------------------------------------------------------
 
-export function insertObservation(o: Omit<Observation, 'id' | 'processed' | 'kind' | 'evidence'> & { kind?: ObservationKind; evidence?: string }): number {
+export function insertObservation(
+  o: Omit<Observation, 'id' | 'processed' | 'kind' | 'evidence' | 'previousUserText'> & { kind?: ObservationKind; evidence?: string; previousUserText?: string | null }
+): number {
   const r = store()
     .query(
-      'INSERT INTO observations (createdAt, source, userHash, channelHash, userText, botReply, previousBotReply, kind, evidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO observations (createdAt, source, userHash, channelHash, userText, botReply, previousBotReply, kind, evidence, previousUserText) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )
-    .run(o.createdAt, o.source, o.userHash, o.channelHash, o.userText, o.botReply, o.previousBotReply, o.kind ?? 'message', o.evidence ?? '');
+    .run(o.createdAt, o.source, o.userHash, o.channelHash, o.userText, o.botReply, o.previousBotReply, o.kind ?? 'message', o.evidence ?? '', o.previousUserText ?? null);
   return Number(r.lastInsertRowid);
 }
 
@@ -343,6 +373,82 @@ export function learnedMissingQuestions(limit = 1): LearnedFact[] {
 
 export function getLearned(id: string): LearnedFact | null {
   return (store().query('SELECT * FROM learned WHERE id = ?').get(id) as LearnedFact) ?? null;
+}
+
+export function learnedNeedingPolish(limit = 1): LearnedFact[] {
+  return store().query("SELECT * FROM learned WHERE active = 1 AND polished = 0 AND questions != '' ORDER BY createdAt LIMIT ?").all(limit) as LearnedFact[];
+}
+
+export function setLearnedClaim(id: string, claim: string | null): void {
+  if (claim) store().query('UPDATE learned SET claim = ?, polished = 1, updatedAt = ? WHERE id = ?').run(claim, Date.now(), id);
+  else store().query('UPDATE learned SET polished = 1, updatedAt = ? WHERE id = ?').run(Date.now(), id);
+}
+
+export function setLearnedConfidence(id: string, confidence: number): void {
+  store().query('UPDATE learned SET confidence = ?, updatedAt = ? WHERE id = ?').run(confidence, Date.now(), id);
+}
+
+// ---- learned voice examples (style from reactions) ----------------------------------------------
+
+export interface LearnedVoiceExample {
+  id: string;
+  createdAt: number;
+  query: string;
+  answer: string;
+  vector: Float32Array | null;
+  praiseCount: number;
+  reason: string;
+  active: number;
+}
+
+function toVoiceRow(r: any): LearnedVoiceExample {
+  const b: Uint8Array | null = r.vector;
+  return { ...r, vector: b ? new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)) : null };
+}
+
+export function insertVoiceExample(v: Omit<LearnedVoiceExample, 'createdAt' | 'active' | 'praiseCount'>): void {
+  store()
+    .query('INSERT OR REPLACE INTO voice_examples (id, createdAt, query, answer, vector, praiseCount, reason, active) VALUES (?, ?, ?, ?, ?, 1, ?, 1)')
+    .run(v.id, Date.now(), v.query, v.answer, v.vector ? Buffer.from(v.vector.buffer) : null, v.reason.slice(0, 300));
+  audit('voice:add', v.id, `${v.query} -> ${v.answer}`);
+}
+
+export function activeVoiceExamples(): LearnedVoiceExample[] {
+  return (store().query('SELECT * FROM voice_examples WHERE active = 1 ORDER BY createdAt').all() as any[]).map(toVoiceRow);
+}
+
+export function listVoiceExamples(limit = 200): LearnedVoiceExample[] {
+  return (store().query('SELECT id, createdAt, query, answer, praiseCount, reason, active FROM voice_examples ORDER BY createdAt DESC LIMIT ?').all(limit) as any[]).map((r) => ({ ...r, vector: null }));
+}
+
+export function bumpVoicePraise(id: string): void {
+  store().query('UPDATE voice_examples SET praiseCount = praiseCount + 1 WHERE id = ?').run(id);
+}
+
+export function deactivateVoiceExample(id: string, reason: string): boolean {
+  const r = store().query('UPDATE voice_examples SET active = 0 WHERE id = ? AND active = 1').run(id);
+  if (Number(r.changes) > 0) audit('voice:remove', id, reason);
+  return Number(r.changes) > 0;
+}
+
+export function countVoiceExamplesSince(since: number): number {
+  return (store().query('SELECT COUNT(*) AS n FROM voice_examples WHERE createdAt >= ?').get(since) as { n: number }).n;
+}
+
+// ---- reports ("that's wrong") -------------------------------------------------------------------
+
+export function insertReport(r: { userHash: string; question: string; botReply: string; complaint: string; suspect: string; outcome: string }): void {
+  store()
+    .query('INSERT INTO reports (createdAt, userHash, question, botReply, complaint, suspect, outcome) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(Date.now(), r.userHash, r.question.slice(0, 300), r.botReply.slice(0, 800), r.complaint.slice(0, 300), r.suspect.slice(0, 200), r.outcome.slice(0, 300));
+}
+
+export function listReports(limit = 50): any[] {
+  return store().query('SELECT * FROM reports ORDER BY id DESC LIMIT ?').all(limit) as any[];
+}
+
+export function countReportsForSuspect(suspect: string): number {
+  return (store().query('SELECT COUNT(DISTINCT userHash) AS n FROM reports WHERE suspect = ?').get(suspect) as { n: number }).n;
 }
 
 export function activeLearned(): LearnedFact[] {

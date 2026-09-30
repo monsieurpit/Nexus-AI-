@@ -9,7 +9,8 @@ import { buildWebSearchQuery, buildWikipediaQuery, executeUnifiedWebSearch } fro
 import { isAdminHash } from './capture';
 import { extractCandidate, routeExtraction } from './extract';
 import { checkLearningSafety } from './safety';
-import { enrichLearned, promoteFact, unlearnFact } from './promote';
+import { enrichLearned, polishLearned, promoteFact, unlearnFact } from './promote';
+import { learnFromComplaint, learnFromPraise } from './feedback';
 import {
   activeLearnedWithClusters,
   adjustTrust,
@@ -24,6 +25,8 @@ import {
   learnedDueForRecheck,
   learnedForCluster,
   learnedMissingQuestions,
+  learnedNeedingPolish,
+  audit,
   markObservationProcessed,
   nextUnprocessedObservations,
   Observation,
@@ -41,6 +44,7 @@ import {
   isAlreadyInCorpus,
   judgeClaimTwice,
   keyFacts,
+  normalizeNumberWords,
   quoteComesFrom,
   relevantSentences,
   sameKeyFacts,
@@ -71,17 +75,11 @@ function isIdle(): boolean {
 
 // ---- claim fidelity -----------------------------------------------------------------------------
 
-const NUMBER_WORDS: Record<string, string> = {
-  zero: '0', one: '1', two: '2', three: '3', four: '4', five: '5', six: '6', seven: '7', eight: '8', nine: '9', ten: '10',
-  eleven: '11', twelve: '12', thirteen: '13', fourteen: '14', fifteen: '15', sixteen: '16', seventeen: '17', eighteen: '18',
-  nineteen: '19', twenty: '20', thirty: '30', forty: '40', fifty: '50', hundred: '100',
-};
-
 // The extractor rewrites the message into a clean sentence, and a 4B model can slip in a number the
 // person never said (a year, a score). Every number in the claim must come from the message itself
 // (or, for a correction, the bot reply it corrects).
 export function claimNumbersFromSource(claim: string, sourceText: string): boolean {
-  const source = sourceText.toLowerCase().replace(/\b[a-z]+\b/g, (w) => NUMBER_WORDS[w] ?? w).replace(/,(\d{3})/g, '$1');
+  const source = normalizeNumberWords(sourceText.toLowerCase()).replace(/,(\d{3})/g, '$1');
   const sourceNumbers = new Set(source.match(/\d+(?:\.\d+)?/g) || []);
   return [...keyFacts(claim).numbers].every((n) => sourceNumbers.has(n));
 }
@@ -113,6 +111,12 @@ export async function processObservation(o: Observation): Promise<number | null>
     return processQuestionWithEvidence(o, evidence);
   }
   if (o.kind === 'gap') return processGap(o);
+  if (o.kind === 'feedback-positive' || o.kind === 'feedback-negative') {
+    const outcome = o.kind === 'feedback-positive' ? await learnFromPraise(o) : await learnFromComplaint(o);
+    audit(o.kind, String(o.id), outcome);
+    markObservationProcessed(o.id, PROCESSED.skipped);
+    return null;
+  }
   const rawSafety = checkLearningSafety(o.userText, { rawMessage: true });
   if (!rawSafety.ok) {
     markObservationProcessed(o.id, PROCESSED.unsafe);
@@ -351,6 +355,11 @@ export async function runLearningTick(): Promise<'disabled' | 'busy' | 'idle' | 
     if (needsQuestions) {
       // Mark as attempted even if the model fails, so one bad fact can't stall the loop.
       if (!(await enrichLearned(needsQuestions))) setLearnedQuestionsAttempted(needsQuestions.id);
+      return 'worked';
+    }
+    const [needsPolish] = learnedNeedingPolish(1);
+    if (needsPolish) {
+      await polishLearned(needsPolish);
       return 'worked';
     }
     if (await recheckOne()) return 'worked';

@@ -85,8 +85,41 @@ export async function gatherEvidence(claim: string, subject: string): Promise<Ev
 
 // Numbers (years, scores, counts) and names. "Spain won the 2026 World Cup" and "Argentina won the
 // 2026 World Cup" embed as near-identical sentences, but their key facts differ.
+// Spelled-out numbers become digits before any number check — live, "water boils at 50 degrees" was
+// rewritten as "Water boils at one hundred degrees Celsius", which slipped past digit-only checks.
+const SMALL_NUMBERS: Record<string, number> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19,
+  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+};
+const MULTIPLIERS: Record<string, number> = { hundred: 100, thousand: 1000, million: 1_000_000, billion: 1_000_000_000 };
+
+export function normalizeNumberWords(text: string): string {
+  const word = `(?:${[...Object.keys(SMALL_NUMBERS), ...Object.keys(MULTIPLIERS)].join('|')})`;
+  const run = new RegExp(`\\b${word}(?:(?:[\\s-]+|\\s+and\\s+)${word})*\\b`, 'gi');
+  const spelled = text.replace(run, (m) => {
+    // A lone "million"/"hundred" (after digits, or as a noun) isn't a spelled number by itself.
+    if (!m.toLowerCase().split(/[\s-]+/).some((w) => w in SMALL_NUMBERS)) return m;
+    let total = 0;
+    let current = 0;
+    for (const w of m.toLowerCase().split(/[\s-]+/).filter((x) => x && x !== 'and')) {
+      if (w in SMALL_NUMBERS) current += SMALL_NUMBERS[w];
+      else if (w === 'hundred') current = (current || 1) * 100;
+      else {
+        total += (current || 1) * MULTIPLIERS[w];
+        current = 0;
+      }
+    }
+    return String(total + current);
+  });
+  // "88 million" and "eighty-eight million" must end up identical: expand digit + multiplier too.
+  return spelled.replace(/(\d+(?:\.\d+)?)\s*(thousand|million|billion)\b/gi, (_m, n: string, mult: string) =>
+    String(Math.round(parseFloat(n) * MULTIPLIERS[mult.toLowerCase()]))
+  );
+}
+
 export function keyFacts(claim: string): { numbers: Set<string>; names: Set<string> } {
-  const numbers = new Set((claim.match(/\d+(?:[.,]\d+)?/g) || []).map((n) => n.replace(',', '.')));
+  const numbers = new Set((normalizeNumberWords(claim).match(/\d+(?:[.,]\d+)?/g) || []).map((n) => n.replace(',', '.')));
   const STARTERS = new Set(['the', 'a', 'an', 'it', 'this', 'that', 'there', 'in', 'on', 'at', 'his', 'her', 'their', 'its']);
   const words = (claim.match(/\b[A-ZÀ-Ý][\p{L}'’-]+/gu) || []).filter((w, i) => !(i === 0 && claim.startsWith(w) && STARTERS.has(w.toLowerCase())));
   const names = new Set(words.map((w) => w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')));
@@ -103,7 +136,7 @@ export function sameKeyFacts(a: string, b: string): boolean {
 // Every number in the claim must appear in the evidence — the small judge model says "supported"
 // for a claim that matches the evidence except for the number ("Messi has won 12 Ballon d'Ors").
 export function numbersBackedBy(claim: string, text: string): boolean {
-  const normalized = text.replace(/,(\d{3})/g, '$1');
+  const normalized = normalizeNumberWords(text).replace(/,(\d{3})/g, '$1');
   return [...keyFacts(claim).numbers].every((n) => new RegExp(`(?<![\\d.])${n.replace('.', '\\.')}(?![\\d])`).test(normalized));
 }
 

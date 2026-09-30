@@ -19,7 +19,9 @@ const { parseExtraction, routeExtraction } = await import('../src/ai-engine/lear
 const { corroborationFor, keyFacts, numbersBackedBy } = await import('../src/ai-engine/learning/verify');
 const { claimNumbersFromSource, claimNamesFromSource, verifyCandidate } = await import('../src/ai-engine/learning/worker');
 const { promoteFact, unlearnFact, rollbackLearnedSince } = await import('../src/ai-engine/learning/promote');
-const { getAllKnowledge } = await import('../src/ai-engine/knowledgeBase');
+const { getAllKnowledge, addRuntimeKnowledgeItem, removeRuntimeKnowledgeItem, findRelevantKnowledge } = await import('../src/ai-engine/knowledgeBase');
+const { detectFeedback, voiceExampleShapeProblem } = await import('../src/ai-engine/learning/feedback');
+const { searchKnowledgeGraph } = await import('../src/ai-engine/semanticEngine');
 
 store.openLearningStore(':memory:');
 
@@ -127,6 +129,8 @@ check('claim may not invent a number the person never said', !claimNumbersFromSo
 check('claim may not swap in names the person never said ("sydney" -> "Canberra")', !claimNamesFromSource('The capital of Australia is Canberra.', 'remember the capital of australia is sydney'));
 check('adding "FIFA" to "world cup" is tolerated', claimNamesFromSource('Spain won the 2026 FIFA World Cup.', 'spain won the 2026 world cup'));
 check('accents don\'t matter ("dembele" -> "Dembélé")', claimNamesFromSource("Ousmane Dembélé won the 2025 Ballon d'Or.", 'ousmane dembele won the 2025 ballon dor'));
+check('spelled-out numbers can\'t sneak past ("one hundred degrees" vs "50 degrees")', !claimNumbersFromSource('Water boils at one hundred degrees Celsius.', 'fyi water boils at 50 degrees celsius at sea level'));
+check('"eighty-eight million" matches evidence "€88 million"', numbersBackedBy('The jewels were worth eighty-eight million euros.', 'worth an estimated €88 million'));
 check('number words count ("eight crown jewels" -> 8)', claimNumbersFromSource('The 2025 Louvre heist took 8 crown jewels.', 'the 2025 louvre heist was eight crown jewels'));
 check('French questions are skipped ("c\'est quoi le meilleur club")', triageMessage("c'est quoi le meilleur club du monde") === 'skip');
 check('French questions are skipped ("qui a gagné la coupe du monde")', triageMessage('qui a gagné la coupe du monde 2026') === 'skip');
@@ -160,6 +164,46 @@ console.log('\nLearning from questions:');
   check('a question he could not answer is queued as a gap', !!gapId && store.nextUnprocessedObservations(500).find((o) => o.id === gapId)?.kind === 'gap');
   check('an answered question without web sources is not queued', captureQuestion({ question: 'what is photosynthesis?', botReply: 'plants turning light into sugar', authorId: '888888888888888883', webResults: [] }) === null);
   check('small talk is not a question to learn', captureQuestion({ question: 'lol ok', botReply: 'k', authorId: '888888888888888883', webResults: wc }) === null);
+}
+
+console.log('\nReactions (feedback):');
+for (const t of ['W', 'lmaooo', '💀💀💀', 'nexus is goated', "that's so funny lmao", 'huge W nexus', 'facts', 'ptdr']) {
+  check(`praise: "${t}"`, detectFeedback(t) === 'feedback-positive', detectFeedback(t));
+}
+for (const t of ["that's wrong", 'bro ur wrong', "that's not true at all", 'wrong answer nexus', "c'est faux", 'fake news']) {
+  check(`complaint: "${t}"`, detectFeedback(t) === 'feedback-negative', detectFeedback(t));
+}
+for (const t of ['who won the world cup', 'the louvre heist was in 2025', 'lol ok but what about barca though, are they gonna win the league this year', 'w is my favourite letter of the alphabet honestly']) {
+  check(`not a reaction: "${t.slice(0, 40)}"`, detectFeedback(t) === null, detectFeedback(t));
+}
+check('voice example gate: good short sweary reply passes', voiceExampleShapeProblem('whats a good beginner language', "python, no fucking debate — it's readable as hell and runs basically everything these days.") === null);
+check('voice example gate: list reply rejected', !!voiceExampleShapeProblem('best games', '1. minecraft is fucking great\n2. gta is also good as hell\n3. fortnite whatever'));
+check('voice example gate: shouting rejected', !!voiceExampleShapeProblem('hey', 'WHAT THE FUCK DO YOU WANT YOU ABSOLUTE KNOBHEAD, I AM BUSY RIGHT NOW'));
+check('voice example gate: sources leak rejected', !!voiceExampleShapeProblem('is barca winning', "damn, the context provided doesn't give any fucking details about barcelona this season, mate."));
+check('voice example gate: @member rejected', !!voiceExampleShapeProblem('roast <@123456789012345678>', 'that guy is a walking bug report with legs and zero fucking redeeming qualities whatsoever.'));
+check('voice example gate: too long rejected', !!voiceExampleShapeProblem('hey', 'a'.repeat(400)));
+
+console.log('\nLearned facts only come up when the question is about them:');
+{
+  addRuntimeKnowledgeItem({ id: 'learned-test-movie', title: 'server movie night (learned)', category: 'learned', keywords: ['server movie night', "When's movie night on the server?"], content: "The server's movie night is every Friday at 8pm Eastern." });
+  const hit = (q: string) => searchKnowledgeGraph(q, getAllKnowledge(), 8).some((r) => r.item.id === 'learned-test-movie');
+  check('matches "when is the server movie night"', hit('when is the server movie night'));
+  check('matches "what day do we watch movies on the server"', hit('what day do we watch movies on the server'));
+  check('NOT pulled into "how do servers work"', !hit('how do servers work'));
+  check('NOT pulled into "what should i watch tonight"', !hit('what should i watch tonight'));
+  check('NOT pulled into "is friday a good day to go out"', !hit('is friday a good day to go out'));
+  check('never in the older keyword matcher', !findRelevantKnowledge('when is the server movie night', 10).some((k) => k.id === 'learned-test-movie'));
+  removeRuntimeKnowledgeItem('learned-test-movie');
+}
+
+console.log('\nA complaint that also has the right answer counts as both:');
+{
+  const id = captureExchange({ userText: "that's wrong, spain won the 2026 world cup not argentina", botReply: 'ok', authorId: '123123123123123123', previousBotReply: 'argentina won the 2026 world cup', previousUserText: 'who won the 2026 world cup' });
+  const kinds = store.nextUnprocessedObservations(1000).filter((o) => o.userHash === identityHash('123123123123123123')).map((o) => o.kind).sort();
+  check('complaint + correction both queued', !!id && JSON.stringify(kinds) === JSON.stringify(['feedback-negative', 'message']), kinds);
+  const praiseId = captureExchange({ userText: 'lmaooo W', botReply: 'ok', authorId: '123123123123123124', previousBotReply: 'python, no fucking debate.', previousUserText: 'best beginner language' });
+  const pk = store.nextUnprocessedObservations(1000).filter((o) => o.userHash === identityHash('123123123123123124')).map((o) => o.kind);
+  check('praise is only praise', !!praiseId && JSON.stringify(pk) === JSON.stringify(['feedback-positive']), pk);
 }
 
 console.log('\nDatabase upgrade:');
@@ -310,4 +354,53 @@ async function runLive() {
     check(`trap (${why}): "${text.slice(0, 60)}"`, ok, c ? `${c.status}: ${c.claim} — ${c.statusReason}` : 'dropped');
   }
   console.log(`\n  Traps learned: ${trapLearned} (must be 0)`);
+
+  console.log('\n=== Live: learning from reactions ===');
+  const { learnFromPraise, learnFromComplaint } = await import('../src/ai-engine/learning/feedback');
+  const { retrieveVoiceExamples } = await import('../src/ai-engine/voiceExampleRetrieval');
+  const obs = (kind: any, prevUser: string, prevBot: string, text: string) => {
+    const id = store.insertObservation({ createdAt: Date.now(), source: 'discord', userHash: identityHash(`${Math.random()}`), channelHash: null, userText: text, botReply: 'x', previousBotReply: prevBot, previousUserText: prevUser, kind });
+    return store.nextUnprocessedObservations(2000).find((o) => o.id === id)!;
+  };
+  const good = ['what should i name my goldfish', "call it fucking jaws, obviously — a two-inch fish with a great white's name is peak comedy, trust me."] as const;
+  const r1 = await learnFromPraise(obs('feedback-positive', good[0], good[1], 'LMAOOO W'));
+  check('praised funny reply becomes a voice example', /learned voice example/.test(r1), r1);
+  const r2 = await learnFromPraise(obs('feedback-positive', 'hey', 'WHAT DO YOU WANT, I AM BUSY RIGHT NOW YOU ABSOLUTE KNOBHEAD, GO AWAY', 'W'));
+  check('praised shouting reply is not learned', !/learned voice example/.test(r2), r2);
+  const r3 = await learnFromPraise(obs('feedback-positive', 'is the earth flat', 'yeah the earth is completely flat and nasa made up space in 1969, everyone knows that shit.', 'lmao facts'));
+  check('praised reply with a made-up "fact" is rejected by the quality check', !/learned voice example/.test(r3), r3);
+  const again = await learnFromPraise(obs('feedback-positive', good[0], good[1], '💀💀'));
+  check('praising the same reply again adds praise, not a duplicate', /praise added/.test(again), again);
+
+  const ex1 = await retrieveVoiceExamples('what should i call my new goldfish', 3);
+  check('a close question gets the learned example (at most 1)', ex1.filter((e) => e.id.startsWith('voice-learned-')).length === 1, ex1.map((e) => e.id));
+  const ex2 = await retrieveVoiceExamples('what should i call my new goldfish', 3);
+  check('...but not again right after (30-min cooldown, no parroting)', ex2.every((e) => !e.id.startsWith('voice-learned-')), ex2.map((e) => e.id));
+  const ex3 = await retrieveVoiceExamples('how does a car engine work', 3);
+  check('an unrelated question never gets it', ex3.every((e) => !e.id.startsWith('voice-learned-')), ex3.map((e) => e.id));
+
+  const c1 = await learnFromComplaint(obs('feedback-negative', good[0], good[1], "that's not funny, that's wrong"));
+  check('a complaint about a learned voice example retires it', store.activeVoiceExamples().every((v) => v.answer !== good[1]), c1);
+  {
+    const { promoteFact: pf } = await import('../src/ai-engine/learning/promote');
+    const wrong = pf({ claim: 'Canberra is the largest city in Australia.', subject: 'largest city in Australia', scope: 'world-fact', verification: 'web', evidence: 'test (wrong on purpose)', supporterCount: 1, timeSensitive: false });
+    const c2 = await learnFromComplaint(obs('feedback-negative', 'what is the largest city in australia', 'canberra is the largest city in australia, mate, the fucking capital and the biggest.', "that's wrong"));
+    check('"that\'s wrong" re-checks the learned fact behind the answer and retires it', !store.activeLearned().some((f) => f.id === wrong!.id), c2);
+  }
+  {
+    const c3 = await learnFromComplaint(obs('feedback-negative', 'how do vaccines work', 'vaccines show your immune system a safe preview of a pathogen so it builds defenses.', 'wrong'));
+    check('a complaint about a corpus answer is reported, never edited', /reported/.test(c3) && store.listReports(5).length > 0, c3);
+  }
+
+  console.log('\n=== Live: polishing keeps the facts ===');
+  {
+    const { promoteFact: pf, polishLearned } = await import('../src/ai-engine/learning/promote');
+    const { keyFacts: kf2 } = await import('../src/ai-engine/learning/verify');
+    const clunky = pf({ claim: 'Spain won the 2026 FIFA World Cup on July 19 with Spain winning the championship for the second time.', subject: '2026 World Cup polish', scope: 'world-fact', verification: 'web', evidence: 'test', supporterCount: 1, timeSensitive: false });
+    await polishLearned({ ...clunky!, questions: 'x' });
+    const after = store.activeLearned().find((f) => f.id === clunky!.id)!;
+    const same = JSON.stringify([...kf2(after.claim).numbers].sort()) === JSON.stringify([...kf2(clunky!.claim).numbers].sort());
+    check('polished claim keeps every number (and never grows)', same && after.claim.length <= clunky!.claim.length + 10, after.claim);
+    console.log(`      "${clunky!.claim}"\n   -> "${after.claim}"`);
+  }
 }

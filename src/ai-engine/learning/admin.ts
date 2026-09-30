@@ -9,6 +9,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import type { Express, Request, Response } from 'express';
 import { LEARNING_ADMIN_PAGE } from './adminPage';
+import { removeRuntimeVoiceExample } from '../voiceExampleRetrieval';
 import { promoteFact, rollbackLearnedSince, unlearnFact } from './promote';
 import {
   audit,
@@ -17,6 +18,9 @@ import {
   isLearningEnabled,
   listCandidates,
   listLearned,
+  listReports,
+  listVoiceExamples,
+  deactivateVoiceExample,
   openGaps,
   recentAudit,
   setCandidateStatus,
@@ -81,6 +85,8 @@ export function registerLearningAdminRoutes(app: Express): void {
         waitingForReview: candidatesByStatus('needs-review', 200),
         recentCandidates: listCandidates(100),
         gaps: openGaps(50),
+        voiceExamples: listVoiceExamples(100),
+        reports: listReports(30),
         audit: recentAudit(100),
       });
     })
@@ -123,6 +129,17 @@ export function registerLearningAdminRoutes(app: Express): void {
     '/api/v1/learning/learned/:id',
     guard((req, res) => {
       const ok = unlearnFact(String(req.params.id), `admin: ${req.body?.reason || 'removed'}`);
+      res.status(ok ? 200 : 404).json({ ok });
+    })
+  );
+
+  // Forget one learned voice example (a reply style picked up from reactions).
+  app.delete(
+    '/api/v1/learning/voice/:id',
+    guard((req, res) => {
+      const id = String(req.params.id);
+      const ok = deactivateVoiceExample(id, `admin: ${req.body?.reason || 'removed'}`);
+      removeRuntimeVoiceExample(id);
       res.status(ok ? 200 : 404).json({ ok });
     })
   );

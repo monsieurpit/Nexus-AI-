@@ -1653,7 +1653,10 @@ function isShortAcronym(s: string): boolean {
 }
 
 export function findRelevantKnowledge(query: string, limit: number = 5, extraKnowledge: KnowledgeItem[] = []): KnowledgeItem[] {
-  const allKnowledge = [...getAllKnowledge(), ...extraKnowledge];
+  // Learned facts are left out of this older keyword matcher (used by /generate, /chat/completions
+  // and custom directives) — they only surface through searchKnowledgeGraph's clear-match gate, so
+  // Nexus doesn't keep dragging what he learned into unrelated answers.
+  const allKnowledge = [...getAllKnowledge(), ...extraKnowledge].filter((k) => k.category !== 'learned');
   const rawQuery = query.trim();
   const normalizedQuery = query.toLowerCase().trim();
   const rawTokens = tokenizeWords(query).filter((t) => t.length > 1);
