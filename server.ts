@@ -2528,10 +2528,15 @@ app.all(['/api/v1/documents', '/api/v1/knowledge'], (req, res) => {
       return res.status(400).json({ error: 'Title and content are required to add a document.' });
     }
 
+    // 'learned' is reserved for the learning system (src/ai-engine/learning): those entries passed
+    // verification and are ranked first when a question clearly matches them. Accepting it here let
+    // any caller of this public endpoint plant a "learned fact" that skipped every check.
+    const requestedCategory = typeof category === 'string' && category.trim() ? category.trim() : 'custom-api-doc';
+    const safeCategory = requestedCategory.toLowerCase() === 'learned' ? 'custom-api-doc' : requestedCategory;
     const newItem = addRuntimeKnowledgeItem({
       title: String(title).trim(),
       content: String(content).trim(),
-      category: category || 'custom-api-doc',
+      category: safeCategory,
       keywords: Array.isArray(keywords) ? keywords : typeof keywords === 'string' ? keywords.split(/,\s*/) : [],
     });
 
@@ -2548,6 +2553,11 @@ app.all(['/api/v1/documents', '/api/v1/knowledge'], (req, res) => {
 
 app.delete(['/api/v1/documents/:id', '/api/v1/knowledge/:id'], requireApiKey, (req, res) => {
   const docId = req.params.id;
+  // Learned-corpus entries are managed by the learning system (review page, audit log, rollback);
+  // removing one here only hid it until the next corpus rebuild, with no record of who did it.
+  if (getAllKnowledge().some((k) => k.id === docId && k.category === 'learned')) {
+    return res.status(403).json({ error: 'Learned knowledge is managed on the learning review page (/api/v1/learning/admin), not here.' });
+  }
   const removed = removeRuntimeKnowledgeItem(docId);
   if (!removed) {
     return res.status(404).json({ error: 'Document not found or is a protected built-in core corpus file.' });
