@@ -21,7 +21,7 @@ import { resolve as resolvePath } from 'path';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS } from '../src/ai-engine/memoryStore';
 import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
-import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic } from '../src/ai-engine/swearEngine';
+import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing } from '../src/ai-engine/swearEngine';
 import { shouldTriggerLiveWebSearch } from '../src/ai-engine/webSearchEngine';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
 import { trySolveMath } from '../src/ai-engine/mathSolver';
@@ -234,6 +234,15 @@ async function runDeterministicChecks() {
     check(`"${q}" is conversational`, detectQueryIntent(q) === 'conversational', `got ${detectQueryIntent(q)}`);
   }
   check('control: "how do you feel when your blood sugar drops" is NOT small talk', detectQueryIntent('how do you feel when your blood sugar drops') !== 'conversational');
+
+  console.log('\nSwear word-swap punctuation:');
+  // "honestly;" / "honestly—" / "honestly:" used to become "real talk,;" / "no bullshit,—" /
+  // "Real talk,:" in live Discord replies. The swap is random, so sample it repeatedly.
+  for (const t of ['it was shit, honestly; the amount of crap is wild', 'just another day, honestly—dealing with code', 'honestly: it sucks', 'honestly – whatever']) {
+    const outs = Array.from({ length: 30 }, () => enhanceNaturalSwearPhrasing(t, 'unhinged'));
+    const bad = outs.find((o) => /,\s*[;:—–]/.test(o));
+    check(`no ",;"/",—"/",:" after word swap: ${JSON.stringify(t)}`, !bad, bad);
+  }
 
   console.log('\nMood engine:');
   _resetMoodForTests();

@@ -1698,8 +1698,13 @@ export function enhanceNaturalSwearPhrasing(
   // and paragraph break in EVERY response that went through the swear engine (i.e. almost all of
   // them) into one continuous wall of text, regardless of how carefully the underlying content
   // was formatted upstream. Runs of 3+ blank lines still get tidied to a single blank line.
+  // Same collision with the model's own clause punctuation: "honestly; the amount..." /
+  // "honestly—dealing with..." / "honestly: it sucks" became "real talk,;", "no bullshit,—",
+  // "Real talk,:" (seen live in Discord replies, 2026-09-30). There the model's mark already ends
+  // the clause, so the comma is the redundant one — drop it and keep the model's punctuation.
   enhanced = enhanced
     .replace(/,\s*,/g, ',')
+    .replace(/,(\s*[;:—–])/g, '$1')
     .replace(/,\s*([?!.])/g, ',')
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
