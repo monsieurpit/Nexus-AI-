@@ -71,6 +71,9 @@ export class NexusChatSession {
       followUpQuestions: res.followUpQuestions || [],
       thoughtSteps: res.thoughtSteps || [],
       tokens: res.tokens || 0,
+      // Nexus's current artificial mood (moodEngine.ts server-side) — { label, emoji, name,
+      // namePl, valence, arousal }, or null on an older server that doesn't send it yet.
+      mood: res.mood || null,
     };
   }
 
@@ -209,6 +212,106 @@ export class NexusAI {
     };
   }
 
+  // Resilient HTTP fetcher with per-request timeout and automatic retries for transient
+  // gateway/network errors (HTTP 502/503/504/520-524/429 and network disconnects) common on
+  // cloud platforms like Railway.
+  async _fetchWithTimeout(url, options = {}, timeoutMs = 50000, maxRetries = 2) {
+    // A POST (asking Nexus, a RaidShield scan) is NOT safe to repeat on every error: 504/524 are
+    // gateway/Cloudflare TIMEOUTS (Cloudflare cuts at ~100s) while the engine is still working on
+    // the original request — retrying queued a second copy behind it, so a slow answer was
+    // generated twice and the user waited even longer. 500 means the engine already processed it
+    // and failed; 429 means "slow down", which an instant retry can't fix. For a POST, only errors
+    // that mean the request never reached the engine (502/503/520-523) are retried. GETs are
+    // idempotent and keep the wider list.
+    const isIdempotent = !options.method || options.method.toUpperCase() === 'GET';
+    const isRetryableStatus = (status) =>
+      isIdempotent
+        ? status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || (status >= 520 && status <= 524)
+        : status === 502 || status === 503 || (status >= 520 && status <= 523);
+
+    let lastRes = null;
+    let lastError = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timer);
+
+        if (res.ok) {
+          return res;
+        }
+
+        if (!isRetryableStatus(res.status) || attempt === maxRetries) {
+          return res;
+        }
+
+        lastRes = res;
+        const delayMs = Math.min(2000, Math.pow(2, attempt) * 200 + Math.floor(Math.random() * 100));
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      } catch (err) {
+        clearTimeout(timer);
+        lastError = err;
+        // Found live (2026-09-20) — Nexus never responding to real Discord messages, and taking
+        // up to ~5 minutes when it eventually did. Root cause: this default timeoutMs (50s) was
+        // shorter than server.ts's own real worst-case processing budget (150s for a normal
+        // request, and the multi-pass self-review loop alone can legitimately take up to 55s), so
+        // a genuinely slow-but-working request got aborted client-side before the server ever had
+        // a chance to finish it. Retrying made this WORSE, not better: server.ts's request queue
+        // runs at strict concurrency=1 (Patrick's own explicit request, to protect his Mac), and
+        // aborting the client's fetch does nothing to cancel the server's still-in-flight work on
+        // that same request — so a retry just queued a SECOND attempt behind the first one still
+        // occupying the only processing slot, compounding the wait rather than recovering from
+        // it. A self-inflicted timeout (AbortError from OUR OWN controller above, not a network
+        // failure) now skips the retry entirely; retries stay valuable for what they were
+        // actually meant for — a genuine transient network blip (connection reset, DNS hiccup) —
+        // not "the request needed more time than we gave it".
+        if (err.name === 'AbortError' || attempt === maxRetries) {
+          throw err;
+        }
+        const delayMs = Math.min(2000, Math.pow(2, attempt) * 200 + Math.floor(Math.random() * 100));
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    if (lastRes) return lastRes;
+    throw lastError || new Error(`Request failed after ${maxRetries} retries`);
+  }
+
+  /**
+   * Safely parses an HTTP fetch response, cleanly handling HTML or non-JSON payloads.
+   * @private
+   */
+  async _parseResponse(res, contextName = 'Nexus API') {
+    if (!res.ok) {
+      let errText = '';
+      if (typeof res.text === 'function') {
+        errText = await res.text().catch(() => '');
+      }
+      throw new Error(`${contextName} HTTP ${res.status}: ${errText.slice(0, 100) || res.statusText || 'Request failed'}`);
+    }
+
+    if (typeof res.text === 'function') {
+      const contentType = res.headers?.get?.('content-type') || '';
+      const text = await res.text();
+      if (typeof text === 'string' && text.trim().startsWith('<') && !contentType.includes('application/json')) {
+        throw new Error(`${contextName} returned HTML instead of JSON (HTTP ${res.status}): ${text.slice(0, 80)}...`);
+      }
+      try {
+        return JSON.parse(text);
+      } catch (parseErr) {
+        throw new Error(`${contextName} invalid JSON response: ${parseErr.message}`);
+      }
+    }
+
+    if (typeof res.json === 'function') {
+      return await res.json();
+    }
+
+    return res;
+  }
+
   /**
    * Create a stateful multi-turn chat session with automatic conversation memory.
    * @param {Object} [options]
@@ -226,12 +329,11 @@ export class NexusAI {
    * Fetch active server settings and hyperparameters.
    */
   async getSettings() {
-    const res = await fetch(`${this.baseUrl}/settings`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/settings`, {
       method: 'GET',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Failed to fetch settings: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Settings API');
   }
 
   /**
@@ -246,49 +348,62 @@ export class NexusAI {
    * @param {string} [updates.activePersonaId]
    */
   async updateSettings(updates = {}) {
-    const res = await fetch(`${this.baseUrl}/settings`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/settings`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify(updates),
     });
-    if (!res.ok) throw new Error(`Failed to update settings: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Settings API');
   }
 
   /**
    * List all available AI Personas with tags and system prompts.
    */
   async listPersonas() {
-    const res = await fetch(`${this.baseUrl}/personas`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/personas`, {
       method: 'GET',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Failed to list personas: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Personas API');
   }
 
   /**
    * List all available AI models/personas in OpenAI-style model list format.
    */
   async listModels() {
-    const res = await fetch(`${this.baseUrl}/models`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/models`, {
       method: 'GET',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Failed to list models: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Models API');
   }
 
   /**
    * Get the server's currently active default persona.
    */
   async getActivePersona() {
-    const res = await fetch(`${this.baseUrl}/persona`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/persona`, {
       method: 'GET',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Failed to get active persona: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Persona API');
+  }
+
+  /**
+   * Get Nexus's current artificial "mood" — a lightweight affective state (angry, sad, happy,
+   * super happy, depressed, bored, or neutral) that colors every reply's tone server-side. Cheap
+   * to poll — no auth required, no LLM call involved, just reads the server's current in-memory
+   * mood — so this is safe to call on a timer (e.g. to drive the bot's Discord presence status)
+   * without sending an actual message first.
+   * @returns {Promise<{ label: string, emoji: string, name: string, namePl: string, valence: number, arousal: number }>}
+   */
+  async getMood() {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/mood`, {
+      method: 'GET',
+      headers: this._getHeaders(),
+    });
+    const data = await this._parseResponse(res, 'Mood API');
+    return data.mood;
   }
 
   /**
@@ -296,13 +411,12 @@ export class NexusAI {
    * @param {string} persona
    */
   async switchServerPersona(persona) {
-    const res = await fetch(`${this.baseUrl}/persona/set`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/persona/set`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({ persona }),
     });
-    if (!res.ok) throw new Error(`Failed to switch server persona: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Persona API');
   }
 
   // ----------------------------------------------------
@@ -341,6 +455,7 @@ export class NexusAI {
    *   matchedDocuments?: Array<{ title: string, category: string, score: number, snippet?: string, relevantSentences?: string[] }>,
    *   followUpQuestions?: string[],
    *   thoughtSteps?: Array<{ type: string, title: string, description: string }>,
+   *   mood?: { label: string, emoji: string, name: string, namePl: string, valence: number, arousal: number },
    *   totalDocumentsLoaded?: number,
    *   rulesRespected: boolean,
    *   tokens: number,
@@ -373,6 +488,7 @@ export class NexusAI {
       deepThink: Boolean(opts.deepThink || opts.mode === 'deep' || opts.mode === 'deep-cot'),
       crashout: Boolean(opts.crashout || opts.mode === 'crashout' || activePersona === 'crashout-bot'),
       history: opts.history || opts.messages || [],
+      memories: Array.isArray(opts.memories) ? opts.memories : [],
       rules: allRules.join('\n'),
       customRules: allRules.join('\n'),
       imageUrl: opts.imageUrl || opts.image || opts.attachmentUrl || '',
@@ -383,6 +499,86 @@ export class NexusAI {
       search: opts.search,
       searchEngine: opts.searchEngine || opts.provider,
       provider: opts.provider || opts.searchEngine,
+      // "Nexus Code" repo-editing feature only — the one narrow, explicit exception to Nexus-AI-'s
+      // resolveRequestedPersona() always forcing crashout-bot for this Discord-bot client (see
+      // server.ts's own comment on this same flag). Only askCodeEdit() below ever sets this;
+      // every other call through askJSON/ask/askCode/etc. leaves it false and is unaffected.
+      codeEditRequest: Boolean(opts.codeEditRequest),
+    };
+
+    // 170s — comfortably above server.ts's own real worst-case budget for this endpoint (150s;
+    // see that file's own comment on why: OLLAMA_NUM_CTX + the multi-pass self-review loop +
+    // concurrency=1 queueing can legitimately need close to that long). The previous 50s default
+    // was silently abandoning genuinely slow-but-working requests before the server had a real
+    // chance to finish them — see _fetchWithTimeout's own comment on the retry-loop half of this
+    // same fix.
+    const res = await this._fetchWithTimeout(
+      `${this.baseUrl}/nexus`,
+      {
+        method: 'POST',
+        headers: this._getHeaders(),
+        body: JSON.stringify(payload),
+      },
+      170000
+    );
+
+    return await this._parseResponse(res, 'Nexus API');
+  }
+
+  /**
+   * Same request as askJSON, but with `stream: true` — the engine streams its reply back as
+   * newline-delimited JSON (one `{type:'token', text}` line per fragment, exactly one
+   * `{type:'final', ...}` line at the end carrying the identical shape askJSON always returns) for
+   * the plain conversational path (greetings/small talk/etc). A query that resolves to a grounded
+   * factual answer, a solver, or a safety refusal on the server side simply produces zero token
+   * lines and goes straight to the one final line — `onToken` just won't fire for those, which is
+   * the correct, safe behavior (see reasoningEngine.ts's own comment on why those paths never
+   * stream raw, unverified text).
+   *
+   * Deliberately does NOT use `_fetchWithTimeout`'s retry wrapper — retrying a request that may
+   * have already streamed several chunks to `onToken` risks the caller seeing duplicated/out-of-
+   * order fragments. On any failure (network error, non-OK status, a malformed stream), this
+   * throws instead of retrying; callers should catch and fall back to the reliable, retrying
+   * `askJSON()` rather than build retry logic into the stream itself.
+   *
+   * @param {Object|string} options - Same shape as askJSON.
+   * @param {(chunk: string) => void} onToken - Called with each raw text fragment as it arrives.
+   * @returns {Promise<Object>} The same shape askJSON() resolves with.
+   */
+  async askStream(options, onToken) {
+    const opts = typeof options === 'string' ? { prompt: options } : options || {};
+    const authorId = opts.authorId || opts.userId || this.defaultAuthorId || '';
+    const isSuperChill = Boolean(opts.isSuperChillUser || opts.isSuperChill || authorId === '1394001641899954368');
+    const requestRules = opts.rules || opts.customRules || opts.directives || '';
+    const extraRules = Array.isArray(requestRules) ? requestRules : requestRules ? [requestRules] : [];
+    const allRules = [...this.clientRules, ...extraRules];
+    const activePersona = opts.persona || opts.model || this.currentPersona || 'nexus-homie';
+
+    const payload = {
+      prompt: opts.prompt || opts.content || opts.message || opts.text || '',
+      persona: activePersona,
+      model: activePersona,
+      authorId,
+      userId: authorId,
+      username: opts.username || 'DiscordUser',
+      isSuperChillUser: isSuperChill,
+      isSuperChill,
+      mode: opts.mode || (opts.deepThink ? 'deep-cot' : opts.crashout ? 'crashout' : undefined),
+      deepThink: Boolean(opts.deepThink || opts.mode === 'deep' || opts.mode === 'deep-cot'),
+      crashout: Boolean(opts.crashout || opts.mode === 'crashout' || activePersona === 'crashout-bot'),
+      history: opts.history || opts.messages || [],
+      memories: Array.isArray(opts.memories) ? opts.memories : [],
+      rules: allRules.join('\n'),
+      customRules: allRules.join('\n'),
+      imageUrl: opts.imageUrl || opts.image || opts.attachmentUrl || '',
+      imageData: opts.imageData || '',
+      image: opts.imageUrl || opts.image || '',
+      temperature: typeof opts.temperature === 'number' ? opts.temperature : this.defaultTemperature,
+      webSearch: opts.webSearch,
+      search: opts.search,
+      searchEngine: opts.searchEngine || opts.provider,
+      provider: opts.provider || opts.searchEngine,
+      stream: true,
     };
 
     const res = await fetch(`${this.baseUrl}/nexus`, {
@@ -390,13 +586,44 @@ export class NexusAI {
       headers: this._getHeaders(),
       body: JSON.stringify(payload),
     });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      throw new Error(`Nexus API HTTP ${res.status}: ${errText || res.statusText}`);
+    if (!res.ok || !res.body) {
+      throw new Error(`Nexus stream API HTTP ${res.status}: ${res.statusText || 'Request failed'}`);
     }
 
-    return await res.json();
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalPayload = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let parsed;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue; // a split/malformed line — skip rather than crash the whole stream
+        }
+        if (parsed.type === 'token' && typeof parsed.text === 'string') {
+          onToken(parsed.text);
+        } else if (parsed.type === 'final') {
+          const { type, ...rest } = parsed;
+          finalPayload = rest;
+        } else if (parsed.type === 'error') {
+          throw new Error(parsed.message || 'Nexus stream API reported an error mid-stream');
+        }
+      }
+    }
+
+    if (!finalPayload) {
+      throw new Error('Nexus stream API ended without a final payload');
+    }
+    return finalPayload;
   }
 
   /**
@@ -439,13 +666,12 @@ export class NexusAI {
    */
   async solveMath(input) {
     const expression = typeof input === 'string' ? input : input?.expression || input?.query || input?.prompt || '';
-    const res = await fetch(`${this.baseUrl}/math`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/math`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({ expression }),
     });
-    if (!res.ok) throw new Error(`Math API HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Math API');
   }
 
   /**
@@ -473,13 +699,12 @@ export class NexusAI {
    * @returns {Promise<{ text: string, count: number, entities: string[] }>}
    */
   async extractEntities(text) {
-    const res = await fetch(`${this.baseUrl}/entities`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/entities`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({ text }),
     });
-    if (!res.ok) throw new Error(`Entities API HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Entities API');
   }
 
   // ----------------------------------------------------
@@ -496,7 +721,7 @@ export class NexusAI {
    */
   async searchWeb(options) {
     const opts = typeof options === 'string' ? { query: options } : options || {};
-    const res = await fetch(`${this.baseUrl}/web/search`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/web/search`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({
@@ -504,9 +729,8 @@ export class NexusAI {
         provider: opts.provider || opts.engine || 'all',
         limit: opts.limit || 5,
       }),
-    });
-    if (!res.ok) throw new Error(`Web Search API HTTP ${res.status}`);
-    return await res.json();
+    }, 170000);
+    return await this._parseResponse(res, 'Web Search API');
   }
 
   /**
@@ -537,7 +761,7 @@ export class NexusAI {
    */
   async infuseSwear(options) {
     const opts = typeof options === 'string' ? { text: options } : options || {};
-    const res = await fetch(`${this.baseUrl}/swear`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/swear`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({
@@ -549,8 +773,7 @@ export class NexusAI {
         neverSwear: Boolean(opts.neverSwear),
       }),
     });
-    if (!res.ok) throw new Error(`Swear API HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Swear API');
   }
 
   // ----------------------------------------------------
@@ -601,6 +824,19 @@ export class NexusAI {
   }
 
   /**
+   * Direct Helper: "Nexus Code" repo-editing feature. Same code-architect persona as askCode(),
+   * plus the codeEditRequest flag that's required to actually reach it (see the comment on that
+   * field in askJSON above) — kept as its own named method rather than modifying askCode() itself,
+   * so nothing else that might someday call askCode() picks up this behavior by surprise.
+   * @param {string|Object} options
+   * @returns {Promise<string>} the complete modified file content, nothing else
+   */
+  async askCodeEdit(options) {
+    const opts = typeof options === 'string' ? { prompt: options } : options;
+    return this.ask({ ...opts, persona: 'code-architect', codeEditRequest: true });
+  }
+
+  /**
    * Direct Helper: Trigger Deep Researcher analytical breakdown.
    * @param {string|Object} options
    */
@@ -640,12 +876,11 @@ export class NexusAI {
     const url = category
       ? `${this.baseUrl}/documents?category=${encodeURIComponent(category)}`
       : `${this.baseUrl}/documents`;
-    const res = await fetch(url, {
+    const res = await this._fetchWithTimeout(url, {
       method: 'GET',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Failed to list documents: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Documents API');
   }
 
   /**
@@ -673,13 +908,12 @@ export class NexusAI {
    */
   async searchDocuments(options) {
     const opts = typeof options === 'string' ? { query: options } : options || {};
-    const res = await fetch(`${this.baseUrl}/documents/search`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/documents/search`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({ query: opts.query || opts.q, limit: opts.limit || opts.topK || 5 }),
     });
-    if (!res.ok) throw new Error(`Failed to search documents: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Documents Search API');
   }
 
   /**
@@ -699,13 +933,12 @@ export class NexusAI {
    * @param {string[]|string} [doc.keywords] - Search keywords
    */
   async addDocument({ title, content, category = 'custom-api-doc', keywords = [] }) {
-    const res = await fetch(`${this.baseUrl}/documents`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/documents`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({ title, content, category, keywords }),
     });
-    if (!res.ok) throw new Error(`Failed to add document: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Documents API');
   }
 
   /**
@@ -713,24 +946,22 @@ export class NexusAI {
    * @param {string} documentId
    */
   async deleteDocument(documentId) {
-    const res = await fetch(`${this.baseUrl}/documents/${encodeURIComponent(documentId)}`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/documents/${encodeURIComponent(documentId)}`, {
       method: 'DELETE',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Failed to delete document: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Documents API');
   }
 
   /**
    * Get knowledge corpus breakdown and categories.
    */
   async getCorpusStats() {
-    const res = await fetch(`${this.baseUrl}/corpus`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/corpus`, {
       method: 'GET',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Failed to get corpus stats: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Corpus API');
   }
 
   // ----------------------------------------------------
@@ -757,16 +988,12 @@ export class NexusAI {
    * }>}
    */
   async checkSecurity({ messageText = '', authorId = '', imageUrl = '', imageData = '' }) {
-    const res = await fetch(`${this.baseUrl}/raidshield`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/raidshield`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({ messageText, authorId, imageUrl, imageData }),
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      throw new Error(`RaidShield API HTTP ${res.status}: ${errText || res.statusText}`);
-    }
-    return await res.json();
+    }, 170000);
+    return await this._parseResponse(res, 'RaidShield API');
   }
 
   /**
@@ -792,17 +1019,32 @@ export class NexusAI {
    * @param {string} [options.prompt] - Custom inspection instruction or question
    * @param {'general' | 'security'} [options.mode] - Scanner mode
    */
+  /**
+   * Forwards an emoji reaction on one of Nexus's replies to the engine's learning system
+   * (docs/learning-system.md in Nexus-AI-). The engine only accepts it for a reply it really sent
+   * recently. Fire-and-forget: short timeout, no retries — feedback must never slow the bot down.
+   * @param {Object} options
+   * @param {string} options.answer - The exact reply text Nexus sent
+   * @param {string} options.emoji - The reaction emoji (e.g. '👍', '👎', '💀')
+   * @param {string} [options.authorId] - Discord user ID of whoever reacted
+   * @returns {Promise<{accepted: boolean, reason: string}>}
+   */
+  async sendReactionFeedback({ answer = '', emoji = '', authorId = '' } = {}) {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/learning/reaction`, {
+      method: 'POST',
+      headers: this._getHeaders(),
+      body: JSON.stringify({ answer, emoji, authorId }),
+    }, 15000, 0);
+    return await this._parseResponse(res, 'Learning API');
+  }
+
   async analyzeImage({ imageUrl = '', imageData = '', prompt = '', mode = 'general' }) {
-    const res = await fetch(`${this.baseUrl}/vision/analyze`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/vision/analyze`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({ imageUrl, imageData, prompt, mode }),
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      throw new Error(`Vision API error HTTP ${res.status}: ${errText || res.statusText}`);
-    }
-    return await res.json();
+    }, 170000);
+    return await this._parseResponse(res, 'Vision API');
   }
 
   /**
@@ -820,12 +1062,11 @@ export class NexusAI {
    * List all supported strict rules and directives on the server.
    */
   async listSupportedRules() {
-    const res = await fetch(`${this.baseUrl}/sdk/rules`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/sdk/rules`, {
       method: 'GET',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Failed to fetch SDK rules: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'SDK Rules API');
   }
 
   /**
@@ -836,13 +1077,12 @@ export class NexusAI {
    * @param {boolean} [options.isSuperChillUser] - VIP mode flag
    */
   async enforceRules({ text, rules, isSuperChillUser = false }) {
-    const res = await fetch(`${this.baseUrl}/sdk/rules/enforce`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/sdk/rules/enforce`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({ text, rules, isSuperChillUser }),
     });
-    if (!res.ok) throw new Error(`Failed to enforce rules: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'SDK Rules API');
   }
 
   // ----------------------------------------------------
@@ -854,13 +1094,12 @@ export class NexusAI {
    * @param {Object} options
    */
   async generate(options = {}) {
-    const res = await fetch(`${this.baseUrl}/generate`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/generate`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify(options),
-    });
-    if (!res.ok) throw new Error(`Generate API HTTP ${res.status}`);
-    return await res.json();
+    }, 170000);
+    return await this._parseResponse(res, 'Generate API');
   }
 
   /**
@@ -868,13 +1107,12 @@ export class NexusAI {
    * @param {Object} options
    */
   async chatCompletion(options = {}) {
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify(options),
-    });
-    if (!res.ok) throw new Error(`Chat Completions HTTP ${res.status}`);
-    return await res.json();
+    }, 170000);
+    return await this._parseResponse(res, 'Chat Completions API');
   }
 
   // ----------------------------------------------------
@@ -885,24 +1123,22 @@ export class NexusAI {
    * Verify API Key connection and authentication.
    */
   async verifyAuth() {
-    const res = await fetch(`${this.baseUrl}/auth/verify`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/auth/verify`, {
       method: 'GET',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Auth verification failed with status ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Auth Verify API');
   }
 
   /**
    * List registered API keys.
    */
   async listKeys() {
-    const res = await fetch(`${this.baseUrl}/keys`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/keys`, {
       method: 'GET',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Failed to list keys: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Keys API');
   }
 
   /**
@@ -910,13 +1146,12 @@ export class NexusAI {
    * @param {string} [label]
    */
   async generateKey(label = 'discord_bot') {
-    const res = await fetch(`${this.baseUrl}/keys/generate`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/keys/generate`, {
       method: 'POST',
       headers: this._getHeaders(),
       body: JSON.stringify({ label }),
     });
-    if (!res.ok) throw new Error(`Failed to generate key: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Keys API');
   }
 
   /**
@@ -927,25 +1162,23 @@ export class NexusAI {
    * @param {{ label?: string, status?: 'active'|'revoked', capabilities?: string[]|'latest' }} updates
    */
   async updateKey(key, updates = {}) {
-    const res = await fetch(`${this.baseUrl}/keys/${encodeURIComponent(key)}`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/keys/${encodeURIComponent(key)}`, {
       method: 'PATCH',
       headers: this._getHeaders(),
       body: JSON.stringify(updates),
     });
-    if (!res.ok) throw new Error(`Failed to update key: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Keys API');
   }
 
   /**
    * Check FIFO queue waitlist metrics.
    */
   async getQueueStatus() {
-    const res = await fetch(`${this.baseUrl}/queue/status`, {
+    const res = await this._fetchWithTimeout(`${this.baseUrl}/queue/status`, {
       method: 'GET',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Failed to get queue status: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Queue Status API');
   }
 
   /**
@@ -954,12 +1187,11 @@ export class NexusAI {
    */
   async getHealth() {
     const rootUrl = this.baseUrl.replace(/\/v1$/, '');
-    const res = await fetch(`${rootUrl}/health`, {
+    const res = await this._fetchWithTimeout(`${rootUrl}/health`, {
       method: 'GET',
       headers: this._getHeaders(),
     });
-    if (!res.ok) throw new Error(`Failed to get health: HTTP ${res.status}`);
-    return await res.json();
+    return await this._parseResponse(res, 'Health API');
   }
 }
 

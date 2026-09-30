@@ -110,6 +110,21 @@ the reaction right after one of his replies:
   retired immediately. A complaint that also contains the right answer ("that's wrong, spain won")
   also goes through the normal correction path.
 
+### Discord emoji reactions
+
+The bot forwards reactions on Nexus's replies (👍 😂 🤣 💀 🔥 ❤️ 😭 💯 = praise, 👎 ❌ = complaint)
+to `POST /api/v1/learning/reaction`. The engine only accepts a reaction on a reply it really sent in
+the last 6 hours (it remembers its own last 1,000 replies) and takes the question from that memory,
+never from the caller — so the endpoint can't be used to feed it made-up text. Ambiguous emojis
+(🤡 etc.) are ignored.
+
+### Never from scams or RaidShield
+
+Nothing RaidShield would flag is ever stored (the same classifier runs on every message first);
+messages the bot's moderation scan flags later (text or image) are remembered for a day and dropped
+from the queue; messages carrying a link are never a fact source; reactions/praise on a reply to a
+flagged message don't count.
+
 ### Not overusing what he learned
 
 An earlier learning attempt made the bot keep bringing up what it had learned. So:

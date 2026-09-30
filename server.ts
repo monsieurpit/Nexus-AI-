@@ -48,7 +48,7 @@ import {
 import { countTokens } from './src/ai-engine/tokenizer';
 import { ModelPersonaId, ReasoningMode, UserMemory, WebSearchResult } from './src/types';
 import { openLearningStore, isLearningEnabled } from './src/ai-engine/learning/store';
-import { captureExchange, captureQuestion } from './src/ai-engine/learning/capture';
+import { captureExchange, captureQuestion, captureReaction, markFlaggedByRaidShield, registerNexusReply } from './src/ai-engine/learning/capture';
 import { loadLearnedIntoKnowledge } from './src/ai-engine/learning/promote';
 import { markForegroundActivity, startLearningWorker } from './src/ai-engine/learning/worker';
 import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
@@ -113,6 +113,23 @@ const TTS_SERVICE_BASE_URL = (process.env.TTS_SERVICE_BASE_URL || 'http://127.0.
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024; // 15MB
 
 // Robust Image Resolver: Handles Discord CDN URLs, Base64 Data URIs, raw Base64, and image buffers
+function isPrivateOrLocalUrl(raw: string): boolean {
+  let host = '';
+  try {
+    host = new URL(raw).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  } catch {
+    return true;
+  }
+  if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return true;
+  if (host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80')) return host.includes(':');
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+  }
+  return false;
+}
+
 async function resolveImagePart(
   imageUrl?: string,
   imageData?: string,
@@ -154,6 +171,13 @@ async function resolveImagePart(
 
   // 3. Remote HTTP / HTTPS URL (Discord CDN attachment, Imgur, Cloud Storage, etc.)
   if (cleanRaw.startsWith('http://') || cleanRaw.startsWith('https://')) {
+    // The engine runs on Patrick's Mac next to Ollama and other local services, and this URL comes
+    // from the public API — without this, anyone could make the engine request
+    // http://127.0.0.1:11434/... or a LAN device (server-side request forgery). Only public hosts.
+    if (isPrivateOrLocalUrl(cleanRaw)) {
+      console.warn(`[Vision Engine] Rejected image URL pointing at a private/local address: ${cleanRaw}`);
+      return null;
+    }
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s fetch timeout
@@ -1784,6 +1808,8 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
     // after the reply is built; triage drops most messages before anything is stored.
     const replyForLearning = queuedExecution.data?.response;
     if (typeof replyForLearning === 'string' && replyForLearning) {
+      // Remembered so a Discord reaction on this exact reply can be accepted as feedback later.
+      registerNexusReply(userText, replyForLearning);
       const lastBotIndex = historyArray.map((m: any) => m?.role).lastIndexOf('assistant');
       const previousBotReply = lastBotIndex >= 0 && typeof historyArray[lastBotIndex]?.content === 'string' ? historyArray[lastBotIndex].content : null;
       // The message that reply answered: the nearest user message before it (Discord history marks
@@ -1858,6 +1884,15 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
 
 // Learning system admin API (own token — see src/ai-engine/learning/admin.ts for why not requireApiKey).
 registerLearningAdminRoutes(app);
+
+// Emoji reactions on Nexus's Discord replies, forwarded by the bot. Only accepted for replies Nexus
+// really sent recently (see captureReaction) — no auth needed for that to be safe.
+app.post('/api/v1/learning/reaction', (req, res) => {
+  const { answer, emoji, authorId } = req.body || {};
+  if (typeof answer !== 'string' || typeof emoji !== 'string') return res.status(400).json({ error: 'answer and emoji are required' });
+  const result = captureReaction({ answer, emoji, authorId: typeof authorId === 'string' ? authorId : null });
+  return res.json(result);
+});
 
 // 4b. Roleplay / persona chat — ONE plain local-model call, no corpus retrieval, no swear engine,
 // no reasoning pipeline. Built for texting-style personas (Noémie for the Message-app fallback,
@@ -1980,7 +2015,7 @@ app.post('/api/v1/raidshield', aiComputeLimiter, async (req, res) => {
   }
 
   try {
-    const queuedExecution = await globalRequestQueue.enqueue('raidshield', async () => {
+    const scan = async () => {
       // This used to pass the literal fixed string 'image_attachment_scanned' into the rules
       // evaluator for EVERY image regardless of actual content, then claim in the response
       // "(Image attachment verified and analyzed)" — a moderation tool that never once looked at
@@ -2050,10 +2085,24 @@ app.post('/api/v1/raidshield', aiComputeLimiter, async (req, res) => {
         scannedImage: Boolean(imagePart),
         timestamp: new Date().toISOString(),
       };
-    });
+    };
 
+    // A text-only scan is pure pattern matching (no model involved) and takes milliseconds, but it
+    // used to wait in the same queue as Nexus's chat answers (concurrency 2) — so a scam message
+    // could sit unmoderated for as long as two Nexus replies took to generate. Only image scans,
+    // which really need the vision model, go through the queue now (2026-09-30).
+    // Anything RaidShield flags is never learned from (learning/capture.ts).
+    const remember = (result: { classification: string }) => {
+      if (result.classification !== 'safe' && typeof targetText === 'string') markFlaggedByRaidShield(targetText);
+      return result;
+    };
+    if (!imagePart) {
+      res.setHeader('X-Nexus-Queue-Wait-Ms', '0');
+      return res.json(remember(await scan()));
+    }
+    const queuedExecution = await globalRequestQueue.enqueue('raidshield', scan);
     res.setHeader('X-Nexus-Queue-Wait-Ms', queuedExecution.waitTimeMs.toString());
-    return res.json(queuedExecution.data);
+    return res.json(remember(queuedExecution.data));
   } catch (err: any) {
     return res.status(500).json({ error: 'Internal Security Evaluation Error', message: err?.message || String(err) });
   }

@@ -103,6 +103,67 @@ const ROLE_RANK_INDICATORS = [
   /u got promoted/i,
 ];
 
+// Official domains of brands scammers imitate. A message linking to anything that looks like one of
+// these but isn't (one or two letters off, or the brand name + bait words) is a phishing link.
+const BRAND_DOMAINS: Record<string, string[]> = {
+  discord: ['discord.com', 'discord.gg', 'discordapp.com', 'discordapp.net', 'discord.media', 'discordstatus.com', 'discord.new', 'dis.gd'],
+  steamcommunity: ['steamcommunity.com'],
+  steampowered: ['steampowered.com', 'store.steampowered.com', 'help.steampowered.com'],
+  roblox: ['roblox.com', 'rbxcdn.com'],
+  paypal: ['paypal.com', 'paypal.me'],
+  epicgames: ['epicgames.com'],
+  riotgames: ['riotgames.com'],
+  minecraft: ['minecraft.net'],
+  instagram: ['instagram.com'],
+};
+// Short brand words that would collide with real words at edit distance 1 ("steam" ~ "stream"):
+// only flagged when the domain pairs them with bait ("steam-giveaway.ru", "robux-free.xyz").
+const BAIT_ONLY_BRANDS: Record<string, string[]> = {
+  steam: ['steampowered.com', 'steamcommunity.com', 'steamstatic.com', 'steamdeck.com'],
+  robux: ['roblox.com'],
+  nitro: ['discord.com'],
+};
+const BRAND_BAIT_IN_DOMAIN = /(?:gift|nitro|free|claim|promo|drop|verify|verification|login|signin|secure|support|airdrop|giveaway|reward|bonus|trade|item|skin)/i;
+
+function editDistance(a: string, b: string): number {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return dp[a.length][b.length];
+}
+
+export function findLookalikeBrandDomain(text: string): { brand: string; domain: string } | null {
+  const domains = [...text.matchAll(/\b((?:[a-z0-9-]+\.)+[a-z]{2,})(?=[\/\s:?#]|$)/gi)].map((m) => m[1].toLowerCase());
+  for (const domain of domains) {
+    const official = [...Object.values(BRAND_DOMAINS).flat(), ...Object.values(BAIT_ONLY_BRANDS).flat()];
+    if (official.some((o) => domain === o || domain.endsWith(`.${o}`))) continue;
+    const labels = domain.split('.').slice(0, -1);
+    for (const [brand] of Object.entries(BRAND_DOMAINS)) {
+      for (const label of labels) {
+        const normalized = label.replace(/0/g, 'o').replace(/1/g, 'l').replace(/3/g, 'e').replace(/5/g, 's').replace(/rn/g, 'm');
+        // One or two characters off the brand, but not the brand itself ("steamcommunlty", "disc0rd").
+        if (label !== brand && label.length >= 5 && (editDistance(label, brand) <= (brand.length >= 10 ? 2 : 1) || normalized === brand)) {
+          return { brand, domain };
+        }
+        // The brand spelled correctly inside a non-official domain, with bait around it
+        // ("discord-nitro-gift.xyz", "steam-giveaway.ru") — "discordservers.com"-style sites without
+        // bait words are left alone.
+        if (label.includes(brand) && label !== brand && BRAND_BAIT_IN_DOMAIN.test(label.replace(brand, ''))) {
+          return { brand, domain };
+        }
+      }
+    }
+    for (const brand of Object.keys(BAIT_ONLY_BRANDS)) {
+      for (const label of labels) {
+        if (label.includes(brand) && label !== brand && BRAND_BAIT_IN_DOMAIN.test(label.replace(brand, ''))) return { brand, domain };
+      }
+    }
+  }
+  return null;
+}
+
 export interface RaidShieldClassification {
   classification: 'safe' | 'scam' | 'spam' | 'bot' | 'raid';
   confidence: number;
@@ -151,6 +212,65 @@ export function evaluateRaidShieldRules(messageText: string): RaidShieldClassifi
       classification: 'scam',
       confidence: 0.97,
       reason: 'Critical threat: message contains a known malicious typosquat domain.',
+    };
+  }
+
+  // ── Added 2026-09-30 (AI-system review): four of the most common live Discord scams got
+  // classified "safe" — a Steam typosquat outside the fixed list ("steamcommunlty.ru"), the
+  // "I accidentally reported you" scam, "vote for me" behind a link shortener, and crypto
+  // "earn $500 a day, DM me". Each rule below skips messages that WARN about the scam.
+  const warnsAboutScam = /\b(?:scam(?:mer|s)?|phish\w*|watch\s+out|be\s+careful|beware|psa|don'?t\s+(?:click|fall|trust|send))\b/i.test(unquotedLower);
+
+  const lookalike = findLookalikeBrandDomain(unquoted);
+  if (lookalike && !warnsAboutScam) {
+    return {
+      classification: 'scam',
+      confidence: 0.96,
+      reason: `Critical threat: link to a look-alike of ${lookalike.brand} (${lookalike.domain}) — classic phishing domain.`,
+    };
+  }
+
+  if (
+    !warnsAboutScam &&
+    (/\b(?:i|we)\s+(?:have\s+)?(?:accident(?:al)?ly|mistakenly)\s+report(?:ed)?\s+(?:you|u|ur|your)\b/i.test(unquotedLower) ||
+      /\breport(?:ed)?\s+(?:you|u|your\s+account)\b.{0,60}\b(?:by\s+(?:mistake|accident)|accident(?:al)?ly)\b/i.test(unquotedLower)) &&
+    /\b(?:message|contact|add|dm|talk\s+to|reach\s+out\s+to|friend)\b|\b(?:ban(?:ned)?|terminat\w*|disabled|suspend\w*|deleted)\b/i.test(unquotedLower)
+  ) {
+    return {
+      classification: 'scam',
+      confidence: 0.94,
+      reason: 'Critical threat: "I accidentally reported you" social-engineering scam (leads to a fake Discord staff account).',
+    };
+  }
+
+  const hasShortener = /\b(?:bit\.ly|tinyurl\.com|cutt\.ly|is\.gd|rb\.gy|shorturl\.at|t\.ly|goo\.gl|ow\.ly|tiny\.cc|s\.id)\/\S+/i.test(unquoted);
+  if (
+    hasShortener &&
+    !warnsAboutScam &&
+    /\b(?:vote|verify|verification|claim|free|gift|login|log\s+in|sign\s+in|reward|prize|win|won|giveaway|nitro|robux|v-?bucks|steam)\b/i.test(unquotedLower)
+  ) {
+    return {
+      classification: 'scam',
+      confidence: 0.92,
+      reason: 'Threat: shortened link hiding its destination, paired with a bait word (vote/verify/claim/free...).',
+    };
+  }
+
+  // An earnings claim alone is normal talk ("i earn 15 dollars per hour at my job"); the pitch needs
+  // crypto/investment wording or a push into DMs / off-platform alongside it.
+  const earningsClaim =
+    /\b(?:earn|make|made|profit(?:ing)?|making)\s+(?:\$|€|£)?\s?\d[\d,.]*\s*(?:k\b)?\s*(?:\$|€|£|usd|dollars?|euros?)?\s*(?:\/|per|a|every|each)\s*(?:day|daily|week|hour|month)\b/i.test(unquotedLower);
+  const cryptoWords = /\b(?:crypto|bitcoin|btc|eth|usdt|forex|trading|investment|invest|profits?|passive\s+income)\b|💰|📈/i.test(unquotedLower);
+  const offPlatformPush = /\b(?:dm|message|text|contact|inbox)\s+me\b|\btelegram\b|\bwhats\s?app\b|\bt\.me\//i.test(unquotedLower);
+  const cryptoPitch =
+    (earningsClaim && (cryptoWords || offPlatformPush)) ||
+    /\binvest(?:ment)?\s+(?:plan|opportunity|package|program)\b/i.test(unquotedLower) ||
+    (cryptoWords && offPlatformPush);
+  if (cryptoPitch && !warnsAboutScam && !/\?\s*$/.test(unquoted)) {
+    return {
+      classification: 'scam',
+      confidence: 0.91,
+      reason: 'Threat: get-rich-quick / crypto investment pitch pushing people into DMs or off-platform.',
     };
   }
 

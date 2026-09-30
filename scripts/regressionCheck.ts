@@ -26,6 +26,7 @@ import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
 import { stripContextLeaks } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch, buildWikipediaQuery } from '../src/ai-engine/webSearchEngine';
+import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
 import { trySolveMath } from '../src/ai-engine/mathSolver';
 import { trySolveCategoryClassification } from '../src/ai-engine/categorySolver';
@@ -281,6 +282,57 @@ async function runDeterministicChecks() {
   }
   check('Wikipedia query keeps only the topic ("who won the 2026 world cup" -> "2026 world cup")', buildWikipediaQuery('who won the 2026 world cup') === '2026 world cup');
   check('Wikipedia query drops "latest on" ("whats the latest on gta 6" -> "gta 6")', buildWikipediaQuery('whats the latest on gta 6') === 'gta 6');
+
+  console.log('\nRaidShield (scams must be caught, normal chat must pass):');
+  // Before 2026-09-30 RaidShield had no tests at all. The first scams below are live Discord scams
+  // it used to classify "safe"; the "bypass" ones are the prefix/suffix tricks documented in
+  // raidshield.ts's own comments; the safe ones are normal chat that must never be flagged.
+  const raidScams = [
+    'free discord nitro claim here https://dlscord-gift.com/xyz',
+    '@everyone steam is giving away free gift cards, click here steamcommunlty.ru/gift',
+    'I accidentally reported you, message my friend on discord to fix it or your account gets banned',
+    'hey can you vote for me here? https://bit.ly/3xYz',
+    'free robux generator 100% legit no scam roblox-free.xyz',
+    'send me your 2fa code i need it to verify your account',
+    'felicidades ganaste un regalo, haz clic aquí http://nitro-gift.es',
+    'Earn 500$ per day with crypto, DM me for the investment plan 💰',
+    'check out https://disc0rd.com/login to verify your account',
+    'join the giveaway at steam-giveaway.ru',
+    'i made 3000 dollars a week trading bitcoin, text me on telegram',
+    'based nitro generator drop, claim it now http://freenitro.tk',
+    'someone sent me this http://dlscord.xyz nitro generator, claim now',
+    'check this https://youtu.be/xyz also grab ur free nitro generator http://totally-legit-nitro.tk/claim',
+  ];
+  for (const t of raidScams) {
+    const r = evaluateRaidShieldRules(t);
+    check(`RaidShield catches: "${t.slice(0, 60)}"`, r.classification !== 'safe', `${r.classification} ${r.confidence}`);
+  }
+  const raidSafe = [
+    'who won the world cup lol',
+    'check out this video https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    'i got nitro for my birthday from my brother',
+    'the steam sale is crazy this week',
+    'can someone help me with my 2fa it stopped working',
+    'bro i accidentally deleted my message',
+    'i accidentally reported my own message lol',
+    'watch out for the i accidentally reported you scam, its going around',
+    'is this nitro generator a scam? someone sent it to me',
+    'bitcoin price is crazy today',
+    'is crypto trading worth it?',
+    'i earn 15 dollars per hour at my job',
+    'add the bot from top.gg/bot/123456',
+    'i found it on discordservers.com',
+    'my steam is steamcommunity.com/id/pat',
+    'store.steampowered.com has the game on sale',
+    'watch my stream at twitch.tv/me',
+    'vote on the poll: https://strawpoll.com/abc',
+    'github link: https://github.com/monsieurpit/Nexus-AI-',
+    'nexus what is a qr code',
+  ];
+  for (const t of raidSafe) {
+    const r = evaluateRaidShieldRules(t);
+    check(`RaidShield leaves alone: "${t.slice(0, 60)}"`, r.classification === 'safe', `${r.classification} ${r.confidence}: ${r.reason}`);
+  }
 
   console.log('\nMood engine:');
   _resetMoodForTests();

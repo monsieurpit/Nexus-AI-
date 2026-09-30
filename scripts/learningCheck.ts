@@ -302,6 +302,24 @@ console.log('\nModel down = nothing lost:');
   check('with the model unreachable, the message stays queued (retried later, not dropped)', parsed.threw === 'ModelUnavailableError' && parsed.stillQueued === true, parsed);
 }
 
+console.log('\nNever learns from scams / anything RaidShield flags:');
+{
+  const { markFlaggedByRaidShield } = await import('../src/ai-engine/learning/capture');
+  const { processObservation: po } = await import('../src/ai-engine/learning/worker');
+  const scamId = captureExchange({ userText: 'fun fact free discord nitro claim here https://dlscord-gift.com/xyz', botReply: 'lol', authorId: '321321321321321321' });
+  check('a scam message is never even stored', scamId === null);
+  check('a message with a link is never a fact source', captureExchange({ userText: 'the louvre heist was in 2025, source: https://example.com/news', botReply: 'ok', authorId: '321321321321321322' }) === null);
+  check('an "I accidentally reported you" scam is never stored', captureExchange({ userText: 'I accidentally reported you, message my friend on discord to fix it or your account gets banned', botReply: 'x', authorId: '321321321321321323' }) === null);
+  check('praise on a reply to a scam message does not count', captureExchange({ userText: 'W', botReply: 'x', authorId: '321321321321321324', previousUserText: 'free nitro at dlscord-gift.com/x', previousBotReply: 'that is a scam bro' }) === null);
+  // Queued first, flagged by the bot's moderation scan afterwards -> dropped before any model call.
+  const text = 'fyi the server raid happened because of a leaked invite last night';
+  const qid = captureExchange({ userText: text, botReply: 'damn', authorId: '321321321321321325' });
+  markFlaggedByRaidShield(text);
+  const queued = store.nextUnprocessedObservations(5000).find((o) => o.id === qid);
+  const result = queued ? await po(queued) : 'not queued';
+  check('a message flagged by RaidShield after it was queued is dropped (never extracted)', !!qid && result === null && !store.nextUnprocessedObservations(5000).some((o) => o.id === qid), { qid, result });
+}
+
 console.log('\nKill switch:');
 process.env.NEXUS_LEARNING = 'off';
 check('NEXUS_LEARNING=off stores nothing', captureExchange({ userText: 'the louvre heist in 2025 was eight crown jewels', botReply: 'ok', authorId: '555555555555555555' }) === null);

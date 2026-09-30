@@ -6,7 +6,7 @@ import * as localLlmClient from '../localLlmClient';
 import { postToDiscordLog } from '../discordLogWebhook';
 import { cosineSimilarity } from '../semanticEngine';
 import { buildWebSearchQuery, buildWikipediaQuery, executeUnifiedWebSearch } from '../webSearchEngine';
-import { isAdminHash } from './capture';
+import { isAdminHash, isFlaggedOrUnsafeForLearning } from './capture';
 import { extractCandidate, routeExtraction } from './extract';
 import { checkLearningSafety } from './safety';
 import { enrichLearned, polishLearned, promoteFact, unlearnFact } from './promote';
@@ -107,6 +107,12 @@ export function claimNamesFromSource(claim: string, sourceText: string): boolean
 // ---- one observation through extraction + safety + routing --------------------------------------
 
 export async function processObservation(o: Observation): Promise<number | null> {
+  // Re-checked at processing time: the bot's moderation scan may have flagged this message AFTER it
+  // was queued (RaidShield runs concurrently with Nexus's answer).
+  if (isFlaggedOrUnsafeForLearning(o.userText) || (o.previousUserText && isFlaggedOrUnsafeForLearning(o.previousUserText))) {
+    markObservationProcessed(o.id, PROCESSED.unsafe);
+    return null;
+  }
   if (o.kind === 'search-answer') {
     let evidence: EvidenceItem[] = [];
     try {

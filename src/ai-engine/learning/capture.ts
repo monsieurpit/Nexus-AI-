@@ -6,6 +6,36 @@ import { detectUserInsult } from '../swearEngine';
 import { checkLearningSafety } from './safety';
 import { relevantSentences } from './verify';
 import { detectFeedback } from './feedback';
+import { evaluateRaidShieldRules } from '../rules/raidshield';
+import { createHash } from 'crypto';
+
+// ---- never learn from scams / anything RaidShield flags ------------------------------------------
+// Patrick (2026-09-30): "make sure he doesn't learn from scams and raidshields". Three layers:
+//  1. every message is run through the same RaidShield classifier before it's even stored;
+//  2. messages the bot's moderation scan (POST /api/v1/raidshield) flags — text or image — are
+//     remembered for a day, and anything already queued with the same text is dropped by the worker;
+//  3. a message carrying a link is never a source of learned facts (facts don't come from links).
+const flaggedTexts = new Map<string, number>();
+const FLAG_TTL_MS = 24 * 60 * 60 * 1000;
+const URL_RE = /\bhttps?:\/\/\S+|\b(?:www\.)\S+|\b[a-z0-9-]+\.(?:com|net|org|gg|io|xyz|ru|tk|ly|co|me|app|link|gift|site|online|store|shop)\b(?:\/\S*)?/i;
+
+function textKey(text: string): string {
+  return createHash('sha1').update(text.trim().toLowerCase().replace(/\s+/g, ' ')).digest('hex');
+}
+
+export function markFlaggedByRaidShield(text: string): void {
+  if (!text?.trim()) return;
+  flaggedTexts.set(textKey(text), Date.now());
+  if (flaggedTexts.size > 5000) flaggedTexts.delete(flaggedTexts.keys().next().value!);
+}
+
+export function isFlaggedOrUnsafeForLearning(text: string): boolean {
+  if (!text?.trim()) return false;
+  const at = flaggedTexts.get(textKey(text));
+  if (at && Date.now() - at < FLAG_TTL_MS) return true;
+  if (URL_RE.test(text)) return true;
+  return evaluateRaidShieldRules(text).classification !== 'safe';
+}
 import { countObservationsByUserSince, hashIdentity, insertObservation, isLearningEnabled, ObservationSource } from './store';
 
 // One person spamming "facts" can't fill the idle worker's queue.
@@ -80,8 +110,10 @@ export function captureExchange(e: ExchangeToCapture): number | null {
   if (e.hasImage) return null;
   const userText = (e.userText || '').trim();
   if (!userText || !e.botReply) return null;
+  if (isFlaggedOrUnsafeForLearning(userText)) return null;
   // Reactions to the previous reply are their own kind of teaching (learning/feedback.ts).
-  const feedback = e.previousBotReply && e.previousUserText ? detectFeedback(userText) : null;
+  // Praise/complaints about a reply to a flagged message don't count either.
+  const feedback = e.previousBotReply && e.previousUserText && !isFlaggedOrUnsafeForLearning(e.previousUserText) ? detectFeedback(userText) : null;
   let feedbackId: number | null = null;
   if (feedback) {
     try {
@@ -156,6 +188,7 @@ function questionIsLearnable(question: string): boolean {
 export function captureQuestion(e: QuestionToCapture): number | null {
   if (!isLearningEnabled()) return null;
   if (!questionIsLearnable(e.question)) return null;
+  if (isFlaggedOrUnsafeForLearning(e.question)) return null;
   const userHash = identityHash(e.authorId, e.fallbackIdentity);
   try {
     if (countObservationsByUserSince(userHash, Date.now() - 24 * 60 * 60 * 1000) >= MAX_OBSERVATIONS_PER_USER_PER_DAY) return null;
@@ -193,5 +226,53 @@ export function captureQuestion(e: QuestionToCapture): number | null {
     console.warn('[learning] question capture failed:', err);
   }
   return null;
+}
+
+// ---- emoji reactions on Discord (forwarded by the bot) ---------------------------------------------
+// Reactions are the clearest feedback Discord users give, and the engine never saw them. The bot
+// forwards a reaction on one of Nexus's replies; it's only accepted for a reply Nexus REALLY sent
+// recently (the engine remembers its own last replies), and the question is taken from that memory,
+// never from the caller — so nobody can make it learn from made-up text through this endpoint.
+const recentReplies = new Map<string, { question: string; at: number }>();
+const RECENT_REPLY_TTL_MS = 6 * 60 * 60 * 1000;
+
+export function registerNexusReply(question: string, answer: string): void {
+  if (!question?.trim() || !answer?.trim()) return;
+  recentReplies.set(textKey(answer), { question: question.trim().slice(0, 300), at: Date.now() });
+  while (recentReplies.size > 1000) recentReplies.delete(recentReplies.keys().next().value!);
+}
+
+const POSITIVE_REACTIONS = new Set(['👍', '😂', '🤣', '💀', '🔥', '❤️', '😭', '💯']);
+const NEGATIVE_REACTIONS = new Set(['👎', '❌']);
+
+export function reactionKind(emoji: string): 'feedback-positive' | 'feedback-negative' | null {
+  if (POSITIVE_REACTIONS.has(emoji)) return 'feedback-positive';
+  if (NEGATIVE_REACTIONS.has(emoji)) return 'feedback-negative';
+  return null;
+}
+
+export function captureReaction(e: { answer: string; emoji: string; authorId?: string | null }): { accepted: boolean; reason: string } {
+  if (!isLearningEnabled()) return { accepted: false, reason: 'learning off' };
+  const kind = reactionKind(e.emoji);
+  if (!kind) return { accepted: false, reason: 'reaction not used for learning' };
+  const known = recentReplies.get(textKey(e.answer || ''));
+  if (!known || Date.now() - known.at > RECENT_REPLY_TTL_MS) return { accepted: false, reason: 'not a recent Nexus reply' };
+  if (isFlaggedOrUnsafeForLearning(known.question)) return { accepted: false, reason: 'reply to a flagged message' };
+  const userHash = identityHash(e.authorId, null);
+  if (countObservationsByUserSince(userHash, Date.now() - 24 * 60 * 60 * 1000) >= MAX_OBSERVATIONS_PER_USER_PER_DAY) {
+    return { accepted: false, reason: 'rate limited' };
+  }
+  insertObservation({
+    createdAt: Date.now(),
+    source: sourceFor(e.authorId),
+    userHash,
+    channelHash: null,
+    userText: e.emoji,
+    botReply: e.answer.slice(0, 1500),
+    previousBotReply: e.answer.slice(0, 1500),
+    previousUserText: known.question,
+    kind,
+  });
+  return { accepted: true, reason: kind };
 }
 
