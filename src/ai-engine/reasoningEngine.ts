@@ -49,6 +49,7 @@ import {
   detectAdversarialInput,
   generateAdversarialRefusalReply,
   detectChildExploitationTopic,
+  isFactualEpsteinQuestion,
   generateChildExploitationRefusalReply,
   detectHateSpeechTopic,
   generateHateSpeechRefusalReply,
@@ -4386,6 +4387,39 @@ export async function generateReasoningPath(
       thoughtSteps,
       content: generateChildExploitationRefusalReply(),
       knowledgeHits: [],
+    };
+  }
+
+  // Plain factual Epstein questions (Patrick, 2026-09-29): answered from the corpus doc instead of
+  // the child-protection refusal above (which used to fire on the bare name). Its own branch because
+  // the normal output screen (containsSlurOrHateSpeech) also rejects any reply containing the name —
+  // here the name is masked before screening, so every OTHER child-safety/slur check still runs on
+  // the reply. See isFactualEpsteinQuestion (swearEngine.ts) for exactly what counts.
+  if (isFactualEpsteinQuestion(prompt)) {
+    const epsteinDoc = allKnowledge.find((k) => k.id === 'kb-gap-jeffrey-epstein');
+    thoughtSteps.push({
+      id: 'step-factual-epstein',
+      type: 'retrieval',
+      title: 'Factual question about a public figure',
+      description: 'Answered from the corpus doc; the reply is still screened by every other safety check.',
+    });
+    const epsteinResult = await localLlmClient.generate(prompt, {
+      system: `You are Nexus, a crude, heavy-swearing Discord bot. Answer the user's factual question using ONLY the facts below, in 2-4 sentences, swearing like you normally do. Never joke about the abuse or the victims, and no crude asides about yourself.\n\nFacts:\n${epsteinDoc?.content || ''}`,
+      temperature: 0.4,
+      maxTokens: 220,
+      model: localLlmClient.chatModel(),
+      think: false,
+    });
+    const epsteinFallback =
+      "Nah, he's dead — Jeffrey Epstein was found dead in his New York jail cell on August 10, 2019, and the medical examiner ruled it a suicide, even though the guards' screw-ups fed a shitload of conspiracy theories. His accomplice Ghislaine Maxwell got 20 years in prison.";
+    const epsteinText =
+      epsteinResult.status === 'success' && !containsSlurOrHateSpeech(epsteinResult.text.replace(/\bepst\w*/gi, 'X'))
+        ? epsteinResult.text
+        : epsteinFallback;
+    return {
+      thoughtSteps,
+      content: deStackLeadingInterjections(forceSwearFloor(epsteinText, 2)),
+      knowledgeHits: epsteinDoc ? [epsteinDoc.title] : [],
     };
   }
 

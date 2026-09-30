@@ -106,7 +106,7 @@ export const FINANCE_CONCEPTS_GAPS: KnowledgeItem[] = [
     createdAt: Date.now(),
   },
   {
-    id: 'kb-gap-fin-w2-1099',
+    id: 'kb-gap-fin-w2-1099-2',
     title: "W-2 vs 1099 (US tax forms)",
     category: 'Finance',
     keywords: [

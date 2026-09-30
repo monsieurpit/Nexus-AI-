@@ -32,7 +32,7 @@ export const POLITICS_IR_GAPS: KnowledgeItem[] = [
     createdAt: Date.now(),
   },
   {
-    id: 'kb-gap-de-jure-de-facto',
+    id: 'kb-gap-de-jure-de-facto-2',
     title: 'De Jure vs De Facto',
     category: 'Politics',
     keywords: [

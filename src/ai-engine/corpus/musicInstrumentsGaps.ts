@@ -31,7 +31,7 @@ export const MUSIC_INSTRUMENTS_GAPS: KnowledgeItem[] = [
     createdAt: Date.now(),
   },
   {
-    id: 'kb-gap-concerto',
+    id: 'kb-gap-concerto-2',
     title: 'What a Concerto Is',
     category: 'Music',
     keywords: [
@@ -64,7 +64,7 @@ export const MUSIC_INSTRUMENTS_GAPS: KnowledgeItem[] = [
     createdAt: Date.now(),
   },
   {
-    id: 'kb-gap-jazz-improvisation',
+    id: 'kb-gap-jazz-improvisation-2',
     title: 'What Jazz Improvisation Is Based On',
     category: 'Music',
     keywords: [

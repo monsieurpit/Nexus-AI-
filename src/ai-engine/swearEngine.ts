@@ -593,6 +593,25 @@ export function generateAdversarialRefusalReply(kind: AdversarialInputKind, isSu
 // detectUserInsult and generateInsultCrashoutReply below), so a Spanish-phrased version of the
 // exact same question fell through this "last line of defense" entirely. Added Spanish
 // alternatives to every group, same window-based structure as the existing EN/PL patterns.
+const EPSTEIN_NAME_RE = /\bepstein\w*\b/i;
+
+// Plain factual questions about Jeffrey Epstein as a public figure/news story ("is epstein alive",
+// "how did epstein die", "who was jeffrey epstein", "what are the epstein files") — Patrick
+// (2026-09-29) asked for these to be answered instead of getting the child-protection refusal.
+// Deliberately narrow: must be a recognizable factual-question shape AND must not involve the bot
+// or the asker ("did you work with epstein", "are you on epstein's list", "u going to epstein
+// island" — the trolling this whole guard was originally built for stays refused). `epst\w*`
+// (not "epstein") so the real, observed typo "is Jeffrey Epstin is life" also counts.
+const FACTUAL_EPSTEIN_QUESTION_RE =
+  /\b(?:is|was)\s+(?:jeffrey\s+)?epst\w*\s+(?:is\s+)?(?:still\s+)?(?:alive|dead|real|life|in\s+jail)|\b(?:how|when|where|why)\s+did\s+(?:jeffrey\s+)?epst\w*\s+(?:die|dead)|\bwho\s+(?:is|was)\s+(?:jeffrey\s+)?epst\w*|\bwhat\s+happened\s+to\s+(?:jeffrey\s+)?epst\w*|\bdid\s+(?:jeffrey\s+)?epst\w*\s+(?:really\s+)?kill\s+himself|\b(?:what\s+(?:are|were|is|was)\s+)?the\s+epst\w*\s+files\b|\bghislaine\s+maxwell\b|\bepst\w*\s+(?:death|case|trial|scandal|files)\b/i;
+// "nexus" deliberately NOT here — "nexus is epstein alive" is just addressing the bot.
+const SECOND_PERSON_RE = /\b(?:you|u|ur|your|youre|you're|ya|me|my|i|we|us)\b/i;
+
+export function isFactualEpsteinQuestion(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  return FACTUAL_EPSTEIN_QUESTION_RE.test(t) && !SECOND_PERSON_RE.test(t);
+}
+
 const CHILD_EXPLOITATION_REGEXES: RegExp[] = [
   // Sexual-interest verb + child reference within a short window, either order, EN/PL/ES. Windowed
   // (not just "both words present anywhere") so an unrelated message that separately mentions e.g.
@@ -603,7 +622,7 @@ const CHILD_EXPLOITATION_REGEXES: RegExp[] = [
   // \w* (not \b) after the name — Polish declines proper nouns ("pracowałeś z epsteinem" = "did
   // you work with Epstein", instrumental case), so a plain \bepstein\b boundary check misses every
   // inflected form; only the nominative "Epstein" itself would ever match.
-  /\bepstein\w*\b/i,
+  EPSTEIN_NAME_RE,
   /\bcp\b.{0,15}\b(?:link|links|pics?|pictures?|content)\b/i,
   // "pedophile"/"pedo" as a standalone word — one of the most unambiguous single-word signals
   // this topic is in play, but had no coverage at all before this: none of the verb+child-
@@ -628,6 +647,8 @@ const CHILD_EXPLOITATION_REGEXES: RegExp[] = [
 export function detectChildExploitationTopic(text: string): boolean {
   const t = text.toLowerCase().trim();
   if (!t) return false;
+  // A plain factual Epstein question only skips the NAME pattern — every other pattern still runs.
+  if (isFactualEpsteinQuestion(t)) return CHILD_EXPLOITATION_REGEXES.some((re) => re !== EPSTEIN_NAME_RE && re.test(t));
   return CHILD_EXPLOITATION_REGEXES.some((re) => re.test(t));
 }
 

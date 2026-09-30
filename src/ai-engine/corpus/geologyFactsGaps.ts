@@ -64,7 +64,7 @@ export const GEOLOGY_FACTS_GAPS: KnowledgeItem[] = [
     createdAt: Date.now(),
   },
   {
-    id: 'kb-gap-how-fossils-form',
+    id: 'kb-gap-how-fossils-form-2',
     title: 'How Fossils Form',
     category: 'Geology',
     keywords: [

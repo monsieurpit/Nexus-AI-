@@ -43,7 +43,7 @@ export const PSYCHOLOGY_FACTS_GAPS: KnowledgeItem[] = [
     createdAt: Date.now(),
   },
   {
-    id: 'kb-gap-fight-or-flight',
+    id: 'kb-gap-fight-or-flight-2',
     title: 'The Fight-or-Flight Response',
     category: 'Psychology',
     keywords: [

@@ -119,7 +119,7 @@ export const FIRST_AID_EMERGENCY_GAPS: KnowledgeItem[] = [
     createdAt: Date.now(),
   },
   {
-    id: 'kb-gap-broken-bone-first-aid',
+    id: 'kb-gap-broken-bone-first-aid-2',
     title: 'First Aid for a Suspected Broken Bone',
     category: 'First Aid',
     keywords: [

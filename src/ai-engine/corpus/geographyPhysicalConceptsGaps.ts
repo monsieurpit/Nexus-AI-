@@ -31,7 +31,7 @@ export const GEOGRAPHY_PHYSICAL_CONCEPTS_GAPS: KnowledgeItem[] = [
     createdAt: Date.now(),
   },
   {
-    id: 'kb-gap-geo-latitude-longitude',
+    id: 'kb-gap-geo-latitude-longitude-2',
     title: "Latitude vs Longitude",
     category: 'Geography',
     keywords: [

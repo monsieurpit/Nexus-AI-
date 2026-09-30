@@ -102,7 +102,7 @@ export const FOOD_SCIENCE_GAPS: KnowledgeItem[] = [
     createdAt: Date.now(),
   },
   {
-    id: 'kb-gap-smoke-point',
+    id: 'kb-gap-smoke-point-2',
     title: 'The Smoke Point of Oil',
     category: 'Food Science',
     keywords: [
