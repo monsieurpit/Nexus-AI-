@@ -27,7 +27,7 @@ import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDe
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
 import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase } from './rules/postProcess';
-import { buildSystemPrompt, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
+import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
 import * as localLlmClient from './localLlmClient';
 import {
   infuseSwearyHumanVoice,
@@ -3716,6 +3716,7 @@ async function llmSituationalReplyOrFallback(
   );
   const generateOptions = {
     system: systemPrompt,
+    userPreamble: buildMoodUserPreamble(suppressSwearing, usePolish, useFrench),
     // 0.75 is tuned for creative, varied English swearing/tangents, but the model is far less
     // stable in Polish/French (weaker secondary languages for it) at that temperature — observed
     // live, two separate real users got genuinely garbled Polish output ("Jak sieMaszc?", words
@@ -3975,6 +3976,7 @@ async function llmGroundedOrFallback(
   // see AISettings.showThinking (types.ts) for the measured reasons.
   const revealThinking = settings.showThinking !== false;
   const groundedSystemPrompt = await buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench, prompt);
+  const groundedMoodPreamble = buildMoodUserPreamble(suppressSwearing, usePolish, useFrench);
   // Starts here, before the FIRST generation pass — "no more than 1 minute per request" (Patrick's
   // own framing) means the whole grounded-answer flow, not just the self-review retries on top of
   // it, so the deadline has to cover pass 1 too, not just passes 2-3 below.
@@ -3982,6 +3984,7 @@ async function llmGroundedOrFallback(
   const generateOnce = (thinkThisPass: boolean = revealThinking) =>
     localLlmClient.generate(groundedPrompt, {
       system: groundedSystemPrompt,
+      userPreamble: groundedMoodPreamble,
       temperature: usedTemperature,
       maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + (thinkThisPass ? thinkingHeadroomFor(settings.reasoningMode) : 0),
       timeoutMs: Math.max(Math.min(groundedDeadline - Date.now() - 3000, 60000), 8000),
@@ -4101,6 +4104,7 @@ async function llmGroundedOrFallback(
       // Reuses the same systemPrompt computed for the first attempt above (same persona/settings/
       // language/prompt combo — retrieval would return identical examples, no need to re-run it).
       system: groundedSystemPrompt,
+      userPreamble: groundedMoodPreamble,
       temperature: usedTemperature,
       maxTokens: estimateResponseBudget(prompt, settings.reasoningMode) + (revealThinking ? thinkingHeadroomFor(settings.reasoningMode) : 0),
       timeoutMs: passTimeoutMs,

@@ -509,6 +509,12 @@ export interface OllamaGenerateOptions {
   // path (server.ts) only; every existing caller leaves this false/undefined and keeps the
   // language check exactly as before.
   skipLanguageCheck?: boolean;
+  // Per-request instructions that must be read with high priority but CHANGE between requests
+  // (today: the mood line). Sent at the start of the USER message instead of the system prompt so
+  // the long system prompt stays byte-identical across requests and Ollama can reuse its cached
+  // reading of it. Measured live (2026-09-29, nexus2:4b NVFP4): a changed first line forces a full
+  // ~2,800-token re-read (~2.5-4.5s); a changed user message only re-reads the message itself.
+  userPreamble?: string;
 }
 
 export type LocalLlmResult =
@@ -714,7 +720,7 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
   try {
     const messages = [
       ...(options.system ? [{ role: 'system', content: options.system }] : []),
-      { role: 'user', content: prompt },
+      { role: 'user', content: (options.userPreamble || '') + prompt },
     ];
     const model = await resolveModel(options.model || OLLAMA_MODEL);
 
@@ -983,7 +989,7 @@ export async function generateStream(
   try {
     const messages = [
       ...(options.system ? [{ role: 'system', content: options.system }] : []),
-      { role: 'user', content: prompt },
+      { role: 'user', content: (options.userPreamble || '') + prompt },
     ];
     const model = await resolveModel(options.model || OLLAMA_MODEL);
 

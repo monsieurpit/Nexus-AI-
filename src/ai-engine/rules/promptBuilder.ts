@@ -137,6 +137,17 @@ function buildFinalDirective(settings: AISettings, isCrashout: boolean, triggere
 // optional and retrieval is skipped entirely when it's empty (getSystemPromptCharCount's size-
 // budget test doesn't have a real user message to retrieve against, and doesn't need one — a
 // worst-case size estimate is what that test actually cares about, not real relevance).
+// The mood line that used to open the system prompt (see getMoodPrimacyPrefix's comment in
+// mood.ts for why it needs a high-priority slot at all). Mood changes between requests, and a
+// changed FIRST line means Ollama can't reuse any of its cached reading of the ~2,800-token system
+// prompt — measured live on 18% of real replies, each paying a full ~2.5-4.5s re-read. Callers now
+// pass this as generate()'s userPreamble instead: still read right before the actual message (the
+// strongest slot for a small model besides the very first line), without invalidating the cache.
+export function buildMoodUserPreamble(suppressSwearing: boolean, usePolish: boolean, useFrench: boolean): string {
+  if (suppressSwearing) return '';
+  return getMoodPrimacyPrefix(usePolish ? 'pl' : useFrench ? 'fr' : 'en');
+}
+
 export async function buildSystemPrompt(
   persona: ModelPersona,
   settings: AISettings,
@@ -148,13 +159,12 @@ export async function buildSystemPrompt(
   prompt: string = ''
 ): Promise<string> {
   if (suppressSwearing) return buildCleanDraftSystemPrompt(settings);
-  if (usePolish) return getMoodPrimacyPrefix('pl') + buildPolishSystemPrompt(isCrashout);
+  if (usePolish) return buildPolishSystemPrompt(isCrashout);
   const voiceExamplesBlock = prompt
     ? formatVoiceExamplesBlock(await retrieveVoiceExamples(prompt, 3))
     : '';
-  if (useFrench) return getMoodPrimacyPrefix('fr') + buildFrenchSystemPrompt(isCrashout, settings.reasoningMode) + voiceExamplesBlock;
+  if (useFrench) return buildFrenchSystemPrompt(isCrashout, settings.reasoningMode) + voiceExamplesBlock;
   return (
-    getMoodPrimacyPrefix('en') +
     persona.systemPrompt +
     buildLlmKnowledgeInstruction(settings.reasoningMode) +
     buildFinalDirective(settings, isCrashout, triggered, suppressSwearing) +
