@@ -493,6 +493,7 @@ async function runDeterministicChecks() {
     check('thread facts: social, AI, relationship, drink, place, device', /TikTok/.test(tf2) && /ChatGPT/.test(tf2) && /girlfriend/.test(tf2) && /monster/.test(tf2) && /school/.test(tf2) && /PS5/.test(tf2), tf2);
     check('thread facts: "work" and "kick" in normal sentences are not facts', threadFactsNote(['it doesnt work lol', 'kick him out']) === '');
     check('thread facts: no false positives on plain chat', threadFactsNote(['bro this is so funny lol', 'what do u think about the weather']) === '');
+    check('stray HTML tags are removed from replies', !/</.test(topUpForCap('did she react bad to the ai reply or somethin?</blockquote>.', DEFAULT_SETTINGS as any, true, 'she is mad at me lol')));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);

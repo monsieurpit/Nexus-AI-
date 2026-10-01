@@ -433,7 +433,9 @@ export function abbreviateChat(text: string): string {
 }
 
 export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
-  const out = topUpLlmSwearingCore(text, settings, isCrashout, userPrompt, suppressSwearing);
+  // Stray HTML the model sometimes leaks ("...or somethin?</blockquote>.") never belongs in a Discord message.
+  const noTags = text.replace(/<\/?(?:blockquote|p|br|b|i|u|em|strong|span|div|li|ul|ol|code|pre|h[1-6])\b[^>]*>/gi, ' ').replace(/[ \t]{2,}/g, ' ').replace(/\s+([.,!?])/g, '$1');
+  const out = topUpLlmSwearingCore(noTags, settings, isCrashout, userPrompt, suppressSwearing);
   return suppressSwearing ? out : abbreviateChat(out);
 }
 
