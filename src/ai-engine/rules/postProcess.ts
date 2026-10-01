@@ -387,6 +387,16 @@ export function stripContextLeaks(text: string, userPrompt?: string): string {
 // of right now, he HAS to"). Whole words only, case-insensitive, never inside quoted text or code, and
 // never in formal drafts. Longest phrases first.
 const ABBREVIATIONS: Array<[RegExp, string]> = [
+  [/\bwhat'?s up\b/gi, 'wsp'], [/\bwhat is up\b/gi, 'wsp'], [/\bi have no idea\b/gi, 'idk'], [/\bno idea\b/gi, 'idk'], [/\boh my gosh\b/gi, 'omg'],
+  [/\bto be fair\b/gi, 'tbf'], [/\bin my honest opinion\b/gi, 'imho'], [/\bif i remember correctly\b/gi, 'iirc'], [/\bjust kidding\b/gi, 'jk'],
+  [/\bjust saying\b/gi, 'js'], [/\bas soon as possible\b/gi, 'asap'], [/\balso known as\b/gi, 'aka'], [/\bwhat do you think\b/gi, 'wdyt'],
+  [/\bi don'?t even know\b/gi, 'idek'], [/\bi don'?t care\b/gi, 'idc'], [/\bgood luck\b/gi, 'gl'], [/\bhave fun\b/gi, 'hf'], [/\bgood game\b/gi, 'gg'],
+  [/\bwell played\b/gi, 'wp'], [/\bhappy birthday\b/gi, 'hbd'], [/\brest in peace\b/gi, 'rip'], [/\bshaking my head\b/gi, 'smh'],
+  [/\baway from keyboard\b/gi, 'afk'], [/\bdon'?t worry\b/gi, 'dw'], [/\bno worries\b/gi, 'nw'], [/\bno problem\b/gi, 'np'], [/\byou'?re welcome\b/gi, 'yw'],
+  [/\bthank you\b/gi, 'ty'], [/\bfor sure\b/gi, 'fs'], [/\byou all\b/gi, 'yall'], [/\by'?all\b/gi, 'yall'], [/\bgive me\b/gi, 'gimme'], [/\blet me\b/gi, 'lemme'],
+  [/\bcome on\b/gi, 'cmon'], [/\bshould have\b/gi, 'shoulda'], [/\bcould have\b/gi, 'coulda'], [/\bwould have\b/gi, 'woulda'], [/\bout of\b/gi, 'outta'],
+  [/\ba lot\b/gi, 'alot'], [/\babout to\b/gi, 'bout to'], [/\btrying to\b/gi, 'tryna'], [/\bi am\b/gi, 'im'], [/\bsomething\b/gi, 'smth'],
+  [/\breally\b/gi, 'rly'], [/\bespecially\b/gi, 'esp'], [/\bbefore\b/gi, 'b4'], [/\bit'?s\b/gi, 'its'], [/\bwith you\b/gi, 'w u'],
   [/\bright now\b/gi, 'rn'], [/\bto be honest\b/gi, 'tbh'], [/\bnot gonna lie\b/gi, 'ngl'], [/\bnot going to lie\b/gi, 'ngl'],
   [/\bfor real\b/gi, 'fr'], [/\bi do not know\b/gi, 'idk'], [/\bi don'?t know\b/gi, 'idk'], [/\bi know right\b/gi, 'ikr'],
   [/\bby the way\b/gi, 'btw'], [/\bin my opinion\b/gi, 'imo'], [/\bwhat are you doing\b/gi, 'wyd'], [/\bwhat are you up to\b/gi, 'wyd'],
