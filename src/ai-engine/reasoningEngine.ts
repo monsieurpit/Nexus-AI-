@@ -4535,6 +4535,14 @@ export function rewriteSelfReferences(prompt: string): string {
     .replace(/\bnexus\s+(is|was)\b(?=.{2,})/i, (m, v: string, offset: number) => (offset === 0 ? m : `you ${v === 'is' ? 'are' : 'were'}`));
 }
 
+// The last 3 exchanges with this person, both sides, oldest first ("Them:" / "You:"), or "".
+function chatThreadText(history: ChatMessage[], authorId: string | undefined): string {
+  return buildSpeakerAwareWindow(history, authorId)
+    .filter((m) => typeof m?.content === 'string' && m.content.trim())
+    .map((m) => `${m.role === 'assistant' ? 'You' : 'Them'}: ${m.content.slice(0, 260)}`)
+    .join('\n');
+}
+
 // The asker's own last messages (3-exchange window) -> a short "known from this chat" note, or "".
 function chatFactsNote(history: ChatMessage[], authorId: string | undefined, current: string): string {
   const mine = buildSpeakerAwareWindow(history, authorId)
@@ -4656,7 +4664,7 @@ export async function generateReasoningPath(
       .slice(0, 4);
     if (pcFacts.length > 0) {
       const pcText = await llmSituationalReplyOrFallback(
-        `The user asked: "${prompt}".\nUse ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n\nTeach them like a friend who is great with PCs. FORMAT EXACTLY: one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
+        `The user asked: "${prompt}".\n${chatThreadText(history, settings.discordUserId) ? `The chat so far (stay consistent with what You already said):\n${chatThreadText(history, settings.discordUserId)}\n\n` : ''}Use ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n\nTeach them like a friend who is great with PCs. FORMAT EXACTLY: one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
         persona,
         settings,
         isCrashout,
@@ -4668,6 +4676,40 @@ export async function generateReasoningPath(
         650
       );
       return { thoughtSteps, content: pcText, knowledgeHits: pcFacts.map((f) => f.title) };
+    }
+  }
+
+  // Any other PC-hardware question ("what CPU should I get for this", "can i use ddr4 with a 9800x3d", "is the
+  // 9700X good"): answered from the PC corpus WITH the last 3 exchanges, so he never contradicts what he said a
+  // minute ago (live 2026-10-01: he called the 9700X "mid", then recommended it; the user: "YOU JUST SAID THE 9700X
+  // WAS MID"). The corpus gets the final word on facts; earlier opinions in the chat must stay consistent.
+  if (
+    isCrashout &&
+    !looksFrench(prompt) &&
+    !looksPolish(prompt) &&
+    PC_TOPIC_RE.test(prompt) &&
+    !PC_BUILD_REQUEST_RE.test(prompt) &&
+    /\b(?:how|what|which|can|could|should|is|are|do|does|best|compatible|need|worth|why|when|will|would|explain|tell|good|better|recommend|pick|choose|get|buy)\b/i.test(prompt)
+  ) {
+    const threadText = chatThreadText(history, settings.discordUserId);
+    const pcFacts = findRelevantKnowledge(`${prompt} ${threadText.replace(/You:[^\n]*\n?/g, ' ')}`, 8)
+      .filter((f) => f.category === 'pc-building')
+      .slice(0, 3);
+    if (pcFacts.length > 0) {
+      const factsNote = chatFactsNote(history, settings.discordUserId, prompt);
+      const pcAnswer = await llmSituationalReplyOrFallback(
+        `The user just asked: "${prompt}".\n${threadText ? `The chat so far (oldest first):\n${threadText}\n\n` : ''}Correct PC facts (use them, they win over your guesses; current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1000)}`).join('\n')}\n${factsNote ? `${factsNote}\n` : ''}\nAnswer in 2-4 short sentences, casual slang and abbreviations, swearing is fine. Be accurate and specific (real part names and numbers from the facts). STAY CONSISTENT with everything you ("You:") already said in the chat above: never call a part bad right after recommending it or the reverse; if you really changed your mind, say so and why. If they gave parts or a plan, work with THEIR parts. Answer the actual question.`,
+        persona,
+        settings,
+        isCrashout,
+        thoughtSteps,
+        pcFacts[0].content.slice(0, 500),
+        '🖥️ PC answer (corpus-grounded, thread-aware)',
+        false,
+        undefined,
+        260
+      );
+      return { thoughtSteps, content: pcAnswer, knowledgeHits: pcFacts.map((f) => f.title) };
     }
   }
 
