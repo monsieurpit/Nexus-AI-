@@ -101,7 +101,7 @@ export function isStatusReply(text: string): boolean {
 // structured answer is exactly what was asked for (Patrick, 2026-10-01).
 export const PC_TOPIC_RE =
   /\b(?:pc|gaming pc|gpu|cpu|graphics card|video card|motherboard|mobo|psu|power supply|ssd|nvme|m\.2|ddr[345]|vram|ram|rtx ?\d{3,4}|gtx ?\d{3,4}|rx ?\d{4}|radeon|geforce|ryzen|threadripper|core ultra|intel core|i[3579]-\d{4,5}|am[45]|lga ?\d{4}|x3d|aio|cpu cooler|pc case|bios|expo|xmp|dlss|fsr|xess|hdmi|displayport|usb4|thunderbolt|ps[456]|ps5 pro|xbox series|xbox one|switch 2|steam deck|steam machine|rog ally|legion go|handheld pc|game console|macbook|mac mini|mac studio|gaming laptop|snapdragon x|nvidia|amd|intel arc|system requirements|specs? of|nas build|plex server|linux gaming|windows 11|wi-?fi [567]|ups battery|pc part|pc build|hardware)\b/i;
-export const PC_BUILD_REQUEST_RE = /\b(?:teach|guide|show|help|tell|walk)\s+me\b[^.?!]*\b(?:build|pc|computer|parts)\b|\bhow\s+(?:do\s+i|to|can\s+i|should\s+i)\s+build\b|\bparts?\s+list\b|\bbuild\s+me\b|\brecommend\b[^.?!]*\b(?:pc|build|parts|gpu|cpu|ram|motherboard|psu|cooler|case|ssd)\b|\bbest\s+parts\b|\bwhat\s+parts\b|\bpc\s+build\b|\bmoney\s+(?:is\s+)?no\s+object\b|\binfinite\s+(?:money|budget)\b|\bunlimited\s+(?:money|budget)\b|\bno\s+budget\b|\bdream\s+(?:pc|build)\b|\bbest\s+(?:gaming\s+)?pc\b|\bultimate\s+(?:gaming\s+)?(?:pc|build)\b/i;
+export const PC_BUILD_REQUEST_RE = /\b(?:teach|guide|show|help|tell|walk)\s+me\b[^.?!]*\b(?:build|pc|computer|parts)\b|\bhow\s+(?:do\s+i|to|can\s+i|should\s+i)\s+build\b|\bparts?\s+list\b|\bbuild\s+me\b|\brecommend\b[^.?!]*\b(?:pc|build|parts|gpu|cpu|ram|motherboard|psu|cooler|case|ssd)\b|\bbest\s+parts\b|\bwhat\s+parts\b|\bpc\s+build\b|\bmoney\s+(?:is\s+)?no\s+object\b|\binfinite\s+(?:money|budget)\b|\bunlimited\s+(?:money|budget)\b|\bno\s+budget\b|\bdream\s+(?:pc|build)\b|\bbest\s+(?:gaming\s+)?pc\b|\bultimate\s+(?:gaming\s+)?(?:pc|build)\b|\bbudget\b[^.?!]*\b(?:pc|build|rig|setup|gaming|fortnite|valorant|games?)\b|\b(?:pc|build|rig|setup|gaming|fortnite)\b[^.?!]*\bbudget\b/i;
 
 const BASIC_CHAT_RE = /^(?:(?:hey+|yo+|hi+|sup|ay+|ok(?:ay)?)[\s,]+)?(?:nexus[\s,]+)?(?:(?:are|r|is|do|did|does|have|can|will|you|u|wanna|want)\b|(?:what(?:'?s|\s+are|\s+r)|how(?:'?s|\s+are|\s+r))\s+(?:you|u)\b|wyd\b)/i;
 
@@ -441,27 +441,23 @@ export function abbreviateChat(text: string): string {
     .join('');
 }
 
-// Informational answers (PC advice) do not end with a made-up "what I'm doing right now" aside: drop up to two
-// sentences that are one ("im currently naked in my bed...", "rn im...", "btw i was...", "Anyway, ...").
-export function stripTrailingRant(text: string): string {
-  const RANT = /^\(?(?:btw|anyway|rn,? i'?m|rn,? im|i'?m currently|im currently|i am currently|tbh,? i'?m currently|tbh,? im currently|currently,? i'?m|while i)\b/i;
-  const sentences = splitSentencesSafe(text.trim());
-  const kept = sentences.filter((sent, idx) => idx === 0 || !RANT.test(sent.trim()));
-  return (kept.length ? kept : sentences).join(' ').trim();
-}
-
 // Puts each "1) ..." / "1. ..." step on its own line, drops a cut-off last line, keeps the abbreviations rule.
 export function formatPcLesson(text: string): string {
   let t = text.replace(/\r/g, '').replace(/\*\*/g, '').trim();
   t = t.replace(/\s*(?:^|(?<=[.!?:;)]))\s*(\d{1,2})[.)]\s+/g, (_m, n: string) => `\n${n}) `).replace(/^\n/, '');
   let lines = t.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-  // No random "what I'm doing right now" aside after a lesson, and never an "I don't know" opener
-  // (the facts were supplied): both read as the bot being confused.
-  lines = lines.filter((l) => !/^\(?(?:btw|anyway|i'?m currently|im currently|i am currently|rn i'?m|rn im)\b/i.test(l));
   if (lines.length) {
     const cleaned = lines[0].replace(/^(?:nah[,.]?\s*)?i\s*(?:do not|don'?t|dont)\s+(?:actually\s+)?know that one[^;.,]*[;.,]?\s*/i, '').replace(/^\s*cuz\s+/i, '').trim();
     if (cleaned) lines[0] = cleaned;
     else if (lines.length > 1 && /know that one/i.test(lines[0])) lines = lines.slice(1);
+  }
+  // A lesson never opens with a refusal ("nah i dont have parts to build for u"): cut that sentence out of the first
+  // line and drop the line if nothing real is left. The persona's "what I'm doing right now" asides stay (intentional).
+  if (lines.length) {
+    const REFUSAL = /\b(?:i\s*(?:do not|don'?t|dont)\s+have\s+(?:any\s+)?parts|i\s*(?:can'?t|cant|won'?t|wont)\s+(?:build|help)|not\s+gonna\s+build|ain'?t\s+(?:ur|your)\s+(?:builder|tutor))\b/i;
+    const kept = splitSentencesSafe(lines[0]).filter((x) => !REFUSAL.test(x));
+    if (kept.length) lines[0] = kept.join(' ');
+    else if (lines.length > 1) lines = lines.slice(1);
   }
   lines = lines.filter(Boolean);
   // A last line that stops mid-sentence (token budget) is dropped when there is enough before it.

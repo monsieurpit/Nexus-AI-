@@ -30,7 +30,7 @@ import { threadFactsNote } from './rules/threadFacts';
 import { findRelevantKnowledge } from './knowledgeBase';
 import { isBodyCountQuestion, countDistinctPartners } from './rules/bodyCount';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply } from './rules/quickChat';
-import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, stripTrailingRant, PC_TOPIC_RE, PC_BUILD_REQUEST_RE } from './rules/postProcess';
+import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, PC_TOPIC_RE, PC_BUILD_REQUEST_RE } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
 import * as localLlmClient from './localLlmClient';
@@ -4551,6 +4551,30 @@ function chatFactsNote(history: ChatMessage[], authorId: string | undefined, cur
   return threadFactsNote([...mine, current]);
 }
 
+// "$10k", "10k $", "10,000 dollars", "$1500", "2k budget" -> dollars (or null). The PC lesson plans around it.
+export function parseBudgetUsd(text: string): number | null {
+  const t = text.toLowerCase().replace(/,/g, '');
+  const m =
+    t.match(/\$\s?(\d+(?:\.\d+)?)\s?(k)?\b/) ||
+    t.match(/\b(\d+(?:\.\d+)?)\s?(k)?\s?(?:\$|usd|dollars?|bucks|cad)\b/) ||
+    t.match(/\b(\d+(?:\.\d+)?)\s?(k)\b/);
+  if (!m) return null;
+  const n = parseFloat(m[1]) * (m[2] ? 1000 : 1);
+  return Number.isFinite(n) && n >= 200 && n <= 200000 ? Math.round(n) : null;
+}
+
+function budgetGuidance(budget: number | null): string {
+  if (budget === null) return '';
+  const tier =
+    budget >= 8000 ? 'an EXTREME build: RTX 5090 32GB, Ryzen 9 9950X3D or 9800X3D, X870E board, 64-96GB DDR5-6400, Samsung 9100 Pro, 1200-1600W Platinum/Titanium PSU, 360-420mm AIO or custom loop, premium case and a 4K 240Hz OLED'
+    : budget >= 4500 ? 'a very high-end build: RTX 5090 or 5080, Ryzen 9 9950X3D/9800X3D, X870E, 32-64GB DDR5-6000+, 1000-1200W PSU, 360mm AIO, 4K OLED'
+    : budget >= 2800 ? 'a high-end build: RTX 5080 or 5070 Ti, Ryzen 7 9800X3D, B850/X870E, 32GB DDR5-6000 CL30, 1000W PSU, 360mm AIO'
+    : budget >= 1800 ? 'a mid-high build: RX 9070 XT or RTX 5070 Ti, Ryzen 7 7800X3D/9800X3D, B850, 32GB DDR5-6000 CL30, 850W PSU'
+    : budget >= 1100 ? 'a mid build: RX 9070 or RTX 5070, Ryzen 5 7600/9600X or 7700, B650/B850, 32GB (or 16GB) DDR5, 750W PSU'
+    : 'a budget build: RX 9060 XT 16GB or RTX 5060 Ti 16GB, Ryzen 5 7600, B650, 16-32GB DDR5, 650W PSU (or an AM4 build)';
+  return `THE USER'S BUDGET IS $${budget.toLocaleString('en-US')}: plan EXACTLY for it, that is ${tier}. Never recommend a cheaper tier than the budget allows unless you explain it is overkill, and say honestly if the budget is more than the use needs (e.g. Fortnite). `;
+}
+
 export async function generateReasoningPath(
   prompt: string,
   history: ChatMessage[],
@@ -4666,7 +4690,7 @@ export async function generateReasoningPath(
       .slice(0, 5);
     if (pcFacts.length > 0) {
       const pcText = await llmSituationalReplyOrFallback(
-        `The user asked: "${prompt}".\n${chatThreadText(history, settings.discordUserId) ? `The chat so far (stay consistent with what You already said):\n${chatThreadText(history, settings.discordUserId)}\n\n` : ''}Use ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n\nTeach them like a friend who is great with PCs. ${/\b(?:money\s+(?:is\s+)?no\s+object|infinite|unlimited|no\s+budget|dream|ultimate|best\s+(?:gaming\s+)?pc|parts?\s+list|recommend|best\s+parts)\b/i.test(prompt) ? 'FORMAT EXACTLY: one short intro line, then a PARTS LIST with ONE PART PER LINE written as "CPU: model (why)", "GPU: model (why)", "Motherboard: ...", "RAM: ...", "SSD: ...", "PSU: ...", "Cooler: ...", "Case: ...", "Monitor: ..." using the real model names from the facts (and say what the fit rule is, e.g. AM5 + DDR5), then one last line asking what they play and their resolution if they did not say. For a GAMING build you MUST name a real monitor line (never "N/A"): a high-refresh gaming monitor (144Hz+ with G-Sync/FreeSync, e.g. ASUS ROG Swift PG32UCDM 4K 240Hz QD-OLED); never a 60Hz or color-grading display like the Apple Pro Display XDR or a ProArt.' : ''}FORMAT EXACTLY (if no parts list was requested above): one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
+        `The user asked: "${prompt}".\n${budgetGuidance(parseBudgetUsd(`${prompt} ${chatThreadText(history, settings.discordUserId)}`))}Start straight with the answer: never say you cannot build, have no parts, or are busy; you ARE helping.\n${chatThreadText(history, settings.discordUserId) ? `The chat so far (stay consistent with what You already said):\n${chatThreadText(history, settings.discordUserId)}\n\n` : ''}Use ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n\nTeach them like a friend who is great with PCs. ${/\b(?:money\s+(?:is\s+)?no\s+object|infinite|unlimited|no\s+budget|dream|ultimate|best\s+(?:gaming\s+)?pc|parts?\s+list|recommend|best\s+parts)\b/i.test(prompt) ? 'FORMAT EXACTLY: one short intro line, then a PARTS LIST with ONE PART PER LINE written as "CPU: model (why)", "GPU: model (why)", "Motherboard: ...", "RAM: ...", "SSD: ...", "PSU: ...", "Cooler: ...", "Case: ...", "Monitor: ..." using the real model names from the facts (and say what the fit rule is, e.g. AM5 + DDR5), then one last line asking what they play and their resolution if they did not say. For a GAMING build you MUST name a real monitor line (never "N/A"): a high-refresh gaming monitor (144Hz+ with G-Sync/FreeSync, e.g. ASUS ROG Swift PG32UCDM 4K 240Hz QD-OLED); never a 60Hz or color-grading display like the Apple Pro Display XDR or a ProArt.' : ''}FORMAT EXACTLY (if no parts list was requested above): one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
         persona,
         settings,
         isCrashout,
@@ -4711,7 +4735,7 @@ export async function generateReasoningPath(
         undefined,
         260
       );
-      return { thoughtSteps, content: stripTrailingRant(pcAnswer), knowledgeHits: pcFacts.map((f) => f.title) };
+      return { thoughtSteps, content: pcAnswer, knowledgeHits: pcFacts.map((f) => f.title) };
     }
   }
 

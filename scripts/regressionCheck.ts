@@ -12,7 +12,7 @@
 //        bun run scripts/regressionCheck.ts --live-only   (skip the deterministic tier)
 //        bun run scripts/regressionCheck.ts --det-only    (skip live generation, fast/offline)
 
-import { generateReasoningPath, isCreatorOriginQuestion, rewriteSelfReferences, detectQueryIntent, buildSpeakerAwareWindow, classifyBotMetaQuestion, detectDoxRequest, isSlangGlossaryMisfire, detectOnlineCrisis } from '../src/ai-engine/reasoningEngine';
+import { parseBudgetUsd, generateReasoningPath, isCreatorOriginQuestion, rewriteSelfReferences, detectQueryIntent, buildSpeakerAwareWindow, classifyBotMetaQuestion, detectDoxRequest, isSlangGlossaryMisfire, detectOnlineCrisis } from '../src/ai-engine/reasoningEngine';
 import { getSystemPromptCharCount } from '../src/ai-engine/rules/promptBuilder';
 import { looksFrench, setGamingMode, getGamingMode, warmChatModel } from '../src/ai-engine/localLlmClient';
 import { __loadRealEmbeddingsForTests } from '../src/ai-engine/vectorSearch';
@@ -23,7 +23,7 @@ import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
 import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing, deStackLeadingInterjections } from '../src/ai-engine/swearEngine';
 import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
-import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, isBasicChatPrompt, oneLineChat, abbreviateChat, formatPcLesson, stripTrailingRant, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
+import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, isBasicChatPrompt, oneLineChat, abbreviateChat, formatPcLesson, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch, buildWikipediaQuery } from '../src/ai-engine/webSearchEngine';
 import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
@@ -502,11 +502,12 @@ async function runDeterministicChecks() {
     check('PC corpus: market entries are dated', PC_BUILDING_COMPLETE.filter((e) => /crisis|market|upcoming|prices/.test(e.id)).every((e) => /2026|Oct|Sept/.test(e.content)));
     const lesson = formatPcLesson('intro. 1) Pick a GPU. 2) Pick a CPU. 3) Pick RAM. 4) Pick a PSU. last tip, budget? cut off mid');
     check('PC lesson keeps numbered steps on their own lines', /\n2\) Pick a CPU\.\n3\) Pick RAM\./.test(lesson) && !/cut off mid/.test(lesson), lesson);
-    check('PC lesson drops the "i dont know that one" opener and the btw aside', !/know that one|btw/.test(formatPcLesson("nah i dont actually know that one cuz u gave no budget so heres a build;\n1) CPU.\n2) GPU.\n3) RAM.\n(btw im lying naked right now)")));
-    check('PC lesson drops a trailing "im currently..." rant and keeps psu intact', !/currently/.test(formatPcLesson('1) a.\n2) b.\n3) c.\nim currently naked in bed.')) && /psu/.test(formatPcLesson('1) a.\n2) get a 750w psu.\n3) c.')));
-    check('PC answers drop the "im currently naked..." aside but keep the real question', stripTrailingRant('the 9800x3d is the best. im currently naked in bed watching tv. what budget?') === 'the 9800x3d is the best. what budget?' && stripTrailingRant('the 9800x3d is the best. im currently naked in bed watching tv.') === 'the 9800x3d is the best.');
+    check('PC lesson drops the "i dont know that one" opener but keeps the persona aside', !/know that one/.test(formatPcLesson('nah i dont actually know that one cuz u gave no budget so heres a build;\n1) CPU.\n2) GPU.\n3) RAM.\n(btw im lying naked right now)')) && /naked/.test(formatPcLesson('1) a.\n2) b.\n3) c.\n(btw im lying naked right now)')));
+    check('PC lesson drops the refusal opener but keeps the naked-apartment aside', !/dont have parts/i.test(formatPcLesson('nah i dont have parts to build for u rn, fam.\n1) pick a gpu.\n2) pick a cpu.\n3) pick ram.\nim naked in my apartment rn.')) && /naked in my apartment/.test(formatPcLesson('nah i dont have parts to build for u rn, fam.\n1) pick a gpu.\n2) pick a cpu.\n3) pick ram.\nim naked in my apartment rn.')));
+    check('PC lesson keeps psu intact', /psu/.test(formatPcLesson('1) a.\n2) get a 750w psu.\n3) c.')));
     const gamingDream = PC_BEST_PARTS_BUILDS.find((e) => e.id === 'kb-pc-best-infinite-money-gaming')?.content || '';
     check('dream gaming build never recommends a 60Hz pro monitor', /PG32UCDM/.test(gamingDream) && !/Apple Pro Display XDR-class/.test(gamingDream) && /never a 60Hz/.test(gamingDream));
+    for (const [q, n] of [['fortnite with a 10k$ budget', 10000], ['i have $1500 for a pc', 1500], ['10,000 dollars budget', 10000], ['2k budget gaming pc', 2000], ['what is a gpu', null], ['i am 16 and play 3 games', null]] as const) check(`budget parse "${q}" = ${n}`, parseBudgetUsd(q) === n, String(parseBudgetUsd(q)));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);
