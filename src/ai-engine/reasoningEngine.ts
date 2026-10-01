@@ -2278,7 +2278,7 @@ export function buildSpeakerAwareWindow(history: ChatMessage[], currentAuthorId?
   // A slightly wider output window than the old flat 6 (now safe since it's filtered to the
   // current speaker's own thread) — a user's own conversation can span more than 3 exchanges even
   // when other people are also talking in the same channel between their turns.
-  return filtered.slice(-10);
+  return filtered.slice(-6);
 }
 
 function buildConversationMemory(query: string, history: ChatMessage[], currentAuthorId?: string): ConversationMemory {
