@@ -489,6 +489,10 @@ async function runDeterministicChecks() {
     check('thread facts: game, duo and playing together', /Fortnite/.test(tf) && /just the two of you/.test(tf) && /playing a game together/.test(tf), tf);
     check('thread facts: nothing known -> empty', threadFactsNote(['hello', 'how are you']) === '');
     check('thread facts: latest game wins', /Roblox/.test(threadFactsNote(['we play fortnite', 'actually lets do roblox'])) && !/Fortnite/.test(threadFactsNote(['we play fortnite', 'actually lets do roblox'])));
+    const tf2 = threadFactsNote(['im doomscrolling on tiktok', 'chatgpt told me something weird', 'my girlfriend is mad at me', 'im drinking a monster at school', 'playing on my ps5']);
+    check('thread facts: social, AI, relationship, drink, place, device', /TikTok/.test(tf2) && /ChatGPT/.test(tf2) && /girlfriend/.test(tf2) && /monster/.test(tf2) && /school/.test(tf2) && /PS5/.test(tf2), tf2);
+    check('thread facts: "work" and "kick" in normal sentences are not facts', threadFactsNote(['it doesnt work lol', 'kick him out']) === '');
+    check('thread facts: no false positives on plain chat', threadFactsNote(['bro this is so funny lol', 'what do u think about the weather']) === '');
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);
