@@ -371,7 +371,12 @@ export function stripContextLeaks(text: string, userPrompt?: string): string {
   if (!CONTEXT_LEAK_RE.test(text)) return text;
   const sentences = splitSentencesSafe(text, { splitOnNewline: true });
   const kept = sentences.filter((x) => !CONTEXT_LEAK_RE.test(x));
-  if (kept.length === 0) return CONTEXT_LEAK_DONT_KNOW;
+  // Casual chat ("wanna play ranked?", "yeah ig we will") has no fact to be unsure about: "i don't
+  // actually know that one, don't quote me" there reads as the bot being confused (Patrick,
+  // 2026-10-01). Keep what is left, or a tiny natural line when nothing is.
+  const casualChat = !!userPrompt && userPrompt.trim().split(/\s+/).length <= 14 && !FACTUAL_WORD_RE.test(userPrompt) && /\b(?:you|u|ur|we|i|i'm|im|me|my|lol|lmao|ig|tbh|bro|bruh|yeah|yep|nah|idk|ok|okay|wanna|lets|let's|fr)\b/i.test(userPrompt);
+  if (kept.length === 0) return casualChat ? 'wait what lol' : CONTEXT_LEAK_DONT_KNOW;
+  if (casualChat) return kept.join(' ');
   const rest = kept.join(' ');
   // What's left after the leak is often just the opening insult ("damn, you absolute bellend, i'm
   // pissed off enough already.") — no answer at all. Say "don't know" instead of ending on nothing.

@@ -476,6 +476,8 @@ async function runDeterministicChecks() {
     check('follow-up reply is cut to one short line', oneLineChat(longFollow).length <= 135 && !/kitchen/.test(oneLineChat(longFollow)), oneLineChat(longFollow));
     for (const [t, n] of [['if I goon to 1 girl, how many body counts do I have', 1], ['if I goon to 5 girl, and after I goon to the same girl, how many body count do I have', 5], ['if I goon to 5 different girls, and after I goon to the same girl again, what is my body count', 5], ['I hooked up with 2 girls and 3 other girls, body count?', 5], ['body count if I sleep with five different guys', 5]] as const) check(`body count "${t.slice(0, 40)}…" = ${n}`, isBodyCountQuestion(t) && countDistinctPartners(t) === n, String(countDistinctPartners(t)));
     check('no people quantity -> no computed answer', countDistinctPartners('what is a body count') === null);
+    check('casual chat never gets the "don\'t actually know that one" line', !/don't actually know/.test(stripContextLeaks('there is no context for that, what rank are you stuck at?', 'Yeah don’t worry. Wanna play ranked?')));
+    check('a factual question with a context leak still gets the honest "don\'t know"', /don't actually know/.test(stripContextLeaks('the context does not say.', 'who won the 1987 cup final')));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);

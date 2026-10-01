@@ -4633,7 +4633,7 @@ export async function generateReasoningPath(
       !classifyQuickChat(prompt);
     if (looksLikeFollowUp && lastBot) {
       const followText = await llmSituationalReplyOrFallback(
-        `Conversation so far:${prevUser ? `\nThem: "${prevUser.content.slice(0, 160)}"` : ''}\nYou: "${lastBot.content.slice(0, 220)}"\nThem: "${prompt}"\n\nNow reply as you, like a friend texting back: ONE short line (under 15 words) that directly responds to what THEY just said in the context of the conversation above — relate to it, laugh with them, agree, or ask one short natural follow-up question about it. Stay on the same topic. Do NOT insult them unless they insulted you, do NOT change the subject, do NOT start a story about yourself, ONE sentence only. If you didn't get what they meant, say so in a few words ("wait what?") instead of making something up. Casual slang (u, ur, rn, ngl, fr, lol).`,
+        `The user just said: "${prompt}".\nEarlier in this chat:${prevUser ? `\nThem: ${prevUser.content.slice(0, 160)}` : ''}\nYou: ${lastBot.content.slice(0, 220)}\n\nNow reply as you, like a friend texting back: ONE short line (under 15 words) that directly responds to what THEY just said given the chat above — relate to it, laugh with them, agree, or ask one short natural follow-up question about it. Stay on the same topic. Do NOT insult them unless they insulted you, do NOT change the subject, do NOT start a story about yourself, ONE sentence only. If you didn't get what they meant, say so in a few words ("wait what?") instead of making something up. Casual slang (u, ur, rn, ngl, fr, lol).`,
         persona,
         settings,
         isCrashout,
