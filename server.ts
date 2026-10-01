@@ -21,7 +21,6 @@ import { getMoodDisplay } from './src/ai-engine/rules/mood';
 import {
   checkAvailability as checkLocalLlmAvailability,
   warmChatModel,
-  startModelMemoryGuard,
   setGamingMode,
   getGamingMode,
   generate as generateLlmText,
@@ -2921,8 +2920,6 @@ async function startServer() {
     if ((process.env.NEXUS_WARM_ON_START || 'on').toLowerCase() !== 'off') {
       void warmChatModel().then((status) => console.log(`[model] warm-up on start: ${status}`));
     }
-    // While idle, reload the model if its memory grew too big (see reloadModelIfBloated in localLlmClient.ts).
-    startModelMemoryGuard();
     if (isLearningEnabled()) {
       try {
         openLearningStore();

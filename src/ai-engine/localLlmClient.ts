@@ -173,45 +173,6 @@ function keepAliveFor(model: string | undefined): string | number {
   return normalKeepAlive();
 }
 
-// ---- memory guard -------------------------------------------------------------------------------
-// With the model kept loaded forever, Ollama's MLX runner keeps growing: its prompt cache holds every
-// long prompt it has seen. Measured 2026-10-01: nexus2:4b went from 8.5 GB to 17 GB after an evening of
-// long PC-lesson prompts, the Mac was at 11 of 12 GB swap, and replies slowed from 3 s to 17-24 s.
-// So: while idle, if the chat model's reported size passes the limit, unload it and load it again fresh.
-const MODEL_BLOAT_LIMIT_BYTES = (Number(process.env.NEXUS_MODEL_MAX_GB) || 13) * 1e9;
-let memoryGuardTimer: ReturnType<typeof setInterval> | null = null;
-
-export async function reloadModelIfBloated(): Promise<'reloaded' | 'ok' | 'skipped'> {
-  if (!OLLAMA_BASE_URL || getGamingMode().active || isModelBusy() || warmInFlight) return 'skipped';
-  try {
-    const model = await resolveModel(OLLAMA_MODEL);
-    const ps = await fetch(`${OLLAMA_BASE_URL}/api/ps`, { signal: AbortSignal.timeout(3000) });
-    if (!ps.ok) return 'skipped';
-    const base = (n: string) => String(n || '').replace(/:latest$/, '');
-    const entry = (((await ps.json()) as any)?.models || []).find((m: any) => base(m.name) === base(model) || base(m.model) === base(model));
-    if (!entry || !(Number(entry.size) > MODEL_BLOAT_LIMIT_BYTES)) return 'ok';
-    // Re-check right before unloading: a message may have arrived while /api/ps was answering.
-    if (isModelBusy()) return 'skipped';
-    console.log(`[model] ${model} grew to ${(Number(entry.size) / 1e9).toFixed(1)} GB, reloading it fresh to free memory`);
-    await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(20_000),
-      body: JSON.stringify({ model, prompt: '', stream: false, keep_alive: 0 }),
-    }).catch(() => undefined);
-    await warmChatModel();
-    return 'reloaded';
-  } catch {
-    return 'skipped';
-  }
-}
-
-export function startModelMemoryGuard(): void {
-  if (memoryGuardTimer || process.env.NEXUS_MODEL_MEMORY_GUARD === 'off') return;
-  memoryGuardTimer = setInterval(() => void reloadModelIfBloated(), 3 * 60_000);
-  memoryGuardTimer.unref?.();
-}
-
 // ---- warm-up ------------------------------------------------------------------------------------
 // Loads the model without waiting for a message: the engine calls it on start (after a Mac or engine
 // restart nothing else would load it until the first message, which would then pay the cold load) and
