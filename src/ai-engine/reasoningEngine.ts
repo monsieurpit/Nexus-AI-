@@ -3936,7 +3936,7 @@ async function llmSituationalReplyOrFallback(
   // thinking (truncated) — that's the same budget-starvation failure, just leaving a 40-100 char
   // stub instead of nothing, which is what "it doesn't send the full answer" looked like.
   const needsNoThinkRetry =
-    (llmResult.status !== 'success' && (llmResult.reason === 'empty_response' || llmResult.reason === 'degenerate_output')) ||
+    (llmResult.status !== 'success' && (llmResult.reason === 'empty_response' || llmResult.reason === 'degenerate_output' || llmResult.reason === 'wrong_language')) ||
     (llmResult.status === 'success' && useThinking && llmResult.truncated === true);
   if (needsNoThinkRetry) {
     const retry = await localLlmClient.generate(llmPrompt, { ...generateOptions, think: false, maxTokens: casualContentBudget });
