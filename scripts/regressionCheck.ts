@@ -34,6 +34,7 @@ import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQui
 import { countDistinctPartners, isBodyCountQuestion } from '../src/ai-engine/rules/bodyCount';
 import { threadFactsNote } from '../src/ai-engine/rules/threadFacts';
 import { PC_BUILDING_COMPLETE } from '../src/ai-engine/corpus/pcBuildingComplete';
+import { PC_BEST_PARTS_BUILDS } from '../src/ai-engine/corpus/pcBestPartsBuilds';
 import { findRelevantKnowledge } from '../src/ai-engine/knowledgeBase';
 import { verifyAnswer } from '../src/ai-engine/answerVerifier';
 import { topUpLlmSwearing } from '../src/ai-engine/rules/postProcess';
@@ -504,6 +505,8 @@ async function runDeterministicChecks() {
     check('PC lesson drops the "i dont know that one" opener and the btw aside', !/know that one|btw/.test(formatPcLesson("nah i dont actually know that one cuz u gave no budget so heres a build;\n1) CPU.\n2) GPU.\n3) RAM.\n(btw im lying naked right now)")));
     check('PC lesson drops a trailing "im currently..." rant and keeps psu intact', !/currently/.test(formatPcLesson('1) a.\n2) b.\n3) c.\nim currently naked in bed.')) && /psu/.test(formatPcLesson('1) a.\n2) get a 750w psu.\n3) c.')));
     check('PC answers drop the "im currently naked..." aside but keep the real question', stripTrailingRant('the 9800x3d is the best. im currently naked in bed watching tv. what budget?') === 'the 9800x3d is the best. what budget?' && stripTrailingRant('the 9800x3d is the best. im currently naked in bed watching tv.') === 'the 9800x3d is the best.');
+    const gamingDream = PC_BEST_PARTS_BUILDS.find((e) => e.id === 'kb-pc-best-infinite-money-gaming')?.content || '';
+    check('dream gaming build never recommends a 60Hz pro monitor', /PG32UCDM/.test(gamingDream) && !/Apple Pro Display XDR-class/.test(gamingDream) && /never a 60Hz/.test(gamingDream));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);
