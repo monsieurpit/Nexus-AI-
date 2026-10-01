@@ -26,7 +26,7 @@ import {
 } from './store';
 import { keyFacts, sameKeyFacts } from './verify';
 
-export const MAX_PROMOTIONS_PER_DAY = 25;
+export const MAX_PROMOTIONS_PER_DAY = 50;
 export const RECHECK_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 // A fact whose confidence dropped (complaints it couldn't re-verify) stays stored but out of answers.

@@ -197,7 +197,7 @@ message "as" him — it goes to the review page like server lore.
 
 ### Limits
 
-- Max promotions per day, max candidates per person per day (stops floods/raids).
+- Max 50 promotions per day (`MAX_PROMOTIONS_PER_DAY`), max candidates per person per day (stops floods/raids). Learned facts are never deleted automatically; they are only deactivated (kept in the database) when a fact is reported wrong, rolled back, or removed on the review page.
 - Time-sensitive facts ("current", "latest", this-season stuff) get a re-check date and are
   re-verified or retired.
 - Learned facts rank below the hand-written corpus unless verified online.
