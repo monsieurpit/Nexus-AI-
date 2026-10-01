@@ -28,7 +28,7 @@ import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
 import { isBodyCountQuestion, countDistinctPartners } from './rules/bodyCount';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply } from './rules/quickChat';
-import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, FACTUAL_WORD_RE } from './rules/postProcess';
+import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
 import * as localLlmClient from './localLlmClient';
@@ -4619,11 +4619,12 @@ export async function generateReasoningPath(
     const words = prompt.trim().split(/\s+/).length;
     const looksLikeFollowUp =
       !!lastBot &&
-      lastBot.content.length <= 220 &&
       words >= 1 &&
       words <= 16 &&
       !/\?/.test(prompt) &&
-      !FACTUAL_WORD_RE.test(prompt) &&
+      // "why not" / "what" inside a reaction is chat; a real who/when/where/which/how-many question is not.
+      !/^(?:who|what|when|where|why|which|how)\b/i.test(prompt.trim()) &&
+      !/\b(?:who|when|where|which|how (?:to|do|does|did|many|much|long|old|far|tall|big))\b/i.test(prompt) &&
       !/^(?:say|write|tell|give|show|make|explain|list|translate|draw|search|google|look|find|calculate|solve|dox|ban|kick|mute)\b/i.test(prompt.trim()) &&
       !/\bcasseurt\b/i.test(prompt) &&
       !detectUserInsult(prompt) &&
