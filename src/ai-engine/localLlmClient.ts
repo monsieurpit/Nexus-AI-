@@ -139,16 +139,80 @@ export function chatModel(): string {
 // no longer applies — the base model stays warm for realistic chat gaps regardless of which
 // feature (chat or Nexus Code) requested it. The vision model is still rare enough to unload fast
 // rather than sit warm for a feature most replies never touch.
-// How long the chat model stays in RAM after its last use. 10m made about 1 message in 6 pay a
-// 10-30s cold load (a plain "yo" took 31s, measured 2026-09-30). 60m covers normal chat gaps while
-// still freeing the ~9 GB by itself when the Mac is needed for something else (Roblox, Chrome) —
-// "always" would keep it resident and push a 16 GB Mac into swap. Override with
-// NEXUS_MODEL_KEEP_ALIVE (e.g. "30m", "2h"); to free the RAM right now: `ollama stop nexus2:4b`.
-const CHAT_KEEP_ALIVE = /^\d+(?:s|m|h)$/.test(process.env.NEXUS_MODEL_KEEP_ALIVE || '') ? process.env.NEXUS_MODEL_KEEP_ALIVE! : '60m';
+// How long the chat model stays in RAM after its last use. The default is FOREVER (-1): a cold load
+// costs 10-30s and used to hit about 1 message in 6 (a plain "yo" took 31s, measured 2026-09-30),
+// and nobody in the server announces themselves before talking to Nexus, so there is no moment to
+// warm up for. The price is ~9 GB of a 16 GB Mac, so there is a "gaming mode": `pat unload` (see
+// ~/bin/pat and docs/model-memory.md) frees the memory on demand and, while it's on, any message that
+// still arrives is answered but the model is dropped again after 2 minutes. Gaming mode ends by
+// itself after a few hours (default 6) so the bot can't be left slow by accident, or with `pat load`.
+// NEXUS_MODEL_KEEP_ALIVE overrides the default ("forever", or e.g. "30m", "2h").
+const GAMING_KEEP_ALIVE = '2m';
+const MAX_GAMING_MINUTES = 12 * 60;
+let gamingModeUntil = 0;
 
-function keepAliveFor(model: string | undefined): string {
+function normalKeepAlive(): string | number {
+  const v = (process.env.NEXUS_MODEL_KEEP_ALIVE || '').trim().toLowerCase();
+  if (/^\d+(?:s|m|h)$/.test(v)) return v;
+  return -1;
+}
+
+export function setGamingMode(minutes: number | null): { active: boolean; until: number | null } {
+  gamingModeUntil = minutes && minutes > 0 ? Date.now() + Math.min(minutes, MAX_GAMING_MINUTES) * 60_000 : 0;
+  return getGamingMode();
+}
+
+export function getGamingMode(): { active: boolean; until: number | null } {
+  const active = Date.now() < gamingModeUntil;
+  return { active, until: active ? gamingModeUntil : null };
+}
+
+function keepAliveFor(model: string | undefined): string | number {
   if (model && model === OLLAMA_VISION_MODEL) return '90s';
-  return CHAT_KEEP_ALIVE;
+  if (getGamingMode().active) return GAMING_KEEP_ALIVE;
+  return normalKeepAlive();
+}
+
+// ---- warm-up ------------------------------------------------------------------------------------
+// Loads the model without waiting for a message: the engine calls it on start (after a Mac or engine
+// restart nothing else would load it until the first message, which would then pay the cold load) and
+// `pat load` calls it. Returns at once; the load runs in the background.
+export type WarmResult = 'already-loaded' | 'loading' | 'gaming-mode' | 'unavailable';
+let warmInFlight = false;
+
+export async function warmChatModel(): Promise<WarmResult> {
+  if (!OLLAMA_BASE_URL) return 'unavailable';
+  if (getGamingMode().active) return 'gaming-mode';
+  if (warmInFlight) return 'loading';
+  try {
+    const model = await resolveModel(OLLAMA_MODEL);
+    const ps = await fetch(`${OLLAMA_BASE_URL}/api/ps`, { signal: AbortSignal.timeout(3000) });
+    let alreadyLoaded = false;
+    if (ps.ok) {
+      const loaded: any[] = ((await ps.json()) as any)?.models || [];
+      const base = (n: string) => String(n || '').replace(/:latest$/, '');
+      alreadyLoaded = loaded.some((m) => base(m.name) === base(model) || base(m.model) === base(model));
+    }
+    // Even when it is already loaded, the empty request below renews keep_alive (a model loaded
+    // before a restart may still carry an old, shorter timer); it returns instantly in that case.
+    warmInFlight = true;
+    // An empty prompt loads the model without generating anything. num_ctx must match the real
+    // requests' (generate() below): Ollama reloads a model whose context size changed, which would
+    // throw the warm-up away.
+    void fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(180_000),
+      body: JSON.stringify({ model, prompt: '', stream: false, keep_alive: normalKeepAlive(), options: { num_ctx: OLLAMA_NUM_CTX } }),
+    })
+      .catch(() => undefined)
+      .finally(() => {
+        warmInFlight = false;
+      });
+    return alreadyLoaded ? 'already-loaded' : 'loading';
+  } catch {
+    return 'unavailable';
+  }
 }
 
 // Shared language-signal classifier — used both to decide which model handles a message

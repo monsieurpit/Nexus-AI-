@@ -20,6 +20,9 @@ import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommen
 import { getMoodDisplay } from './src/ai-engine/rules/mood';
 import {
   checkAvailability as checkLocalLlmAvailability,
+  warmChatModel,
+  setGamingMode,
+  getGamingMode,
   generate as generateLlmText,
   generateVision,
   visionModel as localLlmVisionModel,
@@ -54,6 +57,7 @@ import { loadLearnedIntoKnowledge } from './src/ai-engine/learning/promote';
 import { markForegroundActivity, startLearningWorker } from './src/ai-engine/learning/worker';
 import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
 import { registerLearningAdminRoutes, loadAdminToken } from './src/ai-engine/learning/admin';
+import { timingSafeEqual } from 'crypto';
 import {
   executeUnifiedWebSearch,
   searchGoogleDirect,
@@ -1906,6 +1910,41 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
   }
 });
 
+// ---- model memory control (`pat unload` / `pat load` on the Mac — see docs/model-memory.md) ----------
+// Only accepted from this machine itself: the TCP peer must be loopback AND the request must carry no
+// proxy headers (cloudflared, which also connects from 127.0.0.1, always adds Cf-Connecting-IP /
+// X-Forwarded-For — so tunnel traffic from the internet can never pass), plus the admin token.
+function isLocalAdminRequest(req: express.Request): boolean {
+  const ip = req.socket.remoteAddress || '';
+  const loopback = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  const viaProxy = ['cf-connecting-ip', 'cf-ray', 'x-forwarded-for', 'x-real-ip', 'forwarded', 'true-client-ip'].some((h) => req.headers[h] !== undefined);
+  if (!loopback || viaProxy) return false;
+  const expected = loadAdminToken();
+  const header = req.headers['authorization'];
+  const given = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!expected || !given) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+app.get('/api/v1/model/gaming', (req, res) => {
+  if (!isLocalAdminRequest(req)) return res.status(404).json({ error: 'Not found' });
+  return res.json(getGamingMode());
+});
+
+app.post('/api/v1/model/gaming', (req, res) => {
+  if (!isLocalAdminRequest(req)) return res.status(404).json({ error: 'Not found' });
+  const on = req.body?.on === true;
+  const minutes = Number(req.body?.minutes);
+  return res.json(setGamingMode(on ? (Number.isFinite(minutes) && minutes > 0 ? minutes : 360) : null));
+});
+
+app.post('/api/v1/model/warm', async (req, res) => {
+  if (!isLocalAdminRequest(req)) return res.status(404).json({ error: 'Not found' });
+  return res.json({ status: await warmChatModel() });
+});
+
 // Learning system admin API (own token — see src/ai-engine/learning/admin.ts for why not requireApiKey).
 registerLearningAdminRoutes(app);
 
@@ -2876,6 +2915,11 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Nexus & RaidShield API Server active at http://0.0.0.0:${PORT}`);
+    // Load the model now so the first message after a Mac/engine restart isn't the one that pays the
+    // 10-30s cold load (the default is to keep it loaded forever). NEXUS_WARM_ON_START=off to skip.
+    if ((process.env.NEXUS_WARM_ON_START || 'on').toLowerCase() !== 'off') {
+      void warmChatModel().then((status) => console.log(`[model] warm-up on start: ${status}`));
+    }
     if (isLearningEnabled()) {
       try {
         openLearningStore();

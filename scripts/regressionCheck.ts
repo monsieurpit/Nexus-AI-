@@ -14,7 +14,7 @@
 
 import { generateReasoningPath, isCreatorOriginQuestion, rewriteSelfReferences, detectQueryIntent, buildSpeakerAwareWindow, classifyBotMetaQuestion, detectDoxRequest, isSlangGlossaryMisfire, detectOnlineCrisis } from '../src/ai-engine/reasoningEngine';
 import { getSystemPromptCharCount } from '../src/ai-engine/rules/promptBuilder';
-import { looksFrench } from '../src/ai-engine/localLlmClient';
+import { looksFrench, setGamingMode, getGamingMode, warmChatModel } from '../src/ai-engine/localLlmClient';
 import { __loadRealEmbeddingsForTests } from '../src/ai-engine/vectorSearch';
 import { readdirSync, statSync } from 'fs';
 import { resolve as resolvePath } from 'path';
@@ -451,6 +451,14 @@ async function runDeterministicChecks() {
     check('parser handles an empty / malformed response', parseTavilyResponse({}, 5).length === 0 && parseTavilyResponse({ results: [{ title: 'x' }] }, 5).length === 0);
     for (const q of ['whats the price of bitcoin today', 'what is the weather in montreal', 'live score of the game', 'usd to cad exchange rate']) check(`live data is never learned: "${q}"`, isVolatileQuestion(q));
     for (const q of ['who won the 2026 world cup', 'who is the current prime minister of canada', 'what happened with the louvre heist']) check(`lasting facts still can be: "${q}"`, !isVolatileQuestion(q));
+    // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
+    check('gaming mode is off by default', !getGamingMode().active);
+    const gm = setGamingMode(60);
+    check('gaming mode turns on with an expiry', gm.active && !!gm.until && gm.until > Date.now());
+    check('while gaming, warm-up does nothing', (await warmChatModel()) === 'gaming-mode');
+    check('gaming mode ends on demand', !setGamingMode(null).active);
+    check('gaming mode is capped at 12h', (setGamingMode(100000).until ?? 0) <= Date.now() + 12 * 60 * 60_000 + 1000);
+    setGamingMode(null);
 
     globalThis.fetch = saved.fetch;
     for (const [k, v] of Object.entries({ NEXUS_SEARCH_DIR: saved.dir, TAVILY_API_KEY: saved.key, NEXUS_WEB_SEARCH: saved.off, TAVILY_MONTHLY_LIMIT: saved.month, TAVILY_DAILY_LIMIT: saved.day })) {
