@@ -103,7 +103,7 @@ const BASIC_CHAT_RE = /^(?:(?:hey+|yo+|hi+|sup|ay+|ok(?:ay)?)[\s,]+)?(?:nexus[\s
 // "you good?", thanks, status replies... They all get ONE short human line (server feedback,
 // 2026-09-30). Factual questions (who/when/where/why/which, "how to/many/much") never qualify.
 const CHAT_GREETING_ONLY_RE = /^(?:(?:hey+|yo+|hi+|hello|sup|wsg|wassup|wazzup|ay+|ok(?:ay)?|lol|lmao|bro|bruh|nexus)[\s,!?.]*)+$/i;
-const CHAT_PHRASE_RE = /\b(?:wyd|hru|hbu|wbu|wsg|wassup|wazzup|what'?s up|whats up|sup|how'?s it going|hows it going|how are (?:you|u)|how r u|how you doing|how u doing|what are (?:you|u) (?:doing|up to)|(?:you|u)(?: are|'?re| r)? (?:good|ok|okay|alive|there|awake|up|mad|real|serious|cool|funny|goated|the best|trash|dumb|stupid|annoying|nice|awesome)|thanks|thank you|thx|ty|good (?:morning|night|evening)|gn|gm|(?:i )?(?:love|miss) (?:you|u))\b/i;
+const CHAT_PHRASE_RE = /\b(?:wyd|hru|hbu|wbu|wsg|wassup|wazzup|what'?s up|whats up|sup|how'?s it going|hows it going|how are (?:you|u)|how r u|how you doing|how u doing|what are (?:you|u) (?:doing|up to)|(?:you|u)(?: are|'?re| r)? (?:good|ok|okay|alive|there|awake|up|mad|real|serious|cool|funny|goated|the best|trash|dumb|stupid|annoying|nice|awesome)|thanks|thank you|thx|ty|good (?:morning|night|evening)|gn|gm|(?:i )?(?:love|miss) (?:you|u)|(?:you|u|ur|your)(?: are|'?re| r| a|)\s+(?:a |an )?(?:weirdo|freak|creep|dork|nerd|loser|idiot|clown|goofy|lame|cringe|ugly|stupid|dumb|trash|mid|annoying|boring|cooked|bot))\b/i;
 const FACTUAL_WORD_RE = /\b(?:who|when|where|why|which|how (?:to|do|does|did|many|much|long|old|far|tall|big))\b/i;
 export function isBasicChatPrompt(text: string): boolean {
   const t = (text || '').trim();
@@ -201,8 +201,10 @@ function capRamblingReply(text: string, userPrompt: string): string {
   // Basic chat questions about Nexus himself ("are you gaming?", "you good?", "did you eat") get ONE
   // short slangy line ("nah, just chilling rn"), as the server asked (#feature-ideas, 2026-09-30).
   const isBasicChat = !wantsDepth && isBasicChatPrompt(userPrompt);
-  const MAX_SENTENCES = isBasicChat ? 1 : wantsDepth || COMPARISON_RE.test(userPrompt) ? 3 : 2;
-  const CHAR_CEILING = isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
+  // A short Casseurt mention ("casseurt", "fuck casseurt") is the persona's crashout bit: long on purpose.
+  const isCasseurtCrashout = !isBasicChat && promptWords <= 5 && /\bcasseurt\b/i.test(userPrompt) && !/\?/.test(userPrompt);
+  const MAX_SENTENCES = isCasseurtCrashout ? 7 : isBasicChat ? 1 : wantsDepth || COMPARISON_RE.test(userPrompt) ? 3 : 2;
+  const CHAR_CEILING = isCasseurtCrashout ? 900 : isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
   const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
   if (isBasicChat && kept.length === 1) {
     // A run-on glues extra thoughts on after ";" / "—": keep only the first.

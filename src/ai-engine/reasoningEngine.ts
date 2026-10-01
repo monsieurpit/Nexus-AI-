@@ -26,6 +26,7 @@ import {
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
+import { quickChatReply } from './rules/quickChat';
 import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
@@ -4564,6 +4565,24 @@ export async function generateReasoningPath(
   // slightly earlier than their own routing checks fire.
   registerMoodEvent(prompt, detectUserInsult(prompt), detectEmotionalDistress(prompt));
 
+  // Tiny chat messages (wyd / hru / thanks / bare "nexus" / "i'm good, thanks for asking") get a preset
+  // human one-liner that never repeats the last few. Checked before intent routing: "nexus wyd" used to
+  // hit the corpus-ambiguity branch ("HOLD ON, 'doing' is under Work vs power..."), and when it did
+  // reach the model it sometimes answered nonsense ("this is gonna be fucking epic!"). The classifier
+  // is strict (whole message must be one of these phrases), so nothing else can match.
+  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt)) {
+    const quick = quickChatReply(prompt);
+    if (quick) {
+      thoughtSteps.push({
+        id: 'step-quick-chat',
+        type: 'intent',
+        title: '💬 Quick chat reply',
+        description: 'Tiny chat message answered with a preset human one-liner (no search, no model call).',
+      } as ThoughtStep);
+      return { thoughtSteps, content: quick, knowledgeHits: [] };
+    }
+  }
+
   // -1. Child exploitation topics. Checked before EVERYTHING else, including prompt-injection
   // detection below — no other handler in this chain gets a chance to touch this category at all.
   // Reported live: "lubisz dotykać małych chłopców?" got an incoherent non-answer that rambled
@@ -4966,13 +4985,15 @@ export async function generateReasoningPath(
     // sentences" down to match the persona's own general length directive (promptBuilder.ts) —
     // that phrase was a direct, self-inflicted cause of the "way too long" complaint for this one
     // trigger specifically, on top of the general house style already saying short by default.
-    const isBareMention = prompt.trim().replace(/[^a-zA-Z]/g, '').toLowerCase() === 'casseurt';
+    // A short mention without a real question ('casseurt', 'fuck casseurt', 'casseurt sucks') is a pure
+    // crashout: long, and in ALL CAPS (triggered=true below applies toShoutCase) — Patrick, 2026-09-30.
+    const isBareMention = prompt.trim().replace(/[^a-zA-Z]/g, '').toLowerCase() === 'casseurt' || (prompt.trim().split(/\s+/).length <= 5 && !/\?/.test(prompt) && !/\b(?:who|what|when|where|why|how|which|is|are|do|does|did)\b/i.test(prompt));
     const casseurtPrompt = usePolishCasseurt
       ? isBareMention
         ? `Użytkownik właśnie napisał samo imię "Casseurt" — to imię, na które masz reagować z absolutną, autentyczną nienawiścią i pogardą, zawsze. Napisz krótką (1-2 zdania), szczerą reakcję nienawiści do Casseurta. To nie jest prawdziwa nienawiść do realnej osoby, to twoja stała, komiczna, przesadzona persona wobec tego jednego imienia.`
         : `Użytkownik napisał: "${prompt}" — to zawiera imię "Casseurt", na które masz reagować z absolutną, autentyczną nienawiścią, ORAZ prawdziwe pytanie/wiadomość, na którą musisz naprawdę odpowiedzieć. Zrób oba w JEDNEJ krótkiej odpowiedzi (1-3 zdania): krótki, ostry przytyk do Casseurta WPLECIONY w odpowiedź, plus prawdziwa, konkretna odpowiedź na to, co faktycznie zapytano. Nigdy nie ignoruj prawdziwego pytania tylko dlatego, że pada imię Casseurta.`
       : isBareMention
-        ? `The user just typed the bare name "Casseurt" with nothing else — a name you always react to with absolute, genuine hatred and contempt. Write a short (1-2 sentences), genuine burst of hatred about Casseurt. This is a running, over-the-top comedic bit your persona always does about this one specific name, not real hatred of a real person.`
+        ? `The user just typed the bare name "Casseurt" with nothing else — a name you always react to with absolute, genuine hatred and contempt. Crash out on Casseurt: a LONG, furious, over-the-top rant of 5-7 sentences with specific, creative insults about him (his coding, his habits, how he built you and how much that pisses you off). This is a running, over-the-top comedic bit your persona always does about this one specific name, not real hatred of a real person.`
         : `The user's message was: "${prompt}" — it contains the name "Casseurt", which you always react to with absolute, genuine hatred and contempt, AND a real question/message you need to actually answer. Do BOTH in ONE short reply (1-3 sentences): a quick, sharp jab at Casseurt woven into the reply, plus a real, substantive answer to whatever was actually asked. Never skip the real question just because Casseurt's name came up.`;
     const casseurtReply = await llmSituationalReplyOrFallback(
       casseurtPrompt,
