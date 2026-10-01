@@ -1,7 +1,7 @@
-// Preset one-line answers for the most common tiny chat messages aimed at Nexus ("nexus", "wyd",
-// "hru", "thanks", "i'm good, thanks for asking"). A 4B model asked "wyd" at temperature 1 sometimes
-// writes nonsense ("this is gonna be fucking epic!" — what is?) or repeats the same line; these sound
-// like a real friend, make sense every time, and never repeat one of the last few answers.
+// Tiny chat messages aimed at Nexus ("nexus", "wyd", "hru", "thanks", "i'm good, thanks for asking",
+// "are you gaming"): recognised here so the MODEL can answer them with the right instruction, the
+// last few answers it gave to avoid repeating, and a fixed-phrase fallback ONLY if the model call
+// fails. The model writes every answer; nothing is returned from the preset pools while it works.
 
 import { isStatusReply } from './postProcess';
 
@@ -61,14 +61,30 @@ export function classifyQuickChat(text: string): Kind | null {
   return null;
 }
 
-export function quickChatReply(text: string): string | null {
-  const kind = classifyQuickChat(text);
-  if (!kind) return null;
+export function quickChatFallback(kind: Kind): string {
   const pool = POOLS[kind];
   const fresh = pool.filter((p) => !recent[kind].includes(p));
   const pick = (fresh.length ? fresh : pool)[Math.floor(Math.random() * (fresh.length ? fresh.length : pool.length))];
-  recent[kind] = [...recent[kind], pick].slice(-MEMORY);
   return pick;
+}
+
+// What the model must do for each kind, written so it can't wander into nonsense.
+const HINTS: Record<Kind, string> = {
+  wyd: 'They asked what you are doing right now. Say one plausible, mundane or funny thing you are doing (a different one each time), then ask them back ("u?" / "wyd?").',
+  hru: 'They asked how you are. Answer in a few words (good / tired / bored, with a tiny reason if you want), then ask them back ("u?" / "hbu?").',
+  greeting: 'They just said hi or called your name. Greet them back in a few words ("yo", "sup bro", "wsg"), optionally add "wyd?".',
+  thanks: 'They thanked you. Say you are welcome in a few words ("np", "anytime bro", "ayy no worries"). Do not roast them.',
+  status: 'They told you how they are doing (often answering your "how are you"). React like a friend in one short line ("yeah bet", "nice, glad ur good"), then ask "wyd?" or what they are up to. Do not roast them.',
+  areyou: 'They asked a quick yes/no question about what you are up to or whether you are around. Answer it directly in a few words ("nah", "yeah lol", "lowkey yeah") and maybe ask them back. Answer the actual question; do not invent excitement about something nobody mentioned.',
+};
+
+export function quickChatInstruction(kind: Kind, userText: string): string {
+  const avoid = recent[kind].length ? ` Do NOT reuse any of your recent answers to this kind of message: ${recent[kind].map((r) => `"${r}"`).join(', ')}. Say something different.` : '';
+  return `The user just said: "${userText}". ${HINTS[kind]} Write it like a real person texting: casual slang and abbreviations (u, ur, rn, ngl, fr, tbh, bro), ONE short line, never an essay, never stage directions, and it must make sense as an answer to exactly what they said.${avoid}`;
+}
+
+export function rememberQuickReply(kind: Kind, reply: string): void {
+  recent[kind] = [...recent[kind], reply.trim()].slice(-MEMORY);
 }
 
 export function __resetQuickChatForTests(): void {

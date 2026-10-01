@@ -26,7 +26,7 @@ import {
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
-import { quickChatReply } from './rules/quickChat';
+import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply } from './rules/quickChat';
 import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
@@ -4565,21 +4565,27 @@ export async function generateReasoningPath(
   // slightly earlier than their own routing checks fire.
   registerMoodEvent(prompt, detectUserInsult(prompt), detectEmotionalDistress(prompt));
 
-  // Tiny chat messages (wyd / hru / thanks / bare "nexus" / "i'm good, thanks for asking") get a preset
-  // human one-liner that never repeats the last few. Checked before intent routing: "nexus wyd" used to
-  // hit the corpus-ambiguity branch ("HOLD ON, 'doing' is under Work vs power..."), and when it did
-  // reach the model it sometimes answered nonsense ("this is gonna be fucking epic!"). The classifier
-  // is strict (whole message must be one of these phrases), so nothing else can match.
+  // Tiny chat messages (wyd / hru / thanks / bare "nexus" / "i'm good, thanks for asking" / "are you
+  // gaming"): the MODEL answers them, with a precise instruction and a list of its own recent answers
+  // to avoid repeating. Checked before intent routing because "nexus wyd" used to hit the corpus
+  // ambiguity branch ("HOLD ON, 'doing' is under Work vs power..."), and a vague instruction made the
+  // model answer nonsense ("this is gonna be fucking epic!"). Fixed phrases are only the fallback if
+  // the model call fails. The classifier is strict (the whole message must be one of these phrases).
   if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt)) {
-    const quick = quickChatReply(prompt);
-    if (quick) {
-      thoughtSteps.push({
-        id: 'step-quick-chat',
-        type: 'intent',
-        title: '💬 Quick chat reply',
-        description: 'Tiny chat message answered with a preset human one-liner (no search, no model call).',
-      } as ThoughtStep);
-      return { thoughtSteps, content: quick, knowledgeHits: [] };
+    const quickKind = classifyQuickChat(prompt);
+    if (quickKind) {
+      const quickText = await llmSituationalReplyOrFallback(
+        quickChatInstruction(quickKind, prompt),
+        persona,
+        settings,
+        isCrashout,
+        thoughtSteps,
+        quickChatFallback(quickKind),
+        '💬 Quick chat reply (model)',
+        false
+      );
+      rememberQuickReply(quickKind, quickText);
+      return { thoughtSteps, content: quickText, knowledgeHits: [] };
     }
   }
 

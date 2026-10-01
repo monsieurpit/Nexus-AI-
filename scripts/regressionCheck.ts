@@ -30,7 +30,7 @@ import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
 import { parseTavilyResponse, searchTavilyDirect, reserveSearchRequest, getSearchStatus, isTrustedDomain, isLiveSearchAvailable, __resetSearchForTests } from '../src/ai-engine/tavilySearch';
 import { isVolatileQuestion } from '../src/ai-engine/learning/capture';
 import { splitSentencesSafe } from '../src/ai-engine/sentences';
-import { classifyQuickChat, quickChatReply, __resetQuickChatForTests } from '../src/ai-engine/rules/quickChat';
+import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply, __resetQuickChatForTests } from '../src/ai-engine/rules/quickChat';
 import { verifyAnswer } from '../src/ai-engine/answerVerifier';
 import { topUpLlmSwearing } from '../src/ai-engine/rules/postProcess';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
@@ -465,9 +465,10 @@ async function runDeterministicChecks() {
     for (const [t, k] of [['nexus', 'greeting'], ['yo nexus', 'greeting'], ['nexus, wyd', 'wyd'], ['wyd nexus', 'wyd'], ['nexus what are you doing', 'wyd'], ['hru nexus', 'hru'], ['nexus you good?', 'hru'], ['yo nexus are you gaming', 'areyou'], ['nexus are you home', 'areyou'], ['thanks nexus', 'thanks'], ["I'm good nexus, thanks for asking", 'status']] as const) check(`quick chat "${t}" -> ${k}`, classifyQuickChat(t) === k, String(classifyQuickChat(t)));
     for (const t of ['nexus who is lamine yamal', 'nexus are you gay', 'what does wyd mean', 'nexus explain how wifi works', 'thanks for the info on the louvre heist']) check(`not quick chat: "${t}"`, classifyQuickChat(t) === null);
     __resetQuickChatForTests();
-    const seenQuick: string[] = [];
-    for (let i = 0; i < 6; i++) seenQuick.push(quickChatReply('nexus wyd') as string);
-    check('quick chat never repeats within the last 6', new Set(seenQuick).size === 6, seenQuick.join(' | '));
+    check('quick chat instruction has no avoid-list at first', !/Do NOT reuse/.test(quickChatInstruction('wyd', 'nexus wyd')));
+    rememberQuickReply('wyd', 'eating rn, u?');
+    check('quick chat instruction tells the model its recent answers to avoid', /Do NOT reuse[^]*eating rn, u\?/.test(quickChatInstruction('wyd', 'nexus wyd')));
+    check('fixed phrases exist only as a fallback', typeof quickChatFallback('wyd') === 'string' && quickChatFallback('wyd').length > 0);
     check('insult at Nexus is a basic chat line', isBasicChatPrompt('nexus your a weirdo') && isBasicChatPrompt("you're a freak"));
     check('Casseurt crashout is not capped to one line', topUpForCap('A LONG RANT. ' .repeat(6).trim().toLowerCase(), DEFAULT_SETTINGS as any, true, 'casseurt').split(/[.!?]/).filter((x: string) => x.trim()).length >= 5);
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
