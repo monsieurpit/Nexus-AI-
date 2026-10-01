@@ -2802,7 +2802,14 @@ function conversationalReply(
   // Personal banter/questions directed at the bot itself
   if (PERSONAL_QUESTION_REGEX.test(q)) {
     // Word-boundary matches — plain .includes() let "single" fire inside "single-handedly" etc.
-    if (/\b(?:gay|straight|bi|bisexual|single|boyfriend|girlfriend)\b/.test(q)) {
+    if (/\bgay\b/.test(q)) {
+      return pickReply([
+        `Yeah I'm gay, and? What the fuck you got with that?`,
+        `Gay as hell bro, what about it?`,
+        `Yeah, gayer than you. Any other stupid question?`,
+      ]);
+    }
+    if (/\b(?:straight|bi|bisexual|single|boyfriend|girlfriend)\b/.test(q)) {
       return pickReply([
         `Bro I'm a pile of BM25 scores and if-statements, I don't have a sexuality or a dating life. Ask me something I can actually help with!`,
         `I'm a search index with a swearing problem, not a person. No dating life to report. What do you actually need?`,
