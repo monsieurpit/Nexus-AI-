@@ -7,7 +7,7 @@
 // topUpLlmSwearing's own body): list-flatten -> de-stack interjections -> swear substitution ->
 // swear floor -> chaotic overshare -> (caller applies toShoutCase last, if triggered).
 
-import { looksFrench } from '../localLlmClient';
+import { looksFrench, looksPolish } from '../localLlmClient';
 import { splitSentencesSafe } from '../sentences';
 import {
   enhanceNaturalSwearPhrasing,
@@ -383,7 +383,35 @@ export function stripContextLeaks(text: string, userPrompt?: string): string {
   return rest.length < 80 ? `${rest} ${CONTEXT_LEAK_DONT_KNOW}` : rest;
 }
 
+// Chat abbreviations are mandatory (Patrick, 2026-10-01: "if he can use an abbreviation like rn instead
+// of right now, he HAS to"). Whole words only, case-insensitive, never inside quoted text or code, and
+// never in formal drafts. Longest phrases first.
+const ABBREVIATIONS: Array<[RegExp, string]> = [
+  [/\bright now\b/gi, 'rn'], [/\bto be honest\b/gi, 'tbh'], [/\bnot gonna lie\b/gi, 'ngl'], [/\bnot going to lie\b/gi, 'ngl'],
+  [/\bfor real\b/gi, 'fr'], [/\bi do not know\b/gi, 'idk'], [/\bi don'?t know\b/gi, 'idk'], [/\bi know right\b/gi, 'ikr'],
+  [/\bby the way\b/gi, 'btw'], [/\bin my opinion\b/gi, 'imo'], [/\bwhat are you doing\b/gi, 'wyd'], [/\bwhat are you up to\b/gi, 'wyd'],
+  [/\bhow are you\b/gi, 'hru'], [/\boh my god\b/gi, 'omg'], [/\bas far as i know\b/gi, 'afaik'], [/\blaughing my ass off\b/gi, 'lmao'],
+  [/\bfor what it'?s worth\b/gi, 'fwiw'], [/\bi guess\b/gi, 'ig'], [/\bsee you later\b/gi, 'cya'], [/\btalk to you later\b/gi, 'ttyl'],
+  [/\bbecause\b/gi, 'cuz'], [/\bthough\b/gi, 'tho'], [/\bpeople\b/gi, 'ppl'], [/\bplease\b/gi, 'pls'], [/\bthanks\b/gi, 'thx'],
+  [/\bokay\b/gi, 'ok'], [/\bgoing to\b/gi, 'gonna'], [/\bwant to\b/gi, 'wanna'], [/\bgot to\b/gi, 'gotta'], [/\bkind of\b/gi, 'kinda'],
+  [/\bsort of\b/gi, 'sorta'], [/\bwhat about you\b/gi, 'wbu'], [/\bhow about you\b/gi, 'hbu'], [/\band you\b/gi, 'and u'],
+  [/\byou're\b/gi, 'ur'], [/\byou’re\b/gi, 'ur'], [/\byour\b/gi, 'ur'], [/\byou\b/gi, 'u'],
+];
+export function abbreviateChat(text: string): string {
+  if (!text || /```/.test(text) || looksFrench(text) || looksPolish(text)) return text;
+  // Quoted text (song titles, quotes) is left exactly as written.
+  return text
+    .split(/("[^"]*"|“[^”]*”)/)
+    .map((part, i) => (i % 2 === 1 ? part : ABBREVIATIONS.reduce((acc, [re, to]) => acc.replace(re, to), part)))
+    .join('');
+}
+
 export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
+  const out = topUpLlmSwearingCore(text, settings, isCrashout, userPrompt, suppressSwearing);
+  return suppressSwearing ? out : abbreviateChat(out);
+}
+
+function topUpLlmSwearingCore(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
   // gemma sometimes spells the creator's nickname "cassseurt" (triple s) — seen 2/18 live samples.
   text = text.replace(/\b([Cc])as{3,}eurt/g, '$1asseurt');
   text = stripLearningMentions(text);

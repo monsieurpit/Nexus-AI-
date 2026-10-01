@@ -23,7 +23,7 @@ import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
 import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing, deStackLeadingInterjections } from '../src/ai-engine/swearEngine';
 import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
-import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, isBasicChatPrompt, oneLineChat, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
+import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, isBasicChatPrompt, oneLineChat, abbreviateChat, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch, buildWikipediaQuery } from '../src/ai-engine/webSearchEngine';
 import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
@@ -463,7 +463,7 @@ async function runDeterministicChecks() {
     for (const t of ['nexus', 'yo nexus', 'wyd', 'hru nexus', 'nexus wyd bro', 'whats up nexus', 'you good?', 'thanks nexus', 'good morning nexus', 'nexus are you real']) check(`basic chat: "${t}"`, isBasicChatPrompt(t));
     for (const t of ['who is lamine yamal', 'what is photosynthesis', 'when is the next barca match', 'how many goals did messi score', 'explain how wifi works', 'why is the sky blue']) check(`not basic chat: "${t}"`, !isBasicChatPrompt(t));
     check('one-line chat answer loses the stapled filler', topUpForCap('goddamn, yep fr, hell, wyd rn?', DEFAULT_SETTINGS as any, true, 'hru nexus') === 'yep fr, wyd rn?', topUpForCap('goddamn, yep fr, hell, wyd rn?', DEFAULT_SETTINGS as any, true, 'hru nexus'));
-    for (const [t, k] of [['nexus', 'greeting'], ['yo nexus', 'greeting'], ['nexus, wyd', 'wyd'], ['wyd nexus', 'wyd'], ['nexus what are you doing', 'wyd'], ['hru nexus', 'hru'], ['nexus you good?', 'hru'], ['yo nexus are you gaming', 'areyou'], ['nexus are you home', 'areyou'], ['yo boiiii wassup', 'greeting'], ['ah', 'reaction'], ['lol', 'reaction'], ['Ok bro', 'reaction'], ['nexus damn', 'reaction'], ['thanks nexus', 'thanks'], ["I'm good nexus, thanks for asking", 'status']] as const) check(`quick chat "${t}" -> ${k}`, classifyQuickChat(t) === k, String(classifyQuickChat(t)));
+    for (const [t, k] of [['nexus', 'greeting'], ['yo nexus', 'greeting'], ['nexus, wyd', 'wyd'], ['nexus what are you doing right now because i am bored', 'wyd'], ['wyd rn', 'wyd'], ['wyd nexus', 'wyd'], ['nexus what are you doing', 'wyd'], ['hru nexus', 'hru'], ['nexus you good?', 'hru'], ['yo nexus are you gaming', 'areyou'], ['nexus are you home', 'areyou'], ['nexus wanna play ranked?', 'invite'], ['lets go vc nexus', 'invite'], ['yo boiiii wassup', 'greeting'], ['ah', 'reaction'], ['lol', 'reaction'], ['Ok bro', 'reaction'], ['nexus damn', 'reaction'], ['thanks nexus', 'thanks'], ["I'm good nexus, thanks for asking", 'status']] as const) check(`quick chat "${t}" -> ${k}`, classifyQuickChat(t) === k, String(classifyQuickChat(t)));
     for (const t of ['nexus who is lamine yamal', 'nexus are you gay', 'what does wyd mean', 'nexus explain how wifi works', 'thanks for the info on the louvre heist']) check(`not quick chat: "${t}"`, classifyQuickChat(t) === null);
     __resetQuickChatForTests();
     check('quick chat instruction has no avoid-list at first', !/Do NOT reuse/.test(quickChatInstruction('wyd', 'nexus wyd')));
@@ -479,6 +479,8 @@ async function runDeterministicChecks() {
     check('casual chat never gets the "don\'t actually know that one" line', !/don't actually know/.test(stripContextLeaks('there is no context for that, what rank are you stuck at?', 'Yeah don’t worry. Wanna play ranked?')));
     check('a factual question with a context leak still gets the honest "don\'t know"', /don't actually know/.test(stripContextLeaks('the context does not say.', 'who won the 1987 cup final')));
     check('casual invitation is basic chat', isBasicChatPrompt('nexus wanna play ranked?') && isBasicChatPrompt('lets go vc nexus'));
+    check('right now -> rn, you -> u, because -> cuz', abbreviateChat('i am eating right now because you asked, to be honest') === 'i am eating rn cuz u asked, tbh');
+    check('abbreviations never touch quoted text', abbreviateChat('the song "Hey You" is right now on') === 'the song "Hey You" is rn on');
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);

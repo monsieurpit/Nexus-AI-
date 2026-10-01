@@ -5,7 +5,7 @@
 
 import { isStatusReply, isReactionPrompt } from './postProcess';
 
-type Kind = 'wyd' | 'hru' | 'greeting' | 'thanks' | 'status' | 'areyou' | 'reaction';
+type Kind = 'wyd' | 'hru' | 'greeting' | 'thanks' | 'status' | 'areyou' | 'reaction' | 'invite';
 
 const POOLS: Record<Kind, string[]> = {
   wyd: [
@@ -34,18 +34,19 @@ const POOLS: Record<Kind, string[]> = {
     'ngl yeah', 'nope, wbu?',
   ],
   reaction: ['lol', 'fr', 'ikr', 'yeah', 'right?', 'fair', 'mood', 'bet'],
+  invite: ['bet', 'down', 'lets go', 'maybe later'],
   status: [
     'yeah bet, wyd?', 'ayy nice, wyd rn?', 'glad ur good bro, wyd?', 'nice, wyd?', 'ayy good, u doing anything?',
     'bet, wyd bro?', 'fr nice, what u up to?', 'good shit, wyd rn?', 'aight bet, wyd?', 'nice nice, wyd?',
   ],
 };
 
-const recent: Record<Kind, string[]> = { wyd: [], hru: [], greeting: [], thanks: [], status: [], areyou: [], reaction: [] };
+const recent: Record<Kind, string[]> = { wyd: [], hru: [], greeting: [], thanks: [], status: [], areyou: [], reaction: [], invite: [] };
 const MEMORY = 6;
 
 export function classifyQuickChat(text: string): Kind | null {
   const t = (text || '').trim().toLowerCase().replace(/[!?.,]+$/g, '');
-  if (!t || t.split(/\s+/).length > 8) return null;
+  if (!t || t.split(/\s+/).length > 12) return null;
   if (isReactionPrompt(text)) return 'reaction';
   // Strip the name / greetings so "nexus wyd", "yo nexus hru" and "wyd nexus" reduce to the question.
   const core = t
@@ -55,10 +56,11 @@ export function classifyQuickChat(text: string): Kind | null {
     .replace(/\s+/g, ' ')
     .trim();
   if (core === '' || /^(?:sup|wsg|wassup|wazzup|what'?s up|whats up|hey+|yo+|hi+|hello|ay+)$/.test(core)) return 'greeting';
-  if (/^(?:wyd|what (?:are )?(?:you|u) (?:doing|up to)|what u doing|what you doing|wyd rn|wyd now|what are you up to rn)$/.test(core)) return 'wyd';
+  if (/^(?:wyd|what (?:are )?(?:you|u) (?:doing|up to)|what u doing|what you doing)\b(?:\s+(?:rn|now|right now|today|tonight|later|this weekend|bored|rn bored))?(?:\s+(?:because|cuz|bc|cause|since|i'?m|im|i am)\b.*)?$/.test(core)) return 'wyd';
   if (/^(?:hru|how are (?:you|u)|how r u|how (?:you|u) doing|how'?s it going|hows it going|how have you been|(?:you|u) good|(?:you|u) ok|(?:you|u) alright)$/.test(core)) return 'hru';
   if (/^(?:thanks|thank you|thx|ty|thanks a lot|thank you so much|thanks so much|appreciate it|ty bro|tysm)$/.test(core)) return 'thanks';
   if (/^(?:are|r) (?:you|u) (?:gaming|playing|sleeping|sleepy|eating|home|awake|busy|bored|there|here|online|alive|tired|working|watching|hungry|mad|sad|ok|okay|up|live|streaming|coding|studying|chilling|ready|at home|in bed|on discord|on your phone)$/.test(core)) return 'areyou';
+  if (/\b(?:wanna|want to|lets|let's|can we|should we|we should|down to|u down|you down)\b[^?!.]{0,25}\b(?:play|go|hop|jump|watch|do|talk|chat|call|vc|ranked|queue|game|gaming|join|hang|stream|fight|race|run it)\b/i.test(t) && t.split(/\s+/).length <= 10) return 'invite';
   if (isStatusReply(text)) return 'status';
   return null;
 }
@@ -72,6 +74,7 @@ export function quickChatFallback(kind: Kind): string {
 
 // What the model must do for each kind, written so it can't wander into nonsense.
 const HINTS: Record<Kind, string> = {
+  invite: '',
   wyd: 'They asked what you are doing right now. Say one plausible, mundane or funny thing you are doing (a different one each time), then ask them back ("u?" / "wyd?").',
   hru: 'They asked how you are. Answer in a few words (good / tired / bored, with a tiny reason if you want), then ask them back ("u?" / "hbu?").',
   greeting: 'They just said hi or called your name. Greet them back in a few words ("yo", "sup bro", "wsg"), optionally add "wyd?".',
@@ -81,9 +84,16 @@ const HINTS: Record<Kind, string> = {
   areyou: 'They asked a quick yes/no question about what you are up to or whether you are around. Answer it directly in a few words ("nah", "yeah lol", "lowkey yeah") and maybe ask them back. Answer the actual question; do not invent excitement about something nobody mentioned.',
 };
 
+// Coin flip so he says yes often, not always no (Patrick, 2026-10-01): 60% yes.
+function inviteHint(): string {
+  return Math.random() < 0.6
+    ? 'They invited you to do something. Say YES this time, enthusiastically in a few words ("bet", "down", "lets go", "say less", "yeah im down"), optionally with when/what.'
+    : 'They invited you to do something. Say no this time, with a short believable reason or joke ("nah im cooked rn", "maybe later", "nah not feeling it"), no insults.';
+}
+
 export function quickChatInstruction(kind: Kind, userText: string): string {
   const avoid = recent[kind].length ? ` Do NOT reuse any of your recent answers to this kind of message: ${recent[kind].map((r) => `"${r}"`).join(', ')}. Say something different.` : '';
-  return `The user just said: "${userText}". ${HINTS[kind]} Write it like a real person texting: casual slang and abbreviations (u, ur, rn, ngl, fr, tbh, bro), ONE short line (for a tiny reaction, 1-4 words), never an essay, never stage directions, and it must make sense as an answer to exactly what they said.${avoid}`;
+  return `The user just said: "${userText}". ${kind === 'invite' ? inviteHint() : HINTS[kind]} Write it like a real person texting: casual slang and abbreviations (u, ur, rn, ngl, fr, tbh, bro), ONE short line (for a tiny reaction, 1-4 words), never an essay, never stage directions, and it must make sense as an answer to exactly what they said.${avoid}`;
 }
 
 export function rememberQuickReply(kind: Kind, reply: string): void {
