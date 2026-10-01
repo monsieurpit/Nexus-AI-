@@ -23,7 +23,7 @@ import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
 import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing, deStackLeadingInterjections } from '../src/ai-engine/swearEngine';
 import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
-import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, isBasicChatPrompt, oneLineChat, abbreviateChat, formatPcLesson, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
+import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, isBasicChatPrompt, oneLineChat, abbreviateChat, formatPcLesson, stripTrailingRant, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch, buildWikipediaQuery } from '../src/ai-engine/webSearchEngine';
 import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
@@ -503,6 +503,7 @@ async function runDeterministicChecks() {
     check('PC lesson keeps numbered steps on their own lines', /\n2\) Pick a CPU\.\n3\) Pick RAM\./.test(lesson) && !/cut off mid/.test(lesson), lesson);
     check('PC lesson drops the "i dont know that one" opener and the btw aside', !/know that one|btw/.test(formatPcLesson("nah i dont actually know that one cuz u gave no budget so heres a build;\n1) CPU.\n2) GPU.\n3) RAM.\n(btw im lying naked right now)")));
     check('PC lesson drops a trailing "im currently..." rant and keeps psu intact', !/currently/.test(formatPcLesson('1) a.\n2) b.\n3) c.\nim currently naked in bed.')) && /psu/.test(formatPcLesson('1) a.\n2) get a 750w psu.\n3) c.')));
+    check('PC answers drop the "im currently naked..." aside but keep the real question', stripTrailingRant('the 9800x3d is the best. im currently naked in bed watching tv. what budget?') === 'the 9800x3d is the best. what budget?' && stripTrailingRant('the 9800x3d is the best. im currently naked in bed watching tv.') === 'the 9800x3d is the best.');
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);

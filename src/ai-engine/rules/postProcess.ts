@@ -101,7 +101,7 @@ export function isStatusReply(text: string): boolean {
 // structured answer is exactly what was asked for (Patrick, 2026-10-01).
 export const PC_TOPIC_RE =
   /\b(?:pc|gaming pc|gpu|cpu|graphics card|video card|motherboard|mobo|psu|power supply|ssd|nvme|m\.2|ddr[345]|vram|ram|rtx ?\d{3,4}|gtx ?\d{3,4}|rx ?\d{4}|radeon|geforce|ryzen|threadripper|core ultra|intel core|i[3579]-\d{4,5}|am[45]|lga ?\d{4}|x3d|aio|cpu cooler|pc case|bios|expo|xmp|dlss|fsr|hdmi|displayport)\b/i;
-export const PC_BUILD_REQUEST_RE = /\b(?:teach|guide|show|help|tell|walk)\s+me\b[^.?!]*\b(?:build|pc|computer|parts)\b|\bhow\s+(?:do\s+i|to|can\s+i|should\s+i)\s+build\b|\bparts?\s+list\b|\bbuild\s+me\b|\brecommend\b[^.?!]*\b(?:pc|build|parts|gpu|cpu|ram|motherboard|psu|cooler|case|ssd)\b|\bbest\s+parts\b|\bwhat\s+parts\b|\bpc\s+build\b/i;
+export const PC_BUILD_REQUEST_RE = /\b(?:teach|guide|show|help|tell|walk)\s+me\b[^.?!]*\b(?:build|pc|computer|parts)\b|\bhow\s+(?:do\s+i|to|can\s+i|should\s+i)\s+build\b|\bparts?\s+list\b|\bbuild\s+me\b|\brecommend\b[^.?!]*\b(?:pc|build|parts|gpu|cpu|ram|motherboard|psu|cooler|case|ssd)\b|\bbest\s+parts\b|\bwhat\s+parts\b|\bpc\s+build\b|\bmoney\s+(?:is\s+)?no\s+object\b|\binfinite\s+(?:money|budget)\b|\bunlimited\s+(?:money|budget)\b|\bno\s+budget\b|\bdream\s+(?:pc|build)\b|\bbest\s+(?:gaming\s+)?pc\b|\bultimate\s+(?:gaming\s+)?(?:pc|build)\b/i;
 
 const BASIC_CHAT_RE = /^(?:(?:hey+|yo+|hi+|sup|ay+|ok(?:ay)?)[\s,]+)?(?:nexus[\s,]+)?(?:(?:are|r|is|do|did|does|have|can|will|you|u|wanna|want)\b|(?:what(?:'?s|\s+are|\s+r)|how(?:'?s|\s+are|\s+r))\s+(?:you|u)\b|wyd\b)/i;
 
@@ -439,6 +439,15 @@ export function abbreviateChat(text: string): string {
     .split(/("[^"]*"|“[^”]*”)/)
     .map((part, i) => (i % 2 === 1 ? part : ABBREVIATIONS.reduce((acc, [re, to]) => acc.replace(re, to as string), part)))
     .join('');
+}
+
+// Informational answers (PC advice) do not end with a made-up "what I'm doing right now" aside: drop up to two
+// sentences that are one ("im currently naked in my bed...", "rn im...", "btw i was...", "Anyway, ...").
+export function stripTrailingRant(text: string): string {
+  const RANT = /^\(?(?:btw|anyway|rn,? i'?m|rn,? im|i'?m currently|im currently|i am currently|tbh,? i'?m currently|tbh,? im currently|currently,? i'?m|while i)\b/i;
+  const sentences = splitSentencesSafe(text.trim());
+  const kept = sentences.filter((sent, idx) => idx === 0 || !RANT.test(sent.trim()));
+  return (kept.length ? kept : sentences).join(' ').trim();
 }
 
 // Puts each "1) ..." / "1. ..." step on its own line, drops a cut-off last line, keeps the abbreviations rule.

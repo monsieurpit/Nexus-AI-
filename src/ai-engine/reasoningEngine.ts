@@ -30,7 +30,7 @@ import { threadFactsNote } from './rules/threadFacts';
 import { findRelevantKnowledge } from './knowledgeBase';
 import { isBodyCountQuestion, countDistinctPartners } from './rules/bodyCount';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply } from './rules/quickChat';
-import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, PC_TOPIC_RE, PC_BUILD_REQUEST_RE } from './rules/postProcess';
+import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, stripTrailingRant, PC_TOPIC_RE, PC_BUILD_REQUEST_RE } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
 import * as localLlmClient from './localLlmClient';
@@ -4661,10 +4661,11 @@ export async function generateReasoningPath(
   if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt) && PC_BUILD_REQUEST_RE.test(prompt)) {
     const pcFacts = findRelevantKnowledge(`${prompt} pc build parts compatibility`, 8)
       .filter((f) => f.category === 'pc-building')
-      .slice(0, 4);
+      
+      .slice(0, 5);
     if (pcFacts.length > 0) {
       const pcText = await llmSituationalReplyOrFallback(
-        `The user asked: "${prompt}".\n${chatThreadText(history, settings.discordUserId) ? `The chat so far (stay consistent with what You already said):\n${chatThreadText(history, settings.discordUserId)}\n\n` : ''}Use ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n\nTeach them like a friend who is great with PCs. FORMAT EXACTLY: one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
+        `The user asked: "${prompt}".\n${chatThreadText(history, settings.discordUserId) ? `The chat so far (stay consistent with what You already said):\n${chatThreadText(history, settings.discordUserId)}\n\n` : ''}Use ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n\nTeach them like a friend who is great with PCs. ${/\b(?:money\s+(?:is\s+)?no\s+object|infinite|unlimited|no\s+budget|dream|ultimate|best\s+(?:gaming\s+)?pc|parts?\s+list|recommend|best\s+parts)\b/i.test(prompt) ? 'FORMAT EXACTLY: one short intro line, then a PARTS LIST with ONE PART PER LINE written as "CPU: model (why)", "GPU: model (why)", "Motherboard: ...", "RAM: ...", "SSD: ...", "PSU: ...", "Cooler: ...", "Case: ...", "Monitor: ..." using the real model names from the facts (and say what the fit rule is, e.g. AM5 + DDR5), then one last line asking what they play and their resolution if they did not say.' : ''}FORMAT EXACTLY (if no parts list was requested above): one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
         persona,
         settings,
         isCrashout,
@@ -4673,7 +4674,7 @@ export async function generateReasoningPath(
         '🖥️ PC build lesson (corpus-grounded)',
         false,
         undefined,
-        650
+        800
       );
       return { thoughtSteps, content: pcText, knowledgeHits: pcFacts.map((f) => f.title) };
     }
@@ -4689,7 +4690,7 @@ export async function generateReasoningPath(
     !looksPolish(prompt) &&
     PC_TOPIC_RE.test(prompt) &&
     !PC_BUILD_REQUEST_RE.test(prompt) &&
-    /\b(?:how|what|which|can|could|should|is|are|do|does|best|compatible|need|worth|why|when|will|would|explain|tell|good|better|recommend|pick|choose|get|buy)\b/i.test(prompt)
+    (/\b(?:how|what|which|can|could|should|is|are|do|does|best|compatible|need|worth|why|when|will|would|explain|tell|good|better|recommend|pick|choose|get|buy|spec|specs|specifications|vs|versus|compare|comparison|difference|price|cost|release|list|models|cores|vram|watts|about)\b/i.test(prompt) || prompt.trim().split(/\s+/).length <= 8)
   ) {
     const threadText = chatThreadText(history, settings.discordUserId);
     const pcFacts = findRelevantKnowledge(`${prompt} ${threadText.replace(/You:[^\n]*\n?/g, ' ')}`, 8)
@@ -4709,7 +4710,7 @@ export async function generateReasoningPath(
         undefined,
         260
       );
-      return { thoughtSteps, content: pcAnswer, knowledgeHits: pcFacts.map((f) => f.title) };
+      return { thoughtSteps, content: stripTrailingRant(pcAnswer), knowledgeHits: pcFacts.map((f) => f.title) };
     }
   }
 

@@ -1,5 +1,12 @@
 # PC corpus (`pc-building`)
 
+Seven files, ~170 entries in the category `pc-building` (all registered in `knowledgeBase.ts`):
+`pcBuildingComplete.ts` (core guide + dated market snapshots), `pcDeepCpuGpuRam.ts`, `pcDeepStorageBoardPsuCooling.ts`,
+`pcDeepPeripheralsSoftwareFixes.ts`, `pcDeepCompaniesHistoryBuilds.ts`, `pcModelCatalog.ts` (every CPU/GPU/board/RAM/SSD/PSU/
+cooler/case/monitor/peripheral model with specs and launch MSRP) and `pcBestPartsBuilds.ts` (best part per category and tier,
+"infinite money" gaming and workstation builds, builds from $500 to $10,000+).
+
+
 `src/ai-engine/corpus/pcBuildingComplete.ts` — about 50 entries so Nexus can teach PC building: how to build and assemble,
 compatibility rules, first boot/BIOS, troubleshooting, CPUs (AMD/Intel, sockets, naming), GPUs (Nvidia RTX 50, AMD RX 9000,
 Intel Arc, older generations, upscalers), RAM, storage, motherboards, PSU, cooling, cases, monitors, cables, peripherals,
