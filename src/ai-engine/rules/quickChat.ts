@@ -49,7 +49,7 @@ export function classifyQuickChat(text: string): Kind | null {
   if (isReactionPrompt(text)) return 'reaction';
   // Strip the name / greetings so "nexus wyd", "yo nexus hru" and "wyd nexus" reduce to the question.
   const core = t
-    .replace(/\b(?:nexus|bro|bruh|dude|man|fam)\b/g, ' ')
+    .replace(/\b(?:nexus|bro|bruh|dude|man|fam|boi+|bruv|mate)\b/g, ' ')
     .replace(/^(?:\s*(?:hey+|yo+|hi+|hello|ay+|ok(?:ay)?|lol)\b[\s,]*)+/g, ' ')
     .replace(/[,!?.]+/g, ' ')
     .replace(/\s+/g, ' ')
