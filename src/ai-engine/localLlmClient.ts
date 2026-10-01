@@ -139,9 +139,16 @@ export function chatModel(): string {
 // no longer applies — the base model stays warm for realistic chat gaps regardless of which
 // feature (chat or Nexus Code) requested it. The vision model is still rare enough to unload fast
 // rather than sit warm for a feature most replies never touch.
+// How long the chat model stays in RAM after its last use. 10m made about 1 message in 6 pay a
+// 10-30s cold load (a plain "yo" took 31s, measured 2026-09-30). 60m covers normal chat gaps while
+// still freeing the ~9 GB by itself when the Mac is needed for something else (Roblox, Chrome) —
+// "always" would keep it resident and push a 16 GB Mac into swap. Override with
+// NEXUS_MODEL_KEEP_ALIVE (e.g. "30m", "2h"); to free the RAM right now: `ollama stop nexus2:4b`.
+const CHAT_KEEP_ALIVE = /^\d+(?:s|m|h)$/.test(process.env.NEXUS_MODEL_KEEP_ALIVE || '') ? process.env.NEXUS_MODEL_KEEP_ALIVE! : '60m';
+
 function keepAliveFor(model: string | undefined): string {
   if (model && model === OLLAMA_VISION_MODEL) return '90s';
-  return '10m';
+  return CHAT_KEEP_ALIVE;
 }
 
 // Shared language-signal classifier — used both to decide which model handles a message
