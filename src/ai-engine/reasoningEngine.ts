@@ -4616,6 +4616,8 @@ export async function generateReasoningPath(
   if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt)) {
     const recentTurns = history.slice(-4);
     const lastBot = [...recentTurns].reverse().find((m) => m?.role === 'assistant' && typeof m.content === 'string');
+    const lastBotIdx = lastBot ? recentTurns.lastIndexOf(lastBot) : -1;
+    const prevUser = lastBotIdx > 0 ? [...recentTurns.slice(0, lastBotIdx)].reverse().find((m) => m?.role === 'user' && typeof m.content === 'string') : undefined;
     const words = prompt.trim().split(/\s+/).length;
     const looksLikeFollowUp =
       !!lastBot &&
@@ -4631,7 +4633,7 @@ export async function generateReasoningPath(
       !classifyQuickChat(prompt);
     if (looksLikeFollowUp && lastBot) {
       const followText = await llmSituationalReplyOrFallback(
-        `You just said: "${lastBot.content.slice(0, 200)}". The user answered: "${prompt}". Reply like a friend texting back: ONE short line (under 15 words) that reacts to exactly what they said (laugh, agree, tease them a little, or add a tiny comment), optionally ask a short follow-up. Casual slang and abbreviations (u, ur, rn, ngl, fr, tbh, lol). Do NOT start a story about yourself, do NOT write more than one sentence.`,
+        `Conversation so far:${prevUser ? `\nThem: "${prevUser.content.slice(0, 160)}"` : ''}\nYou: "${lastBot.content.slice(0, 220)}"\nThem: "${prompt}"\n\nNow reply as you, like a friend texting back: ONE short line (under 15 words) that directly responds to what THEY just said in the context of the conversation above — relate to it, laugh with them, agree, or ask one short natural follow-up question about it. Stay on the same topic. Do NOT insult them unless they insulted you, do NOT change the subject, do NOT start a story about yourself, ONE sentence only. If you didn't get what they meant, say so in a few words ("wait what?") instead of making something up. Casual slang (u, ur, rn, ngl, fr, lol).`,
         persona,
         settings,
         isCrashout,
