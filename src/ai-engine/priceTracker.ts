@@ -162,6 +162,9 @@ export async function refreshPrices(opts: { force?: boolean; isBusy?: () => bool
   try {
     for (const part of TRACKED_PARTS) {
       if (opts.onlyIds && !opts.onlyIds.includes(part.id)) continue;
+      // A retry after a rate-limit stop continues where the last run ended: parts refreshed in the last 6 days are skipped.
+      const prev = next.items[part.id];
+      if (!opts.force && prev && Date.now() - prev.updatedAt < REFRESH_EVERY_MS - 24 * 60 * 60 * 1000) continue;
       if (opts.isBusy?.()) {
         await new Promise((r) => setTimeout(r, 20_000));
       }
