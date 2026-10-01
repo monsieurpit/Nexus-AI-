@@ -27,9 +27,10 @@ import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDe
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
 import { threadFactsNote } from './rules/threadFacts';
+import { findRelevantKnowledge } from './knowledgeBase';
 import { isBodyCountQuestion, countDistinctPartners } from './rules/bodyCount';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply } from './rules/quickChat';
-import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat } from './rules/postProcess';
+import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, PC_TOPIC_RE, PC_BUILD_REQUEST_RE } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
 import * as localLlmClient from './localLlmClient';
@@ -1447,6 +1448,13 @@ const SMALL_TALK_CHECKIN_REGEX =
 
 export function detectQueryIntent(query: string): QueryIntent {
   let q = query.toLowerCase().trim();
+
+  // PC hardware questions ("can i use ddr4 with a 9800x3d", "teach me how to build a pc") are knowledge
+  // questions for the PC corpus, never small talk: without this, "can i use..." and "teach me..." were
+  // answered as banter with no facts.
+  if (PC_TOPIC_RE.test(q) && /\b(?:how|what|which|can|could|should|is|are|do|does|teach|show|guide|recommend|best|build|compatible|need|worth|why|when|will|would|explain|tell|help)\b/.test(q)) {
+    return 'explanation';
+  }
 
   const chatTriggers = [
     // Bare "hi"/"hey" need their own exact entries — the "hi "/"hey " trailing-space forms below
@@ -3847,7 +3855,9 @@ async function llmSituationalReplyOrFallback(
   // after chunks were already streamed to the caller. The caller (server.ts's streaming endpoint)
   // MUST treat this function's own return value as the source of truth for what the message should
   // finally read, not just append everything it received via onToken.
-  onToken?: (chunk: string) => void
+  onToken?: (chunk: string) => void,
+  // Teaching answers (the PC build lesson) need far more room than the 70-token small-talk budget.
+  maxTokensOverride?: number
 ): Promise<string> {
   const usePolish = looksPolish(llmPrompt);
   // French added alongside Polish — same reasoning throughout (a lower temperature for a weaker
@@ -3866,10 +3876,12 @@ async function llmSituationalReplyOrFallback(
   const useThinking = settings.showThinking !== false;
   // Floor of 60: with the casual cap now 70, an angry/bored mood multiplier pushed it to ~49 tokens,
   // which cut insult comebacks mid-sentence (measured 2026-09-30, 5 of 20 real messages).
-  const casualContentBudget = Math.max(
-    60,
-    Math.round(Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier())
-  );
+  const casualContentBudget =
+    maxTokensOverride ??
+    Math.max(
+      60,
+      Math.round(Math.min(estimateResponseBudget(llmPrompt), LLM_MAX_TOKENS_CASUAL) * getMoodResponseLengthMultiplier())
+    );
   const generateOptions = {
     system: systemPrompt,
     userPreamble: buildMoodUserPreamble(suppressSwearing, usePolish, useFrench),
@@ -4633,6 +4645,29 @@ export async function generateReasoningPath(
         false
       );
       return { thoughtSteps, content: oneLineChat(gameText, 120), knowledgeHits: [] };
+    }
+  }
+
+  // "teach me how to build a pc", "recommend parts for 1440p": a real lesson from the PC corpus. Without
+  // this the persona deflected ("I ain't ur hardware tutor") instead of teaching.
+  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt) && PC_BUILD_REQUEST_RE.test(prompt)) {
+    const pcFacts = findRelevantKnowledge(`${prompt} pc build parts compatibility`, 8)
+      .filter((f) => f.category === 'pc-building')
+      .slice(0, 4);
+    if (pcFacts.length > 0) {
+      const pcText = await llmSituationalReplyOrFallback(
+        `The user asked: "${prompt}".\nUse ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n\nTeach them like a friend who is great with PCs: a short numbered plan (4-6 steps) with real part names from the facts, what fits with what, and the one thing most beginners get wrong. If they gave no budget or resolution, give a solid example and END by asking their budget and monitor resolution. You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
+        persona,
+        settings,
+        isCrashout,
+        thoughtSteps,
+        pcFacts[0].content.slice(0, 600),
+        '🖥️ PC build lesson (corpus-grounded)',
+        false,
+        undefined,
+        650
+      );
+      return { thoughtSteps, content: pcText, knowledgeHits: pcFacts.map((f) => f.title) };
     }
   }
 

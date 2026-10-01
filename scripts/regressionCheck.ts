@@ -33,6 +33,8 @@ import { splitSentencesSafe } from '../src/ai-engine/sentences';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply, __resetQuickChatForTests } from '../src/ai-engine/rules/quickChat';
 import { countDistinctPartners, isBodyCountQuestion } from '../src/ai-engine/rules/bodyCount';
 import { threadFactsNote } from '../src/ai-engine/rules/threadFacts';
+import { PC_BUILDING_COMPLETE } from '../src/ai-engine/corpus/pcBuildingComplete';
+import { findRelevantKnowledge } from '../src/ai-engine/knowledgeBase';
 import { verifyAnswer } from '../src/ai-engine/answerVerifier';
 import { topUpLlmSwearing } from '../src/ai-engine/rules/postProcess';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
@@ -494,6 +496,9 @@ async function runDeterministicChecks() {
     check('thread facts: "work" and "kick" in normal sentences are not facts', threadFactsNote(['it doesnt work lol', 'kick him out']) === '');
     check('thread facts: no false positives on plain chat', threadFactsNote(['bro this is so funny lol', 'what do u think about the weather']) === '');
     check('stray HTML tags are removed from replies', !/</.test(topUpForCap('did she react bad to the ai reply or somethin?</blockquote>.', DEFAULT_SETTINGS as any, true, 'she is mad at me lol')));
+    check('PC corpus: 40+ entries, unique ids, all in category pc-building', PC_BUILDING_COMPLETE.length >= 40 && new Set(PC_BUILDING_COMPLETE.map((e) => e.id)).size === PC_BUILDING_COMPLETE.length && PC_BUILDING_COMPLETE.every((e) => e.category === 'pc-building'), String(PC_BUILDING_COMPLETE.length));
+    for (const [q, id] of [['why is ram so expensive right now', 'kb-pc-ram-crisis-2026'], ['how do i build a pc', 'kb-pc-build-overview'], ['what power supply do i need for a 5080', 'kb-pc-psu-guide'], ['pc wont turn on after building', 'kb-pc-troubleshooting-no-post'], ['am4 or am5', 'kb-pc-amd-ryzen-lineup']] as const) check(`PC corpus retrieval: "${q}"`, findRelevantKnowledge(q, 3).some((x) => x.id === id));
+    check('PC corpus: market entries are dated', PC_BUILDING_COMPLETE.filter((e) => /crisis|market|upcoming|prices/.test(e.id)).every((e) => /2026|Oct|Sept/.test(e.content)));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);

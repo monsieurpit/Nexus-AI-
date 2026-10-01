@@ -164,6 +164,7 @@ import { FOOD_SCIENCE_CONCEPTS_GAPS } from './corpus/foodScienceConceptsGaps';
 import { PSYCHOLOGY_CONCEPTS_GAPS } from './corpus/psychologyConceptsGaps';
 import { CONSUMER_TECH_CONCEPTS_GAPS } from './corpus/consumerTechConceptsGaps';
 import { PC_HARDWARE_GAPS } from './corpus/pcHardwareGaps';
+import { PC_BUILDING_COMPLETE } from './corpus/pcBuildingComplete';
 import { HEALTH_FITNESS_CONCEPTS_GAPS } from './corpus/healthFitnessConceptsGaps';
 import { CIVICS_CONCEPTS_GAPS } from './corpus/civicsConceptsGaps';
 import { ENGINEERING_MACHINES_CONCEPTS_GAPS } from './corpus/engineeringMachinesConceptsGaps';
@@ -1196,6 +1197,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...PSYCHOLOGY_CONCEPTS_GAPS,
   ...CONSUMER_TECH_CONCEPTS_GAPS,
   ...PC_HARDWARE_GAPS,
+  ...PC_BUILDING_COMPLETE,
   ...HEALTH_FITNESS_CONCEPTS_GAPS,
   ...CIVICS_CONCEPTS_GAPS,
   ...ENGINEERING_MACHINES_CONCEPTS_GAPS,

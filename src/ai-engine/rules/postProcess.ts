@@ -97,6 +97,12 @@ export function isStatusReply(text: string): boolean {
   return STATUS_LEAD_RE.test(t) || FOR_ASKING_RE.test(t);
 }
 
+// "teach me how to build a pc", "build me a parts list", "recommend parts for 1440p": the one place a long,
+// structured answer is exactly what was asked for (Patrick, 2026-10-01).
+export const PC_TOPIC_RE =
+  /\b(?:pc|gaming pc|gpu|cpu|graphics card|video card|motherboard|mobo|psu|power supply|ssd|nvme|m\.2|ddr[345]|vram|ram|rtx ?\d{3,4}|gtx ?\d{3,4}|rx ?\d{4}|radeon|geforce|ryzen|threadripper|core ultra|intel core|i[3579]-\d{4,5}|am[45]|lga ?\d{4}|x3d|aio|cpu cooler|pc case|bios|expo|xmp|dlss|fsr|hdmi|displayport)\b/i;
+export const PC_BUILD_REQUEST_RE = /\b(?:teach|guide|show|help|tell|walk)\s+me\b[^.?!]*\b(?:build|pc|computer|parts)\b|\bhow\s+(?:do\s+i|to|can\s+i|should\s+i)\s+build\b|\bparts?\s+list\b|\bbuild\s+me\b|\brecommend\b[^.?!]*\b(?:pc|build|parts|gpu|cpu|ram|motherboard|psu|cooler|case|ssd)\b|\bbest\s+parts\b|\bwhat\s+parts\b|\bpc\s+build\b/i;
+
 const BASIC_CHAT_RE = /^(?:(?:hey+|yo+|hi+|sup|ay+|ok(?:ay)?)[\s,]+)?(?:nexus[\s,]+)?(?:(?:are|r|is|do|did|does|have|can|will|you|u|wanna|want)\b|(?:what(?:'?s|\s+are|\s+r)|how(?:'?s|\s+are|\s+r))\s+(?:you|u)\b|wyd\b)/i;
 
 // Everything conversational and short aimed at Nexus himself: bare "nexus", greetings, "wyd", "hru",
@@ -222,11 +228,14 @@ function capRamblingReply(text: string, userPrompt: string): string {
   // big paragraphs" — see the CHAR_CEILING note below for why the character bound matters more).
   // Basic chat questions about Nexus himself ("are you gaming?", "you good?", "did you eat") get ONE
   // short slangy line ("nah, just chilling rn"), as the server asked (#feature-ideas, 2026-09-30).
-  const isBasicChat = !wantsDepth && isBasicChatPrompt(userPrompt);
+  const isPcBuild = PC_BUILD_REQUEST_RE.test(userPrompt);
+  const isBasicChat = !wantsDepth && !isPcBuild && isBasicChatPrompt(userPrompt);
   // A short Casseurt mention ("casseurt", "fuck casseurt") is the persona's crashout bit: long on purpose.
   const isCasseurtCrashout = !isBasicChat && promptWords <= 5 && /\bcasseurt\b/i.test(userPrompt) && !/\?/.test(userPrompt);
-  const MAX_SENTENCES = isCasseurtCrashout ? 7 : isBasicChat ? 1 : wantsDepth || COMPARISON_RE.test(userPrompt) ? 3 : 2;
-  const CHAR_CEILING = isCasseurtCrashout ? 900 : isBasicChat && isReactionPrompt(userPrompt) ? 45 : isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
+  // A PC-hardware question gets room for real numbers and the reason (4 sentences) instead of the 2-sentence chat cap.
+  const isPcTopic = !isPcBuild && !isBasicChat && PC_TOPIC_RE.test(userPrompt) && promptWords >= 4;
+  const MAX_SENTENCES = isPcBuild ? 6 : isPcTopic ? 4 : isCasseurtCrashout ? 7 : isBasicChat ? 1 : wantsDepth || COMPARISON_RE.test(userPrompt) ? 3 : 2;
+  const CHAR_CEILING = isPcBuild ? 1000 : isPcTopic ? 620 : isCasseurtCrashout ? 900 : isBasicChat && isReactionPrompt(userPrompt) ? 45 : isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
   const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
   if (isBasicChat && kept.length === 1) {
     // A run-on glues extra thoughts on after ";" / "—": keep only the first.
