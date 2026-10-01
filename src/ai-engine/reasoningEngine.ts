@@ -26,7 +26,7 @@ import {
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
-import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase } from './rules/postProcess';
+import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
 import * as localLlmClient from './localLlmClient';
@@ -5869,6 +5869,8 @@ export async function generateReasoningPath(
       ? `Użytkownik właśnie napisał: "${prompt}". To swobodna, luźna rozmowa (small talk), nie prośba o fakty ani badania — odpowiedz naturalnie i krótko, jak prawdziwa osoba na czacie, w swoim stylu. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują też w luźnej rozmowie.`
       : isFrenchConversation
       ? `L'utilisateur vient d'écrire : "${prompt}". C'est une conversation décontractée (small talk), pas une demande de faits ou de recherche — réponds naturellement et brièvement, comme une vraie personne dans un chat, dans ton style. Tes directives de style (jurons, ton) s'appliquent pleinement même dans une conversation décontractée.`
+      : isStatusReply(effectivePrompt)
+      ? `The user just told you how they're doing: "${prompt}" (usually answering your "how are you"). React like a normal friend would, in ONE short casual line: "yeah bet", "nice, glad ur good", "ayy fr" — then ask them back, like "wyd?" or "wyd rn bro?". Sound human, not like an AI. Do NOT roast or insult them, do NOT call their message boring, do NOT rant about yourself.`
       : standaloneSlangCtx
       ? `The user just dropped the slang term / meme phrase "${standaloneSlangCtx.term}" at you as a statement (not a question). You KNOW this one: it means ${standaloneSlangCtx.meaning}. React in character like someone who's fully in the loop — riff on it, agree, clown them for it, or throw it back, whatever fits — but do NOT say you don't know what it means or ask what they're on about. Keep it short. Your style directives (swearing, tone) fully apply.`
       : `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. React to what they ACTUALLY said — if it's funny, weird, absurd, or shocking, actually respond to that (genuine shock, laughter, a follow-up roast, whatever fits), don't just fire off your usual chaotic-energy line and ignore the content entirely. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`;

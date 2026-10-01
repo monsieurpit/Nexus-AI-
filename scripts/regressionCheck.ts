@@ -23,7 +23,7 @@ import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
 import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing, deStackLeadingInterjections } from '../src/ai-engine/swearEngine';
 import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
-import { stripContextLeaks, stripUnpromptedCreatorMentions, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
+import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch, buildWikipediaQuery } from '../src/ai-engine/webSearchEngine';
 import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
@@ -456,6 +456,8 @@ async function runDeterministicChecks() {
     const capped = topUpForCap(longChill, DEFAULT_SETTINGS as any, true, 'Yo nexus are you gaming');
     check('basic chat question gets one short line', capped.length < 60 && /chilling rn/.test(capped) && !/footrest/.test(capped), capped);
     check('a factual question is not shortened that way', /footrest/.test(topUpForCap(longChill, DEFAULT_SETTINGS as any, true, 'why is my ass a footrest for you')));
+    for (const t of ["I'm good nexus, thanks for asking", 'nexus im good thx for asking', 'im good nexus and you', 'nexus im good, how about you', 'thanks for asking']) check(`status reply: "${t}"`, isStatusReply(t));
+    for (const t of ['how are you', 'how is the weather', 'who is good at football', 'what is a good laptop', 'explain why the sky is blue and good']) check(`not a status reply: "${t}"`, !isStatusReply(t));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);

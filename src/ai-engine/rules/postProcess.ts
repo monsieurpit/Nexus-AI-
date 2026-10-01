@@ -87,6 +87,16 @@ const TRAILING_CLARIFIER_RE = /^(?:(?:damn|shit|hell|so|right|anyway|but)[,\s]+)
 // most visible spot in the reply on zero content. Only dropped when a real sentence follows it.
 const RHETORICAL_OPENER_RE = /^(?:(?:damn|shit|hell|fuck|goddamn|bloody hell|oh|mate|bro|man|nah|christ)[,\s]+)*(?:are|r)\s+(?:you|u|ya)\s+(?:(?:fucking|actually|seriously|genuinely|really|for real|honestly|even)\s+)*(?:serious|kidding|joking|for real|taking the piss|high|ok|okay|dumb|stupid|mad|having a laugh|asking|trying|telling|saying|out of your)\b[^.!?]*\?+$|^(?:(?:damn|shit|hell|fuck|goddamn|oh|mate|bro|man|nah)[,\s]+)*what\s+the\s+(?:fuck|hell|shit)\s+(?:do\s+|did\s+|are\s+)?(?:you|u|ya)\s+(?:even\s+)?(?:mean|on about|talking about|saying|want)\b[^.!?]*\?+$|^(?:(?:damn|shit|hell|fuck|goddamn|oh|mate|bro|man|nah)[,\s]+)*what\s+(?:the\s+(?:fuck|hell)\s+)?(?:kind|sort)\s+of\s+[^.!?]*\bquestion\b[^.!?]*\?+$/i;
 
+// Someone telling Nexus how they're doing, usually answering his "how are you" ("I'm good nexus, thanks
+// for asking"). Real friends answer "yeah bet, wyd?", not a roast.
+const STATUS_LEAD_RE = /^(?:(?:hey+|yo+|ok(?:ay)?|ay+|nah|yeah|yep|lol|haha|well)[\s,]+)?(?:nexus[\s,]+)?(?:(?:i'?m|im|i am|doing|feeling|all|pretty|really|kinda|just)\s+)*(?:good|fine|great|ok(?:ay)?|alright|well|chill(?:in[g']?)?|not bad|solid|decent|cool|tired|bored)\b/i;
+const FOR_ASKING_RE = /\b(?:thanks?|thx|ty|appreciate (?:it|you|that)|thank you)\b[^.!?]{0,15}\b(?:for\s+)?(?:asking|checking|caring)\b/i;
+export function isStatusReply(text: string): boolean {
+  const t = text.trim();
+  if (!t || t.split(/\s+/).length > 12 || /\b(?:who|what|when|where|why|how)\b/i.test(t.replace(/\b(?:what|how) (?:about|bout|abt) (?:you|u)\b/gi, ''))) return false;
+  return STATUS_LEAD_RE.test(t) || FOR_ASKING_RE.test(t);
+}
+
 const BASIC_CHAT_RE = /^(?:(?:hey+|yo+|hi+|sup|ay+|ok(?:ay)?)[\s,]+)?(?:nexus[\s,]+)?(?:(?:are|r|is|do|did|does|have|can|will|you|u|wanna|want)\b|(?:what(?:'?s|\s+are|\s+r)|how(?:'?s|\s+are|\s+r))\s+(?:you|u)\b|wyd\b)/i;
 
 function capRamblingReply(text: string, userPrompt: string): string {
@@ -162,7 +172,7 @@ function capRamblingReply(text: string, userPrompt: string): string {
   // big paragraphs" — see the CHAR_CEILING note below for why the character bound matters more).
   // Basic chat questions about Nexus himself ("are you gaming?", "you good?", "did you eat") get ONE
   // short slangy line ("nah, just chilling rn"), as the server asked (#feature-ideas, 2026-09-30).
-  const isBasicChat = !wantsDepth && promptWords <= 7 && BASIC_CHAT_RE.test(userPrompt) && /\b(?:you|u|ur|your|yourself)\b/i.test(userPrompt);
+  const isBasicChat = !wantsDepth && ((promptWords <= 7 && BASIC_CHAT_RE.test(userPrompt) && /\b(?:you|u|ur|your|yourself)\b/i.test(userPrompt)) || isStatusReply(userPrompt));
   const MAX_SENTENCES = isBasicChat ? 1 : wantsDepth || COMPARISON_RE.test(userPrompt) ? 3 : 2;
   const CHAR_CEILING = isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
   const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
