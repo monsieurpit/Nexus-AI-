@@ -1545,7 +1545,7 @@ export function forceChaoticOvershare(text: string): string {
   // Same guard as forceSwearFloor — don't inject into markdown structure (headers, code, lists),
   // and skip anything that's clearly not a normal chat paragraph (already-short template replies,
   // structured content) where an aside would read as out of place rather than in-character.
-  if (/[*_#\-•\d`]/.test(firstChar) || trimmed.length < 15) return text;
+  if (/[*_#\-•\d`]/.test(firstChar) || trimmed.length < 60) return text;
   const isAllCaps = detectAllCapsVoice(trimmed);
   const pool = isPolish ? CHAOTIC_OVERSHARE_LINES_PL : CHAOTIC_OVERSHARE_LINES;
   const pick = pool[Math.floor(Math.random() * pool.length)];
