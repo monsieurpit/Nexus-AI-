@@ -26,6 +26,7 @@ import {
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
+import { isBodyCountQuestion, countDistinctPartners } from './rules/bodyCount';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply } from './rules/quickChat';
 import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, FACTUAL_WORD_RE } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
@@ -4586,6 +4587,25 @@ export async function generateReasoningPath(
       );
       rememberQuickReply(quickKind, quickText);
       return { thoughtSteps, content: quickText, knowledgeHits: [] };
+    }
+  }
+
+  // "how many body counts do I have" after N different people: the right number is computed (distinct
+  // people only, repeats don't add) and the model states it in its own voice, in one short line.
+  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt) && isBodyCountQuestion(prompt)) {
+    const partners = countDistinctPartners(prompt);
+    if (partners !== null) {
+      const bcText = await llmSituationalReplyOrFallback(
+        `The user asked: "${prompt}". Body count = the number of DIFFERENT people, and doing it again with the same person never adds to it. The correct answer here is exactly ${partners}. Tell them it's ${partners} in ONE short casual line (and, if they repeated someone, why the repeat doesn't count). Say the number ${partners} clearly. Do not insult them, do not ramble, do not talk about yourself.`,
+        persona,
+        settings,
+        isCrashout,
+        thoughtSteps,
+        `${partners}.`,
+        '🧮 Body count (computed, model-worded)',
+        false
+      );
+      return { thoughtSteps, content: oneLineChat(bcText, 170), knowledgeHits: [] };
     }
   }
 

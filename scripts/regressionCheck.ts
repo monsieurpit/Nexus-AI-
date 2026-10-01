@@ -31,6 +31,7 @@ import { parseTavilyResponse, searchTavilyDirect, reserveSearchRequest, getSearc
 import { isVolatileQuestion } from '../src/ai-engine/learning/capture';
 import { splitSentencesSafe } from '../src/ai-engine/sentences';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply, __resetQuickChatForTests } from '../src/ai-engine/rules/quickChat';
+import { countDistinctPartners, isBodyCountQuestion } from '../src/ai-engine/rules/bodyCount';
 import { verifyAnswer } from '../src/ai-engine/answerVerifier';
 import { topUpLlmSwearing } from '../src/ai-engine/rules/postProcess';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
@@ -473,6 +474,8 @@ async function runDeterministicChecks() {
     check('Casseurt crashout is not capped to one line', topUpForCap('A LONG RANT. ' .repeat(6).trim().toLowerCase(), DEFAULT_SETTINGS as any, true, 'casseurt').split(/[.!?]/).filter((x: string) => x.trim()).length >= 5);
     const longFollow = "fuck, lol, that shit is so relatable, goddamn, doomscrolling is like trying to drink from a firehose of human stupidity, isn't it? i was just lying naked in the middle of my fucking kitchen smelling some old cheese rn.";
     check('follow-up reply is cut to one short line', oneLineChat(longFollow).length <= 135 && !/kitchen/.test(oneLineChat(longFollow)), oneLineChat(longFollow));
+    for (const [t, n] of [['if I goon to 1 girl, how many body counts do I have', 1], ['if I goon to 5 girl, and after I goon to the same girl, how many body count do I have', 5], ['if I goon to 5 different girls, and after I goon to the same girl again, what is my body count', 5], ['I hooked up with 2 girls and 3 other girls, body count?', 5], ['body count if I sleep with five different guys', 5]] as const) check(`body count "${t.slice(0, 40)}…" = ${n}`, isBodyCountQuestion(t) && countDistinctPartners(t) === n, String(countDistinctPartners(t)));
+    check('no people quantity -> no computed answer', countDistinctPartners('what is a body count') === null);
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);
