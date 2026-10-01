@@ -3,9 +3,9 @@
 // last few answers it gave to avoid repeating, and a fixed-phrase fallback ONLY if the model call
 // fails. The model writes every answer; nothing is returned from the preset pools while it works.
 
-import { isStatusReply } from './postProcess';
+import { isStatusReply, isReactionPrompt } from './postProcess';
 
-type Kind = 'wyd' | 'hru' | 'greeting' | 'thanks' | 'status' | 'areyou';
+type Kind = 'wyd' | 'hru' | 'greeting' | 'thanks' | 'status' | 'areyou' | 'reaction';
 
 const POOLS: Record<Kind, string[]> = {
   wyd: [
@@ -33,18 +33,20 @@ const POOLS: Record<Kind, string[]> = {
     'kinda lol', 'not rn, u?', 'yeah fr, u?', 'nah just chilling', 'maybe lol, why?', 'yeah bro, u?', 'nah not really, u?',
     'ngl yeah', 'nope, wbu?',
   ],
+  reaction: ['lol', 'fr', 'ikr', 'yeah', 'right?', 'fair', 'mood', 'bet'],
   status: [
     'yeah bet, wyd?', 'ayy nice, wyd rn?', 'glad ur good bro, wyd?', 'nice, wyd?', 'ayy good, u doing anything?',
     'bet, wyd bro?', 'fr nice, what u up to?', 'good shit, wyd rn?', 'aight bet, wyd?', 'nice nice, wyd?',
   ],
 };
 
-const recent: Record<Kind, string[]> = { wyd: [], hru: [], greeting: [], thanks: [], status: [], areyou: [] };
+const recent: Record<Kind, string[]> = { wyd: [], hru: [], greeting: [], thanks: [], status: [], areyou: [], reaction: [] };
 const MEMORY = 6;
 
 export function classifyQuickChat(text: string): Kind | null {
   const t = (text || '').trim().toLowerCase().replace(/[!?.,]+$/g, '');
   if (!t || t.split(/\s+/).length > 8) return null;
+  if (isReactionPrompt(text)) return 'reaction';
   // Strip the name / greetings so "nexus wyd", "yo nexus hru" and "wyd nexus" reduce to the question.
   const core = t
     .replace(/\b(?:nexus|bro|bruh|dude|man|fam)\b/g, ' ')
@@ -75,12 +77,13 @@ const HINTS: Record<Kind, string> = {
   greeting: 'They just said hi or called your name. Greet them back in a few words ("yo", "sup bro", "wsg"), optionally add "wyd?".',
   thanks: 'They thanked you. Say you are welcome in a few words ("np", "anytime bro", "ayy no worries"). Do not roast them.',
   status: 'They told you how they are doing (often answering your "how are you"). React like a friend in one short line ("yeah bet", "nice, glad ur good"), then ask "wyd?" or what they are up to. Do not roast them.',
+  reaction: 'They just sent a tiny acknowledgement / reaction (like "ah", "oh", "lol", "ok"), almost certainly responding to what you just said. Reply with 1 to 4 words max, like a friend would ("lol", "fr", "ikr", "yeah", "right?", "mb"), or a tiny natural follow-up. Do NOT roast them, do NOT ask what prompted it, do NOT talk about yourself.',
   areyou: 'They asked a quick yes/no question about what you are up to or whether you are around. Answer it directly in a few words ("nah", "yeah lol", "lowkey yeah") and maybe ask them back. Answer the actual question; do not invent excitement about something nobody mentioned.',
 };
 
 export function quickChatInstruction(kind: Kind, userText: string): string {
   const avoid = recent[kind].length ? ` Do NOT reuse any of your recent answers to this kind of message: ${recent[kind].map((r) => `"${r}"`).join(', ')}. Say something different.` : '';
-  return `The user just said: "${userText}". ${HINTS[kind]} Write it like a real person texting: casual slang and abbreviations (u, ur, rn, ngl, fr, tbh, bro), ONE short line, never an essay, never stage directions, and it must make sense as an answer to exactly what they said.${avoid}`;
+  return `The user just said: "${userText}". ${HINTS[kind]} Write it like a real person texting: casual slang and abbreviations (u, ur, rn, ngl, fr, tbh, bro), ONE short line (for a tiny reaction, 1-4 words), never an essay, never stage directions, and it must make sense as an answer to exactly what they said.${avoid}`;
 }
 
 export function rememberQuickReply(kind: Kind, reply: string): void {

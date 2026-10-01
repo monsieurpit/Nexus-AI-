@@ -105,10 +105,19 @@ const BASIC_CHAT_RE = /^(?:(?:hey+|yo+|hi+|sup|ay+|ok(?:ay)?)[\s,]+)?(?:nexus[\s
 const CHAT_GREETING_ONLY_RE = /^(?:(?:hey+|yo+|hi+|hello|sup|wsg|wassup|wazzup|ay+|ok(?:ay)?|lol|lmao|bro|bruh|nexus)[\s,!?.]*)+$/i;
 const CHAT_PHRASE_RE = /\b(?:wyd|hru|hbu|wbu|wsg|wassup|wazzup|what'?s up|whats up|sup|how'?s it going|hows it going|how are (?:you|u)|how r u|how you doing|how u doing|what are (?:you|u) (?:doing|up to)|(?:you|u)(?: are|'?re| r)? (?:good|ok|okay|alive|there|awake|up|mad|real|serious|cool|funny|goated|the best|trash|dumb|stupid|annoying|nice|awesome)|thanks|thank you|thx|ty|good (?:morning|night|evening)|gn|gm|(?:i )?(?:love|miss) (?:you|u)|(?:you|u|ur|your)(?: are|'?re| r| a|)\s+(?:a |an )?(?:weirdo|freak|creep|dork|nerd|loser|idiot|clown|goofy|lame|cringe|ugly|stupid|dumb|trash|mid|annoying|boring|cooked|bot))\b/i;
 const FACTUAL_WORD_RE = /\b(?:who|when|where|why|which|how (?:to|do|does|did|many|much|long|old|far|tall|big))\b/i;
+// A bare acknowledgement ("ah", "oh", "lol", "ok", "bruh", "damn", "nice") — almost always a reply to
+// something Nexus just said. It deserves a few words back, never a paragraph or a roast.
+const REACTION_RE = /^(?:(?:nexus|bro|bruh|dude|man|fam)[\s,]+)?(?:a+h+|o+h+|a+w+|o+k+(?:ay)?|k+|l+o+l+|lm+a+o+|ha+(?:ha)+|he+(?:he)+|bruh+|bro+|damn|dang|nice|true|facts?|fr(?:fr)?|bet|ig|mb|ya+|ye+a?h?|yep|yup|nah|nope|wow|ayy+|huh|hm+|mhm|ikr|real|fair|word|cool|aight|alr|ight|sheesh|dead|rip|oof|wtf|wth|omg|same|mood|ohh+|ahh+|hmm+|gg)[\s!?.,]*(?:(?:nexus|bro|bruh|dude|man|fam)[\s!?.]*)?$/i;
+export function isReactionPrompt(text: string): boolean {
+  const t = (text || '').trim();
+  return !!t && t.length <= 20 && REACTION_RE.test(t);
+}
+
 export function isBasicChatPrompt(text: string): boolean {
   const t = (text || '').trim();
   if (!t) return false;
   const words = t.split(/\s+/).length;
+  if (isReactionPrompt(t)) return true;
   if (words > 8 || FACTUAL_WORD_RE.test(t) || DEPTH_REQUEST_RE.test(t)) return false;
   if (CHAT_GREETING_ONLY_RE.test(t) || CHAT_PHRASE_RE.test(t) || isStatusReply(t)) return true;
   return words <= 7 && BASIC_CHAT_RE.test(t) && /\b(?:you|u|ur|your|yourself)\b/i.test(t);
@@ -204,7 +213,7 @@ function capRamblingReply(text: string, userPrompt: string): string {
   // A short Casseurt mention ("casseurt", "fuck casseurt") is the persona's crashout bit: long on purpose.
   const isCasseurtCrashout = !isBasicChat && promptWords <= 5 && /\bcasseurt\b/i.test(userPrompt) && !/\?/.test(userPrompt);
   const MAX_SENTENCES = isCasseurtCrashout ? 7 : isBasicChat ? 1 : wantsDepth || COMPARISON_RE.test(userPrompt) ? 3 : 2;
-  const CHAR_CEILING = isCasseurtCrashout ? 900 : isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
+  const CHAR_CEILING = isCasseurtCrashout ? 900 : isBasicChat && isReactionPrompt(userPrompt) ? 45 : isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
   const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
   if (isBasicChat && kept.length === 1) {
     // A run-on glues extra thoughts on after ";" / "—": keep only the first.
