@@ -4623,7 +4623,8 @@ export async function generateReasoningPath(
       !!lastBot &&
       words >= 1 &&
       words <= 16 &&
-      !/\?/.test(prompt) &&
+      // A question mark is fine for casual chat ("wanna play ranked?", "u good?"), not for a topic question.
+      (!/\?/.test(prompt) || /\b(?:you|u|ur|we|wanna|lets|let's|gonna|fr|lol|bro|bruh|tho|rn|ig)\b/i.test(prompt)) &&
       // "why not" / "what" inside a reaction is chat; a real who/when/where/which/how-many question is not.
       !/^(?:who|what|when|where|why|which|how)\b/i.test(prompt.trim()) &&
       !/\b(?:who|when|where|which|how (?:to|do|does|did|many|much|long|old|far|tall|big))\b/i.test(prompt) &&
