@@ -386,7 +386,14 @@ export function stripContextLeaks(text: string, userPrompt?: string): string {
 // Chat abbreviations are mandatory (Patrick, 2026-10-01: "if he can use an abbreviation like rn instead
 // of right now, he HAS to"). Whole words only, case-insensitive, never inside quoted text or code, and
 // never in formal drafts. Longest phrases first.
-const ABBREVIATIONS: Array<[RegExp, string]> = [
+const ABBREVIATIONS: Array<[RegExp, string | ((m: string, ...g: string[]) => string)]> = [
+  [/\bi don'?t give a (?:fuck|shit|damn)\b/gi, 'idgaf'], [/\bgot to go\b/gi, 'gtg'], [/\bgotta go\b/gi, 'gtg'], [/\blet me know\b/gi, 'lmk'], [/\bhit me up\b/gi, 'hmu'],
+  [/\bbe back later\b/gi, 'bbl'], [/\bof course\b/gi, 'ofc'], [/\bat the moment\b/gi, 'atm'], [/\bi swear to god\b/gi, 'istg'], [/\bbe for real\b/gi, 'bffr'],
+  [/\bfor your information\b/gi, 'fyi'], [/\byou know what i mean\b/gi, 'ykwim'], [/\bin case you didn'?t know\b/gi, 'icydk'], [/\bnot safe for work\b/gi, 'nsfw'],
+  [/\bwhat the heck\b/gi, 'wth'], [/\bboyfriend\b/gi, 'bf'], [/\bgirlfriend\b/gi, 'gf'], [/\bbirthday\b/gi, 'bday'], [/\bcongratulations\b/gi, 'congrats'],
+  [/\binformation\b/gi, 'info'], [/\bpictures\b/gi, 'pics'], [/\bpicture\b/gi, 'pic'], [/\bphotos?\b/gi, 'pic'], [/\bminutes\b/gi, 'mins'], [/\bseconds\b/gi, 'secs'],
+  [/\bweekend\b/gi, 'wknd'], [/\babout\b/gi, 'abt'], [/\byou know\b/gi, 'ya know'], [/\bnothing\b/gi, 'nothin'], [/\beverything\b/gi, 'everythin'],
+  [/\bgoing\b(?! to\b)/gi, 'goin'], [/\b(do|chill|play|look|talk|eat|watch|game|scroll|think|sleep|wait|work|be|sit|lay|stay|hang|run)ing\b/gi, (_m: string, v: string) => (v.toLowerCase() === 'be' ? 'bein' : v.toLowerCase().endsWith('e') && v.length > 2 && !/^(be)$/.test(v) ? `${v.slice(0, -1)}in` : `${v}in`) as string],
   [/\bwhat'?s up\b/gi, 'wsp'], [/\bwhat is up\b/gi, 'wsp'], [/\bi have no idea\b/gi, 'idk'], [/\bno idea\b/gi, 'idk'], [/\boh my gosh\b/gi, 'omg'],
   [/\bto be fair\b/gi, 'tbf'], [/\bin my honest opinion\b/gi, 'imho'], [/\bif i remember correctly\b/gi, 'iirc'], [/\bjust kidding\b/gi, 'jk'],
   [/\bjust saying\b/gi, 'js'], [/\bas soon as possible\b/gi, 'asap'], [/\balso known as\b/gi, 'aka'], [/\bwhat do you think\b/gi, 'wdyt'],
@@ -421,7 +428,7 @@ export function abbreviateChat(text: string): string {
   // Quoted text (song titles, quotes) is left exactly as written.
   return text
     .split(/("[^"]*"|“[^”]*”)/)
-    .map((part, i) => (i % 2 === 1 ? part : ABBREVIATIONS.reduce((acc, [re, to]) => acc.replace(re, to), part)))
+    .map((part, i) => (i % 2 === 1 ? part : ABBREVIATIONS.reduce((acc, [re, to]) => acc.replace(re, to as string), part)))
     .join('');
 }
 

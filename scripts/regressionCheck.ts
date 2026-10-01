@@ -456,7 +456,7 @@ async function runDeterministicChecks() {
     // Basic chat questions about Nexus get ONE short line (Discord, 2026-09-30: "Long answer, not like the nah I'm gooning rn").
     const longChill = "shit, just chilling rn, which is fucking nice because my ass is currently being used as a makeshift footrest by my girlfriend and it feels like a goddamn artisanal cheese wheel.";
     const capped = topUpForCap(longChill, DEFAULT_SETTINGS as any, true, 'Yo nexus are you gaming');
-    check('basic chat question gets one short line', capped.length < 60 && /chilling rn/.test(capped) && !/footrest/.test(capped), capped);
+    check('basic chat question gets one short line', capped.length < 60 && /chillin rn/.test(capped) && !/footrest/.test(capped), capped);
     check('a factual question is not shortened that way', /footrest/.test(topUpForCap(longChill, DEFAULT_SETTINGS as any, true, 'why is my ass a footrest for you')));
     for (const t of ["I'm good nexus, thanks for asking", 'nexus im good thx for asking', 'im good nexus and you', 'nexus im good, how about you', 'thanks for asking']) check(`status reply: "${t}"`, isStatusReply(t));
     for (const t of ['how are you', 'how is the weather', 'who is good at football', 'what is a good laptop', 'explain why the sky is blue and good']) check(`not a status reply: "${t}"`, !isStatusReply(t));
@@ -479,9 +479,10 @@ async function runDeterministicChecks() {
     check('casual chat never gets the "don\'t actually know that one" line', !/don't actually know/.test(stripContextLeaks('there is no context for that, what rank are you stuck at?', 'Yeah don’t worry. Wanna play ranked?')));
     check('a factual question with a context leak still gets the honest "don\'t know"', /don't actually know/.test(stripContextLeaks('the context does not say.', 'who won the 1987 cup final')));
     check('casual invitation is basic chat', isBasicChatPrompt('nexus wanna play ranked?') && isBasicChatPrompt('lets go vc nexus'));
-    check('right now -> rn, you -> u, because -> cuz', abbreviateChat('i am eating right now because you asked, to be honest') === 'im eating rn cuz u asked, tbh');
-    check('more abbreviations: im / idc / tmrw / nah', abbreviateChat("I'm not doing it tomorrow, no") === 'im not doing it tmrw, nah' && abbreviateChat("i don't care about that tonight") === 'idc about that tn');
+    check('right now -> rn, you -> u, because -> cuz', abbreviateChat('i am eating right now because you asked, to be honest') === 'im eatin rn cuz u asked, tbh');
+    check('more abbreviations: im / idc / tmrw / nah', abbreviateChat("I'm not doing it tomorrow, no") === 'im not doin it tmrw, nah' && abbreviateChat("i don't care about that tonight") === 'idc abt that tn');
     check('even more abbreviations', abbreviateChat("i don't care, no worries, good luck, you all are trying to give me something") === 'idc, nw, gl, yall are tryna gimme smth');
+    check('gerunds and more abbreviations', abbreviateChat('i am going to be chilling, hit me up, my girlfriend is doing nothing about it, of course') === 'im gonna be chillin, hmu, my gf is doin nothin abt it, ofc');
     check('abbreviations never touch quoted text', abbreviateChat('the song "Hey You" is right now on') === 'the song "Hey You" is rn on');
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
