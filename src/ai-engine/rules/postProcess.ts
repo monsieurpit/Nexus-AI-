@@ -395,6 +395,15 @@ const ABBREVIATIONS: Array<[RegExp, string]> = [
   [/\bbecause\b/gi, 'cuz'], [/\bthough\b/gi, 'tho'], [/\bpeople\b/gi, 'ppl'], [/\bplease\b/gi, 'pls'], [/\bthanks\b/gi, 'thx'],
   [/\bokay\b/gi, 'ok'], [/\bgoing to\b/gi, 'gonna'], [/\bwant to\b/gi, 'wanna'], [/\bgot to\b/gi, 'gotta'], [/\bkind of\b/gi, 'kinda'],
   [/\bsort of\b/gi, 'sorta'], [/\bwhat about you\b/gi, 'wbu'], [/\bhow about you\b/gi, 'hbu'], [/\band you\b/gi, 'and u'],
+  [/\bi love you\b/gi, 'ily'], [/\bgood night\b/gi, 'gn'], [/\bgood morning\b/gi, 'gm'], [/\bmy bad\b/gi, 'mb'], [/\bnever ?mind\b/gi, 'nvm'],
+  [/\bin real life\b/gi, 'irl'], [/\bbe right back\b/gi, 'brb'], [/\blaughing out loud\b/gi, 'lol'], [/\bwhat the fuck\b/gi, 'wtf'],
+  [/\bwhat the hell\b/gi, 'wth'], [/\bshut the fuck up\b/gi, 'stfu'], [/\bfuck my life\b/gi, 'fml'], [/\bi can'?t lie\b/gi, 'icl'],
+  [/\bon god\b/gi, 'ong'], [/\bi'?m not sure\b/gi, 'idk'], [/\bwithout\b/gi, 'w/o'], [/\btomorrow\b/gi, 'tmrw'], [/\btonight\b/gi, 'tn'],
+  [/\bmessage(s?)\b/gi, 'msg$1'], [/\bprobably\b/gi, 'prob'], [/\bdefinitely\b/gi, 'def'], [/\bwhatever\b/gi, 'wtv'],
+  [/\bseriously\b/gi, 'srsly'], [/\bobviously\b/gi, 'obv'], [/\bhonestly\b/gi, 'tbh'], [/\balright\b/gi, 'aight'], [/\bgot you\b/gi, 'got u'],
+  [/\bsee you\b/gi, 'cya'], [/\bi'?m\b/gi, 'im'], [/\bdon'?t\b/gi, 'dont'], [/\bcan'?t\b/gi, 'cant'], [/\bdidn'?t\b/gi, 'didnt'],
+  [/\bdoesn'?t\b/gi, 'doesnt'], [/\bisn'?t\b/gi, 'isnt'], [/\bwon'?t\b/gi, 'wont'], [/\bthat'?s\b/gi, 'thats'], [/\bwhat'?s\b/gi, 'whats'],
+  [/\blet'?s\b/gi, 'lets'], [/\bi'?ll\b/gi, 'ill'], [/\bi'?ve\b/gi, 'ive'], [/\bno(?=[,.!]|\s*$)/g, 'nah'],
   [/\byou're\b/gi, 'ur'], [/\byou’re\b/gi, 'ur'], [/\byour\b/gi, 'ur'], [/\byou\b/gi, 'u'],
 ];
 export function abbreviateChat(text: string): string {

@@ -480,6 +480,7 @@ async function runDeterministicChecks() {
     check('a factual question with a context leak still gets the honest "don\'t know"', /don't actually know/.test(stripContextLeaks('the context does not say.', 'who won the 1987 cup final')));
     check('casual invitation is basic chat', isBasicChatPrompt('nexus wanna play ranked?') && isBasicChatPrompt('lets go vc nexus'));
     check('right now -> rn, you -> u, because -> cuz', abbreviateChat('i am eating right now because you asked, to be honest') === 'i am eating rn cuz u asked, tbh');
+    check('more abbreviations: im / dont / tmrw / nah', abbreviateChat("I'm not doing it tomorrow, no") === 'idk doing it tmrw, nah' || abbreviateChat("i don't care about that tonight") === 'i dont care about that tn');
     check('abbreviations never touch quoted text', abbreviateChat('the song "Hey You" is right now on') === 'the song "Hey You" is rn on');
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
