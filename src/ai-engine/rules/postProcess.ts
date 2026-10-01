@@ -87,7 +87,7 @@ const TRAILING_CLARIFIER_RE = /^(?:(?:damn|shit|hell|so|right|anyway|but)[,\s]+)
 // most visible spot in the reply on zero content. Only dropped when a real sentence follows it.
 const RHETORICAL_OPENER_RE = /^(?:(?:damn|shit|hell|fuck|goddamn|bloody hell|oh|mate|bro|man|nah|christ)[,\s]+)*(?:are|r)\s+(?:you|u|ya)\s+(?:(?:fucking|actually|seriously|genuinely|really|for real|honestly|even)\s+)*(?:serious|kidding|joking|for real|taking the piss|high|ok|okay|dumb|stupid|mad|having a laugh|asking|trying|telling|saying|out of your)\b[^.!?]*\?+$|^(?:(?:damn|shit|hell|fuck|goddamn|oh|mate|bro|man|nah)[,\s]+)*what\s+the\s+(?:fuck|hell|shit)\s+(?:do\s+|did\s+|are\s+)?(?:you|u|ya)\s+(?:even\s+)?(?:mean|on about|talking about|saying|want)\b[^.!?]*\?+$|^(?:(?:damn|shit|hell|fuck|goddamn|oh|mate|bro|man|nah)[,\s]+)*what\s+(?:the\s+(?:fuck|hell)\s+)?(?:kind|sort)\s+of\s+[^.!?]*\bquestion\b[^.!?]*\?+$/i;
 
-const BASIC_CHAT_RE = /^(?:(?:hey+|yo+|hi+|sup|ay+|ok(?:ay)?)[\s,]+)?(?:nexus[\s,]+)?(?:are|r|is|do|did|does|have|can|will|you|u|wanna|want)\b/i;
+const BASIC_CHAT_RE = /^(?:(?:hey+|yo+|hi+|sup|ay+|ok(?:ay)?)[\s,]+)?(?:nexus[\s,]+)?(?:(?:are|r|is|do|did|does|have|can|will|you|u|wanna|want)\b|(?:what(?:'?s|\s+are|\s+r)|how(?:'?s|\s+are|\s+r))\s+(?:you|u)\b|wyd\b)/i;
 
 function capRamblingReply(text: string, userPrompt: string): string {
   if (!text || !userPrompt) return text;
@@ -164,10 +164,16 @@ function capRamblingReply(text: string, userPrompt: string): string {
   // short slangy line ("nah, just chilling rn"), as the server asked (#feature-ideas, 2026-09-30).
   const isBasicChat = !wantsDepth && promptWords <= 7 && BASIC_CHAT_RE.test(userPrompt) && /\b(?:you|u|ur|your|yourself)\b/i.test(userPrompt);
   const MAX_SENTENCES = isBasicChat ? 1 : wantsDepth || COMPARISON_RE.test(userPrompt) ? 3 : 2;
+  const CHAR_CEILING = isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
   const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
   if (isBasicChat && kept.length === 1) {
     // A run-on glues extra thoughts on after ";" / "—": keep only the first.
-    const first = kept[0].split(/\s*(?:;|—|–)\s*/)[0];
+    // ...and so does a ", which is ..." / ", because ..." tail ("shit, just chilling rn, which is fucking nice because...").
+    let first = kept[0].split(/\s*(?:;|—|–|,\s+(?:which|because|'?cause|since|like|and|but|so|while|as|except)\b)\s*/i)[0];
+    if (first.length > CHAR_CEILING) {
+      const cut = first.slice(0, CHAR_CEILING).lastIndexOf(', ');
+      if (cut >= 12) first = first.slice(0, cut);
+    }
     if (first.length >= 8) kept[0] = /[.!?…]$/.test(first) ? first : first + '.';
   }
   // A sentence count alone doesn't bound length — gemma chains clauses with commas/semicolons/
@@ -176,7 +182,6 @@ function capRamblingReply(text: string, userPrompt: string): string {
   // separate "Anyway, ..." aside isn't counted — it's re-appended after.
   // 650/360 -> 450/260 (2026-09-30): real replies averaged ~300 chars even under the 2-sentence
   // cap because gemma chains clauses with ; and — into one run-on "sentence" — 3-4 lines in Discord.
-  const CHAR_CEILING = isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
   while (kept.length > 1 && kept.join(' ').length > CHAR_CEILING) kept.pop();
   // One run-on sentence can blow the ceiling on its own (the loop above never drops the last one).
   // Cut it at the last clause break (; — – or ", ") before the ceiling — those are where gemma

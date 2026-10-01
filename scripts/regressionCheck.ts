@@ -23,7 +23,7 @@ import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
 import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing, deStackLeadingInterjections } from '../src/ai-engine/swearEngine';
 import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
-import { stripContextLeaks, stripUnpromptedCreatorMentions } from '../src/ai-engine/rules/postProcess';
+import { stripContextLeaks, stripUnpromptedCreatorMentions, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch, buildWikipediaQuery } from '../src/ai-engine/webSearchEngine';
 import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
@@ -451,6 +451,11 @@ async function runDeterministicChecks() {
     check('parser handles an empty / malformed response', parseTavilyResponse({}, 5).length === 0 && parseTavilyResponse({ results: [{ title: 'x' }] }, 5).length === 0);
     for (const q of ['whats the price of bitcoin today', 'what is the weather in montreal', 'live score of the game', 'usd to cad exchange rate']) check(`live data is never learned: "${q}"`, isVolatileQuestion(q));
     for (const q of ['who won the 2026 world cup', 'who is the current prime minister of canada', 'what happened with the louvre heist']) check(`lasting facts still can be: "${q}"`, !isVolatileQuestion(q));
+    // Basic chat questions about Nexus get ONE short line (Discord, 2026-09-30: "Long answer, not like the nah I'm gooning rn").
+    const longChill = "shit, just chilling rn, which is fucking nice because my ass is currently being used as a makeshift footrest by my girlfriend and it feels like a goddamn artisanal cheese wheel.";
+    const capped = topUpForCap(longChill, DEFAULT_SETTINGS as any, true, 'Yo nexus are you gaming');
+    check('basic chat question gets one short line', capped.length < 60 && /chilling rn/.test(capped) && !/footrest/.test(capped), capped);
+    check('a factual question is not shortened that way', /footrest/.test(topUpForCap(longChill, DEFAULT_SETTINGS as any, true, 'why is my ass a footrest for you')));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);
