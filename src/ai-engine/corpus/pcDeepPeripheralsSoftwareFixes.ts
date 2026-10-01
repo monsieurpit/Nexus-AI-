@@ -170,6 +170,7 @@ export const PC_DEEP_PERIPHERALS_SOFTWARE_FIXES: KnowledgeItem[] = [
     'kb-pc-deep-local-llm-hardware',
     'Running local AI and LLMs on a PC: VRAM math, quantization, KV cache, speed',
     [
+      'how much ram for llm', 'how much ram do i need for ai models', 'how much vram for local ai', 'run llama locally hardware',
       'how much vram to run a llm', 'what is quantization q4 q8', 'how many parameters fit in 16gb vram', 'llama.cpp vs ollama vs lm studio', 'what is kv cache', 'tokens per second explained', 'best gpu for local llm', 'can i run llama 70b at home',
       'mac vs pc for local ai', 'run gemma locally', 'what is mlx on mac', 'cpu offload llm slow',
     ],

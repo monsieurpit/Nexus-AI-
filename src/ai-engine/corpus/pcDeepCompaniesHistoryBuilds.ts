@@ -211,6 +211,7 @@ export const PC_DEEP_COMPANIES_HISTORY_BUILDS: KnowledgeItem[] = [
     'kb-pc-lifespans-upgrade-timeline',
     'How long PC parts last and when to upgrade each one',
     [
+      'how long do gpus last', 'how long do graphics cards last', 'how long will my pc last',
       'how often should i upgrade my pc', 'how long does a gpu last', 'how long do cpus last', 'when to replace an old psu', 'how long do ssds last', 'how long should a pc last', 'upgrade timeline pc parts', 'should i upgrade or rebuild', 'when is my pc obsolete', 'future proof pc 2026',
     ],
     `Typical lifespans for a well-cared PC: CPU 8-10+ years of working life (you replace it for speed after 4-6 years), motherboard 6-10 years, RAM 8-10+ years (capacity needs rise), GPU 4-6 years in a relevant tier (you upgrade after 3-5), SSD 5-10 years (check health), HDD 3-6 years, PSU 7-12 years (match the warranty), case/fans/coolers 5-10 years (fans wear out in 3-6 years; AIO pumps 5-7 years), monitors 7-10 years. Upgrade order when the PC feels slow: GPU, RAM capacity, SSD, then CPU/motherboard together. "Future-proofing" is partly a myth: buy for what you need now and a sensible upgrade path (AM5 board, a good PSU with headroom, a case with room), not for 8 years of top settings. Rebuild instead of upgrading when the platform is dead (e.g. an AM4/LGA1200 board with a DDR4 only upgrade path) and the CPU is the bottleneck. In 2026's expensive market, extending the life of a working PC with a GPU or SSD upgrade is often smarter than a full rebuild.`

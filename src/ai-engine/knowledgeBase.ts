@@ -171,6 +171,8 @@ import { PC_DEEP_PERIPHERALS_SOFTWARE_FIXES } from './corpus/pcDeepPeripheralsSo
 import { PC_DEEP_COMPANIES_HISTORY_BUILDS } from './corpus/pcDeepCompaniesHistoryBuilds';
 import { PC_MODEL_CATALOG } from './corpus/pcModelCatalog';
 import { PC_BEST_PARTS_BUILDS } from './corpus/pcBestPartsBuilds';
+import { PC_EXTRA_GAMES_PLATFORMS } from './corpus/pcExtraGamesPlatforms';
+import { PC_EXTRA_STANDARDS_SECURITY_MISC } from './corpus/pcExtraStandardsSecurityMisc';
 import { HEALTH_FITNESS_CONCEPTS_GAPS } from './corpus/healthFitnessConceptsGaps';
 import { CIVICS_CONCEPTS_GAPS } from './corpus/civicsConceptsGaps';
 import { ENGINEERING_MACHINES_CONCEPTS_GAPS } from './corpus/engineeringMachinesConceptsGaps';
@@ -1210,6 +1212,8 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...PC_DEEP_COMPANIES_HISTORY_BUILDS,
   ...PC_MODEL_CATALOG,
   ...PC_BEST_PARTS_BUILDS,
+  ...PC_EXTRA_GAMES_PLATFORMS,
+  ...PC_EXTRA_STANDARDS_SECURITY_MISC,
   ...HEALTH_FITNESS_CONCEPTS_GAPS,
   ...CIVICS_CONCEPTS_GAPS,
   ...ENGINEERING_MACHINES_CONCEPTS_GAPS,
