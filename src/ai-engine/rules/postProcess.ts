@@ -203,7 +203,8 @@ function capRamblingReply(text: string, userPrompt: string): string {
   }
   let out = kept.join(' ').replace(/[ \t]+/g, ' ').trim();
   if (out && !/[.!?…"']$/.test(out)) out += '.';
-  return (out + aside).trim();
+  // A basic chat answer is just that line: no tacked-on "Anyway, ..." aside either.
+  return (out + (isBasicChat ? '' : aside)).trim();
 }
 
 // Defensive scrub for a formal-draft response (buildCleanDraftSystemPrompt already tells the
