@@ -502,6 +502,7 @@ async function runDeterministicChecks() {
     const lesson = formatPcLesson('intro. 1) Pick a GPU. 2) Pick a CPU. 3) Pick RAM. 4) Pick a PSU. last tip, budget? cut off mid');
     check('PC lesson keeps numbered steps on their own lines', /\n2\) Pick a CPU\.\n3\) Pick RAM\./.test(lesson) && !/cut off mid/.test(lesson), lesson);
     check('PC lesson drops the "i dont know that one" opener and the btw aside', !/know that one|btw/.test(formatPcLesson("nah i dont actually know that one cuz u gave no budget so heres a build;\n1) CPU.\n2) GPU.\n3) RAM.\n(btw im lying naked right now)")));
+    check('PC lesson drops a trailing "im currently..." rant and keeps psu intact', !/currently/.test(formatPcLesson('1) a.\n2) b.\n3) c.\nim currently naked in bed.')) && /psu/.test(formatPcLesson('1) a.\n2) get a 750w psu.\n3) c.')));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);

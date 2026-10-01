@@ -448,7 +448,7 @@ export function formatPcLesson(text: string): string {
   let lines = t.split(/\n+/).map((l) => l.trim()).filter(Boolean);
   // No random "what I'm doing right now" aside after a lesson, and never an "I don't know" opener
   // (the facts were supplied): both read as the bot being confused.
-  lines = lines.filter((l) => !/^\(?(?:btw|anyway)[,\s]/i.test(l));
+  lines = lines.filter((l) => !/^\(?(?:btw|anyway|i'?m currently|im currently|i am currently|rn i'?m|rn im)\b/i.test(l));
   if (lines.length) {
     const cleaned = lines[0].replace(/^(?:nah[,.]?\s*)?i\s*(?:do not|don'?t|dont)\s+(?:actually\s+)?know that one[^;.,]*[;.,]?\s*/i, '').replace(/^\s*cuz\s+/i, '').trim();
     if (cleaned) lines[0] = cleaned;
@@ -471,7 +471,7 @@ export function formatPcLesson(text: string): string {
     const cut = out.slice(0, 1400).lastIndexOf('\n');
     out = cut > 300 ? out.slice(0, cut) : out.slice(0, 1400);
   }
-  return abbreviateChat(out);
+  return abbreviateChat(out).replace(/\bps u\b/gi, 'psu');
 }
 
 export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
