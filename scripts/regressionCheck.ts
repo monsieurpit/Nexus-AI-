@@ -33,6 +33,7 @@ import { splitSentencesSafe } from '../src/ai-engine/sentences';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply, __resetQuickChatForTests } from '../src/ai-engine/rules/quickChat';
 import { countDistinctPartners, isBodyCountQuestion } from '../src/ai-engine/rules/bodyCount';
 import { threadFactsNote } from '../src/ai-engine/rules/threadFacts';
+import { extractPrices, summarizePrices, getPriceNote, __setPricesForTests } from '../src/ai-engine/priceTracker';
 import { PC_BUILDING_COMPLETE } from '../src/ai-engine/corpus/pcBuildingComplete';
 import { PC_BEST_PARTS_BUILDS } from '../src/ai-engine/corpus/pcBestPartsBuilds';
 import { findRelevantKnowledge } from '../src/ai-engine/knowledgeBase';
@@ -508,6 +509,12 @@ async function runDeterministicChecks() {
     const gamingDream = PC_BEST_PARTS_BUILDS.find((e) => e.id === 'kb-pc-best-infinite-money-gaming')?.content || '';
     check('dream gaming build never recommends a 60Hz pro monitor', /PG32UCDM/.test(gamingDream) && !/Apple Pro Display XDR-class/.test(gamingDream) && /never a 60Hz/.test(gamingDream));
     for (const [q, n] of [['fortnite with a 10k$ budget', 10000], ['i have $1500 for a pc', 1500], ['10,000 dollars budget', 10000], ['2k budget gaming pc', 2000], ['what is a gpu', null], ['i am 16 and play 3 games', null]] as const) check(`budget parse "${q}" = ${n}`, parseBudgetUsd(q) === n, String(parseBudgetUsd(q)));
+    check('price extraction keeps only plausible listings', JSON.stringify(extractPrices('RTX 5080 $1,249.99 or $59.99 case, $1,399 bundle $12,000', 900, 2500)) === JSON.stringify([1249, 1399]), JSON.stringify(extractPrices('RTX 5080 $1,249.99 or $59.99 case, $1,399 bundle $12,000', 900, 2500)));
+    check('price summary needs 3 samples and uses the median', summarizePrices([1200]) === null && summarizePrices([1200, 1250], 2)?.median === 1225 && summarizePrices([1200, 1250, 1400, 1300, 1280])?.median === 1280);
+    __setPricesForTests({ updatedAt: Date.now(), items: { 'rtx-5080': { label: 'RTX 5080 16GB', median: 1250, low: 1180, high: 1399, samples: 6, domains: ['newegg.com'], updatedAt: Date.now() }, 'ddr5-32gb-6000': { label: '32GB (2x16GB) DDR5-6000 kit', median: 330, low: 290, high: 420, samples: 5, domains: ['newegg.com'], updatedAt: Date.now() } } });
+    check('price note names the parts in the question with date and range', /RTX 5080 16GB: about \$1,250 \(typical listings \$1,180-\$1,399\)/.test(getPriceNote('how much is an rtx 5080 right now')) && /updated \d{4}-\d{2}-\d{2}/.test(getPriceNote('rtx 5080')));
+    check('price note is empty for unrelated questions and old snapshots', getPriceNote('who won the world cup') === '' && (__setPricesForTests({ updatedAt: Date.now() - 90 * 86400000, items: { 'rtx-5080': { label: 'RTX 5080 16GB', median: 1, low: 1, high: 1, samples: 3, domains: [], updatedAt: 0 } } }), getPriceNote('rtx 5080')) === '');
+    __setPricesForTests(null);
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);

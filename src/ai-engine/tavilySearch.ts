@@ -251,11 +251,11 @@ export function __resetSearchForTests(): void {
 export async function searchTavilyDirect(
   query: string,
   limit = 5,
-  opts: { purpose?: 'chat' | 'learning'; recent?: boolean } = {}
+  opts: { purpose?: 'chat' | 'learning'; recent?: boolean; includeDomains?: string[] } = {}
 ): Promise<WebSearchResult[]> {
   if (!query.trim() || !(await isLiveSearchAvailable())) return [];
 
-  const cacheKey = `${query.trim().toLowerCase()}|${opts.recent ? 'r' : ''}`;
+  const cacheKey = `${query.trim().toLowerCase()}|${opts.recent ? 'r' : ''}|${(opts.includeDomains || []).join(',')}`;
   const cached = resultCache.get(cacheKey);
   if (cached && Date.now() - cached.at < RESULT_CACHE_MS) return cached.results.slice(0, limit);
 
@@ -275,6 +275,7 @@ export async function searchTavilyDirect(
     include_images: false,
   };
   if (opts.recent) body.time_range = 'month';
+  if (opts.includeDomains?.length) body.include_domains = opts.includeDomains.slice(0, 20);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);

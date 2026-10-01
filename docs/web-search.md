@@ -40,3 +40,19 @@ or on Railway. Check: `curl -s localhost:3000/api/health` → `"webSearch": {"mo
 - Learning: verifies against Wikipedia first, and only falls back to live search for **trusted sources
   only** — a random website can never make Nexus learn something. Live data (prices, scores, weather,
   "today") is never learned, only looked up live each time.
+
+## Automatic PC price snapshot (`src/ai-engine/priceTracker.ts`)
+
+There is no free official price API for PC parts, so Nexus builds his own snapshot from this same live search: about once
+a week (checked every 6 hours, first try 3 minutes after the engine starts) it searches ~28 key parts (GPUs, CPUs, RAM
+kits, SSDs, PSUs) on retailer sites (Newegg, Best Buy, Micro Center, Amazon, B&H, Canada Computers, Memory Express...),
+takes one price per listing, rejects implausible values, and keeps the **median** and the typical low-high range when 2+ listings agree.
+Saved in `~/.nexus-prices/prices.json`. PC answers and build lessons then get "LIVE PRICE SNAPSHOT (updated YYYY-MM-DD)"
+lines for the parts in the question; parts without enough listings fall back to the corpus ranges.
+
+- Cost: ~30-60 searches a week (the cap is 900/month); it stops when the daily budget is mostly used, when the keyless
+  rate limit pauses search, and retries 20 minutes later (up to 6 times).
+- Local-admin endpoints (same guard as the model endpoints): `GET /api/v1/prices/snapshot`,
+  `POST /api/v1/prices/refresh` (optional body `{"only":"rtx-5080,ddr5-32gb-6000"}`).
+- `NEXUS_PRICE_TRACKER=off` disables it. Coverage is partial: search snippets of retail pages often have no price, so a
+  free Best Buy Products API key (no card) would give far better data if you want it.

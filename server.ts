@@ -21,6 +21,7 @@ import { getMoodDisplay } from './src/ai-engine/rules/mood';
 import {
   checkAvailability as checkLocalLlmAvailability,
   warmChatModel,
+  isModelBusy,
   setGamingMode,
   getGamingMode,
   generate as generateLlmText,
@@ -58,6 +59,7 @@ import { markForegroundActivity, startLearningWorker } from './src/ai-engine/lea
 import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
 import { registerLearningAdminRoutes, loadAdminToken } from './src/ai-engine/learning/admin';
 import { timingSafeEqual } from 'crypto';
+import { startPriceTracker, refreshPrices, loadPrices } from './src/ai-engine/priceTracker';
 import {
   executeUnifiedWebSearch,
   searchGoogleDirect,
@@ -1945,6 +1947,17 @@ app.post('/api/v1/model/warm', async (req, res) => {
   return res.json({ status: await warmChatModel() });
 });
 
+// Automatic PC price snapshot (src/ai-engine/priceTracker.ts): local admin only, like the model endpoints.
+app.get('/api/v1/prices/snapshot', (req, res) => {
+  if (!isLocalAdminRequest(req)) return res.status(404).json({ error: 'Not found' });
+  return res.json(loadPrices());
+});
+app.post('/api/v1/prices/refresh', async (req, res) => {
+  if (!isLocalAdminRequest(req)) return res.status(404).json({ error: 'Not found' });
+  const only = typeof req.body?.only === 'string' ? req.body.only.split(',').map((x: string) => x.trim()).filter(Boolean) : undefined;
+  return res.json(await refreshPrices({ force: true, onlyIds: only }));
+});
+
 // Learning system admin API (own token — see src/ai-engine/learning/admin.ts for why not requireApiKey).
 registerLearningAdminRoutes(app);
 
@@ -2915,6 +2928,8 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Nexus & RaidShield API Server active at http://0.0.0.0:${PORT}`);
+    // Weekly automatic PC price snapshot via live web search (NEXUS_PRICE_TRACKER=off to disable).
+    startPriceTracker(() => isModelBusy());
     // Load the model now so the first message after a Mac/engine restart isn't the one that pays the
     // 10-30s cold load (the default is to keep it loaded forever). NEXUS_WARM_ON_START=off to skip.
     if ((process.env.NEXUS_WARM_ON_START || 'on').toLowerCase() !== 'off') {
