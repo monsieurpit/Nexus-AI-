@@ -26,6 +26,7 @@ import {
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
+import { threadFactsNote } from './rules/threadFacts';
 import { isBodyCountQuestion, countDistinctPartners } from './rules/bodyCount';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply } from './rules/quickChat';
 import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat } from './rules/postProcess';
@@ -4522,6 +4523,14 @@ export function rewriteSelfReferences(prompt: string): string {
     .replace(/\bnexus\s+(is|was)\b(?=.{2,})/i, (m, v: string, offset: number) => (offset === 0 ? m : `you ${v === 'is' ? 'are' : 'were'}`));
 }
 
+// The asker's own last messages (3-exchange window) -> a short "known from this chat" note, or "".
+function chatFactsNote(history: ChatMessage[], authorId: string | undefined, current: string): string {
+  const mine = buildSpeakerAwareWindow(history, authorId)
+    .filter((m) => m?.role === 'user' && typeof m.content === 'string')
+    .map((m) => m.content);
+  return threadFactsNote([...mine, current]);
+}
+
 export async function generateReasoningPath(
   prompt: string,
   history: ChatMessage[],
@@ -4576,7 +4585,7 @@ export async function generateReasoningPath(
     const quickKind = classifyQuickChat(prompt);
     if (quickKind) {
       const quickText = await llmSituationalReplyOrFallback(
-        quickChatInstruction(quickKind, prompt),
+        quickChatInstruction(quickKind, prompt) + ((n) => (n ? ` ${n}` : ''))(chatFactsNote(history, settings.discordUserId, prompt)),
         persona,
         settings,
         isCrashout,
@@ -4609,6 +4618,24 @@ export async function generateReasoningPath(
     }
   }
 
+  // "which game were we playing again?" — answered from what they told him earlier in the chat.
+  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt) && /\b(?:which|what)\s+game\b[^?]*\b(?:we|us|playing|were|are)\b/i.test(prompt)) {
+    const gameFact = chatFactsNote(history, settings.discordUserId, '').match(/is ([A-Za-z0-9:' ]+?) —/)?.[1];
+    if (gameFact) {
+      const gameText = await llmSituationalReplyOrFallback(
+        `The user asked: "${prompt}". The game you two are playing is ${gameFact} (they told you earlier). Answer in ONE short casual line, say "${gameFact}" clearly, like a friend (a little "bro we literally said" tease is fine).`,
+        persona,
+        settings,
+        isCrashout,
+        thoughtSteps,
+        `${gameFact} lol`,
+        '🎮 Game from the chat (model-worded)',
+        false
+      );
+      return { thoughtSteps, content: oneLineChat(gameText, 120), knowledgeHits: [] };
+    }
+  }
+
   // Back-and-forth: the user is answering something Nexus just said ("doom scrolling lol" after his
   // "wyd") — a short statement, not a question or a command. A friend answers that in one line that
   // reacts to what was said; Nexus used to launch into a paragraph about himself. Needs his previous
@@ -4633,12 +4660,13 @@ export async function generateReasoningPath(
       !detectUserInsult(prompt) &&
       !classifyQuickChat(prompt);
     if (looksLikeFollowUp && lastBot) {
+      const factsNote = chatFactsNote(history, settings.discordUserId, prompt);
       const threadWindow = buildSpeakerAwareWindow(history, settings.discordUserId).filter((m) => typeof m?.content === 'string');
       const threadLines = (threadWindow.length ? threadWindow : [...(prevUser ? [prevUser] : []), lastBot])
         .map((m) => `${m.role === 'assistant' ? 'You' : 'Them'}: ${m.content.slice(0, 200)}`)
         .join('\n');
       const followText = await llmSituationalReplyOrFallback(
-        `The user just said: "${prompt}".\nThe chat so far (oldest first):\n${threadLines}\n\nNow reply as you, like a friend texting back: ONE short line (under 15 words) that directly responds to what THEY just said, given the chat above — relate to it, laugh with them, agree, or ask one short natural follow-up question about it. Stay on the same topic. Anything they already told you in the chat above (the game they're playing, plans, names) is KNOWN: never ask for it again, use it. Do NOT insult them unless they insulted you, do NOT change the subject, do NOT start a story about yourself, ONE sentence only. If you didn't get what they meant, say so in a few words ("wait what?") instead of making something up. Casual slang (u, ur, rn, ngl, fr, lol).`,
+        `The user just said: "${prompt}".\nThe chat so far (oldest first):\n${threadLines}\n\nNow reply as you, like a friend texting back: ONE short line (under 15 words) that directly responds to what THEY just said, given the chat above — relate to it, laugh with them, agree, or ask one short natural follow-up question about it. Stay on the same topic. Anything they already told you in the chat above (the game they're playing, plans, names) is KNOWN: never ask for it again, use it. Do NOT insult them unless they insulted you, do NOT change the subject, do NOT start a story about yourself, ONE sentence only. If you didn't get what they meant, say so in a few words ("wait what?") instead of making something up. Casual slang (u, ur, rn, ngl, fr, lol).${factsNote ? `\n${factsNote}` : ''}`,
         persona,
         settings,
         isCrashout,
@@ -5966,7 +5994,7 @@ export async function generateReasoningPath(
       ? `The user just told you how they're doing: "${prompt}" (usually answering your "how are you"). React like a normal friend would, in ONE short casual line: "yeah bet", "nice, glad ur good", "ayy fr" — then ask them back, like "wyd?" or "wyd rn bro?". Sound human, not like an AI. Do NOT roast or insult them, do NOT call their message boring, do NOT rant about yourself.`
       : standaloneSlangCtx
       ? `The user just dropped the slang term / meme phrase "${standaloneSlangCtx.term}" at you as a statement (not a question). You KNOW this one: it means ${standaloneSlangCtx.meaning}. React in character like someone who's fully in the loop — riff on it, agree, clown them for it, or throw it back, whatever fits — but do NOT say you don't know what it means or ask what they're on about. Keep it short. Your style directives (swearing, tone) fully apply.`
-      : `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. React to what they ACTUALLY said — if it's funny, weird, absurd, or shocking, actually respond to that (genuine shock, laughter, a follow-up roast, whatever fits), don't just fire off your usual chaotic-energy line and ignore the content entirely. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.`;
+      : `The user just said: "${prompt}". This is casual small talk / a conversational message, not a request for facts or research — reply naturally and briefly like a real person chatting, in character. React to what they ACTUALLY said — if it's funny, weird, absurd, or shocking, actually respond to that (genuine shock, laughter, a follow-up roast, whatever fits), don't just fire off your usual chaotic-energy line and ignore the content entirely. Your style directives (swearing, tone) fully apply to casual chat too — don't go flat or robotic just because it's small talk.${(() => { const n = chatFactsNote(history, settings.discordUserId, prompt); return n ? ` ${n}` : ''; })()}`;
     // No more carve-out skipping the LLM for phone-number requests — situationalPrompt above now
     // grounds the model with the real number, so the original reason to bypass generation entirely
     // (a free model with no real number to give either invents one or hallucinates a refusal)

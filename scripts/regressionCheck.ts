@@ -32,6 +32,7 @@ import { isVolatileQuestion } from '../src/ai-engine/learning/capture';
 import { splitSentencesSafe } from '../src/ai-engine/sentences';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply, __resetQuickChatForTests } from '../src/ai-engine/rules/quickChat';
 import { countDistinctPartners, isBodyCountQuestion } from '../src/ai-engine/rules/bodyCount';
+import { threadFactsNote } from '../src/ai-engine/rules/threadFacts';
 import { verifyAnswer } from '../src/ai-engine/answerVerifier';
 import { topUpLlmSwearing } from '../src/ai-engine/rules/postProcess';
 import { trySolveLogic } from '../src/ai-engine/logicSolver';
@@ -484,6 +485,10 @@ async function runDeterministicChecks() {
     check('even more abbreviations', abbreviateChat("i don't care, no worries, good luck, you all are trying to give me something") === 'idc, nw, gl, yall are tryna gimme smth');
     check('gerunds and more abbreviations', abbreviateChat('i am going to be chilling, hit me up, my girlfriend is doing nothing about it, of course') === 'im gonna be chillin, hmu, my gf is doin nothin abt it, ofc');
     check('abbreviations never touch quoted text', abbreviateChat('the song "Hey You" is right now on') === 'the song "Hey You" is rn on');
+    const tf = threadFactsNote(['Idk, wanna play ranked or smth?', 'Idk, Fortnite maybe…', 'Nah just us, join the game lol', 'Yeah we are going to crush them']);
+    check('thread facts: game, duo and playing together', /Fortnite/.test(tf) && /just the two of you/.test(tf) && /playing a game together/.test(tf), tf);
+    check('thread facts: nothing known -> empty', threadFactsNote(['hello', 'how are you']) === '');
+    check('thread facts: latest game wins', /Roblox/.test(threadFactsNote(['we play fortnite', 'actually lets do roblox'])) && !/Fortnite/.test(threadFactsNote(['we play fortnite', 'actually lets do roblox'])));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);
