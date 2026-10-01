@@ -441,9 +441,44 @@ export function abbreviateChat(text: string): string {
     .join('');
 }
 
+// Puts each "1) ..." / "1. ..." step on its own line, drops a cut-off last line, keeps the abbreviations rule.
+export function formatPcLesson(text: string): string {
+  let t = text.replace(/\r/g, '').replace(/\*\*/g, '').trim();
+  t = t.replace(/\s*(?:^|(?<=[.!?:;)]))\s*(\d{1,2})[.)]\s+/g, (_m, n: string) => `\n${n}) `).replace(/^\n/, '');
+  let lines = t.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  // No random "what I'm doing right now" aside after a lesson, and never an "I don't know" opener
+  // (the facts were supplied): both read as the bot being confused.
+  lines = lines.filter((l) => !/^\(?(?:btw|anyway)[,\s]/i.test(l));
+  if (lines.length) {
+    const cleaned = lines[0].replace(/^(?:nah[,.]?\s*)?i\s*(?:do not|don'?t|dont)\s+(?:actually\s+)?know that one[^;.,]*[;.,]?\s*/i, '').replace(/^\s*cuz\s+/i, '').trim();
+    if (cleaned) lines[0] = cleaned;
+    else if (lines.length > 1 && /know that one/i.test(lines[0])) lines = lines.slice(1);
+  }
+  lines = lines.filter(Boolean);
+  // A last line that stops mid-sentence (token budget) is dropped when there is enough before it.
+  if (lines.length > 1 && !/[.!?…)]$/.test(lines[lines.length - 1])) {
+    const last = lines[lines.length - 1];
+    const keep = last.match(/^(.*[.!?…)])(?=\s|$)/s)?.[1];
+    if (keep && keep.length > 12) lines[lines.length - 1] = keep;
+    else lines = lines.slice(0, -1);
+  }
+  // Text after the final step's first sentence ("the biggest mistake is...") goes on its own line.
+  const lastIdx = lines.length - 1;
+  const m = /^(\d{1,2}\) [^.!?]*[.!?])\s+(\S[\s\S]*)$/.exec(lines[lastIdx] || '');
+  if (m) lines.splice(lastIdx, 1, m[1], m[2]);
+  let out = lines.join('\n');
+  if (out.length > 1400) {
+    const cut = out.slice(0, 1400).lastIndexOf('\n');
+    out = cut > 300 ? out.slice(0, cut) : out.slice(0, 1400);
+  }
+  return abbreviateChat(out);
+}
+
 export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
   // Stray HTML the model sometimes leaks ("...or somethin?</blockquote>.") never belongs in a Discord message.
   const noTags = text.replace(/<\/?(?:blockquote|p|br|b|i|u|em|strong|span|div|li|ul|ol|code|pre|h[1-6])\b[^>]*>/gi, ' ').replace(/[ \t]{2,}/g, ' ').replace(/\s+([.,!?])/g, '$1');
+  // A PC build lesson keeps its numbered lines (every other path flattens lists into one paragraph).
+  if (userPrompt && !suppressSwearing && PC_BUILD_REQUEST_RE.test(userPrompt)) return formatPcLesson(noTags);
   const out = topUpLlmSwearingCore(noTags, settings, isCrashout, userPrompt, suppressSwearing);
   return suppressSwearing ? out : abbreviateChat(out);
 }

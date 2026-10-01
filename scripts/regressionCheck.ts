@@ -23,7 +23,7 @@ import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
 import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing, deStackLeadingInterjections } from '../src/ai-engine/swearEngine';
 import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
-import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, isBasicChatPrompt, oneLineChat, abbreviateChat, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
+import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, isBasicChatPrompt, oneLineChat, abbreviateChat, formatPcLesson, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch, buildWikipediaQuery } from '../src/ai-engine/webSearchEngine';
 import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
@@ -499,6 +499,9 @@ async function runDeterministicChecks() {
     check('PC corpus: 40+ entries, unique ids, all in category pc-building', PC_BUILDING_COMPLETE.length >= 40 && new Set(PC_BUILDING_COMPLETE.map((e) => e.id)).size === PC_BUILDING_COMPLETE.length && PC_BUILDING_COMPLETE.every((e) => e.category === 'pc-building'), String(PC_BUILDING_COMPLETE.length));
     for (const [q, id] of [['why is ram so expensive right now', 'kb-pc-ram-crisis-2026'], ['how do i build a pc', 'kb-pc-build-overview'], ['what power supply do i need for a 5080', 'kb-pc-psu-guide'], ['pc wont turn on after building', 'kb-pc-troubleshooting-no-post'], ['am4 or am5', 'kb-pc-amd-ryzen-lineup']] as const) check(`PC corpus retrieval: "${q}"`, findRelevantKnowledge(q, 3).some((x) => x.id === id));
     check('PC corpus: market entries are dated', PC_BUILDING_COMPLETE.filter((e) => /crisis|market|upcoming|prices/.test(e.id)).every((e) => /2026|Oct|Sept/.test(e.content)));
+    const lesson = formatPcLesson('intro. 1) Pick a GPU. 2) Pick a CPU. 3) Pick RAM. 4) Pick a PSU. last tip, budget? cut off mid');
+    check('PC lesson keeps numbered steps on their own lines', /\n2\) Pick a CPU\.\n3\) Pick RAM\./.test(lesson) && !/cut off mid/.test(lesson), lesson);
+    check('PC lesson drops the "i dont know that one" opener and the btw aside', !/know that one|btw/.test(formatPcLesson("nah i dont actually know that one cuz u gave no budget so heres a build;\n1) CPU.\n2) GPU.\n3) RAM.\n(btw im lying naked right now)")));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);

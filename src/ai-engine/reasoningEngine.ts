@@ -4656,7 +4656,7 @@ export async function generateReasoningPath(
       .slice(0, 4);
     if (pcFacts.length > 0) {
       const pcText = await llmSituationalReplyOrFallback(
-        `The user asked: "${prompt}".\nUse ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n\nTeach them like a friend who is great with PCs: a short numbered plan (4-6 steps) with real part names from the facts, what fits with what, and the one thing most beginners get wrong. If they gave no budget or resolution, give a solid example and END by asking their budget and monitor resolution. You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
+        `The user asked: "${prompt}".\nUse ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n\nTeach them like a friend who is great with PCs. FORMAT EXACTLY: one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
         persona,
         settings,
         isCrashout,
