@@ -23,7 +23,7 @@ import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
 import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing, deStackLeadingInterjections } from '../src/ai-engine/swearEngine';
 import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
-import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
+import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, isBasicChatPrompt, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch, buildWikipediaQuery } from '../src/ai-engine/webSearchEngine';
 import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
@@ -458,6 +458,9 @@ async function runDeterministicChecks() {
     check('a factual question is not shortened that way', /footrest/.test(topUpForCap(longChill, DEFAULT_SETTINGS as any, true, 'why is my ass a footrest for you')));
     for (const t of ["I'm good nexus, thanks for asking", 'nexus im good thx for asking', 'im good nexus and you', 'nexus im good, how about you', 'thanks for asking']) check(`status reply: "${t}"`, isStatusReply(t));
     for (const t of ['how are you', 'how is the weather', 'who is good at football', 'what is a good laptop', 'explain why the sky is blue and good']) check(`not a status reply: "${t}"`, !isStatusReply(t));
+    for (const t of ['nexus', 'yo nexus', 'wyd', 'hru nexus', 'nexus wyd bro', 'whats up nexus', 'you good?', 'thanks nexus', 'good morning nexus', 'nexus are you real']) check(`basic chat: "${t}"`, isBasicChatPrompt(t));
+    for (const t of ['who is lamine yamal', 'what is photosynthesis', 'when is the next barca match', 'how many goals did messi score', 'explain how wifi works', 'why is the sky blue']) check(`not basic chat: "${t}"`, !isBasicChatPrompt(t));
+    check('one-line chat answer loses the stapled filler', topUpForCap('goddamn, yep fr, hell, wyd rn?', DEFAULT_SETTINGS as any, true, 'hru nexus') === 'yep fr, wyd rn?', topUpForCap('goddamn, yep fr, hell, wyd rn?', DEFAULT_SETTINGS as any, true, 'hru nexus'));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);

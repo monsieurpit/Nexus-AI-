@@ -26,7 +26,7 @@ import {
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
-import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply } from './rules/postProcess';
+import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
 import * as localLlmClient from './localLlmClient';
@@ -5869,6 +5869,10 @@ export async function generateReasoningPath(
       ? `Użytkownik właśnie napisał: "${prompt}". To swobodna, luźna rozmowa (small talk), nie prośba o fakty ani badania — odpowiedz naturalnie i krótko, jak prawdziwa osoba na czacie, w swoim stylu. Twoje wytyczne stylu (przekleństwa, ton) w pełni obowiązują też w luźnej rozmowie.`
       : isFrenchConversation
       ? `L'utilisateur vient d'écrire : "${prompt}". C'est une conversation décontractée (small talk), pas une demande de faits ou de recherche — réponds naturellement et brièvement, comme une vraie personne dans un chat, dans ton style. Tes directives de style (jurons, ton) s'appliquent pleinement même dans une conversation décontractée.`
+      : /^(?:(?:hey+|yo+|ok(?:ay)?|ay+)[\s,]+)?(?:nexus[\s,]+)?(?:thanks?|thank you|thx|ty|appreciate (?:it|you|that))\b[\s\S]{0,20}$/i.test(effectivePrompt.trim()) || /^(?:thanks?|thank you|thx|ty)\b/i.test(effectivePrompt.trim())
+      ? `The user just thanked you: "${prompt}". Reply like a normal friend in a tiny casual line: "np", "anytime bro", "ayy no worries", "bet". Do NOT roast them or call it a weird thing to say. Sound human.`
+      : /^(?:(?:hey+|yo+|hi+|hello|sup|wsg|wassup|ay+|lol|bro|bruh|nexus)[\s,!?.]*)+$/i.test(effectivePrompt.trim())
+      ? `The user just said hi / called your name: "${prompt}". Reply like a normal friend in a tiny casual line: "yo", "sup bro", "wsg", "yo wsg" (optionally add "wyd?"). Do NOT complain about the trigger word or roast them. Sound human.`
       : isStatusReply(effectivePrompt)
       ? `The user just told you how they're doing: "${prompt}" (usually answering your "how are you"). React like a normal friend would, in ONE short casual line: "yeah bet", "nice, glad ur good", "ayy fr" — then ask them back, like "wyd?" or "wyd rn bro?". Sound human, not like an AI. Do NOT roast or insult them, do NOT call their message boring, do NOT rant about yourself.`
       : standaloneSlangCtx

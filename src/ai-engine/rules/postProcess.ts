@@ -99,6 +99,34 @@ export function isStatusReply(text: string): boolean {
 
 const BASIC_CHAT_RE = /^(?:(?:hey+|yo+|hi+|sup|ay+|ok(?:ay)?)[\s,]+)?(?:nexus[\s,]+)?(?:(?:are|r|is|do|did|does|have|can|will|you|u|wanna|want)\b|(?:what(?:'?s|\s+are|\s+r)|how(?:'?s|\s+are|\s+r))\s+(?:you|u)\b|wyd\b)/i;
 
+// Everything conversational and short aimed at Nexus himself: bare "nexus", greetings, "wyd", "hru",
+// "you good?", thanks, status replies... They all get ONE short human line (server feedback,
+// 2026-09-30). Factual questions (who/when/where/why/which, "how to/many/much") never qualify.
+const CHAT_GREETING_ONLY_RE = /^(?:(?:hey+|yo+|hi+|hello|sup|wsg|wassup|wazzup|ay+|ok(?:ay)?|lol|lmao|bro|bruh|nexus)[\s,!?.]*)+$/i;
+const CHAT_PHRASE_RE = /\b(?:wyd|hru|hbu|wbu|wsg|wassup|wazzup|what'?s up|whats up|sup|how'?s it going|hows it going|how are (?:you|u)|how r u|how you doing|how u doing|what are (?:you|u) (?:doing|up to)|(?:you|u)(?: are|'?re| r)? (?:good|ok|okay|alive|there|awake|up|mad|real|serious|cool|funny|goated|the best|trash|dumb|stupid|annoying|nice|awesome)|thanks|thank you|thx|ty|good (?:morning|night|evening)|gn|gm|(?:i )?(?:love|miss) (?:you|u))\b/i;
+const FACTUAL_WORD_RE = /\b(?:who|when|where|why|which|how (?:to|do|does|did|many|much|long|old|far|tall|big))\b/i;
+export function isBasicChatPrompt(text: string): boolean {
+  const t = (text || '').trim();
+  if (!t) return false;
+  const words = t.split(/\s+/).length;
+  if (words > 8 || FACTUAL_WORD_RE.test(t) || DEPTH_REQUEST_RE.test(t)) return false;
+  if (CHAT_GREETING_ONLY_RE.test(t) || CHAT_PHRASE_RE.test(t) || isStatusReply(t)) return true;
+  return words <= 7 && BASIC_CHAT_RE.test(t) && /\b(?:you|u|ur|your|yourself)\b/i.test(t);
+}
+
+// Filler interjections the swear floor staples around a short line ("goddamn, yep fr, hell, wyd?").
+// A one-line chat answer reads human without them; swearing inside real phrases stays.
+function stripFillerInterjections(text: string): string {
+  const parts = text.split(/,\s+/);
+  const FILLER = /^(?:goddamn|damn|hell|shit|fuck|bloody hell|christ|jesus)[.!?]*$/i;
+  const kept = parts.filter((p) => !FILLER.test(p.trim()));
+  if (kept.length === 0) return text;
+  let out = kept.join(', ').trim();
+  out = out.replace(/[,\s]+$/, '');
+  if (out && !/[.!?…'"]$/.test(out)) out += '.';
+  return out;
+}
+
 function capRamblingReply(text: string, userPrompt: string): string {
   if (!text || !userPrompt) return text;
   if (/```/.test(text)) return text;
@@ -172,7 +200,7 @@ function capRamblingReply(text: string, userPrompt: string): string {
   // big paragraphs" — see the CHAR_CEILING note below for why the character bound matters more).
   // Basic chat questions about Nexus himself ("are you gaming?", "you good?", "did you eat") get ONE
   // short slangy line ("nah, just chilling rn"), as the server asked (#feature-ideas, 2026-09-30).
-  const isBasicChat = !wantsDepth && ((promptWords <= 7 && BASIC_CHAT_RE.test(userPrompt) && /\b(?:you|u|ur|your|yourself)\b/i.test(userPrompt)) || isStatusReply(userPrompt));
+  const isBasicChat = !wantsDepth && isBasicChatPrompt(userPrompt);
   const MAX_SENTENCES = isBasicChat ? 1 : wantsDepth || COMPARISON_RE.test(userPrompt) ? 3 : 2;
   const CHAR_CEILING = isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
   const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
@@ -333,6 +361,10 @@ export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout:
   text = stripUnpromptedCreatorMentions(text, userPrompt);
   text = stripContextLeaks(text, userPrompt);
   if (userPrompt) text = capRamblingReply(text, userPrompt);
+  // One-line chat answers are returned as the model wrote them: no stapled swear floor / filler / aside.
+  if (userPrompt && !suppressSwearing && isBasicChatPrompt(userPrompt) && !DEPTH_REQUEST_RE.test(userPrompt)) {
+    return stripFillerInterjections(flattenListFormatting(text).trim());
+  }
   // Formal draft request (email/text/essay the user will actually send) — none of the swear-floor
   // machinery below should run at all; the system prompt already told the model not to swear in
   // the drafted content (see buildFinalDirective's suppressSwearing branch). scrubSwearingForDraft
