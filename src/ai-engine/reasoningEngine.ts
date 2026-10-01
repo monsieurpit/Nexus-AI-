@@ -27,7 +27,7 @@ import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDe
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply } from './rules/quickChat';
-import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt } from './rules/postProcess';
+import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, FACTUAL_WORD_RE } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
 import * as localLlmClient from './localLlmClient';
@@ -4586,6 +4586,40 @@ export async function generateReasoningPath(
       );
       rememberQuickReply(quickKind, quickText);
       return { thoughtSteps, content: quickText, knowledgeHits: [] };
+    }
+  }
+
+  // Back-and-forth: the user is answering something Nexus just said ("doom scrolling lol" after his
+  // "wyd") — a short statement, not a question or a command. A friend answers that in one line that
+  // reacts to what was said; Nexus used to launch into a paragraph about himself. Needs his previous
+  // message in the recent history, so a cold "doom scrolling lol" is untouched.
+  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt)) {
+    const recentTurns = history.slice(-4);
+    const lastBot = [...recentTurns].reverse().find((m) => m?.role === 'assistant' && typeof m.content === 'string');
+    const words = prompt.trim().split(/\s+/).length;
+    const looksLikeFollowUp =
+      !!lastBot &&
+      lastBot.content.length <= 220 &&
+      words >= 1 &&
+      words <= 16 &&
+      !/\?/.test(prompt) &&
+      !FACTUAL_WORD_RE.test(prompt) &&
+      !/^(?:say|write|tell|give|show|make|explain|list|translate|draw|search|google|look|find|calculate|solve|dox|ban|kick|mute)\b/i.test(prompt.trim()) &&
+      !/\bcasseurt\b/i.test(prompt) &&
+      !detectUserInsult(prompt) &&
+      !classifyQuickChat(prompt);
+    if (looksLikeFollowUp && lastBot) {
+      const followText = await llmSituationalReplyOrFallback(
+        `You just said: "${lastBot.content.slice(0, 200)}". The user answered: "${prompt}". Reply like a friend texting back: ONE short line (under 15 words) that reacts to exactly what they said (laugh, agree, tease them a little, or add a tiny comment), optionally ask a short follow-up. Casual slang and abbreviations (u, ur, rn, ngl, fr, tbh, lol). Do NOT start a story about yourself, do NOT write more than one sentence.`,
+        persona,
+        settings,
+        isCrashout,
+        thoughtSteps,
+        'lol fr',
+        '💬 Follow-up chat reply (model)',
+        false
+      );
+      return { thoughtSteps, content: oneLineChat(followText), knowledgeHits: [] };
     }
   }
 

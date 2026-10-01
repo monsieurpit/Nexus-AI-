@@ -104,7 +104,7 @@ const BASIC_CHAT_RE = /^(?:(?:hey+|yo+|hi+|sup|ay+|ok(?:ay)?)[\s,]+)?(?:nexus[\s
 // 2026-09-30). Factual questions (who/when/where/why/which, "how to/many/much") never qualify.
 const CHAT_GREETING_ONLY_RE = /^(?:(?:hey+|yo+|hi+|hello|sup|wsg|wassup|wazzup|ay+|ok(?:ay)?|lol|lmao|bro|bruh|nexus)[\s,!?.]*)+$/i;
 const CHAT_PHRASE_RE = /\b(?:wyd|hru|hbu|wbu|wsg|wassup|wazzup|what'?s up|whats up|sup|how'?s it going|hows it going|how are (?:you|u)|how r u|how you doing|how u doing|what are (?:you|u) (?:doing|up to)|(?:you|u)(?: are|'?re| r)? (?:good|ok|okay|alive|there|awake|up|mad|real|serious|cool|funny|goated|the best|trash|dumb|stupid|annoying|nice|awesome)|thanks|thank you|thx|ty|good (?:morning|night|evening)|gn|gm|(?:i )?(?:love|miss) (?:you|u)|(?:you|u|ur|your)(?: are|'?re| r| a|)\s+(?:a |an )?(?:weirdo|freak|creep|dork|nerd|loser|idiot|clown|goofy|lame|cringe|ugly|stupid|dumb|trash|mid|annoying|boring|cooked|bot))\b/i;
-const FACTUAL_WORD_RE = /\b(?:who|when|where|why|which|how (?:to|do|does|did|many|much|long|old|far|tall|big))\b/i;
+export const FACTUAL_WORD_RE = /\b(?:who|when|where|why|which|how (?:to|do|does|did|many|much|long|old|far|tall|big))\b/i;
 // A bare acknowledgement ("ah", "oh", "lol", "ok", "bruh", "damn", "nice") — almost always a reply to
 // something Nexus just said. It deserves a few words back, never a paragraph or a roast.
 const REACTION_RE = /^(?:(?:nexus|bro|bruh|dude|man|fam)[\s,]+)?(?:a+h+|o+h+|a+w+|o+k+(?:ay)?|k+|l+o+l+|lm+a+o+|ha+(?:ha)+|he+(?:he)+|bruh+|bro+|damn|dang|nice|true|facts?|fr(?:fr)?|bet|ig|mb|ya+|ye+a?h?|yep|yup|nah|nope|wow|ayy+|huh|hm+|mhm|ikr|real|fair|word|cool|aight|alr|ight|sheesh|dead|rip|oof|wtf|wth|omg|same|mood|ohh+|ahh+|hmm+|gg)[\s!?.,]*(?:(?:nexus|bro|bruh|dude|man|fam)[\s!?.]*)?$/i;
@@ -125,6 +125,19 @@ export function isBasicChatPrompt(text: string): boolean {
 
 // Filler interjections the swear floor staples around a short line ("goddamn, yep fr, hell, wyd?").
 // A one-line chat answer reads human without them; swearing inside real phrases stays.
+export function oneLineChat(text: string, ceiling = 130): string {
+  let t = text.replace(/\s*\n+\s*/g, ' ').replace(/\s+Anyway,[\s\S]*$/i, '').trim();
+  const first = splitSentencesSafe(t)[0] || t;
+  let line = first.split(/\s*(?:;|—|–|,\s+(?:which|because|'?cause|since|like|and|but|so|while|as|except)\b)\s*/i)[0];
+  if (line.length > ceiling) {
+    const cut = line.slice(0, ceiling).lastIndexOf(', ');
+    line = cut >= 12 ? line.slice(0, cut) : line.slice(0, ceiling).replace(/\s+\S*$/, '');
+  }
+  line = stripFillerInterjections(line).trim();
+  if (line.length < 4) return text.trim();
+  return /[.!?…'"]$/.test(line) ? line : line + '.';
+}
+
 function stripFillerInterjections(text: string): string {
   const parts = text.split(/,\s+/);
   const FILLER = /^(?:goddamn|damn|hell|shit|fuck|bloody hell|christ|jesus)[.!?]*$/i;

@@ -23,7 +23,7 @@ import { getAllKnowledge } from '../src/ai-engine/knowledgeBase';
 import { _resetMoodForTests, registerMoodEvent, getMoodDisplay } from '../src/ai-engine/rules/mood';
 import { detectUserInsult, detectEmotionalDistress, forceChaoticOvershare, detectChildExploitationTopic, enhanceNaturalSwearPhrasing, deStackLeadingInterjections } from '../src/ai-engine/swearEngine';
 import { shortenExampleAnswer } from '../src/ai-engine/voiceExampleRetrieval';
-import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, isBasicChatPrompt, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
+import { stripContextLeaks, stripUnpromptedCreatorMentions, isStatusReply, isBasicChatPrompt, oneLineChat, topUpLlmSwearing as topUpForCap } from '../src/ai-engine/rules/postProcess';
 import { VOICE_EXAMPLES } from '../src/ai-engine/corpus/voiceExamples';
 import { shouldTriggerLiveWebSearch, buildWikipediaQuery } from '../src/ai-engine/webSearchEngine';
 import { evaluateRaidShieldRules } from '../src/ai-engine/rules/raidshield';
@@ -471,6 +471,8 @@ async function runDeterministicChecks() {
     check('fixed phrases exist only as a fallback', typeof quickChatFallback('wyd') === 'string' && quickChatFallback('wyd').length > 0);
     check('insult at Nexus is a basic chat line', isBasicChatPrompt('nexus your a weirdo') && isBasicChatPrompt("you're a freak"));
     check('Casseurt crashout is not capped to one line', topUpForCap('A LONG RANT. ' .repeat(6).trim().toLowerCase(), DEFAULT_SETTINGS as any, true, 'casseurt').split(/[.!?]/).filter((x: string) => x.trim()).length >= 5);
+    const longFollow = "fuck, lol, that shit is so relatable, goddamn, doomscrolling is like trying to drink from a firehose of human stupidity, isn't it? i was just lying naked in the middle of my fucking kitchen smelling some old cheese rn.";
+    check('follow-up reply is cut to one short line', oneLineChat(longFollow).length <= 135 && !/kitchen/.test(oneLineChat(longFollow)), oneLineChat(longFollow));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);
