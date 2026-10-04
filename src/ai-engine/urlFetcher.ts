@@ -113,15 +113,35 @@ export async function fetchUrlContent(rawUrl: string): Promise<FetchedPage | Fet
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(parsed.toString(), {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: {
-        // A generic browser UA — some sites block requests with no/bot-looking UA outright.
-        'User-Agent': 'Mozilla/5.0 (compatible; NexusAI/1.0; +https://github.com/monsieurpit/Nexus-AI-)',
-        Accept: 'text/html,application/xhtml+xml',
-      },
-    });
+    // Redirects are followed by hand (max 4) so every hop is checked against private/loopback addresses too —
+    // `redirect: 'follow'` would let a public page bounce the request to http://localhost:11434.
+    let current = parsed;
+    let res: Response | null = null;
+    for (let hop = 0; hop < 5; hop++) {
+      res = await fetch(current.toString(), {
+        signal: controller.signal,
+        redirect: 'manual',
+        headers: {
+          // A generic browser UA — some sites block requests with no/bot-looking UA outright.
+          'User-Agent': 'Mozilla/5.0 (compatible; NexusAI/1.0; +https://github.com/monsieurpit/Nexus-AI-)',
+          Accept: 'text/html,application/xhtml+xml',
+        },
+      });
+      const location = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
+      if (!location) break;
+      let next: URL;
+      try {
+        next = new URL(location, current);
+      } catch {
+        return { status: 'error', reason: 'unreachable', detail: 'bad redirect' };
+      }
+      if (next.protocol !== 'http:' && next.protocol !== 'https:') return { status: 'error', reason: 'blocked_target', detail: 'redirect to a non-http link' };
+      const hopCheck = await resolveAndValidateHost(next.hostname);
+      if (hopCheck.ok === false) return { status: 'error', reason: 'blocked_target', detail: `redirect: ${hopCheck.detail}` };
+      current = next;
+      if (hop === 4) return { status: 'error', reason: 'unreachable', detail: 'too many redirects' };
+    }
+    if (!res) return { status: 'error', reason: 'unreachable' };
     if (!res.ok) {
       return { status: 'error', reason: 'unreachable', detail: `HTTP ${res.status}` };
     }
@@ -147,13 +167,14 @@ export async function fetchUrlContent(rawUrl: string): Promise<FetchedPage | Fet
     const mainMatch = html.match(/<(?:article|main)[^>]*>([\s\S]*?)<\/(?:article|main)>/i);
     const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
     const rawSection = mainMatch?.[1] || bodyMatch?.[1] || html;
-    const content = stripHtmlTags(rawSection).slice(0, MAX_CONTENT_CHARS);
+    const metaDesc = html.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]*content=["']([^"']{10,400})["']/i)?.[1];
+    const content = `${metaDesc ? `${stripHtmlTags(metaDesc)} — ` : ''}${stripHtmlTags(rawSection)}`.slice(0, MAX_CONTENT_CHARS);
 
     if (!content || content.length < 20) {
       return { status: 'error', reason: 'not_html', detail: 'no readable text content extracted' };
     }
 
-    return { status: 'success', url: parsed.toString(), title, content };
+    return { status: 'success', url: current.toString(), title, content };
   } catch (e: any) {
     if (e?.name === 'AbortError') return { status: 'error', reason: 'timeout' };
     return { status: 'error', reason: 'unreachable', detail: e?.message || String(e) };

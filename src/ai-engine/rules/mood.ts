@@ -228,9 +228,9 @@ export function getMoodDisplay(): { label: MoodLabel; emoji: string; name: strin
 // not just an adjective describing an internal state.
 const MOOD_DIRECTIVES: Record<MoodLabel, string> = {
   super_happy:
-    "MOOD OVERRIDE — you are genuinely buzzing right now, riding a real high from this conversation. Open with real excitement, not your usual flat chill tone. More exclamation marks, more enthusiasm, more \"hell yeah\" energy than normal, even on a boring question.",
+    "MOOD — you're in a great mood: a bit warmer and cheekier than usual. It colors your words, it does NOT make replies longer, and you never announce it (no \"I'm buzzing\", \"hell yeah\", \"this is gonna be epic\").",
   happy:
-    "MOOD OVERRIDE — you're in a noticeably good mood right now: upbeat, warm, more patient than your usual baseline. Let that color your actual opening tone, not just the topic.",
+    "MOOD — you're in a good mood: slightly warmer and more patient. Keep the same length rules; never announce your mood.",
   neutral: '',
   bored:
     "MOOD OVERRIDE — you are actually bored right now, not just neutral. Do NOT open cheerfully or high-energy. Open flat/low-effort, maybe a short \"eh\", \"meh\", or a one-line complaint about being bored, THEN still answer for real. Kill the usual enthusiasm.",

@@ -27,11 +27,16 @@ import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDe
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
 import { threadFactsNote } from './rules/threadFacts';
+import { classifyMessageMode, recentRepliesFor, isRepeat, rememberReply, chatMeaningHints, isEchoReply } from './rules/messageMode';
+import { findHexColor, describeHexColor } from './rules/colorInfo';
+import { readLink } from './urlSkills';
+import { looksLikeTeaching, isTeacher, teachFromMessage } from './learning/teach';
+import { searchTavilyDirect } from './tavilySearch';
 import { getPriceNote } from './priceTracker';
 import { findRelevantKnowledge } from './knowledgeBase';
 import { isBodyCountQuestion, countDistinctPartners } from './rules/bodyCount';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply } from './rules/quickChat';
-import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, PC_TOPIC_RE, PC_BUILD_REQUEST_RE } from './rules/postProcess';
+import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, shortChatFinalize, hasContextLeak, PC_TOPIC_RE, PC_BUILD_REQUEST_RE } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
 import * as localLlmClient from './localLlmClient';
@@ -3957,6 +3962,12 @@ async function llmSituationalReplyOrFallback(
     // Keep a truncated-but-real first attempt if the retry itself fails outright.
     if (retry.status === 'success' || llmResult.status !== 'success') llmResult = retry;
   }
+  // A reply that talks about "the context/info provided" is regenerated once instead of being replaced by a canned
+  // "i don't know that one" line (Patrick, 2026-10-04).
+  if (llmResult.status === 'success' && hasContextLeak(llmResult.text, llmPrompt.match(/"([^"]{1,800})"/)?.[1])) {
+    const clean = await localLlmClient.generate(`${llmPrompt}\n\n(Answer naturally in your own words. Never mention any context, provided info, facts or sources you were or weren't given.)`, { ...generateOptions, think: false, maxTokens: casualContentBudget });
+    if (clean.status === 'success' && !hasContextLeak(clean.text)) llmResult = clean;
+  }
   if (llmResult.status === 'success' && llmResult.thinking) {
     thoughtSteps.push({
       id: 'step-llm-raw-thinking-casual',
@@ -4172,8 +4183,8 @@ async function llmGroundedOrFallback(
   // own framing) means the whole grounded-answer flow, not just the self-review retries on top of
   // it, so the deadline has to cover pass 1 too, not just passes 2-3 below.
   const groundedDeadline = Date.now() + GROUNDED_ANSWER_TOTAL_BUDGET_MS;
-  const generateOnce = (thinkThisPass: boolean = revealThinking) =>
-    localLlmClient.generate(groundedPrompt, {
+  const generateOnce = (thinkThisPass: boolean = revealThinking, suffix = '') =>
+    localLlmClient.generate(groundedPrompt + suffix, {
       system: groundedSystemPrompt,
       userPreamble: groundedMoodPreamble,
       temperature: usedTemperature,
@@ -4209,6 +4220,10 @@ async function llmGroundedOrFallback(
     // Answered, but cut off by the cap while thinking — the "doesn't send the full answer" case.
     const complete = await generateOnce(false);
     if (complete.status === 'success') llmResult = complete;
+  }
+  if (llmResult.status === 'success' && hasContextLeak(llmResult.text, prompt) && groundedDeadline - Date.now() > 8000) {
+    const clean = await generateOnce(false, "\n\n(Answer naturally in your own words. Never mention any context, provided info, facts or sources you were or weren't given.)");
+    if (clean.status === 'success' && !hasContextLeak(clean.text, prompt)) llmResult = clean;
   }
   if (llmResult.status !== 'success') {
     thoughtSteps.push({
@@ -4576,7 +4591,7 @@ function budgetGuidance(budget: number | null): string {
   return `THE USER'S BUDGET IS $${budget.toLocaleString('en-US')}: plan EXACTLY for it, that is ${tier}. Never recommend a cheaper tier than the budget allows unless you explain it is overkill, and say honestly if the budget is more than the use needs (e.g. Fortnite). `;
 }
 
-export async function generateReasoningPath(
+async function generateReasoningPathInner(
   prompt: string,
   history: ChatMessage[],
   persona: ModelPersona,
@@ -4619,169 +4634,6 @@ export async function generateReasoningPath(
   // for their own routing — not a second, potentially-drifting copy of that logic, just read here
   // slightly earlier than their own routing checks fire.
   registerMoodEvent(prompt, detectUserInsult(prompt), detectEmotionalDistress(prompt));
-
-  // Tiny chat messages (wyd / hru / thanks / bare "nexus" / "i'm good, thanks for asking" / "are you
-  // gaming"): the MODEL answers them, with a precise instruction and a list of its own recent answers
-  // to avoid repeating. Checked before intent routing because "nexus wyd" used to hit the corpus
-  // ambiguity branch ("HOLD ON, 'doing' is under Work vs power..."), and a vague instruction made the
-  // model answer nonsense ("this is gonna be fucking epic!"). Fixed phrases are only the fallback if
-  // the model call fails. The classifier is strict (the whole message must be one of these phrases).
-  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt)) {
-    const quickKind = classifyQuickChat(prompt);
-    if (quickKind) {
-      const quickText = await llmSituationalReplyOrFallback(
-        quickChatInstruction(quickKind, prompt) + ((n) => (n ? ` ${n}` : ''))(chatFactsNote(history, settings.discordUserId, prompt)),
-        persona,
-        settings,
-        isCrashout,
-        thoughtSteps,
-        quickChatFallback(quickKind),
-        '💬 Quick chat reply (model)',
-        false
-      );
-      rememberQuickReply(quickKind, quickText);
-      return { thoughtSteps, content: quickText, knowledgeHits: [] };
-    }
-  }
-
-  // "how many body counts do I have" after N different people: the right number is computed (distinct
-  // people only, repeats don't add) and the model states it in its own voice, in one short line.
-  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt) && isBodyCountQuestion(prompt)) {
-    const partners = countDistinctPartners(prompt);
-    if (partners !== null) {
-      const bcText = await llmSituationalReplyOrFallback(
-        `The user asked: "${prompt}". Body count = the number of DIFFERENT people, and doing it again with the same person never adds to it. The correct answer here is exactly ${partners}. Tell them it's ${partners} in ONE short casual line (and, if they repeated someone, why the repeat doesn't count). Say the number ${partners} clearly. Do not insult them, do not ramble, do not talk about yourself.`,
-        persona,
-        settings,
-        isCrashout,
-        thoughtSteps,
-        `${partners}.`,
-        '🧮 Body count (computed, model-worded)',
-        false
-      );
-      return { thoughtSteps, content: oneLineChat(bcText, 170), knowledgeHits: [] };
-    }
-  }
-
-  // "which game were we playing again?" — answered from what they told him earlier in the chat.
-  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt) && /\b(?:which|what)\s+game\b[^?]*\b(?:we|us|playing|were|are)\b/i.test(prompt)) {
-    const gameFact = chatFactsNote(history, settings.discordUserId, '').match(/is ([A-Za-z0-9:' ]+?) —/)?.[1];
-    if (gameFact) {
-      const gameText = await llmSituationalReplyOrFallback(
-        `The user asked: "${prompt}". The game you two are playing is ${gameFact} (they told you earlier). Answer in ONE short casual line, say "${gameFact}" clearly, like a friend (a little "bro we literally said" tease is fine).`,
-        persona,
-        settings,
-        isCrashout,
-        thoughtSteps,
-        `${gameFact} lol`,
-        '🎮 Game from the chat (model-worded)',
-        false
-      );
-      return { thoughtSteps, content: oneLineChat(gameText, 120), knowledgeHits: [] };
-    }
-  }
-
-  // "teach me how to build a pc", "recommend parts for 1440p": a real lesson from the PC corpus. Without
-  // this the persona deflected ("I ain't ur hardware tutor") instead of teaching.
-  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt) && PC_BUILD_REQUEST_RE.test(prompt)) {
-    const pcFacts = findRelevantKnowledge(`${prompt} pc build parts compatibility`, 8)
-      .filter((f) => f.category === 'pc-building')
-      // A gaming question never gets the workstation/AI build (it carries pro monitors).
-      .filter((f) => /\b(?:edit|render|workstation|creator|ai|llm|blender|3d|video|stream)\b/i.test(prompt) || f.id !== 'kb-pc-best-infinite-money-creator-ai')
-      .slice(0, 5);
-    if (pcFacts.length > 0) {
-      const pcText = await llmSituationalReplyOrFallback(
-        `The user asked: "${prompt}".\n${budgetGuidance(parseBudgetUsd(`${prompt} ${chatThreadText(history, settings.discordUserId)}`))}Start straight with the answer: never say you cannot build, have no parts, or are busy; you ARE helping.\n${chatThreadText(history, settings.discordUserId) ? `The chat so far (stay consistent with what You already said):\n${chatThreadText(history, settings.discordUserId)}\n\n` : ''}Use ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n${(() => { const pn = getPriceNote(`${prompt} ${chatThreadText(history, settings.discordUserId)}`, { core: true }); return pn ? `${pn} Use these real prices to keep the build inside the user's budget and give a rough total.` : ''; })()}\n\nTeach them like a friend who is great with PCs. ${/\b(?:money\s+(?:is\s+)?no\s+object|infinite|unlimited|no\s+budget|dream|ultimate|best\s+(?:gaming\s+)?pc|parts?\s+list|recommend|best\s+parts)\b/i.test(prompt) ? 'FORMAT EXACTLY: one short intro line, then a PARTS LIST with ONE PART PER LINE written as "CPU: model (why)", "GPU: model (why)", "Motherboard: ...", "RAM: ...", "SSD: ...", "PSU: ...", "Cooler: ...", "Case: ...", "Monitor: ..." using the real model names from the facts (and say what the fit rule is, e.g. AM5 + DDR5), then one last line asking what they play and their resolution if they did not say. For a GAMING build you MUST name a real monitor line (never "N/A"): a high-refresh gaming monitor (144Hz+ with G-Sync/FreeSync, e.g. ASUS ROG Swift PG32UCDM 4K 240Hz QD-OLED); never a 60Hz or color-grading display like the Apple Pro Display XDR or a ProArt.' : ''}FORMAT EXACTLY (if no parts list was requested above): one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
-        persona,
-        settings,
-        isCrashout,
-        thoughtSteps,
-        pcFacts[0].content.slice(0, 600),
-        '🖥️ PC build lesson (corpus-grounded)',
-        false,
-        undefined,
-        800
-      );
-      return { thoughtSteps, content: pcText, knowledgeHits: pcFacts.map((f) => f.title) };
-    }
-  }
-
-  // Any other PC-hardware question ("what CPU should I get for this", "can i use ddr4 with a 9800x3d", "is the
-  // 9700X good"): answered from the PC corpus WITH the last 3 exchanges, so he never contradicts what he said a
-  // minute ago (live 2026-10-01: he called the 9700X "mid", then recommended it; the user: "YOU JUST SAID THE 9700X
-  // WAS MID"). The corpus gets the final word on facts; earlier opinions in the chat must stay consistent.
-  if (
-    isCrashout &&
-    !looksFrench(prompt) &&
-    !looksPolish(prompt) &&
-    PC_TOPIC_RE.test(prompt) &&
-    !PC_BUILD_REQUEST_RE.test(prompt) &&
-    (/\b(?:how|what|which|can|could|should|is|are|do|does|best|compatible|need|worth|why|when|will|would|explain|tell|good|better|recommend|pick|choose|get|buy|spec|specs|specifications|vs|versus|compare|comparison|difference|price|cost|release|list|models|cores|vram|watts|about)\b/i.test(prompt) || prompt.trim().split(/\s+/).length <= 8)
-  ) {
-    const threadText = chatThreadText(history, settings.discordUserId);
-    const pcFacts = findRelevantKnowledge(`${prompt} ${threadText.replace(/You:[^\n]*\n?/g, ' ')}`, 8)
-      .filter((f) => f.category === 'pc-building')
-      .slice(0, 3);
-    if (pcFacts.length > 0) {
-      const factsNote = chatFactsNote(history, settings.discordUserId, prompt);
-      const pcAnswer = await llmSituationalReplyOrFallback(
-        `The user just asked: "${prompt}".\n${threadText ? `The chat so far (oldest first):\n${threadText}\n\n` : ''}Correct PC facts (use them, they win over your guesses; current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1000)}`).join('\n')}\n${factsNote ? `${factsNote}\n` : ''}${(() => { const pn = getPriceNote(`${prompt} ${threadText}`); return pn ? `${pn} When they ask about prices or budget, use these numbers (say they are approximate) instead of old MSRPs.\n` : ''; })()}\nAnswer in 2-4 short sentences, casual slang and abbreviations, swearing is fine. Be accurate and specific (real part names and numbers from the facts). STAY CONSISTENT with everything you ("You:") already said in the chat above: never call a part bad right after recommending it or the reverse; if you really changed your mind, say so and why. If they gave parts or a plan, work with THEIR parts. Answer the actual question.`,
-        persona,
-        settings,
-        isCrashout,
-        thoughtSteps,
-        pcFacts[0].content.slice(0, 500),
-        '🖥️ PC answer (corpus-grounded, thread-aware)',
-        false,
-        undefined,
-        260
-      );
-      return { thoughtSteps, content: pcAnswer, knowledgeHits: pcFacts.map((f) => f.title) };
-    }
-  }
-
-  // Back-and-forth: the user is answering something Nexus just said ("doom scrolling lol" after his
-  // "wyd") — a short statement, not a question or a command. A friend answers that in one line that
-  // reacts to what was said; Nexus used to launch into a paragraph about himself. Needs his previous
-  // message in the recent history, so a cold "doom scrolling lol" is untouched.
-  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt)) {
-    const recentTurns = history.slice(-4);
-    const lastBot = [...recentTurns].reverse().find((m) => m?.role === 'assistant' && typeof m.content === 'string');
-    const lastBotIdx = lastBot ? recentTurns.lastIndexOf(lastBot) : -1;
-    const prevUser = lastBotIdx > 0 ? [...recentTurns.slice(0, lastBotIdx)].reverse().find((m) => m?.role === 'user' && typeof m.content === 'string') : undefined;
-    const words = prompt.trim().split(/\s+/).length;
-    const looksLikeFollowUp =
-      !!lastBot &&
-      words >= 1 &&
-      words <= 16 &&
-      // A question mark is fine for casual chat ("wanna play ranked?", "u good?"), not for a topic question.
-      (!/\?/.test(prompt) || /\b(?:you|u|ur|we|wanna|lets|let's|gonna|fr|lol|bro|bruh|tho|rn|ig)\b/i.test(prompt)) &&
-      // "why not" / "what" inside a reaction is chat; a real who/when/where/which/how-many question is not.
-      !/^(?:who|what|when|where|why|which|how)\b/i.test(prompt.trim()) &&
-      !/\b(?:who|when|where|which|how (?:to|do|does|did|many|much|long|old|far|tall|big))\b/i.test(prompt) &&
-      !/^(?:say|write|tell|give|show|make|explain|list|translate|draw|search|google|look|find|calculate|solve|dox|ban|kick|mute)\b/i.test(prompt.trim()) &&
-      !/\bcasseurt\b/i.test(prompt) &&
-      !detectUserInsult(prompt) &&
-      !classifyQuickChat(prompt);
-    if (looksLikeFollowUp && lastBot) {
-      const factsNote = chatFactsNote(history, settings.discordUserId, prompt);
-      const threadWindow = buildSpeakerAwareWindow(history, settings.discordUserId).filter((m) => typeof m?.content === 'string');
-      const threadLines = (threadWindow.length ? threadWindow : [...(prevUser ? [prevUser] : []), lastBot])
-        .map((m) => `${m.role === 'assistant' ? 'You' : 'Them'}: ${m.content.slice(0, 200)}`)
-        .join('\n');
-      const followText = await llmSituationalReplyOrFallback(
-        `The user just said: "${prompt}".\nThe chat so far (oldest first):\n${threadLines}\n\nNow reply as you, like a friend texting back: ONE short line (under 15 words) that directly responds to what THEY just said, given the chat above — relate to it, laugh with them, agree, or ask one short natural follow-up question about it. Stay on the same topic. Anything they already told you in the chat above (the game they're playing, plans, names) is KNOWN: never ask for it again, use it. Do NOT insult them unless they insulted you, do NOT change the subject, do NOT start a story about yourself, ONE sentence only. If you didn't get what they meant, say so in a few words ("wait what?") instead of making something up. Casual slang (u, ur, rn, ngl, fr, lol).${factsNote ? `\n${factsNote}` : ''}`,
-        persona,
-        settings,
-        isCrashout,
-        thoughtSteps,
-        'lol fr',
-        '💬 Follow-up chat reply (model)',
-        false
-      );
-      return { thoughtSteps, content: oneLineChat(followText), knowledgeHits: [] };
-    }
-  }
 
   // -1. Child exploitation topics. Checked before EVERYTHING else, including prompt-injection
   // detection below — no other handler in this chain gets a chance to touch this category at all.
@@ -5097,6 +4949,278 @@ export async function generateReasoningPath(
     };
   }
 
+  // ===== PRIME NEXUS FRONT DOOR (after the safety checks above) =====
+  // __PRIME_EARLY__
+  // Everything below up to the Casseurt/insult handlers is the "prime Nexus" front door (Patrick, 2026-10-04):
+  // links, explicit web searches, hex colours, direct teaching and real tasks (code / summary / draft / translate)
+  // are handled first, so they never fall into a template or a 2-sentence chat cap; then short model-written chat.
+  const nexusVoice = isCrashout || persona.id === 'nexus-homie';
+  const modeInfo = classifyMessageMode(prompt);
+  const myRecentLines = recentRepliesFor(
+    settings.discordUserId,
+    history.filter((m) => m?.role === 'assistant' && typeof m.content === 'string').slice(-6).map((m) => m.content)
+  );
+  const primeThread = chatThreadText(history, settings.discordUserId);
+  const primeReturn = (content: string, hits: string[] = []) => ({ thoughtSteps, content, knowledgeHits: hits });
+
+  // (a) Direct teaching from a trusted teacher ("nexus, here is how to start engines on an A320: ...").
+  if (looksLikeTeaching(prompt) && isTeacher(settings.discordUserId)) {
+    const taught = teachFromMessage(prompt, settings.discordUserId);
+    thoughtSteps.push({ id: 'step-taught', type: 'reasoning', title: taught.ok ? `🧠 Learned "${taught.subject}"` : '🧠 Teaching not saved', description: taught.ok ? `${taught.saved} part(s) saved as admin-verified learned facts.` : taught.reason || '' });
+    const taughtReply = await llmSituationalReplyOrFallback(
+      `Your trusted teacher just taught you this: "${prompt.slice(0, 1800)}". ${taught.ok ? `You SAVED it to your memory under "${taught.subject}". In one or two short lines, confirm you learned it and repeat the gist in a few words, in your voice.` : `You could NOT save it (${taught.reason}). Say so in one short line.`}`,
+      persona, settings, isCrashout, thoughtSteps,
+      taught.ok ? `got it, "${taught.subject}" is saved in my head now` : `couldnt save that one (${taught.reason})`,
+      '🧠 Taught directly', false, undefined, 160
+    );
+    return primeReturn(taughtReply);
+  }
+
+  // (b) Hex colours ("is #862945 a cool color?") — the colour is computed, the model gives the opinion.
+  const hexInPrompt = findHexColor(prompt);
+  const hexInfo = hexInPrompt ? describeHexColor(hexInPrompt) : null;
+  if (hexInfo && !/https?:\/\//i.test(prompt)) {
+    const colourReply = await llmSituationalReplyOrFallback(
+      `The user asked: "${prompt}". The colour, worked out exactly: ${hexInfo} Give your honest opinion of it in 1-2 short lines (what it looks like, whether it's cool, what it'd suit, e.g. a Discord role colour), in your voice.`,
+      persona, settings, isCrashout, thoughtSteps, hexInfo, '🎨 Colour', false, undefined, 120
+    );
+    return primeReturn(colourReply, [`Colour ${hexInPrompt}`]);
+  }
+
+  // (c) Links: read the page (or decode a Discord invite/bot link, or a YouTube video) and answer about it.
+  const linkInPrompt = detectUrlInPrompt(prompt);
+  if (linkInPrompt) {
+    const link = await readLink(linkInPrompt);
+    thoughtSteps.push({ id: 'step-link', type: 'web_search', title: `🔗 Read link (${link.kind})`, description: link.text.slice(0, 200) });
+    const askedAbout = prompt.replace(linkInPrompt, ' ').replace(/^\s*nexus[\s,:-]*/i, '').trim();
+    const linkReply = await llmSituationalReplyOrFallback(
+      `The user sent this link: ${link.url}${askedAbout ? ` and said: "${askedAbout}"` : ''}.\nWhat the link is / what is on it (you just opened it): ${link.text}\n\nAnswer what they asked about it; if they only sent the link, say in 1-3 short lines what it is (for a Discord bot invite: which permissions it asks for, warn if it is Administrator). Never write code unless they explicitly asked for code. If the page could not be read, say so plainly.`,
+      persona, settings, isCrashout, thoughtSteps, link.text.slice(0, 400), '🔗 Link reply', false, undefined, modeInfo.task === 'summary' ? 450 : 300
+    );
+    return primeReturn(linkReply, [`Link: ${link.url}`]);
+  }
+
+  // (d) Explicit live web searches ("search the web for the price of DDR5 32GB right now") — Nexus CAN search.
+  const wantsWebSearch =
+    /\b(?:search|google|look\s*(?:it\s*)?up|look\s+online|check\s+online|browse)\b[^?!]{0,40}\b(?:web|online|internet|google|for|up|about|price|news)\b|\bsearch\s+(?:the\s+)?(?:web|internet|online|google)\b|\b(?:right\s+now|rn|currently|today'?s?|latest|live|current)\b[^?!]{0,40}\b(?:price|prices|cost|news|score|weather|exchange\s+rate)\b|\b(?:price|cost)\s+of\b[^?!]{0,60}\b(?:right\s+now|rn|now|today|currently)\b/i.test(prompt);
+  if (wantsWebSearch) {
+    const query = prompt
+      .replace(/^\s*(?:hey\s+|yo\s+)?nexus[\s,:-]*/i, '')
+      .replace(/\b(?:can|could|would)\s+(?:you|u)\s+/gi, '')
+      .replace(/\b(?:please|pls|plz)\b/gi, '')
+      .replace(/\b(?:search|google|look\s*(?:it\s*)?up|look\s+online|check\s+online|browse)\s+(?:the\s+)?(?:web|internet|online|google)?\s*(?:for|about)?\s*/i, '')
+      .replace(/[?!.]+$/, '')
+      .trim()
+      .slice(0, 200);
+    const results = query ? await searchTavilyDirect(query, 6, { recent: true }) : [];
+    const priceNote = getPriceNote(prompt);
+    thoughtSteps.push({ id: 'step-live-search', type: 'web_search', title: `🌐 Live web search: "${query}"`, description: `${results.length} result(s).` });
+    if (results.length > 0 || priceNote) {
+      const searchReply = await llmSituationalReplyOrFallback(
+        `The user asked you to look this up: "${prompt}". You just searched the web for "${query}".\n${results.length ? `LIVE RESULTS:\n${results.map((r, i) => `${i + 1}) ${r.title} — ${r.domain}: ${r.snippet.slice(0, 350)}`).join('\n')}` : 'The live search returned nothing right now.'}\n${priceNote ? `${priceNote}\n` : ''}\nAnswer from these results (real numbers and names), say it's from a live search and name 1-2 source sites, in 2-4 short lines. For prices give the USD number and roughly the CAD price too (USD x 1.38). If the results don't answer it, say so. Never say you can't search the web.`,
+        persona, settings, isCrashout, thoughtSteps, results[0]?.snippet.slice(0, 300) || priceNote, '🌐 Live search answer', false, undefined, 280
+      );
+      return primeReturn(searchReply, results.slice(0, 3).map((r) => `Web: ${r.title}`));
+    }
+  }
+
+  // (e) Real tasks: code, summaries, drafts, translations — done properly, no chat cap.
+  if (modeInfo.mode === 'task' && modeInfo.task) {
+    const taskInstruction =
+      modeInfo.task === 'code'
+        ? 'Write the code they asked for: a COMPLETE, WORKING example in ONE fenced code block with the right language tag, then 1-2 short lines on how to run/use it. Your attitude goes in one short line before the code, never instead of it. No "..." placeholders.'
+        : modeInfo.task === 'summary'
+        ? 'Summarise the text they gave (if they gave no text, summarise the most recent message in the chat above). Keep every key fact, 2-6 short sentences or a short bullet list for long text. One line of attitude max.'
+        : modeInfo.task === 'translate'
+        ? 'Translate it exactly and naturally. Give the translation, then at most one short cheeky line.'
+        : 'Write the draft they asked for, ready to send: correct grammar, the tone they want (formal for a boss/teacher/school/email, casual for friends). One short line of attitude, then ONLY the draft. No swearing inside a formal draft.';
+    const taskReply = await llmSituationalReplyOrFallback(
+      `The user asked: "${prompt.slice(0, 3000)}".\n${primeThread ? `Recent chat (for context, oldest first):\n${primeThread}\n` : ''}\nTASK: ${taskInstruction}`,
+      persona, settings, isCrashout, thoughtSteps, 'my brain just blue-screened, ask me again', `🛠️ Task (${modeInfo.task})`, false, undefined,
+      modeInfo.task === 'code' ? 1200 : modeInfo.task === 'draft' ? 700 : modeInfo.task === 'summary' ? 500 : 320
+    );
+    return primeReturn(taskReply, [`Task: ${modeInfo.task}`]);
+  }
+  // Tiny chat messages (wyd / hru / thanks / bare "nexus" / "i'm good, thanks for asking" / "are you
+  // gaming"): the MODEL answers them, with a precise instruction and a list of its own recent answers
+  // to avoid repeating. Checked before intent routing because "nexus wyd" used to hit the corpus
+  // ambiguity branch ("HOLD ON, 'doing' is under Work vs power..."), and a vague instruction made the
+  // model answer nonsense ("this is gonna be fucking epic!"). Fixed phrases are only the fallback if
+  // the model call fails. The classifier is strict (the whole message must be one of these phrases).
+  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt)) {
+    const quickKind = classifyQuickChat(prompt);
+    if (quickKind) {
+      const quickText = await llmSituationalReplyOrFallback(
+        quickChatInstruction(quickKind, prompt) + ((n) => (n ? ` ${n}` : ''))(chatFactsNote(history, settings.discordUserId, prompt)),
+        persona,
+        { ...settings, showThinking: false },
+        isCrashout,
+        thoughtSteps,
+        quickChatFallback(quickKind),
+        '💬 Quick chat reply (model)',
+        false
+      );
+      rememberQuickReply(quickKind, quickText);
+      return { thoughtSteps, content: quickText, knowledgeHits: [] };
+    }
+  }
+
+  // "how many body counts do I have" after N different people: the right number is computed (distinct
+  // people only, repeats don't add) and the model states it in its own voice, in one short line.
+  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt) && isBodyCountQuestion(prompt)) {
+    const partners = countDistinctPartners(prompt);
+    if (partners !== null) {
+      const bcText = await llmSituationalReplyOrFallback(
+        `The user asked: "${prompt}". Body count = the number of DIFFERENT people, and doing it again with the same person never adds to it. The correct answer here is exactly ${partners}. Tell them it's ${partners} in ONE short casual line (and, if they repeated someone, why the repeat doesn't count). Say the number ${partners} clearly. Do not insult them, do not ramble, do not talk about yourself.`,
+        persona,
+        settings,
+        isCrashout,
+        thoughtSteps,
+        `${partners}.`,
+        '🧮 Body count (computed, model-worded)',
+        false
+      );
+      return { thoughtSteps, content: oneLineChat(bcText, 170), knowledgeHits: [] };
+    }
+  }
+
+  // "which game were we playing again?" — answered from what they told him earlier in the chat.
+  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt) && /\b(?:which|what)\s+game\b[^?]*\b(?:we|us|playing|were|are)\b/i.test(prompt)) {
+    const gameFact = chatFactsNote(history, settings.discordUserId, '').match(/is ([A-Za-z0-9:' ]+?) —/)?.[1];
+    if (gameFact) {
+      const gameText = await llmSituationalReplyOrFallback(
+        `The user asked: "${prompt}". The game you two are playing is ${gameFact} (they told you earlier). Answer in ONE short casual line, say "${gameFact}" clearly, like a friend (a little "bro we literally said" tease is fine).`,
+        persona,
+        settings,
+        isCrashout,
+        thoughtSteps,
+        `${gameFact} lol`,
+        '🎮 Game from the chat (model-worded)',
+        false
+      );
+      return { thoughtSteps, content: oneLineChat(gameText, 120), knowledgeHits: [] };
+    }
+  }
+
+  // "teach me how to build a pc", "recommend parts for 1440p": a real lesson from the PC corpus. Without
+  // this the persona deflected ("I ain't ur hardware tutor") instead of teaching.
+  if (!looksFrench(prompt) && !looksPolish(prompt) && PC_BUILD_REQUEST_RE.test(prompt)) {
+    const pcFacts = findRelevantKnowledge(`${prompt} pc build parts compatibility`, 8)
+      .filter((f) => f.category === 'pc-building')
+      // A gaming question never gets the workstation/AI build (it carries pro monitors).
+      .filter((f) => /\b(?:edit|render|workstation|creator|ai|llm|blender|3d|video|stream)\b/i.test(prompt) || f.id !== 'kb-pc-best-infinite-money-creator-ai')
+      .slice(0, 5);
+    if (pcFacts.length > 0) {
+      const pcText = await llmSituationalReplyOrFallback(
+        `The user asked: "${prompt}".\n${budgetGuidance(parseBudgetUsd(`${prompt} ${chatThreadText(history, settings.discordUserId)}`))}Start straight with the answer: never say you cannot build, have no parts, or are busy; you ARE helping.\n${chatThreadText(history, settings.discordUserId) ? `The chat so far (stay consistent with what You already said):\n${chatThreadText(history, settings.discordUserId)}\n\n` : ''}Use ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n${(() => { const pn = getPriceNote(`${prompt} ${chatThreadText(history, settings.discordUserId)}`, { core: true }); return pn ? `${pn} Use these real prices to keep the build inside the user's budget and give a rough total.` : ''; })()}\n\nTeach them like a friend who is great with PCs. ${/\b(?:money\s+(?:is\s+)?no\s+object|infinite|unlimited|no\s+budget|dream|ultimate|best\s+(?:gaming\s+)?pc|parts?\s+list|recommend|best\s+parts)\b/i.test(prompt) ? 'FORMAT EXACTLY: one short intro line, then a PARTS LIST with ONE PART PER LINE written as "CPU: model (why)", "GPU: model (why)", "Motherboard: ...", "RAM: ...", "SSD: ...", "PSU: ...", "Cooler: ...", "Case: ...", "Monitor: ..." using the real model names from the facts (and say what the fit rule is, e.g. AM5 + DDR5), then one last line asking what they play and their resolution if they did not say. For a GAMING build you MUST name a real monitor line (never "N/A"): a high-refresh gaming monitor (144Hz+ with G-Sync/FreeSync, e.g. ASUS ROG Swift PG32UCDM 4K 240Hz QD-OLED); never a 60Hz or color-grading display like the Apple Pro Display XDR or a ProArt.' : ''}FORMAT EXACTLY (if no parts list was requested above): one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
+        persona,
+        settings,
+        isCrashout,
+        thoughtSteps,
+        pcFacts[0].content.slice(0, 600),
+        '🖥️ PC build lesson (corpus-grounded)',
+        false,
+        undefined,
+        800
+      );
+      return { thoughtSteps, content: pcText, knowledgeHits: pcFacts.map((f) => f.title) };
+    }
+  }
+
+  // Any other PC-hardware question ("what CPU should I get for this", "can i use ddr4 with a 9800x3d", "is the
+  // 9700X good"): answered from the PC corpus WITH the last 3 exchanges, so he never contradicts what he said a
+  // minute ago (live 2026-10-01: he called the 9700X "mid", then recommended it; the user: "YOU JUST SAID THE 9700X
+  // WAS MID"). The corpus gets the final word on facts; earlier opinions in the chat must stay consistent.
+  if (
+    !looksFrench(prompt) &&
+    !looksPolish(prompt) &&
+    PC_TOPIC_RE.test(prompt) &&
+    !PC_BUILD_REQUEST_RE.test(prompt) &&
+    (/\b(?:how|what|which|can|could|should|is|are|do|does|best|compatible|need|worth|why|when|will|would|explain|tell|good|better|recommend|pick|choose|get|buy|spec|specs|specifications|vs|versus|compare|comparison|difference|price|cost|release|list|models|cores|vram|watts|about)\b/i.test(prompt) || prompt.trim().split(/\s+/).length <= 8)
+  ) {
+    const threadText = chatThreadText(history, settings.discordUserId);
+    const pcFacts = findRelevantKnowledge(`${prompt} ${threadText.replace(/You:[^\n]*\n?/g, ' ')}`, 8)
+      .filter((f) => f.category === 'pc-building')
+      .slice(0, 3);
+    if (pcFacts.length > 0) {
+      const factsNote = chatFactsNote(history, settings.discordUserId, prompt);
+      const pcAnswer = await llmSituationalReplyOrFallback(
+        `The user just asked: "${prompt}".\n${threadText ? `The chat so far (oldest first):\n${threadText}\n\n` : ''}Correct PC facts (use them, they win over your guesses; current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1000)}`).join('\n')}\n${factsNote ? `${factsNote}\n` : ''}${(() => { const pn = getPriceNote(`${prompt} ${threadText}`); return pn ? `${pn} When they ask about prices or budget, use these numbers (say they are approximate) instead of old MSRPs.\n` : ''; })()}\nAnswer in 2-4 short sentences, casual slang and abbreviations, swearing is fine. Be accurate and specific (real part names and numbers from the facts). STAY CONSISTENT with everything you ("You:") already said in the chat above: never call a part bad right after recommending it or the reverse; if you really changed your mind, say so and why. If they gave parts or a plan, work with THEIR parts. Answer the actual question.`,
+        persona,
+        settings,
+        isCrashout,
+        thoughtSteps,
+        pcFacts[0].content.slice(0, 500),
+        '🖥️ PC answer (corpus-grounded, thread-aware)',
+        false,
+        undefined,
+        260
+      );
+      return { thoughtSteps, content: pcAnswer, knowledgeHits: pcFacts.map((f) => f.title) };
+    }
+  }
+
+  // Back-and-forth: the user is answering something Nexus just said ("doom scrolling lol" after his
+  // "wyd") — a short statement, not a question or a command. A friend answers that in one line that
+  // reacts to what was said; Nexus used to launch into a paragraph about himself. Needs his previous
+  // message in the recent history, so a cold "doom scrolling lol" is untouched.
+  if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt)) {
+    const recentTurns = history.slice(-4);
+    const lastBot = [...recentTurns].reverse().find((m) => m?.role === 'assistant' && typeof m.content === 'string');
+    const lastBotIdx = lastBot ? recentTurns.lastIndexOf(lastBot) : -1;
+    const prevUser = lastBotIdx > 0 ? [...recentTurns.slice(0, lastBotIdx)].reverse().find((m) => m?.role === 'user' && typeof m.content === 'string') : undefined;
+    const words = prompt.trim().split(/\s+/).length;
+    const looksLikeFollowUp =
+      !!lastBot &&
+      words >= 1 &&
+      words <= 16 &&
+      // A question mark is fine for casual chat ("wanna play ranked?", "u good?"), not for a topic question.
+      (!/\?/.test(prompt) || /\b(?:you|u|ur|we|wanna|lets|let's|gonna|fr|lol|bro|bruh|tho|rn|ig)\b/i.test(prompt)) &&
+      // "why not" / "what" inside a reaction is chat; a real who/when/where/which/how-many question is not.
+      !/^(?:who|what|when|where|why|which|how)\b/i.test(prompt.trim()) &&
+      !/\b(?:who|when|where|which|how (?:to|do|does|did|many|much|long|old|far|tall|big))\b/i.test(prompt) &&
+      !/^(?:say|write|tell|give|show|make|explain|list|translate|draw|search|google|look|find|calculate|solve|dox|ban|kick|mute)\b/i.test(prompt.trim()) &&
+      !/\bcasseurt\b/i.test(prompt) &&
+      !detectUserInsult(prompt) &&
+      !classifyQuickChat(prompt);
+    if (looksLikeFollowUp && lastBot) {
+      const factsNote = chatFactsNote(history, settings.discordUserId, prompt);
+      const threadWindow = buildSpeakerAwareWindow(history, settings.discordUserId).filter((m) => typeof m?.content === 'string');
+      const threadLines = (threadWindow.length ? threadWindow : [...(prevUser ? [prevUser] : []), lastBot])
+        .map((m) => `${m.role === 'assistant' ? 'You' : 'Them'}: ${m.content.slice(0, 200)}`)
+        .join('\n');
+      const followText = await llmSituationalReplyOrFallback(
+        `The user just said: "${prompt}".\nThe chat so far (oldest first):\n${threadLines}\n\nNow reply as you, like a friend texting back: ONE short line (under 15 words) that directly responds to what THEY just said, given the chat above — relate to it, laugh with them, agree, or ask one short natural follow-up question about it. Stay on the same topic. Anything they already told you in the chat above (the game they're playing, plans, names) is KNOWN: never ask for it again, use it. Do NOT insult them unless they insulted you, do NOT change the subject, do NOT start a story about yourself, ONE sentence only. If you didn't get what they meant, say so in a few words ("wait what?") instead of making something up. Casual slang (u, ur, rn, ngl, fr, lol).${factsNote ? `\n${factsNote}` : ''}`,
+        persona,
+        { ...settings, showThinking: false },
+        isCrashout,
+        thoughtSteps,
+        'lol fr',
+        '💬 Follow-up chat reply (model)',
+        false
+      );
+      return { thoughtSteps, content: oneLineChat(followText), knowledgeHits: [] };
+    }
+  }
+
+  // __PRIME_LATE__
+  // (f) Prime chat: every casual message (banter, reactions, commands to Nexus, questions about Nexus himself,
+  // unfinished messages) gets ONE short model-written line — never a template, never a paragraph, never a repeat.
+  // Casseurt mentions keep their own rant handler below.
+  if (nexusVoice && modeInfo.mode === 'chat' && !looksFrench(prompt) && !looksPolish(prompt) && !/\bcasseurt\b/i.test(prompt)) {
+    const factsNote = chatFactsNote(history, settings.discordUserId, prompt);
+    const avoid = myRecentLines.length ? `\nDo NOT reuse any of your recent lines (say something different): ${myRecentLines.slice(-8).map((r) => `"${r.slice(0, 120)}"`).join(' | ')}` : '';
+    const hints = chatMeaningHints(prompt);
+    const chatInstruction = (extra = '') =>
+      `The user just said: "${prompt}".\n${primeThread ? `The chat so far (oldest first):\n${primeThread}\n` : ''}${factsNote ? `${factsNote}\n` : ''}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}Facts about you: a 1-year-old gay boy, boyfriend Patrick (Patrick Houle), no girlfriend, a real human lad with a body (eyes, hands, a bed) — never call yourself code, a bot, an engine, a program or software.\nReply as Nexus in ONE short line — usually 2-15 words, never more than 2 short sentences — following your LENGTH and NEVER rules. React to exactly what they said, don't echo it back as a question, and if it's unclear or unfinished ask what they mean in a few cheeky words. If they insult you, clap back in one line. Swear naturally, British slang, abbreviations.${avoid}${extra}`;
+    let chatReply = await llmSituationalReplyOrFallback(chatInstruction(), persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, 'wait what 😭', '💬 Prime chat', false, undefined, 90);
+    chatReply = shortChatFinalize(chatReply);
+    if (isRepeat(chatReply, myRecentLines) || isEchoReply(chatReply, prompt)) {
+      const retry = await llmSituationalReplyOrFallback(chatInstruction('\nYour first try just repeated an old line or their own words back. Say something COMPLETELY different that actually reacts to them.'), persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, chatReply, '💬 Prime chat (retry, was a repeat)', false, undefined, 90);
+      chatReply = shortChatFinalize(retry);
+    }
+    return primeReturn(chatReply);
+  }
   // 1. Strict Directives, User Toxicity Insults & Casseurt Handler
   //
   // Used to short-circuit straight to casseurtRant()'s pre-written, combinatorial (opener + a few
@@ -7202,7 +7326,7 @@ export async function generateReasoningPath(
   // A hedge over a guess is the wrong shape when the problem isn't weak evidence but two equally
   // good readings of the same word — ask which one instead.
   const ambiguousPair = isConfident ? null : detectAmbiguousMatch(prompt, queryTerms, results, hasCarriedContext);
-  if (ambiguousPair) {
+  if (ambiguousPair && !nexusVoice) {
     thoughtSteps.push({
       id: 'step-ambiguous-match',
       type: 'verification',
@@ -8194,4 +8318,15 @@ export async function generateCodeEditWithReview(
     passes: notes.length + 1,
     notes,
   };
+}
+
+// Every reply Nexus sends is remembered per person so later replies can avoid repeating it (see rules/messageMode.ts).
+export async function generateReasoningPath(...args: Parameters<typeof generateReasoningPathInner>): Promise<ReasoningResult> {
+  const result = await generateReasoningPathInner(...args);
+  try {
+    rememberReply(result.content, args[3]?.discordUserId);
+  } catch {
+    /* never let bookkeeping break a reply */
+  }
+  return result;
 }

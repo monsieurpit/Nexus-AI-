@@ -8,6 +8,7 @@
 // swear floor -> chaotic overshare -> (caller applies toShoutCase last, if triggered).
 
 import { looksFrench, looksPolish } from '../localLlmClient';
+import { detectTask } from './messageMode';
 import { splitSentencesSafe } from '../sentences';
 import {
   enhanceNaturalSwearPhrasing,
@@ -131,6 +132,41 @@ export function isBasicChatPrompt(text: string): boolean {
 
 // Filler interjections the swear floor staples around a short line ("goddamn, yep fr, hell, wyd?").
 // A one-line chat answer reads human without them; swearing inside real phrases stays.
+// Prime chat replies: at most two short sentences (~200 chars). A longer reply keeps its first sentence (cut at a
+// clause break if it is a run-on) plus, if there is one, the persona's crude "what I'm doing rn" aside (intentional).
+// "goddamn, for fuck's sake, hell, why..." — the swear top-up staples lone interjections between clauses. A short line
+// keeps at most the first one (swearing inside real phrases stays; this only drops the stand-alone fillers).
+export function collapseFillerInterjections(text: string): string {
+  const FILLER = /^(?:goddamn|damn|hell|shit|fuck|bloody hell|christ)[.!?]*$/i;
+  let keptOne = false;
+  const parts = text.split(/,\s+/);
+  const out = parts.filter((part, i) => {
+    if (!FILLER.test(part.trim())) return true;
+    if (i === 0 && !keptOne) {
+      keptOne = true;
+      return true;
+    }
+    return false;
+  });
+  let joined = out.join(', ').replace(/,\s*([.!?])/g, '$1').trim();
+  if (parts.length && FILLER.test((parts[parts.length - 1] || '').trim()) && !/[.!?…😭💀]$/.test(joined)) joined += '.';
+  return joined;
+}
+
+export function shortChatFinalize(text: string): string {
+  const t = collapseFillerInterjections((text || '').replace(/\s*\n+\s*/g, ' ').replace(/\s+/g, ' ').trim());
+  if (!t) return t;
+  const sentences = splitSentencesSafe(t);
+  if (t.length <= 200 && sentences.length <= 2) return t;
+  let first = sentences[0] || t;
+  if (first.length > 160) {
+    const cut = Math.max(first.slice(0, 160).lastIndexOf(';'), first.slice(0, 160).lastIndexOf(' — '), first.slice(0, 160).lastIndexOf(', '));
+    first = cut > 30 ? first.slice(0, cut).replace(/[\s,;—-]+$/, '') + '.' : first.slice(0, 160).replace(/\s+\S*$/, '') + '...';
+  }
+  const aside = sentences.slice(1).find((x) => /\b(?:naked|gooning|goon|apartment|my (?:boyfriend|bf)|in bed|on the sofa|my ass|rn i'?m|im currently|i'?m currently)\b/i.test(x));
+  return aside && first.length + aside.length < 240 ? `${first} ${aside}` : first;
+}
+
 export function oneLineChat(text: string, ceiling = 130): string {
   let t = text.replace(/\s*\n+\s*/g, ' ').replace(/\s+Anyway,[\s\S]*$/i, '').trim();
   const first = splitSentencesSafe(t)[0] || t;
@@ -157,6 +193,8 @@ function stripFillerInterjections(text: string): string {
 
 function capRamblingReply(text: string, userPrompt: string): string {
   if (!text || !userPrompt) return text;
+  // Real tasks (summary, draft, translation, code) are never trimmed to chat length.
+  if (detectTask(userPrompt)) return text;
   if (/```/.test(text)) return text;
   const promptWords = userPrompt.trim().split(/\s+/).filter(Boolean).length;
   // A depth request / long question used to skip the cap entirely (unlimited). Patrick
@@ -302,7 +340,6 @@ function scrubSwearingForDraft(text: string): string {
 const CONTEXT_LEAK_RE =
   /\bcontext\b|\b(?:info(?:rmation)?|facts?|text|material|data|sources?)\s+(?:provided|given|above|below|i was given)\b|\b(?:provided|given)\s+(?:info(?:rmation)?|facts?|text|material|data|sources?)\b|\bbackground material\b|\b(?:it|this|that)(?:\s+(?:shit|crap|stuff|info))?\s+(?:doesn'?t|does not|don'?t|do not)\s+(?:\w+\s+)?(?:say|mention|give|tell|list|show|record|include)\b|\b(?:it|this|that)(?:\s+(?:shit|crap|stuff|info))?\s+(?:just\s+|only\s+)?(?:says|mentions|talks\s+about)\b/i;
 const CONTEXT_LEAK_EXEMPT_PROMPT_RE = /\b(?:context|source|sources|facts?|material|provided)\b/i;
-const CONTEXT_LEAK_DONT_KNOW = "nah i don't actually know that one, don't quote me.";
 
 // Nexus mustn't keep announcing that he learned something (Patrick, 2026-09-30: an earlier learning
 // attempt made the bot constantly bring up what it had "learned"). Facts from the learned corpus
@@ -343,6 +380,8 @@ export function stripUnpromptedCreatorMentions(text: string, userPrompt?: string
   const nameRe = otherPatrick ? CASSEURT_ONLY_RE : CREATOR_NAME_RE;
   if (!nameRe.test(text)) return text;
   if (!otherPatrick && ABOUT_CREATOR_RE.test(userPrompt)) return text;
+  // Patrick is also Nexus's boyfriend (Patrick, 2026-10-04): questions about his love life keep the name.
+  if (/\b(?:boyfriend|bf|girlfriend|gf|partner|dating|date|crush|love|goon(?:ing)?\s+to|married|husband|wife|man)\b/i.test(userPrompt)) return text;
   if (otherPatrick && /\bcasseurt\b/i.test(userPrompt)) return text;
   if (random() < UNPROMPTED_CREATOR_MENTION_KEEP_RATE) return text;
   const sentences = splitSentencesSafe(text);
@@ -374,6 +413,12 @@ export function stripLearningMentions(text: string): string {
   return out || text;
 }
 
+export function hasContextLeak(text: string, userPrompt?: string): boolean {
+  if (!text || /```/.test(text)) return false;
+  if (userPrompt && CONTEXT_LEAK_EXEMPT_PROMPT_RE.test(userPrompt)) return false;
+  return CONTEXT_LEAK_RE.test(text);
+}
+
 export function stripContextLeaks(text: string, userPrompt?: string): string {
   if (!text || /```/.test(text)) return text;
   if (userPrompt && CONTEXT_LEAK_EXEMPT_PROMPT_RE.test(userPrompt)) return text;
@@ -384,12 +429,11 @@ export function stripContextLeaks(text: string, userPrompt?: string): string {
   // actually know that one, don't quote me" there reads as the bot being confused (Patrick,
   // 2026-10-01). Keep what is left, or a tiny natural line when nothing is.
   const casualChat = !!userPrompt && userPrompt.trim().split(/\s+/).length <= 14 && !FACTUAL_WORD_RE.test(userPrompt) && /\b(?:you|u|ur|we|i|i'm|im|me|my|lol|lmao|ig|tbh|bro|bruh|yeah|yep|nah|idk|ok|okay|wanna|lets|let's|fr)\b/i.test(userPrompt);
-  if (kept.length === 0) return casualChat ? 'wait what lol' : CONTEXT_LEAK_DONT_KNOW;
-  if (casualChat) return kept.join(' ');
-  const rest = kept.join(' ');
-  // What's left after the leak is often just the opening insult ("damn, you absolute bellend, i'm
-  // pissed off enough already.") — no answer at all. Say "don't know" instead of ending on nothing.
-  return rest.length < 80 ? `${rest} ${CONTEXT_LEAK_DONT_KNOW}` : rest;
+  // No canned "i don't actually know that one, don't quote me" line any more (Patrick, 2026-10-04: "this one
+  // shouldn't exist"): the LLM wrappers regenerate a reply that leaks (see hasContextLeak); this is only the last
+  // resort, and keeps whatever real words are left, or an empty string the caller replaces with a fresh generation.
+  void casualChat;
+  return kept.join(' ');
 }
 
 // Chat abbreviations are mandatory (Patrick, 2026-10-01: "if he can use an abbreviation like rn instead
@@ -480,12 +524,27 @@ export function formatPcLesson(text: string): string {
 }
 
 export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
+  // Code blocks are never touched (live 2026-10-04: the cleanup collapsed a Python block onto one line and
+  // destroyed its indentation). Only the text around them gets the usual treatment.
+  if (/```/.test(text || '')) {
+    const parts = text.split(/(```[\s\S]*?(?:```|$))/);
+    return parts
+      .map((part) => (part.startsWith('```') || !/[a-z]/i.test(part) ? part : topUpLlmSwearingText(part, settings, isCrashout, userPrompt, suppressSwearing)))
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+  return topUpLlmSwearingText(text, settings, isCrashout, userPrompt, suppressSwearing);
+}
+
+function topUpLlmSwearingText(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
   // Stray HTML the model sometimes leaks ("...or somethin?</blockquote>.") never belongs in a Discord message.
   const noTags = text.replace(/<\/?(?:blockquote|p|br|b|i|u|em|strong|span|div|li|ul|ol|code|pre|h[1-6])\b[^>]*>/gi, ' ').replace(/[ \t]{2,}/g, ' ').replace(/\s+([.,!?])/g, '$1');
   // A PC build lesson keeps its numbered lines (every other path flattens lists into one paragraph).
   if (userPrompt && !suppressSwearing && PC_BUILD_REQUEST_RE.test(userPrompt)) return formatPcLesson(noTags);
   const out = topUpLlmSwearingCore(noTags, settings, isCrashout, userPrompt, suppressSwearing);
-  return suppressSwearing ? out : abbreviateChat(out);
+  // Lone interjections stapled between clauses (", fuck, algae", ", hell, which") read like errors: keep the first.
+  return suppressSwearing ? out : abbreviateChat(collapseFillerInterjections(out));
 }
 
 function topUpLlmSwearingCore(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {

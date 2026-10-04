@@ -545,6 +545,12 @@ export function isModelBusy(): boolean {
   return activeOllamaCalls > 0 || ollamaWaitQueue.length > 0;
 }
 
+// The website shows the model's thinking in a side panel, but the actual reply is what people read: live (2026-10-04)
+// Nexus solved a hard maths problem in his thinking and then never said the answer. With thinking on, the system
+// prompt now says so explicitly.
+const HIDDEN_THINKING_NOTE =
+  '\n\nIMPORTANT: your thinking is private. Your actual reply must contain the complete final answer (the final number, result, code or conclusion) — never leave it only in your thinking.';
+
 export interface OllamaGenerateOptions {
   temperature?: number;
   maxTokens?: number;
@@ -796,7 +802,7 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
 
   try {
     const messages = [
-      ...(options.system ? [{ role: 'system', content: options.system }] : []),
+      ...(options.system ? [{ role: 'system', content: options.think ? `${options.system}${HIDDEN_THINKING_NOTE}` : options.system }] : []),
       { role: 'user', content: (options.userPreamble || '') + prompt },
     ];
     const model = await resolveModel(options.model || OLLAMA_MODEL);
@@ -1065,7 +1071,7 @@ export async function generateStream(
 
   try {
     const messages = [
-      ...(options.system ? [{ role: 'system', content: options.system }] : []),
+      ...(options.system ? [{ role: 'system', content: options.think ? `${options.system}${HIDDEN_THINKING_NOTE}` : options.system }] : []),
       { role: 'user', content: (options.userPreamble || '') + prompt },
     ];
     const model = await resolveModel(options.model || OLLAMA_MODEL);

@@ -272,7 +272,7 @@ async function runDeterministicChecks() {
   console.log('\nContext leaks:');
   // Live replies said "the context provided doesn't give any details" / "no context shit here".
   check('leaked "the context provided..." sentence is dropped', !/context/i.test(stripContextLeaks("damn, barca have five ucl titles. the context provided doesn't give any fucking details about this season.", 'is barca gonna win ucl')));
-  check('leak-only reply becomes the normal "don\'t know" line', /don't actually know/.test(stripContextLeaks("goddamn, i don't know because this shit doesn't mention it.", 'is barca gonna win')));
+  check('leak-only reply never becomes the canned "don\'t actually know that one" line', !/don't actually know that one/.test(stripContextLeaks("goddamn, i don't know because this shit doesn't mention it.", 'is barca gonna win')));
   check('control: a real answer is untouched', stripContextLeaks('lamine yamal is a spanish winger from la masia.', 'who is lamine yamal') === 'lamine yamal is a spanish winger from la masia.');
   check('control: "what does context mean" keeps the word', /context/.test(stripContextLeaks('context is the stuff around a sentence that gives it meaning.', 'what does context mean')));
 
@@ -482,7 +482,7 @@ async function runDeterministicChecks() {
     for (const [t, n] of [['if I goon to 1 girl, how many body counts do I have', 1], ['if I goon to 5 girl, and after I goon to the same girl, how many body count do I have', 5], ['if I goon to 5 different girls, and after I goon to the same girl again, what is my body count', 5], ['I hooked up with 2 girls and 3 other girls, body count?', 5], ['body count if I sleep with five different guys', 5]] as const) check(`body count "${t.slice(0, 40)}…" = ${n}`, isBodyCountQuestion(t) && countDistinctPartners(t) === n, String(countDistinctPartners(t)));
     check('no people quantity -> no computed answer', countDistinctPartners('what is a body count') === null);
     check('casual chat never gets the "don\'t actually know that one" line', !/don't actually know/.test(stripContextLeaks('there is no context for that, what rank are you stuck at?', 'Yeah don’t worry. Wanna play ranked?')));
-    check('a factual question with a context leak still gets the honest "don\'t know"', /don't actually know/.test(stripContextLeaks('the context does not say.', 'who won the 1987 cup final')));
+    check('a factual question with a context leak never gets the canned line either', !/don't actually know that one/.test(stripContextLeaks('the context does not say.', 'who won the 1987 cup final')));
     check('casual invitation is basic chat', isBasicChatPrompt('nexus wanna play ranked?') && isBasicChatPrompt('lets go vc nexus'));
     check('right now -> rn, you -> u, because -> cuz', abbreviateChat('i am eating right now because you asked, to be honest') === 'im eatin rn cuz u asked, tbh');
     check('more abbreviations: im / idc / tmrw / nah', abbreviateChat("I'm not doing it tomorrow, no") === 'im not doin it tmrw, nah' && abbreviateChat("i don't care about that tonight") === 'idc abt that tn');
