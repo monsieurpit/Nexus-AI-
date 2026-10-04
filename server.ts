@@ -10,6 +10,7 @@ import {
   getPendingRequest as getPendingCodeEditRequest,
 } from './src/server/repoEditService';
 import { DEFAULT_PERSONAS, DEFAULT_SETTINGS, extractMemorableFact } from './src/ai-engine/memoryStore';
+import { topUpLlmSwearing, shortChatFinalize } from './src/ai-engine/rules/postProcess';
 import {
   evaluateStrictDirectives,
   parseSdkRules,
@@ -1958,6 +1959,40 @@ registerLearningAdminRoutes(app);
 
 // Emoji reactions on Nexus's Discord replies, forwarded by the bot. Only accepted for replies Nexus
 // really sent recently (see captureReaction) — no auth needed for that to be safe.
+// Short in-character lines for the bot's own system moments (switching Nexus off/on, "forget me", errors...), so the
+// bot never answers with the same hardcoded sentence (Patrick, 2026-10-04: "make sure there are no hardcoded answers").
+// Only a fixed list of situations is accepted, so this can't be used as a free prompt. The bot keeps its old line
+// as a fallback when the engine is unreachable.
+const VOICE_LINE_SITUATIONS: Record<string, string> = {
+  deactivate: 'A mod just switched you OFF for this server. Say you are shutting down / going quiet, in one short sulky or cheeky line.',
+  activate: 'A mod just switched you back ON for this server. Announce you are back in one short line.',
+  'toggle-denied': 'Someone who is NOT a mod tried to switch you off or on. Tell them only the mods can, in one short cheeky line.',
+  disabled: 'Someone talked to you but the mods switched you off in this server. Tell them you are switched off and not answering until a mod turns you back on, one short line.',
+  'forget-me': 'Someone asked you to forget everything about them and you just wiped it. Confirm it in one short funny line.',
+  'forget-me-fr': "Quelqu'un t'a demandé de tout oublier sur lui et tu viens de l'effacer. Confirme-le en une courte ligne drôle, en joual québécois.",
+  error: 'Something broke while you were answering. Say so in one short line and tell them to try again.',
+  'rate-limited': 'Someone is sending you messages too fast. Tell them to slow down in one short line.',
+};
+
+app.post('/api/v1/voice-line', async (req, res) => {
+  const situation = typeof req.body?.situation === 'string' ? req.body.situation : '';
+  const instruction = VOICE_LINE_SITUATIONS[situation];
+  if (!instruction) return res.status(400).json({ error: 'unknown situation' });
+  const persona = DEFAULT_PERSONAS['crashout-bot'];
+  const result = await generateLlmText(`${instruction} No quotes, no explanation, just the line.`, {
+    system: persona.systemPrompt,
+    maxTokens: 60,
+    temperature: 1,
+    timeoutMs: 9000,
+    think: false,
+    model: localLlmChatModel(),
+    preferFrench: situation.endsWith('-fr'),
+  });
+  if (result.status !== 'success' || !result.text.trim()) return res.status(503).json({ error: 'unavailable' });
+  const line = shortChatFinalize(topUpLlmSwearing(result.text.replace(/^["'“]+|["'”]+$/g, ''), { ...DEFAULT_SETTINGS, activePersonaId: 'crashout-bot' } as any, true));
+  return res.json({ line });
+});
+
 app.post('/api/v1/learning/reaction', (req, res) => {
   const { answer, emoji, authorId } = req.body || {};
   if (typeof answer !== 'string' || typeof emoji !== 'string') return res.status(400).json({ error: 'answer and emoji are required' });

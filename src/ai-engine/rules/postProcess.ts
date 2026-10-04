@@ -551,6 +551,8 @@ export function topUpLlmSwearing(text: string, settings: AISettings, isCrashout:
 
 function topUpLlmSwearingText(text: string, settings: AISettings, isCrashout: boolean, userPrompt?: string, suppressSwearing: boolean = false): string {
   // Stray HTML the model sometimes leaks ("...or somethin?</blockquote>.") never belongs in a Discord message.
+  // Bots can't use Discord's :shortcode: emoji conversion (only the app does it for humans), so ":sob:" shows as text.
+  text = text.replace(/:(sob|skull|joy|fire|sweat_smile|pleading_face|nerd|smirk|eyes|clown|100|pray|rofl|melting_face|face_holding_back_tears|weary|rage|thumbsup|heart):/g, (_m, name: string) => (({ sob: '😭', skull: '💀', joy: '😂', fire: '🔥', sweat_smile: '😅', pleading_face: '🥺', nerd: '🤓', smirk: '😏', eyes: '👀', clown: '🤡', '100': '💯', pray: '🙏', rofl: '🤣', melting_face: '🫠', face_holding_back_tears: '🥹', weary: '😩', rage: '😡', thumbsup: '👍', heart: '❤️' }) as Record<string, string>)[name] || _m);
   const noTags = text.replace(/<\/?(?:blockquote|p|br|b|i|u|em|strong|span|div|li|ul|ol|code|pre|h[1-6])\b[^>]*>/gi, ' ').replace(/[ \t]{2,}/g, ' ').replace(/\s+([.,!?])/g, '$1');
   // A PC build lesson keeps its numbered lines (every other path flattens lists into one paragraph).
   if (userPrompt && !suppressSwearing && PC_BUILD_REQUEST_RE.test(userPrompt)) return formatPcLesson(noTags);
