@@ -693,6 +693,9 @@ app.get('/api/v1/queue/status', (req, res) => {
     peakQueueLength: globalRequestQueue.peakQueueLength,
     peakConcurrency: globalRequestQueue.peakConcurrency,
     avgProcessingTimeMs: globalRequestQueue.avgProcessingTimeMs,
+    // How many requests a message sent right now would wait behind (running + waiting), and a rough wait estimate.
+    aheadOfNewRequest: globalRequestQueue.pendingCount + globalRequestQueue.runningCount,
+    estimatedWaitSeconds: Math.round(((globalRequestQueue.pendingCount + globalRequestQueue.runningCount) * (globalRequestQueue.avgProcessingTimeMs || 6000)) / 1000),
     timestamp: new Date().toISOString(),
   });
 });
@@ -1277,7 +1280,10 @@ app.post('/api/v1/speak', aiComputeLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
+// No per-user "slow down" rejection on the chat endpoint any more (Patrick, 2026-10-04): every message waits its turn in
+// globalRequestQueue (max REQUEST_QUEUE_MAX_LENGTH), and the bot/website warn people who are 5th or later in line
+// (GET /api/v1/queue/status -> aheadOfNewRequest).
+app.post('/api/v1/nexus', async (req, res) => {
   markForegroundActivity();
   authenticateApiKey(req);
   const {

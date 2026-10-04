@@ -103,6 +103,19 @@ export async function generateAIResponse(
       const badge = scan.classification === 'safe' ? '🟢 SAFE' : '🚨 ' + scan.classification.toUpperCase();
       responseText = `### 🛡️ RaidShield Visual Security Assessment\n\n- **Classification Status**: **${badge}**\n- **Confidence**: **${(scan.confidence * 100).toFixed(1)}%**\n- **Automod Action**: \`${scan.actionRecommended || 'ALLOW'}\`\n\n**Visual Findings & Explanation:**\n${scan.reason}\n\n> *RaidShield 21-Hard-Rules Engine scanned image bitmaps, text OCR, QR code targets, and Discord invite/token payload signatures.*`;
     } else {
+      // Busy? Tell the person before they wait (Patrick, 2026-10-04): 5th or later in line gets a heads-up.
+      try {
+        const queueRes = await fetch('/api/v1/queue/status', { signal: AbortSignal.timeout(2000) });
+        if (queueRes.ok) {
+          const q = await queueRes.json();
+          const ahead = Number(q?.aheadOfNewRequest ?? (q?.pendingInWaitlist || 0) + (q?.runningNow || 0)) || 0;
+          if (ahead >= 4) {
+            callbacks.onProgress?.(`Lots of people are talking to Nexus right now — you're #${ahead + 1} in line, your answer might take a bit longer${q?.estimatedWaitSeconds ? ` (about ${Math.max(5, q.estimatedWaitSeconds)}s)` : ''}.`);
+          }
+        }
+      } catch {
+        /* queue status is only a courtesy */
+      }
       const resp = await fetch('/api/v1/nexus', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
