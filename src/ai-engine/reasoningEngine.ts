@@ -6516,6 +6516,19 @@ async function generateReasoningPathInner(
       const resultLabel = isPolishMath ? 'Wynik' : isFrenchMath ? 'Résultat' : 'Result';
       const stepsLabel = isPolishMath ? 'Jak do tego doszedłem' : isFrenchMath ? "Comment j'y suis arrivé" : 'How I got there';
       const formattedMath = `${mathPrefix}${resultLabel}: ${mathResult.result}\n\n${stepsLabel}:\n${mathResult.steps.map((s) => `  ${s}`).join('\n')}`;
+      // The number is computed exactly; the model says it in Nexus's voice (no canned "running the numbers" opener).
+      if (isCrashout && !isPolishMath && !isFrenchMath) {
+        const voiced = await llmSituationalReplyOrFallback(
+          `The user asked: "${prompt}". The exact, already computed answer is ${mathResult.result}${mathResult.steps.length > 2 ? ` (worked out as: ${mathResult.steps.slice(0, 6).join('; ')})` : ''}. Give it in ONE short line in your voice with the exact number${mathResult.steps.length > 2 ? ', plus at most one short line on how' : ''}.`,
+          persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, `${mathResult.result}`, '🧮 Maths (computed, voiced)', false, undefined, 90
+        );
+        const resultText = String(mathResult.result).replace(/\.0+$/, '');
+        const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+        const asWord = /^\d+$/.test(resultText) && Number(resultText) <= 12 ? WORDS[Number(resultText)] : null;
+        if (voiced.includes(resultText) || (asWord && new RegExp(`\\b${asWord}\\b`, 'i').test(voiced))) return { thoughtSteps, content: voiced, knowledgeHits: [] };
+        // The model forgot the number: keep its line and put the exact result in front.
+        if (voiced.trim()) return { thoughtSteps, content: `${resultText} — ${voiced.trim()}`, knowledgeHits: [] };
+      }
       return {
         thoughtSteps,
         content: enforceStrictSdkRules(formattedMath, prompt, settings.userCustomDirectives, {

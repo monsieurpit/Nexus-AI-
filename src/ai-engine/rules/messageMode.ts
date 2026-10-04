@@ -35,6 +35,8 @@ export function detectTask(text: string): TaskKind | null {
   const t = text.trim();
   if (!t) return null;
   if (CODE_RE.test(t)) return 'code';
+  // "how do i make a discord bot", "can you make me a website", "build a snake game in python"
+  if (/\b(?:make|create|build|code|write|program|develop)\b[^?!.]{0,25}\b(?:discord\s+bot|bot|website|web\s*site|web\s*app|app|game|script|api|scraper|calculator|plugin|mod|extension|login\s+page|landing\s+page)\b/i.test(t) && /\b(?:how|can\s+(?:you|u)|could\s+(?:you|u)|make\s+me|code|python|javascript|js|html|lua|java|c\+\+|c#|discord\.js|node|in\s+\w+\s*$)\b/i.test(t)) return 'code';
   if (SUMMARY_RE.test(t)) return 'summary';
   if (TRANSLATE_RE.test(t)) return 'translate';
   if (DRAFT_RE.test(t)) return 'draft';
