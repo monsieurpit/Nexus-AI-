@@ -493,6 +493,14 @@ export function abbreviateChat(text: string): string {
 export function formatPcLesson(text: string): string {
   let t = text.replace(/\r/g, '').replace(/\*\*/g, '').trim();
   t = t.replace(/\s*(?:^|(?<=[.!?:;)]))\s*(\d{1,2})[.)]\s+/g, (_m, n: string) => `\n${n}) `).replace(/^\n/, '');
+  // Parts lists ("cpu: Ryzen 7 9700X (...), gpu: RTX 5070 Ti (...), ...") get one part per line with a clean label.
+  const PART_LABEL = /(?:^|[,;.]\s+|\s)(cpu|gpu|graphics card|motherboard|mobo|ram|memory|ssd|storage|psu|power supply|cooler|cpu cooler|case|monitor|display|os|peripherals)\s*:\s+/gi;
+  if ((t.match(PART_LABEL) || []).length >= 3) {
+    const ABBR = new Set(['cpu', 'gpu', 'ram', 'ssd', 'psu', 'os']);
+    t = t.replace(PART_LABEL, (_m, label: string) => `\n${ABBR.has(label.toLowerCase()) ? label.toUpperCase() : label.charAt(0).toUpperCase() + label.slice(1).toLowerCase()}: `).replace(/^\n/, '');
+    // A closing question glued to the last part ("Monitor: 27in 1440p. what games?") goes on its own line.
+    t = t.replace(/(\n[A-Z][a-z]*[^\n]*?[.)])\s+([a-z][^\n]*\?)\s*$/i, '$1\n$2');
+  }
   let lines = t.split(/\n+/).map((l) => l.trim()).filter(Boolean);
   if (lines.length) {
     const cleaned = lines[0].replace(/^(?:nah[,.]?\s*)?i\s*(?:do not|don'?t|dont)\s+(?:actually\s+)?know that one[^;.,]*[;.,]?\s*/i, '').replace(/^\s*cuz\s+/i, '').trim();

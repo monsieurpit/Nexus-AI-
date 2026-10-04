@@ -34,6 +34,10 @@ import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQui
 import { countDistinctPartners, isBodyCountQuestion } from '../src/ai-engine/rules/bodyCount';
 import { threadFactsNote } from '../src/ai-engine/rules/threadFacts';
 import { extractPrices, summarizePrices, getPriceNote, __setPricesForTests } from '../src/ai-engine/priceTracker';
+import { classifyMessageMode, isWordProblem, isEchoReply, isRepeat, chatMeaningHints } from '../src/ai-engine/rules/messageMode';
+import { describeHexColor } from '../src/ai-engine/rules/colorInfo';
+import { describeDiscordLink } from '../src/ai-engine/urlSkills';
+import { looksLikeTeaching, teachingSubject, isTeacher } from '../src/ai-engine/learning/teach';
 import { PC_BUILDING_COMPLETE } from '../src/ai-engine/corpus/pcBuildingComplete';
 import { PC_BEST_PARTS_BUILDS } from '../src/ai-engine/corpus/pcBestPartsBuilds';
 import { findRelevantKnowledge } from '../src/ai-engine/knowledgeBase';
@@ -515,6 +519,18 @@ async function runDeterministicChecks() {
     check('price note names the parts in the question with date and range', /RTX 5080 16GB: about \$1,250 \(typical listings \$1,180-\$1,399\)/.test(getPriceNote('how much is an rtx 5080 right now')) && /updated \d{4}-\d{2}-\d{2}/.test(getPriceNote('rtx 5080')));
     check('price note is empty for unrelated questions and old snapshots', getPriceNote('who won the world cup') === '' && (__setPricesForTests({ updatedAt: Date.now() - 90 * 86400000, items: { 'rtx-5080': { label: 'RTX 5080 16GB', median: 1, low: 1, high: 1, samples: 3, domains: [], updatedAt: 0 } } }), getPriceNote('rtx 5080')) === '');
     __setPricesForTests(null);
+    check('parts list gets one part per line', /\nCPU: Ryzen[^\n]*\nGPU: RTX[^\n]*\nMotherboard: B850/.test(formatPcLesson("here's a rig; cpu: Ryzen 7 9700X (cores), gpu: RTX 5070 Ti (features), motherboard: B850 ATX (AM5), ram: 32GB DDR5, ssd: 2TB NVMe. what games?")));
+    // Prime Nexus routing (2026-10-04)
+    for (const q of ['nexus b', 'Nexus are you a', 'nexus go to sleep', 'Nexus count to 5', 'nexus who is your boyfriend', 'how old are you', 'Nexus how long is it', 'is it pink', 'YES A CLONE NEXUS', 'nexus you lazy ass']) check(`chat mode: "${q}"`, classifyMessageMode(q).mode === 'chat', classifyMessageMode(q).mode);
+    for (const q of ['what is photosynthesis', 'how do vaccines work', 'how do you start the engines on an airbus a320?', 'difference between ddr4 and ddr5', 'what is 2+2']) check(`knowledge mode: "${q}"`, classifyMessageMode(q).mode === 'knowledge', classifyMessageMode(q).mode);
+    for (const [q, t] of [['write me a python script that sorts a list', 'code'], ['make me a summary of that: blah', 'summary'], ['draft a message to my boss', 'draft'], ['translate hello in french', 'translate']] as const) check(`task mode: "${q}" -> ${t}`, classifyMessageMode(q).task === t, String(classifyMessageMode(q).task));
+    check('word problem detected', isWordProblem('A train leaves at 3:15 PM going 84 km/h, a second at 4:00 PM going 112 km/h, at what time does it catch up?') && !isWordProblem('what is 2+2'));
+    check('echo replies are detected', isEchoReply('shit, a clone?', 'YES A CLONE NEXUS') && isEchoReply('lazy?', 'nexus you lazy ass') && !isEchoReply('nah im not lazy, ur just slow', 'nexus you lazy ass'));
+    check('repeats are detected', isRepeat('a clone?', ['a clone?']) && !isRepeat('nah fam', ['a clone?']));
+    check('meaning hints: good night / crack / boyfriend', chatMeaningHints('nexus good night').some((h) => /good night/.test(h)) && chatMeaningHints('nexus wanna crack?').some((h) => /goon/.test(h)) && chatMeaningHints('who is your boyfriend').some((h) => /Patrick Houle/.test(h)) && !chatMeaningHints('can you crack this code').some((h) => /goon/.test(h)));
+    check('hex colour is described', /RGB\(134, 41, 69\)/.test(describeHexColor('862945') || ''));
+    check('discord bot invite link is decoded as Administrator, not code', /Administrator/.test(describeDiscordLink('https://discord.com/oauth2/authorize?client_id=1513007319858942062&permissions=8&integration_type=0&scope=bot') || ''));
+    check('teaching: subject and teacher check', looksLikeTeaching('Nexus, here is how to start engines on Airbus A320: turn on BAT 1 and BAT 2') && teachingSubject('Nexus, here is how to start engines on Airbus A320: x') === 'How to start engines on Airbus A320' && isTeacher('1394001641899954368') && !isTeacher('123'));
     // Gaming mode (pat unload): off by default, expires by itself, capped at 12h, ends on demand.
     check('gaming mode is off by default', !getGamingMode().active);
     const gm = setGamingMode(60);

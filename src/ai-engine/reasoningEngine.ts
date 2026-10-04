@@ -27,7 +27,7 @@ import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDe
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
 import { threadFactsNote } from './rules/threadFacts';
-import { classifyMessageMode, recentRepliesFor, isRepeat, rememberReply, chatMeaningHints, isEchoReply, strongTopicOverlap } from './rules/messageMode';
+import { classifyMessageMode, recentRepliesFor, isRepeat, rememberReply, chatMeaningHints, isEchoReply, strongTopicOverlap, isWordProblem, needsThinking } from './rules/messageMode';
 import { findHexColor, describeHexColor } from './rules/colorInfo';
 import { readLink } from './urlSkills';
 import { looksLikeTeaching, isTeacher, teachFromMessage } from './learning/teach';
@@ -3886,7 +3886,9 @@ async function llmSituationalReplyOrFallback(
   // if it starts drifting.
   const temperature = usePolish || useFrench ? 0.55 : 0.8;
   const systemPrompt = await buildSystemPrompt(persona, settings, isCrashout, triggered, suppressSwearing, usePolish, useFrench, llmPrompt);
-  const useThinking = settings.showThinking !== false;
+  // Thinking only where it pays off (maths, logic, code, deep-cot): on the website it was on for every reply, which
+  // made the site much slower than Discord for no better answers on chat and simple questions (2026-10-04).
+  const useThinking = settings.showThinking !== false && (settings.reasoningMode === 'deep-cot' || needsThinking(llmPrompt.match(/"([^"]{1,1200})"/)?.[1] ?? llmPrompt));
   // Floor of 60: with the casual cap now 70, an angry/bored mood multiplier pushed it to ~49 tokens,
   // which cut insult comebacks mid-sentence (measured 2026-09-30, 5 of 20 real messages).
   const casualContentBudget =
@@ -4183,7 +4185,7 @@ async function llmGroundedOrFallback(
   // still spontaneously produce — see the `think` field's own comment on OllamaGenerateOptions).
   // Gated on settings.showThinking: the website keeps it (undefined = on); Discord turns it off —
   // see AISettings.showThinking (types.ts) for the measured reasons.
-  const revealThinking = settings.showThinking !== false;
+  const revealThinking = settings.showThinking !== false && (settings.reasoningMode === 'deep-cot' || needsThinking(prompt));
   const groundedSystemPrompt = await buildSystemPrompt(persona, settings, isCrashout, false, suppressSwearing, usePolish, useFrench, prompt);
   const groundedMoodPreamble = buildMoodUserPreamble(suppressSwearing, usePolish, useFrench);
   // Starts here, before the FIRST generation pass — "no more than 1 minute per request" (Patrick's
@@ -5031,6 +5033,17 @@ async function generateReasoningPathInner(
     }
   }
 
+  // (e0) Maths word problems / number puzzles: thinking ON (even on Discord) and the final answer always written out
+  // (2026-10-04: on the website he solved a hard one only inside his thinking; a train problem got a wrong answer).
+  if (isWordProblem(prompt) && modeInfo.mode !== 'task') {
+    const solved = await llmSituationalReplyOrFallback(
+      `Solve this carefully: "${prompt}".\nWork it out step by step in your private thinking and double-check every calculation. Then reply with the FINAL ANSWER FIRST (exact numbers, units, times), then 1-3 short lines showing how you got it, in your voice.`,
+      persona, { ...settings, showThinking: true, reasoningMode: 'deep-cot' }, isCrashout, thoughtSteps,
+      'my calculator just died, ask me again', '🧮 Maths (thinking on)', false, undefined, 400
+    );
+    return primeReturn(solved);
+  }
+
   // (e) Real tasks: code, summaries, drafts, translations — done properly, no chat cap.
   if (modeInfo.mode === 'task' && modeInfo.task) {
     const taskInstruction =
@@ -5119,7 +5132,7 @@ async function generateReasoningPathInner(
       .slice(0, 5);
     if (pcFacts.length > 0) {
       const pcText = await llmSituationalReplyOrFallback(
-        `The user asked: "${prompt}".\n${budgetGuidance(parseBudgetUsd(`${prompt} ${chatThreadText(history, settings.discordUserId)}`))}Start straight with the answer: never say you cannot build, have no parts, or are busy; you ARE helping.\n${chatThreadText(history, settings.discordUserId) ? `The chat so far (stay consistent with what You already said):\n${chatThreadText(history, settings.discordUserId)}\n\n` : ''}Use ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n${(() => { const pn = getPriceNote(`${prompt} ${chatThreadText(history, settings.discordUserId)}`, { core: true }); return pn ? `${pn} Use these real prices to keep the build inside the user's budget and give a rough total.` : ''; })()}\n\nTeach them like a friend who is great with PCs. ${/\b(?:money\s+(?:is\s+)?no\s+object|infinite|unlimited|no\s+budget|dream|ultimate|best\s+(?:gaming\s+)?pc|parts?\s+list|recommend|best\s+parts)\b/i.test(prompt) ? 'FORMAT EXACTLY: one short intro line, then a PARTS LIST with ONE PART PER LINE written as "CPU: model (why)", "GPU: model (why)", "Motherboard: ...", "RAM: ...", "SSD: ...", "PSU: ...", "Cooler: ...", "Case: ...", "Monitor: ..." using the real model names from the facts (and say what the fit rule is, e.g. AM5 + DDR5), then one last line asking what they play and their resolution if they did not say. For a GAMING build you MUST name a real monitor line (never "N/A"): a high-refresh gaming monitor (144Hz+ with G-Sync/FreeSync, e.g. ASUS ROG Swift PG32UCDM 4K 240Hz QD-OLED); never a 60Hz or color-grading display like the Apple Pro Display XDR or a ProArt.' : ''}FORMAT EXACTLY (if no parts list was requested above): one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
+        `The user asked: "${prompt}".\n${budgetGuidance(parseBudgetUsd(`${prompt} ${chatThreadText(history, settings.discordUserId)}`))}Start straight with the answer: never say you cannot build, have no parts, or are busy; you ARE helping.\n${chatThreadText(history, settings.discordUserId) ? `The chat so far (stay consistent with what You already said):\n${chatThreadText(history, settings.discordUserId)}\n\n` : ''}Use ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n${(() => { const pn = getPriceNote(`${prompt} ${chatThreadText(history, settings.discordUserId)}`, { core: true }); return pn ? `${pn} Use these real prices to keep the build inside the user's budget and give a rough total.` : ''; })()}\n\nTeach them like a friend who is great with PCs. ${/\b(?:money\s+(?:is\s+)?no\s+object|infinite|unlimited|no\s+budget|dream|ultimate|best\s+(?:gaming\s+)?pc|parts?\s+list|recommend|best\s+parts)\b/i.test(prompt) ? 'FORMAT EXACTLY: one short intro line, then a PARTS LIST with ONE PART PER LINE written as "CPU: model (why)", "GPU: model (why)", "Motherboard: ...", "RAM: ...", "SSD: ...", "PSU: ...", "Cooler: ...", "Case: ...", "Monitor: ..." (the monitor MUST match the resolution they asked for: a 1440p build gets a 1440p monitor) using the real model names from the facts (and say what the fit rule is, e.g. AM5 + DDR5), then one last line asking what they play and their resolution if they did not say. For a GAMING build you MUST name a real monitor line (never "N/A"): a high-refresh gaming monitor (144Hz+ with G-Sync/FreeSync, e.g. ASUS ROG Swift PG32UCDM 4K 240Hz QD-OLED); never a 60Hz or color-grading display like the Apple Pro Display XDR or a ProArt.' : ''}FORMAT EXACTLY (if no parts list was requested above): one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
         persona,
         settings,
         isCrashout,

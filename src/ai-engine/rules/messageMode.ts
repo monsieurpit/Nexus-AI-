@@ -183,3 +183,18 @@ export function strongTopicOverlap(prompt: string, item: { title: string; keywor
   const shared = new Set(words.filter((w) => new RegExp(`\\b${w}`).test(hay)));
   return shared.size >= 2;
 }
+
+// Maths word problems and number puzzles ("a train leaves at 3:15 going 84 km/h... when does the second catch it")
+// need real reasoning: they get the model's thinking switched on and a bigger budget, on Discord too.
+export function isWordProblem(raw: string): boolean {
+  const t = (raw || '').toLowerCase();
+  const numbers = t.match(/\d+(?:[.,:]\d+)?/g) || [];
+  const words = t.split(/\s+/).filter(Boolean).length;
+  if (numbers.length < 2 || words < 8) return false;
+  return /\b(?:how\s+(?:many|much|far|long|fast|old)|what\s+time|at\s+what\s+time|when\s+(?:will|does|do|did)|calculate|solve|find\s+(?:the|x|y)|probability|chance|percent(?:age)?|average|speed|km\/?h|mph|kilomet(?:er|re)s?|miles|ratio|interest|catch\s+up|catches|left\s+over|remain(?:s|ing)?|total|altogether|each|per\s+(?:hour|day|minute|week))\b/.test(t);
+}
+
+export function needsThinking(raw: string): boolean {
+  const t = raw || '';
+  return isWordProblem(t) || MATH_RE.test(t) || /\b(?:riddle|puzzle|logic|prove|proof|debug|algorithm|step\s+by\s+step|explain\s+why|which\s+is\s+(?:bigger|larger|heavier|faster))\b|```/i.test(t) || /TASK: Write the code/.test(t);
+}
