@@ -123,6 +123,9 @@ export async function retrieveVoiceExamples(prompt: string, topK: number = 3): P
   for (const { example, vector } of runtimeExamples.values()) {
     if (now - (lastUsedAt.get(example.id) ?? 0) < LEARNED_EXAMPLE_COOLDOWN_MS) continue;
     const score = cosineSimilarity(queryVec, vector);
+    // An example for (almost) the SAME message gets copied word for word by the model — that's how Nexus kept
+    // replaying an old reply to the same message (2026-10-04). Near-identical matches are skipped.
+    if (score >= 0.9) continue;
     if (score >= LEARNED_MIN_RELEVANCE && (!bestLearned || score > bestLearned.score)) bestLearned = { example, score };
   }
   if (bestLearned) {

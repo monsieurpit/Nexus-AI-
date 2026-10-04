@@ -68,6 +68,8 @@ export function voiceExampleShapeProblem(query: string, answer: string): string 
   const letters = answer.replace(/[^A-Za-zÀ-ÿ]/g, '');
   if (letters.length > 0 && letters.replace(/[^A-ZÀ-Ý]/g, '').length / letters.length > 0.6) return 'reply is shouting (caps)';
   if (stripContextLeaks(answer, query) !== answer) return 'reply talks about its sources';
+  // Nexus acts like a human lad (2026-10-04): replies calling himself code/an engine/a bot are never imitated.
+  if (/\b(?:local\s+engine|engine\s+running|piece\s+of\s+(?:goddamn\s+)?(?:software|code)|chatbot|language\s+model|i'?m\s+(?:just\s+)?(?:an?\s+)?(?:ai|bot|program|robot))\b/i.test(answer)) return 'reply talks about being a bot';
   if (containsSlurOrHateSpeech(answer)) return 'reply has a slur';
   const answerSafety = checkLearningSafety(answer, { rawMessage: true });
   if (!answerSafety.ok) return `reply unsafe: ${answerSafety.reason}`;

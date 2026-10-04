@@ -137,8 +137,8 @@ export function __resetRepliesForTests(): void {
 export const SAD_RE = /\b(?:i'?m|im|i\s+am|i\s+feel|feeling|been)\s+(?:so\s+|really\s+|kinda\s+|very\s+)?(?:sad|depressed|lonely|down|upset|hurt|heartbroken|stressed|anxious|miserable|broken|empty|alone)\b|\b(?:bad|horrible|terrible|awful|shit)\s+day\b|\bi\s+(?:want\s+to|wanna)\s+cry\b|\b(?:my|our)\s+(?:dog|cat|grandma|grandpa|mom|mum|dad|friend)\s+(?:died|passed)\b/i;
 
 const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
-  [/\b(?:good\s*night|gn|nighty?\s*night|sleep\s+well)\b/i, "They're saying good night (they're off to bed): say gn back casually."],
-  [/\bgo\s+(?:to\s+)?(?:sleep|bed)\b/i, "They're telling YOU to go to sleep: agree lazily, like a lad who can't be arsed to argue."],
+  [/\b(?:good\s*night|gn|nighty?\s*night|sleep\s+well)\b/i, "They're saying good night (they're off to bed): say good night back in a few words (e.g. 'gn bro, sleep tight')."],
+  [/\bgo\s+(?:to\s+)?(?:sleep|bed)\b/i, "They're telling YOU to go to sleep: AGREE that you're going to sleep, lazily (e.g. 'alr bro, I'ma go to sleep ig') — don't refuse."],
   [/\bgood\s+(?:boy|girl)\b/i, "They just called you a good boy like a pet: react to THAT, flustered ('stop it 😳') or cocky ('ik i am'), short; don't ignore it."],
   [/^(?:(?:wanna|want\s+to|lets?|let'?s|u\s+wanna|you\s+wanna)\s+)?crack\b(?!\s+(?:a|the|this|that|my|ur|your)?\s*(?:code|joke|egg|password|case|window|safe|puzzle|nut|beer|can|smile))/i, "'Wanna crack?' = 'wanna goon?' (wank): answer that, yes or no in your style; it has nothing to do with jokes or codes."],
   [/\bshould\s+(?:we|i|they)\b/i, "They're asking your OPINION: answer yeah or nah with a quick reason (you are not the one being invited)."],
@@ -184,7 +184,7 @@ export function chatMeaningHints(raw: string): string[] {
 
 // "lazy?" / "a clone?" — replying with their own words as a question.
 export function isEchoReply(reply: string, prompt: string): boolean {
-  const strip = (s: string) => s.toLowerCase().replace(/\b(?:shit|damn|goddamn|hell|fuck(?:ing)?|bro|fam|bruh|lol|lmao|nexus)\b/g, ' ').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const strip = (s: string) => s.toLowerCase().replace(/\b(?:shit|damn|goddamn|hell|fuck(?:ing)?|bro|fam|bruh|lol|lmao|nexus|ugh|meh|oh|ah|aw|wait|yep|yeah)\b/g, ' ').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
   const r = strip(reply);
   if (r.length === 0 || r.length > 4) return false;
   const p = new Set(strip(prompt));

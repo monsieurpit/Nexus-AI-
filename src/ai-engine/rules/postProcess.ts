@@ -137,7 +137,7 @@ export function isBasicChatPrompt(text: string): boolean {
 // "goddamn, for fuck's sake, hell, why..." — the swear top-up staples lone interjections between clauses. A short line
 // keeps at most the first one (swearing inside real phrases stays; this only drops the stand-alone fillers).
 export function collapseFillerInterjections(text: string): string {
-  const FILLER = /^(?:goddamn|damn|hell|shit|fuck|bloody hell|christ)[.!?]*$/i;
+  const FILLER = /^(?:goddamn|damn|hell|shit|fuck|bloody hell|christ|ugh|meh|aw+|oh+|ah+|welp)[.!?]*$/i;
   let keptOne = false;
   const parts = text.split(/,\s+/);
   const out = parts.filter((part, i) => {
@@ -171,8 +171,13 @@ export function shortChatFinalize(text: string): string {
     const cut = Math.max(first.slice(0, 160).lastIndexOf(';'), first.slice(0, 160).lastIndexOf(' — '), first.slice(0, 160).lastIndexOf(', '));
     first = cut > 30 ? first.slice(0, cut).replace(/[\s,;—-]+$/, '') + '.' : first.slice(0, 160).replace(/\s+\S*$/, '') + '...';
   }
+  if (first.length > 140) {
+    const cut = Math.max(first.slice(0, 140).lastIndexOf(';'), first.slice(0, 140).lastIndexOf(' — '), first.slice(0, 140).lastIndexOf(', '));
+    if (cut > 30) first = first.slice(0, cut).replace(/[\s,;—-]+$/, '') + (/\?/.test(first) ? '?' : '.');
+  }
   const aside = sentences.slice(1).find((x) => /\b(?:naked|gooning|goon|apartment|my (?:boyfriend|bf)|in bed|on the sofa|my ass|rn i'?m|im currently|i'?m currently)\b/i.test(x));
-  return aside && first.length + aside.length < 240 ? `${first} ${aside}` : first;
+  // Two short sentences max, ~220 chars: the aside only rides along when it still fits.
+  return aside && first.length + aside.length < 215 ? `${first} ${aside}` : first;
 }
 
 export function oneLineChat(text: string, ceiling = 130): string {
