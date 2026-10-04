@@ -33,7 +33,7 @@ const cases: Case[] = [
   { msg: 'Nexus count to 5', chat: true, expect: /1[\s\S]*2[\s\S]*3[\s\S]*4[\s\S]*5/ },
   { msg: 'Nexus good boy', chat: true },
   { msg: 'Nexus lets goon', chat: true },
-  { msg: 'nexus should we invite <@123> to our goon party?', chat: true },
+  { msg: 'nexus should we invite @Astrix to our goon party?', chat: true },
   { msg: 'nexus you lazy ass', chat: true },
   { msg: 'Nexus is it pink', chat: true },
   { msg: 'nexus do you have eyes', chat: true },
@@ -57,7 +57,7 @@ for (const c of cases) {
   const res = await fetch(`${BASE}/api/v1/nexus`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: c.msg, userId: '700000000000000001', username: 'Tester', history: c.history || [] }),
+    body: JSON.stringify({ message: c.msg, userId: String(730000000000000000 + cases.indexOf(c)), username: 'Tester', history: c.history || [] }),
   });
   const data: any = await res.json().catch(() => ({}));
   const reply: string = data.response || data.error || '';
