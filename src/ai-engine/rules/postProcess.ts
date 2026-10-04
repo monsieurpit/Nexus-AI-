@@ -267,13 +267,15 @@ function capRamblingReply(text: string, userPrompt: string): string {
   // Basic chat questions about Nexus himself ("are you gaming?", "you good?", "did you eat") get ONE
   // short slangy line ("nah, just chilling rn"), as the server asked (#feature-ideas, 2026-09-30).
   const isPcBuild = PC_BUILD_REQUEST_RE.test(userPrompt);
+  // Procedures ("how do you start the engines on an A320", "steps to...", "checklist") need room for the steps.
+  const isProcedure = !isPcBuild && /^(?:\s*nexus[\s,]*)?how\s+(?:do|does|can|should|would)\s+(?:you|u|i|we|one)\s+\w+|\bhow\s+to\b|\bsteps?\b|\bprocedure\b|\bchecklist\b|\bwalk\s+me\s+through\b/i.test(userPrompt);
   const isBasicChat = !wantsDepth && !isPcBuild && isBasicChatPrompt(userPrompt);
   // A short Casseurt mention ("casseurt", "fuck casseurt") is the persona's crashout bit: long on purpose.
   const isCasseurtCrashout = !isBasicChat && promptWords <= 5 && /\bcasseurt\b/i.test(userPrompt) && !/\?/.test(userPrompt);
   // A PC-hardware question gets room for real numbers and the reason (4 sentences) instead of the 2-sentence chat cap.
   const isPcTopic = !isPcBuild && !isBasicChat && PC_TOPIC_RE.test(userPrompt) && promptWords >= 4;
-  const MAX_SENTENCES = isPcBuild ? 6 : isPcTopic ? 4 : isCasseurtCrashout ? 7 : isBasicChat ? 1 : wantsDepth || COMPARISON_RE.test(userPrompt) ? 3 : 2;
-  const CHAR_CEILING = isPcBuild ? 1000 : isPcTopic ? 620 : isCasseurtCrashout ? 900 : isBasicChat && isReactionPrompt(userPrompt) ? 45 : isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
+  const MAX_SENTENCES = isPcBuild ? 6 : isProcedure ? 16 : isPcTopic ? 4 : isCasseurtCrashout ? 7 : isBasicChat ? 1 : wantsDepth || COMPARISON_RE.test(userPrompt) ? 3 : 2;
+  const CHAR_CEILING = isPcBuild ? 1000 : isProcedure ? 1500 : isPcTopic ? 620 : isCasseurtCrashout ? 900 : isBasicChat && isReactionPrompt(userPrompt) ? 45 : isBasicChat ? 110 : MAX_SENTENCES > 2 ? 450 : 260;
   const kept = sentences.length > MAX_SENTENCES ? sentences.slice(0, MAX_SENTENCES) : sentences;
   if (isBasicChat && kept.length === 1) {
     // A run-on glues extra thoughts on after ";" / "—": keep only the first.
@@ -302,6 +304,8 @@ function capRamblingReply(text: string, userPrompt: string): string {
   }
   let out = kept.join(' ').replace(/[ \t]+/g, ' ').trim();
   if (out && !/[.!?…"']$/.test(out)) out += '.';
+  // Numbered steps go back on their own lines so a procedure stays readable in Discord.
+  if (isProcedure) out = out.replace(/\s+(\d{1,2})[.)]\s+(?=\S)/g, '\n$1. ');
   // A basic chat answer is just that line: no tacked-on "Anyway, ..." aside either.
   return (out + (isBasicChat ? '' : aside)).trim();
 }

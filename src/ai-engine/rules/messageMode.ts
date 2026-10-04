@@ -59,7 +59,9 @@ export function classifyMessageMode(raw: string): { mode: MessageMode; task?: Ta
   // Questions aimed at Nexus himself ("who is your boyfriend", "how old are you", "do you know everything") are chat,
   // unless they ask him to explain/tell/teach something ("can you explain how vaccines work").
   const asksToExplain = /\b(?:can|could|would)\s+(?:you|u)\s+(?:explain|tell\s+me\s+(?:about|how|why)|teach|help\s+me\s+(?:with|understand)|show\s+me\s+how)\b/i.test(text);
-  if (SELF_RE.test(text) && !asksToExplain && words <= 16) return { mode: 'chat' };
+  // Generic "you" ("how do you start an A320's engines", "how do u make pancakes") is a knowledge question.
+  const genericYou = /^(?:how|where|when|what|which|why)\s+(?:\w+\s+)?(?:do|does|can|would|should|did)\s+(?:you|u|i|we|one|people)\s+(?!(?:feel|think|like|love|know|want|mean|do\s+that|doin|doing)\b)\w+\s+\w+/i.test(text) && words >= 5;
+  if (SELF_RE.test(text) && !asksToExplain && !genericYou && words <= 16) return { mode: 'chat' };
   if (VAGUE_REFERENT_RE.test(text)) return { mode: 'chat' };
   if (KNOWLEDGE_CUE_RE.test(text) || asksToExplain) return { mode: 'knowledge' };
   if (KNOWLEDGE_START_RE.test(text) && words >= 3) return { mode: 'knowledge' };
@@ -169,4 +171,15 @@ export function isEchoReply(reply: string, prompt: string): boolean {
   if (r.length === 0 || r.length > 4) return false;
   const p = new Set(strip(prompt));
   return r.every((w) => p.has(w) || ['a', 'an', 'the', 'u', 'you'].includes(w));
+}
+
+// A chat-looking message that is really about a topic the corpus knows ("which engine do you start first on an a320")
+// must not get a one-line chat reply. True when the best corpus entry shares 2+ meaningful words with the message.
+const TOPIC_STOP = new Set(['you', 'your', 'yours', 'nexus', 'what', 'which', 'when', 'where', 'why', 'how', 'who', 'the', 'and', 'for', 'are', 'can', 'does', 'did', 'with', 'that', 'this', 'have', 'like', 'just', 'know', 'want', 'think', 'good', 'first', 'make', 'from', 'about', 'there', 'they', 'them', 'some', 'into', 'would', 'should', 'could', 'really', 'everything', 'something', 'anything', 'love', 'gonna', 'wanna', 'today', 'right', 'time']);
+export function strongTopicOverlap(prompt: string, item: { title: string; keywords?: string[] } | undefined | null): boolean {
+  if (!item) return false;
+  const words = (prompt.toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter((w) => !TOPIC_STOP.has(w));
+  const hay = `${item.title} ${(item.keywords || []).slice(0, 25).join(' ')}`.toLowerCase();
+  const shared = new Set(words.filter((w) => new RegExp(`\\b${w}`).test(hay)));
+  return shared.size >= 2;
 }

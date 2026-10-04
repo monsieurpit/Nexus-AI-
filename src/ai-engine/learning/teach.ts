@@ -64,7 +64,12 @@ export function teachFromMessage(text: string, authorId?: string | null): TeachR
   const subject = teachingSubject(text);
   if (!isTeacher(authorId)) return { ok: false, subject, saved: 0, reason: 'not a teacher' };
   if (!isLearningEnabled()) return { ok: false, subject, saved: 0, reason: 'learning is off' };
-  const body = text.replace(/^\s*(?:(?:hey|yo|ok)\s+)?(?:nexus[\s,:-]+)?/i, '').trim().slice(0, 5000);
+  const body = text
+    .replace(/^\s*(?:(?:hey|yo|ok)\s+)?(?:nexus[\s,:-]+)?/i, '')
+    // the intro line ("here is how to start engines on Airbus A320:") is the subject, not part of the facts
+    .replace(/^(?:here(?:'s|\s+is)|this\s+is|learn\s+(?:this|that)|remember\s+(?:this|that))[^\n:]*[:\n]\s*/i, '')
+    .trim()
+    .slice(0, 5000);
   const safety = checkLearningSafety(body, { rawMessage: true });
   if (!safety.ok) return { ok: false, subject, saved: 0, reason: safety.reason };
   const parts = chunkText(body);

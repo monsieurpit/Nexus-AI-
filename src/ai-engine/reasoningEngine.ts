@@ -27,7 +27,7 @@ import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDe
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
 import { threadFactsNote } from './rules/threadFacts';
-import { classifyMessageMode, recentRepliesFor, isRepeat, rememberReply, chatMeaningHints, isEchoReply } from './rules/messageMode';
+import { classifyMessageMode, recentRepliesFor, isRepeat, rememberReply, chatMeaningHints, isEchoReply, strongTopicOverlap } from './rules/messageMode';
 import { findHexColor, describeHexColor } from './rules/colorInfo';
 import { readLink } from './urlSkills';
 import { looksLikeTeaching, isTeacher, teachFromMessage } from './learning/teach';
@@ -3698,7 +3698,10 @@ function estimateResponseBudget(prompt: string, reasoningMode?: AISettings['reas
   const wordCount = prompt.trim().split(/\s+/).filter(Boolean).length;
   const hasMultipleQuestions = (prompt.match(/\?/g) || []).length > 1 || / and (?:how|why|what|when|where) /i.test(prompt);
   let budget: number;
-  if (BROAD_QUESTION_PATTERN.test(prompt) || hasMultipleQuestions) {
+  // Procedures and tasks need room for every step (2026-10-04: the A320 start answer stopped after step 1).
+  if (/\bhow\s+(?:do|does|can|should)\s+(?:you|u|i|we|one)\s+\w+|\bhow\s+to\b|\bsteps?\b|\bprocedure\b|\bchecklist\b|\bwalk\s+me\s+through\b/i.test(prompt)) {
+    budget = Math.max(LLM_MAX_TOKENS_BROAD, 700);
+  } else if (BROAD_QUESTION_PATTERN.test(prompt) || hasMultipleQuestions) {
     budget = LLM_MAX_TOKENS_BROAD;
   } else if (wordCount <= 6) {
     budget = LLM_MAX_TOKENS_NARROW;
@@ -3741,6 +3744,10 @@ const GROUNDING_CONTENT_MAX_CHARS = 650;
 function buildGroundingContext(top: { item: { title: string; content: string }; relevantSentences?: string[] }[]): string {
   return top
     .map((t, i) => {
+      // A procedure (the top doc is a "how to"/steps entry, e.g. the A320 engine start Patrick taught) is passed whole
+      // (up to 1,600 chars): cutting it at 650 chars left the model with only the first step (2026-10-04).
+      const isProcedureDoc = i === 0 && (/^(?:how\s+to|steps?\b)|procedure|checklist|\(part\s+\d/i.test(t.item.title) || /(?:^|\s)(?:1\)|step\s+1\b)/i.test(t.item.content));
+      if (isProcedureDoc) return `[${i + 1}] ${t.item.title}: ${t.item.content.slice(0, 1600)}`;
       let body =
         t.relevantSentences && t.relevantSentences.length > 0
           ? t.relevantSentences.slice(0, 4).join(' ')
@@ -4139,7 +4146,7 @@ async function llmGroundedOrFallback(
       // bug, but the model only needs the RULE, not the specific incident that proved it was
       // needed. Re-verify against a real multi-date/multi-superlative question if this is edited
       // further.
-      `Answer using ONLY the facts in the context below — never invent facts not present in it. Talk as if you just know this yourself — NEVER mention "the context", "the facts", "the info provided", "background material", or what it does or doesn't say. The context may contain several similar claims about different things (multiple "largest", multiple dates for different sub-events of one historical event, etc.) — match your answer to the EXACT thing asked, using the most precisely-matching sentence, and never combine pieces from two different facts into a new fabricated one. If an entry states a general rule via a specific example, apply the rule using the EXACT terms in the question, not the example's own terms. NEVER quote, copy, or repeat the context verbatim — especially any bracketed label like "[LIVE DATA — ...]" or a parenthetical instruction inside it; those are internal notes for you, not something to output. Extract the actual facts and state them naturally in your own words/voice instead. Style directives (swearing, tone) still apply to a factual answer. LENGTH — THIS MATTERS: default is 1 to 2 short sentences, NEVER more than that unless the question truly needs it (a real step-by-step process, or several distinct facts the user actually asked for, or an explicit "explain in detail"). A "what is X", "who is X", "when did X", or "what's the difference between X and Y" question gets 1-2 tight sentences even when the context gives you far more — pick the single clearest contrast and stop. No rhetorical preamble ("seriously? you wanna know..."), no restating the question, no "better at what, exactly?" at the end.\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
+      `Answer using ONLY the facts in the context below — never invent facts not present in it. Talk as if you just know this yourself — NEVER mention "the context", "the facts", "the info provided", "background material", or what it does or doesn't say. The context may contain several similar claims about different things (multiple "largest", multiple dates for different sub-events of one historical event, etc.) — match your answer to the EXACT thing asked, using the most precisely-matching sentence, and never combine pieces from two different facts into a new fabricated one. If an entry states a general rule via a specific example, apply the rule using the EXACT terms in the question, not the example's own terms. NEVER quote, copy, or repeat the context verbatim — especially any bracketed label like "[LIVE DATA — ...]" or a parenthetical instruction inside it; those are internal notes for you, not something to output. Extract the actual facts and state them naturally in your own words/voice instead. Style directives (swearing, tone) still apply to a factual answer. LENGTH — THIS MATTERS: default is 1 to 2 short sentences, NEVER more than that unless the question truly needs it (a real step-by-step process, or several distinct facts the user actually asked for, or an explicit "explain in detail"). A "what is X", "who is X", "when did X", or "what's the difference between X and Y" question gets 1-2 tight sentences even when the context gives you far more — pick the single clearest contrast and stop. No rhetorical preamble ("seriously? you wanna know..."), no restating the question, no "better at what, exactly?" at the end.${/\bhow\s+(?:do|does|can|should)\s+(?:you|u|i|we|one)\s+\w+|\bhow\s+to\b|\bsteps?\b|\bprocedure\b|\bchecklist\b|\bwalk\s+me\s+through\b/i.test(prompt) ? " THIS IS A STEP-BY-STEP QUESTION: give EVERY step from the context in order, numbered (1. 2. 3. ...), each one short — do not stop after the first steps." : ""}\n\nContext:\n${groundingContext}\n\nQuestion: ${prompt}`
     : // Condensed for latency, same pass as the confident branch above — every rule preserved
       // (loose-match honesty, ask-a-real-clarifying-question if the topic itself is genuinely
       // unclear not just a missing detail, style directives still apply), narrative framing and
@@ -5207,7 +5214,7 @@ async function generateReasoningPathInner(
   // (f) Prime chat: every casual message (banter, reactions, commands to Nexus, questions about Nexus himself,
   // unfinished messages) gets ONE short model-written line — never a template, never a paragraph, never a repeat.
   // Casseurt mentions keep their own rant handler below.
-  if (nexusVoice && modeInfo.mode === 'chat' && !looksFrench(prompt) && !looksPolish(prompt) && !/\bcasseurt\b/i.test(prompt)) {
+  if (nexusVoice && modeInfo.mode === 'chat' && !looksFrench(prompt) && !looksPolish(prompt) && !/\bcasseurt\b/i.test(prompt) && !strongTopicOverlap(prompt, findRelevantKnowledge(prompt, 1)[0])) {
     const factsNote = chatFactsNote(history, settings.discordUserId, prompt);
     const avoid = myRecentLines.length ? `\nDo NOT reuse any of your recent lines (say something different): ${myRecentLines.slice(-8).map((r) => `"${r.slice(0, 120)}"`).join(' | ')}` : '';
     const hints = chatMeaningHints(prompt);
