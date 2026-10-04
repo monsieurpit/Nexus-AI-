@@ -33,7 +33,7 @@ import { splitSentencesSafe } from '../src/ai-engine/sentences';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply, __resetQuickChatForTests } from '../src/ai-engine/rules/quickChat';
 import { countDistinctPartners, isBodyCountQuestion } from '../src/ai-engine/rules/bodyCount';
 import { threadFactsNote } from '../src/ai-engine/rules/threadFacts';
-import { extractPrices, summarizePrices, getPriceNote, __setPricesForTests } from '../src/ai-engine/priceTracker';
+import { extractPrices, summarizePrices, getPriceNote, __setPricesForTests, isPriceQuestion, expandStickCounts } from '../src/ai-engine/priceTracker';
 import { classifyMessageMode, isWordProblem, isEchoReply, isRepeat, chatMeaningHints } from '../src/ai-engine/rules/messageMode';
 import { describeHexColor } from '../src/ai-engine/rules/colorInfo';
 import { describeDiscordLink } from '../src/ai-engine/urlSkills';
@@ -517,6 +517,8 @@ async function runDeterministicChecks() {
     check('price summary needs 3 samples and uses the median', summarizePrices([1200]) === null && summarizePrices([1200, 1250], 2)?.median === 1225 && summarizePrices([1200, 1250, 1400, 1300, 1280])?.median === 1280);
     __setPricesForTests({ updatedAt: Date.now(), items: { 'rtx-5080': { label: 'RTX 5080 16GB', median: 1250, low: 1180, high: 1399, samples: 6, domains: ['newegg.com'], updatedAt: Date.now() }, 'ddr5-32gb-6000': { label: '32GB (2x16GB) DDR5-6000 kit', median: 330, low: 290, high: 420, samples: 5, domains: ['newegg.com'], updatedAt: Date.now() } } });
     check('price note names the parts in the question with date and range', /RTX 5080 16GB: about \$1,250 \(typical listings \$1,180-\$1,399\)/.test(getPriceNote('how much is an rtx 5080 right now')) && /updated \d{4}-\d{2}-\d{2}/.test(getPriceNote('rtx 5080')));
+    check('price questions always trigger a live search (not maths, not love, not builds)', isPriceQuestion("Nexus, what's the cost of 2 sticks of DDR5 16GB of RAM?") && isPriceQuestion('how much is a 5090') && isPriceQuestion('how much does an rtx 5070 cost') && !isPriceQuestion('how much is 2+2') && !isPriceQuestion('how much do you love me') && !isPriceQuestion('build me a pc with a 1500 budget, cost?'));
+    check('"2 sticks of DDR5 16GB" means a 2x16GB (32GB) kit', /2x16GB \(32GB kit\)/.test(expandStickCounts('2 sticks of DDR5 16GB')) && /2x16GB \(32GB kit\)/.test(expandStickCounts('two 16gb ddr5 sticks')));
     check('price note is empty for unrelated questions and old snapshots', getPriceNote('who won the world cup') === '' && (__setPricesForTests({ updatedAt: Date.now() - 90 * 86400000, items: { 'rtx-5080': { label: 'RTX 5080 16GB', median: 1, low: 1, high: 1, samples: 3, domains: [], updatedAt: 0 } } }), getPriceNote('rtx 5080')) === '');
     __setPricesForTests(null);
     check('parts list gets one part per line', /\nCPU: Ryzen[^\n]*\nGPU: RTX[^\n]*\nMotherboard: B850/.test(formatPcLesson("here's a rig; cpu: Ryzen 7 9700X (cores), gpu: RTX 5070 Ti (features), motherboard: B850 ATX (AM5), ram: 32GB DDR5, ssd: 2TB NVMe. what games?")));

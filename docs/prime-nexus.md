@@ -12,8 +12,10 @@ After the safety checks (child safety, hate, prompt injection, crisis, dox), in 
 2. **Hex colours** (`rules/colorInfo.ts`): the colour is computed (RGB/HSL/name), the model gives its opinion.
 3. **Links** (`urlSkills.ts`): pages are read (SSRF-safe, every redirect checked), YouTube via oEmbed, and Discord bot
    invite / OAuth2 links are DECODED (client id, permissions — 8 = Administrator — scopes), never answered with code.
-4. **Explicit web searches** ("search the web for ...", "price of X right now"): live Tavily search, answer from the
-   results with USD and roughly CAD. Nexus never says he can't search.
+4. **Explicit web searches and ALL price questions** ("search the web for ...", "what's the cost of X", "how much is a
+   5090"): live Tavily search for the product + "price" + the current month, plus one search on Canadian stores; answer
+   with today's cheapest price and range in USD and CAD (old "lowest-ever" pre-crisis prices are ignored). "2 sticks of
+   16GB" is read as a 2x16GB (32GB) kit (`expandStickCounts`). Nexus never says he can't search.
 5. **Maths word problems** (`isWordProblem`): thinking on (even on Discord), the final answer always written first.
 6. **Tasks** (`classifyMessageMode` -> task): code, summaries, drafts, translations are done completely, never cut to
    chat length. Code blocks are never touched by post-processing.

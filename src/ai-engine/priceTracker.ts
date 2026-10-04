@@ -229,6 +229,27 @@ export function startPriceTracker(isBusy?: () => boolean): void {
 
 // ---- use in answers -----------------------------------------------------------------------------
 
+// "2 sticks of DDR5 16GB" / "two 16gb ddr5 sticks" means a 2x16GB (32GB) kit, not a 16GB kit (2026-10-04: Nexus priced
+// a 2x8GB kit for that question).
+export function expandStickCounts(text: string): string {
+  const n = (w: string) => ({ two: '2', four: '4' } as Record<string, string>)[w.toLowerCase()] || w;
+  return text
+    .replace(/\b(2|two|4|four)\s+(?:sticks?|dimms?|modules?)\s+(?:of\s+)?(?:(ddr\d)\s+)?(\d{1,3})\s?gb\b(?:\s+(ddr\d))?/gi, (_m, c, d1, s, d2) => `${n(c)}x${s}GB (${Number(n(c)) * Number(s)}GB kit) ${d1 || d2 || ''}`.trim())
+    .replace(/\b(2|two|4|four)\s+(\d{1,3})\s?gb\s+(?:(ddr\d)\s+)?(?:ram\s+)?(?:sticks?|dimms?|modules?)\b/gi, (_m, c, s, d) => `${n(c)}x${s}GB (${Number(n(c)) * Number(s)}GB kit) ${d || ''}`.trim());
+}
+
+// A question about what something costs ("what's the cost of 2 sticks of DDR5 16GB?", "how much is a 5090").
+// These always get a live search: prices move weekly. Build requests with a budget go to the PC path instead.
+export function isPriceQuestion(text: string): boolean {
+  const t = text.toLowerCase();
+  if (/\b(?:build|budget|cost of living|at all costs?|price is right)\b/.test(t)) return false;
+  if (/\bhow\s+much\s+is\s+[\d\s+\-*/x×÷.^()]+\??\s*$/.test(t)) return false; // "how much is 2+2" is maths
+  if (/\b(?:price|prices|pricing|msrp|cost|costs|costing)\b/.test(t) && /\?|\b(?:what|how|whats|what's|tell|check|find)\b/.test(t)) return true;
+  return /\bhow\s+much\s+(?:is|are|does|do|would|will|for|'?s)\b[^?]{0,60}\b(?:\d|rtx|gtx|rx|ryzen|intel|ddr\d|ssd|nvme|gpu|cpu|ram|ps5|xbox|switch|iphone|macbook|monitor|keyboard|mouse|headset)/.test(t);
+}
+
+export const CANADIAN_RETAIL_DOMAINS = ['canadacomputers.com', 'memoryexpress.com', 'newegg.ca', 'amazon.ca', 'bestbuy.ca'];
+
 const money = (n: number) => `$${n.toLocaleString('en-US')}`;
 
 // Lines for the parts the question mentions (plus the main parts when `core` is set, for build lessons).
@@ -236,6 +257,7 @@ const money = (n: number) => `$${n.toLocaleString('en-US')}`;
 export function getPriceNote(text: string, opts: { core?: boolean; maxLines?: number } = {}): string {
   const file = loadPrices();
   if (!file.updatedAt || Date.now() - file.updatedAt > 60 * 24 * 60 * 60 * 1000) return '';
+  text = expandStickCounts(text);
   const lines: string[] = [];
   const seen = new Set<string>();
   const add = (part: TrackedPart) => {

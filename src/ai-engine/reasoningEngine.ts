@@ -32,7 +32,7 @@ import { findHexColor, describeHexColor } from './rules/colorInfo';
 import { readLink } from './urlSkills';
 import { looksLikeTeaching, isTeacher, teachFromMessage } from './learning/teach';
 import { searchTavilyDirect } from './tavilySearch';
-import { getPriceNote } from './priceTracker';
+import { CANADIAN_RETAIL_DOMAINS, expandStickCounts, getPriceNote, isPriceQuestion } from './priceTracker';
 import { findRelevantKnowledge } from './knowledgeBase';
 import { isBodyCountQuestion, countDistinctPartners } from './rules/bodyCount';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply } from './rules/quickChat';
@@ -5017,10 +5017,12 @@ async function generateReasoningPathInner(
   }
 
   // (d) Explicit live web searches ("search the web for the price of DDR5 32GB right now") — Nexus CAN search.
-  const wantsWebSearch =
+  // Price questions always search too (2026-10-04: "what's the cost of 2 sticks of DDR5 16GB?" was answered from memory).
+  const priceQuestion = isPriceQuestion(prompt);
+  const wantsWebSearch = priceQuestion ||
     /\b(?:search|google|look\s*(?:it\s*)?up|look\s+online|check\s+online|browse)\b[^?!]{0,40}\b(?:web|online|internet|google|for|up|about|price|news)\b|\bsearch\s+(?:the\s+)?(?:web|internet|online|google)\b|\b(?:right\s+now|rn|currently|today'?s?|latest|live|current)\b[^?!]{0,40}\b(?:price|prices|cost|news|score|weather|exchange\s+rate)\b|\b(?:price|cost)\s+of\b[^?!]{0,60}\b(?:right\s+now|rn|now|today|currently)\b/i.test(prompt);
   if (wantsWebSearch) {
-    const query = prompt
+    const query = expandStickCounts(prompt)
       .replace(/^\s*(?:hey\s+|yo\s+)?nexus[\s,:-]*/i, '')
       .replace(/\b(?:can|could|would)\s+(?:you|u)\s+/gi, '')
       .replace(/\b(?:please|pls|plz)\b/gi, '')
@@ -5028,12 +5030,28 @@ async function generateReasoningPathInner(
       .replace(/[?!.]+$/, '')
       .trim()
       .slice(0, 200);
-    const results = query ? await searchTavilyDirect(query, 6, { recent: true }) : [];
+    // Price questions: one general search plus one on Canadian stores (Canadian retail runs above the plain conversion).
+    // The search gets the PRODUCT + "price" + the month ("32GB (2x16GB) DDR5 RAM price October 2026"), not the whole
+    // question: "what's the cost of ..." only found store pages without numbers.
+    const priceQuery = priceQuestion
+      ? `${query
+          .replace(/\b(?:what(?:'s|s|\s+is|\s+are|\s+does|\s+do)?|how\s+much(?:\s+(?:is|are|does|do|would|will|for))?|tell\s+me|check|find|the|a|an|of|for|right\s+now|rn|now|today|currently|cost(?:s|ing)?|price(?:s)?|pricing|msrp)\b/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()} price ${new Date().toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/Toronto' })}`
+      : query;
+    const [mainResults, caResults] = await Promise.all([
+      priceQuery ? searchTavilyDirect(priceQuery, 6, { recent: true }) : Promise.resolve([]),
+      priceQuestion && priceQuery ? searchTavilyDirect(`${priceQuery} CAD`, 4, { includeDomains: CANADIAN_RETAIL_DOMAINS }) : Promise.resolve([]),
+    ]);
+    const results = [...mainResults, ...caResults.filter((c) => !mainResults.some((m) => m.url === c.url))];
     const priceNote = getPriceNote(prompt);
-    thoughtSteps.push({ id: 'step-live-search', type: 'web_search', title: `🌐 Live web search: "${query}"`, description: `${results.length} result(s).` });
+    thoughtSteps.push({ id: 'step-live-search', type: 'web_search', title: `🌐 Live web search: "${priceQuery}"`, description: `${results.length} result(s).` });
     if (results.length > 0 || priceNote) {
+      const priceRules = priceQuestion
+        ? ` This is a PRICE question: give what it costs TODAY — the cheapest real current price and a typical range — in USD AND in CAD (use Canadian store results if there are any; otherwise roughly USD x 1.38, and say Canadian stores often charge more). There is a big RAM/storage price crisis in 2026: ignore "lowest-ever" or old pre-2026 prices (like $72 or $99 for 32GB of DDR5) and use the newest numbers. "2 sticks of 16GB" means a 32GB (2x16GB) kit. Don't pad it with advice they didn't ask for.`
+        : '';
       const searchReply = await llmSituationalReplyOrFallback(
-        `The user asked you to look this up: "${prompt}". You just searched the web for "${query}".\n${results.length ? `LIVE RESULTS:\n${results.map((r, i) => `${i + 1}) ${r.title} — ${r.domain}: ${r.snippet.slice(0, 350)}`).join('\n')}` : 'The live search returned nothing right now.'}\n${priceNote ? `${priceNote}\n` : ''}\nAnswer from these results (real numbers and names), say it's from a live search and name 1-2 source sites, in 2-4 short lines. For prices give the USD number and roughly the CAD price too (USD x 1.38). If the results don't answer it, say so. Never say you can't search the web.`,
+        `The user asked: "${prompt}". You just searched the web for "${priceQuery}".\n${results.length ? `LIVE RESULTS:\n${results.map((r, i) => `${i + 1}) ${r.title} — ${r.domain}: ${r.snippet.slice(0, 350)}`).join('\n')}` : 'The live search returned nothing right now.'}\n${priceNote ? `${priceNote}\n` : ''}\nAnswer from these results (real numbers and names), say it's from a live search and name 1-2 source sites, in 2-4 short lines. For prices give the USD number and roughly the CAD price too (USD x 1.38).${priceRules} If the results don't answer it, say so. Never say you can't search the web.`,
         persona, settings, isCrashout, thoughtSteps, results[0]?.snippet.slice(0, 300) || priceNote, '🌐 Live search answer', false, undefined, 280
       );
       return primeReturn(searchReply, results.slice(0, 3).map((r) => `Web: ${r.title}`));
