@@ -1528,19 +1528,14 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
       // typed alongside it, e.g. "roast this" + an image).
       let visionDescription: string | null = null;
       if (imagePart) {
-        const visionResult = await generateVision(
-          imagePart.inlineData.data,
-          // Restored to the full, explicit instruction (2026-09-17) after swapping the vision model
-          // from moondream (1B — measurably broke on exactly this wording, see localLlmClient.ts's
-          // OLLAMA_VISION_MODEL comment) to Qwen2.5-VL 3B, which handles it fine: live-tested 8/8
-          // perfect, near-verbatim transcriptions across two full passes with this exact wording,
-          // including correctly naming French/Spanish/Catalan unprompted. Asking for the language
-          // explicitly here is now genuinely a bonus, not a requirement — looksFrench/
-          // scoreFrenchSignal and RaidShield's own detection still classify whatever text comes
-          // back either way, so this doesn't depend on the model getting it right.
-          'Describe what is shown in this image in detail — objects, text, people, setting, mood. If there is any text visible anywhere in the image, transcribe it EXACTLY as written, word for word, in its original language (do not translate it), and state what language it appears to be in (English, French, Spanish, Catalan, or another language).',
-          { timeoutMs: 25000 }
-        );
+        // The person's own question goes to the vision model too (2026-10-04: "how many tickets" on a screenshot of ~10
+        // tickets got "1" because the vision model was only asked for a general description), with a longer timeout and
+        // one retry: the vision model often has to load first, and a 25 s limit made image analysis fail.
+        const visionPrompt =
+          'Describe what is shown in this image in detail — objects, text, people, setting, mood. If there is any text visible anywhere in the image, transcribe it EXACTLY as written, word for word, in its original language (do not translate it), and state what language it appears to be in (English, French, Spanish, Catalan, or another language).' +
+          (userText ? `\n\nThe user asks about this image: "${userText.slice(0, 400)}". Answer that precisely as part of your description. If they ask how many of something there are, count EVERY single one carefully (go row by row / item by item) and give the exact number.` : '');
+        let visionResult = await generateVision(imagePart.inlineData.data, visionPrompt, { timeoutMs: 60000 });
+        if (visionResult.status !== 'success') visionResult = await generateVision(imagePart.inlineData.data, visionPrompt, { timeoutMs: 60000 });
         if (visionResult.status === 'success') {
           visionDescription = visionResult.text;
         }

@@ -26,3 +26,12 @@ would reload it and keep it).
 They answer 404 unless the request comes from this Mac itself (loopback, no proxy headers such as
 `Cf-Connecting-IP`) **and** carries the admin token from `~/.nexus-learning/admin-token`, so they are
 unreachable through the Cloudflare tunnel.
+
+## Ollama settings (`~/.nexus-tunnel/set-ollama-env.sh` and `com.nexus.ollamaserve.plist`)
+- `OLLAMA_NUM_PARALLEL=1` — the engine runs one generation at a time; 2 parallel slots doubled the context memory.
+- `OLLAMA_MAX_LOADED_MODELS=3` — chat model + embeddings + the vision model fit together, so analysing an image no
+  longer kicks the chat model out (which made the next reply a cold start and images time out).
+- `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`, `OLLAMA_KEEP_ALIVE=30m` (the chat model overrides this with
+  "forever" per request).
+- The port must be owned by `com.nexus.ollamaserve` (it has these variables). If the Ollama menu-bar app starts its
+  own server first, quit the app and run `launchctl kickstart -k gui/$UID/com.nexus.ollamaserve`.
