@@ -153,6 +153,14 @@ export function collapseFillerInterjections(text: string): string {
   return joined;
 }
 
+// Removes the persona's crude "what I'm doing rn" aside — used when someone is genuinely down.
+export function stripCrudeAside(text: string): string {
+  const CRUDE = /\b(?:naked|half\s+hard|horny|goon(?:ing|ed)?|wank|my\s+(?:dick|ass|balls|boxers|underwear)|apartment|on\s+the\s+loo|toilet|fart|piss|shit\s+stain)\b/i;
+  const sentences = splitSentencesSafe(text);
+  const kept = sentences.filter((x, i) => i === 0 || !CRUDE.test(x));
+  return kept.join(' ').trim() || text;
+}
+
 export function shortChatFinalize(text: string): string {
   const t = collapseFillerInterjections((text || '').replace(/\s*\n+\s*/g, ' ').replace(/\s+/g, ' ').trim());
   if (!t) return t;

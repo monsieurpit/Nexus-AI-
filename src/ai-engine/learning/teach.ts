@@ -10,12 +10,13 @@ import { checkLearningSafety } from './safety';
 import { audit, isLearningEnabled } from './store';
 import { promoteFact, promotionBudgetLeft } from './promote';
 
-const OWNER_ID = '1394001641899954368';
+// Patrick's accounts as the bot knows them (the /say, /status and super-chill owner IDs). NEXUS_TEACHERS adds more.
+const OWNER_IDS = ['1394001641899954368', '1554657430393196594', '1354229457522524322'];
 
 export function isTeacher(authorId?: string | null): boolean {
   if (!authorId) return false;
   const extra = (process.env.NEXUS_TEACHERS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  return authorId === OWNER_ID || extra.includes(authorId);
+  return OWNER_IDS.includes(authorId) || extra.includes(authorId);
 }
 
 const TEACH_START_RE =

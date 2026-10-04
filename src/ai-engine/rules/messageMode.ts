@@ -134,6 +134,8 @@ export function __resetRepliesForTests(): void {
 // ---- meaning hints for chat ------------------------------------------------------------------------
 // A 4B model misreads short slangy messages ("good night" -> "nice ur chillin rn?", "wanna crack?" -> "crack a joke").
 // These hints tell it what the message MEANS; the model still writes every reply itself (no canned answers).
+export const SAD_RE = /\b(?:i'?m|im|i\s+am|i\s+feel|feeling|been)\s+(?:so\s+|really\s+|kinda\s+|very\s+)?(?:sad|depressed|lonely|down|upset|hurt|heartbroken|stressed|anxious|miserable|broken|empty|alone)\b|\b(?:bad|horrible|terrible|awful|shit)\s+day\b|\bi\s+(?:want\s+to|wanna)\s+cry\b|\b(?:my|our)\s+(?:dog|cat|grandma|grandpa|mom|mum|dad|friend)\s+(?:died|passed)\b/i;
+
 const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   [/\b(?:good\s*night|gn|nighty?\s*night|sleep\s+well)\b/i, "They're saying good night (they're off to bed): say gn back casually."],
   [/\bgo\s+(?:to\s+)?(?:sleep|bed)\b/i, "They're telling YOU to go to sleep: agree lazily, like a lad who can't be arsed to argue."],
@@ -147,6 +149,7 @@ const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   [/\b(?:boyfriend|bf|girlfriend|gf|dating|partner|crush)\b/i, 'Your boyfriend is Patrick — say his name, Patrick Houle — and you have NO girlfriend.'],
   [/\b(?:how\s+old|ur\s+age|your\s+age|age\??$)\b/i, "You're 1 year old."],
   [/\b(?:lazy|idiot|dumb|stupid|useless|trash|shut\s+up|fuck\s+(?:you|off)|bellend|knobhead|wanker|loser|annoying)\b/i, "They're insulting you: clap back in a few words (e.g. 'fuck off'), no essay."],
+  [SAD_RE, "They sound genuinely down: be a real mate — warm, 1-2 short lines, ask what's up; no roasting and NO crude aside this time."],
   [/(?:😭|:sob:)/, "Their 😭 means they're laughing hard / 'I can't' (not real sadness unless it's obviously sad)."],
   [/\b(?:i\s+love\s+(?:u|you)|ily|love\s+u)\b/i, "They're saying they love you: react in character (cheeky/flustered), one line."],
   [/^(?:is|are|was)\s+(?:it|that|this|they)\b/i, "You don't know what 'it/that' refers to unless the chat above says: ask what they mean."],
@@ -159,8 +162,21 @@ export function chatMeaningHints(raw: string): string[] {
     const m = text.match(re);
     if (m) out.push(typeof hint === 'string' ? hint : hint(m));
   }
+  // Coin flips and dice are rolled here for real; the model just announces the result.
+  if (/\b(?:flip|toss)\s+(?:a\s+)?coin\b|\bheads\s+or\s+tails\b/i.test(text)) out.push(`You flipped a coin for real: it landed on ${Math.random() < 0.5 ? 'HEADS' : 'TAILS'}. Say the result.`);
+  const dice = text.match(/\broll\s+(?:a\s+|an?\s+)?(?:(\d{1,2})\s*)?d(?:ice|ie)?(\d{1,3})?\b|\broll\s+(?:a\s+)?dic?e\b/i);
+  if (dice) {
+    const sides = Number(dice[2]) || 6;
+    const count = Math.min(Number(dice[1]) || 1, 10);
+    const rolls = Array.from({ length: count }, () => 1 + Math.floor(Math.random() * sides));
+    out.push(`You rolled for real: ${rolls.join(', ')}${count > 1 ? ` (total ${rolls.reduce((a, b) => a + b, 0)})` : ''}. Say the result.`);
+  }
+  // One-word reactions are slang, not unfinished questions.
+  const REACTIONS: Record<string, string> = { w: 'W = a win / nice one', l: 'L = a loss / fail', ratio: 'ratio = someone got outdone', gg: 'gg = good game', ez: 'ez = that was easy (a flex)', fr: 'fr = for real', ong: 'ong = on god', bet: 'bet = ok / deal', '💀': '💀 = dying of laughter', '😭': '😭 = crying laughing / "I can\'t"', '😂': '😂 = laughing', '🔥': '🔥 = fire / great', omg: 'omg = oh my god', lol: 'lol = laughing', lmao: 'lmao = laughing hard', skibidi: 'skibidi = brainrot meme word', '67': '67 = the "six seven" brainrot meme' };
+  const single = text.toLowerCase().replace(/[!?.]+$/, '').trim();
+  if (REACTIONS[single]) out.push(`It's just a reaction (${REACTIONS[single]}): react back in 1-4 words, in the same spirit.`);
   const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 0 || (words.length === 1 && text.replace(/[^a-z]/gi, '').length <= 2) || /\b(?:a|an|the|to|of|my|your|ur|and|with|is|are)\s*$/i.test(text)) {
+  if (!REACTIONS[single] && (words.length === 0 || (words.length === 1 && text.replace(/[^a-z]/gi, '').length <= 2)) || /\b(?:a|an|the|to|of|my|your|ur|and|with|is|are)\s*$/i.test(text)) {
     out.push("Their message looks unfinished or unclear: ask what they mean in a few cheeky words (don't guess).");
   }
   return out.slice(0, 4);

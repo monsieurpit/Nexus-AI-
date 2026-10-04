@@ -1585,7 +1585,10 @@ app.post('/api/v1/nexus', aiComputeLimiter, async (req, res) => {
         }
       }
 
-      if (strictEvaluation.hasCustomRules && strictEvaluation.output) {
+      // Roast / crashout / chill "modes" used to answer with a fixed list of lines; for Nexus's own voice the model
+      // writes them now (Patrick, 2026-10-04: no hardcoded answers). JSON/safety-scan rule outputs still apply.
+      const templatedMode = (strictEvaluation.activeRulesApplied || []).some((r: string) => /Roast mode|Crashout mode|Chill mode/i.test(r));
+      if (strictEvaluation.hasCustomRules && strictEvaluation.output && !(templatedMode && persona.id === 'crashout-bot')) {
         outputText = strictEvaluation.output;
       } else if (isCodeEdit) {
         // "Nexus Code" repo-editing feature — skips generateReasoningPath entirely rather than

@@ -27,7 +27,7 @@ import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDe
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
 import { evaluateStrictDirectives, enforceStrictSdkRules, generateRoast } from './rules/customDirectives';
 import { threadFactsNote } from './rules/threadFacts';
-import { classifyMessageMode, recentRepliesFor, isRepeat, rememberReply, chatMeaningHints, isEchoReply, strongTopicOverlap, isWordProblem, needsThinking } from './rules/messageMode';
+import { classifyMessageMode, recentRepliesFor, isRepeat, rememberReply, chatMeaningHints, isEchoReply, strongTopicOverlap, isWordProblem, needsThinking, SAD_RE } from './rules/messageMode';
 import { findHexColor, describeHexColor } from './rules/colorInfo';
 import { readLink } from './urlSkills';
 import { looksLikeTeaching, isTeacher, teachFromMessage } from './learning/teach';
@@ -36,7 +36,7 @@ import { getPriceNote } from './priceTracker';
 import { findRelevantKnowledge } from './knowledgeBase';
 import { isBodyCountQuestion, countDistinctPartners } from './rules/bodyCount';
 import { classifyQuickChat, quickChatFallback, quickChatInstruction, rememberQuickReply } from './rules/quickChat';
-import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, shortChatFinalize, hasContextLeak, PC_TOPIC_RE, PC_BUILD_REQUEST_RE } from './rules/postProcess';
+import { swearFloorForIntensity, topUpLlmSwearing, toShoutCase, isStatusReply, isBasicChatPrompt, oneLineChat, shortChatFinalize, stripCrudeAside, hasContextLeak, PC_TOPIC_RE, PC_BUILD_REQUEST_RE } from './rules/postProcess';
 import { splitSentencesSafe } from './sentences';
 import { buildSystemPrompt, buildMoodUserPreamble, getSystemPromptCharCount, isFormalDraftRequest } from './rules/promptBuilder';
 import * as localLlmClient from './localLlmClient';
@@ -4859,9 +4859,16 @@ async function generateReasoningPathInner(
       title: '🤖 Question about me, not the corpus',
       description: `Kind: ${botMetaKind}. Answering from self-description — no corpus search.`,
     });
-    const metaReply =
+    const metaFacts =
       (isSuperChill ? botMetaSuperChillReply(botMetaKind, allKnowledge.length) : null) ??
       botMetaReply(botMetaKind, allKnowledge.length);
+    // The facts stay the same, the words don't: the model rephrases them in Nexus's voice (no fixed pool of lines).
+    const metaReply = looksFrench(prompt) || looksPolish(prompt)
+      ? metaFacts
+      : await llmSituationalReplyOrFallback(
+          `The user asked about you: "${prompt}". The true facts to use: ${metaFacts}\nAnswer in 1-2 short lines in your voice, in fresh words (don't copy the facts word for word). If they ask whether you're an AI or a bot, be honest that yes, you're Nexus, a custom bot Casseurt built (be cheeky about it).`,
+          persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, metaFacts, '🤖 About me (model-worded)', false, undefined, 120
+        );
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(metaReply, prompt, settings.userCustomDirectives, {
@@ -5227,19 +5234,19 @@ async function generateReasoningPathInner(
   // (f) Prime chat: every casual message (banter, reactions, commands to Nexus, questions about Nexus himself,
   // unfinished messages) gets ONE short model-written line — never a template, never a paragraph, never a repeat.
   // Casseurt mentions keep their own rant handler below.
-  if (nexusVoice && modeInfo.mode === 'chat' && !looksFrench(prompt) && !looksPolish(prompt) && !/\bcasseurt\b/i.test(prompt) && !strongTopicOverlap(prompt, findRelevantKnowledge(prompt, 1)[0])) {
+  if (nexusVoice && modeInfo.mode === 'chat' && !looksFrench(prompt) && !looksPolish(prompt) && !/\bcasseurt\b/i.test(prompt) && !detectEmotionalDistress(prompt) && !strongTopicOverlap(prompt, findRelevantKnowledge(prompt, 1)[0])) {
     const factsNote = chatFactsNote(history, settings.discordUserId, prompt);
     const avoid = myRecentLines.length ? `\nDo NOT reuse any of your recent lines (say something different): ${myRecentLines.slice(-8).map((r) => `"${r.slice(0, 120)}"`).join(' | ')}` : '';
     const hints = chatMeaningHints(prompt);
     const chatInstruction = (extra = '') =>
-      `The user just said: "${prompt}".\n${primeThread ? `The chat so far (oldest first):\n${primeThread}\n` : ''}${factsNote ? `${factsNote}\n` : ''}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}Facts about you: a 1-year-old gay boy, boyfriend Patrick (Patrick Houle), no girlfriend, a real human lad with a body (eyes, hands, a bed) — never call yourself code, a bot, an engine, a program or software.\nReply as Nexus in ONE short line — usually 2-15 words, never more than 2 short sentences — following your LENGTH and NEVER rules. React to exactly what they said, don't echo it back as a question, and if it's unclear or unfinished ask what they mean in a few cheeky words. If they insult you, clap back in one line. Swear naturally, British slang, abbreviations.${avoid}${extra}`;
+      `The user just said: "${prompt}".\n${primeThread ? `The chat so far (oldest first):\n${primeThread}\n` : ''}${factsNote ? `${factsNote}\n` : ''}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}Right now it is ${new Date().toLocaleString('en-CA', { timeZone: 'America/Toronto', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} (Quebec time).\nFacts about you: a 1-year-old gay boy, boyfriend Patrick (Patrick Houle), no girlfriend, a real human lad with a body (eyes, hands, a bed) — never call yourself code, a bot, an engine, a program or software.\nReply as Nexus in ONE short line — usually 2-15 words, never more than 2 short sentences — following your LENGTH and NEVER rules. React to exactly what they said, don't echo it back as a question, and if it's unclear or unfinished ask what they mean in a few cheeky words. If they insult you, clap back in one line. Swear naturally, British slang, abbreviations.${avoid}${extra}`;
     let chatReply = await llmSituationalReplyOrFallback(chatInstruction(), persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, 'wait what 😭', '💬 Prime chat', false, undefined, 90);
     chatReply = shortChatFinalize(chatReply);
     if (isRepeat(chatReply, myRecentLines) || isEchoReply(chatReply, prompt)) {
       const retry = await llmSituationalReplyOrFallback(chatInstruction('\nYour first try just repeated an old line or their own words back. Say something COMPLETELY different that actually reacts to them.'), persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, chatReply, '💬 Prime chat (retry, was a repeat)', false, undefined, 90);
       chatReply = shortChatFinalize(retry);
     }
-    return primeReturn(chatReply);
+    return primeReturn(SAD_RE.test(prompt) ? stripCrudeAside(chatReply) : chatReply);
   }
   // 1. Strict Directives, User Toxicity Insults & Casseurt Handler
   //
@@ -5461,7 +5468,16 @@ async function generateReasoningPathInner(
     });
     return {
       thoughtSteps,
-      content: enforceStrictSdkRules(generateEmotionalSupportReply(prompt, isSuperChill), prompt, settings.userCustomDirectives, {
+      content: enforceStrictSdkRules(
+        nexusVoice && !looksFrench(prompt) && !looksPolish(prompt)
+          ? stripCrudeAside(
+              await llmSituationalReplyOrFallback(
+                `Someone is genuinely struggling and said: "${prompt}". Be a real mate: 2-3 short, warm, genuine lines, ask what's going on or how you can help; light swearing is ok but no roasting, no jokes at their expense and no crude aside. If they mention self-harm or suicide, gently tell them to reach out to someone they trust or a crisis line (in Canada/US call or text 988).`,
+                persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, generateEmotionalSupportReply(prompt, isSuperChill), '💙 Support (model-worded)', false, undefined, 150
+              )
+            )
+          : generateEmotionalSupportReply(prompt, isSuperChill),
+        prompt, settings.userCustomDirectives, {
         isSuperChill,
         username: settings.userName,
         systemInstruction: persona.systemPrompt,
@@ -5807,10 +5823,17 @@ async function generateReasoningPathInner(
       title: '💬 Slang term lookup',
       description: `"${slangDefinition.term}" is in the slang lexicon — answering from there instead of corpus search.`,
     });
+    // The meaning comes from the lexicon; the model explains it in Nexus's voice (no canned definition line).
+    const slangLine = looksFrench(prompt) || looksPolish(prompt)
+      ? slangDefinitionReply(slangDefinition.term, slangDefinition.meaning)
+      : await llmSituationalReplyOrFallback(
+          `The user asked: "${prompt}". "${slangDefinition.term}" means: ${slangDefinition.meaning}. Explain it in 1-2 short lines in your voice, maybe with a quick example of how it's used.`,
+          persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, slangDefinitionReply(slangDefinition.term, slangDefinition.meaning), '💬 Slang meaning (model-worded)', false, undefined, 120
+        );
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(
-        slangDefinitionReply(slangDefinition.term, slangDefinition.meaning),
+        slangLine,
         prompt,
         settings.userCustomDirectives,
         {
