@@ -5247,7 +5247,7 @@ async function generateReasoningPathInner(
     let chatReply = await llmSituationalReplyOrFallback(chatInstruction(), persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, 'wait what 😭', '💬 Prime chat', false, undefined, 90);
     chatReply = shortChatFinalize(chatReply);
     if (isRepeat(chatReply, myRecentLines) || isEchoReply(chatReply, prompt)) {
-      const retry = await llmSituationalReplyOrFallback(chatInstruction('\nYour first try just repeated an old line or their own words back. Say something COMPLETELY different that actually reacts to them.'), persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, chatReply, '💬 Prime chat (retry, was a repeat)', false, undefined, 90);
+      const retry = await llmSituationalReplyOrFallback(chatInstruction(`\nYour first try was "${chatReply.slice(0, 80)}" — that just repeats an old line or their own words back. Say something COMPLETELY different that actually reacts to what they mean.`), persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, chatReply, '💬 Prime chat (retry, was a repeat)', false, undefined, 90);
       chatReply = shortChatFinalize(retry);
     }
     return primeReturn(SAD_RE.test(prompt) ? stripCrudeAside(chatReply) : chatReply);

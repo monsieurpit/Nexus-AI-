@@ -624,7 +624,9 @@ function topUpLlmSwearingCore(text: string, settings: AISettings, isCrashout: bo
   // Polish output), but that risk is specific to asking the model to invent this itself as one
   // more thing in an already-loaded prompt. This is pure mechanical post-processing with no
   // prompt involved, so it carries none of that risk and can safely cover both languages.
-  return forceChaoticOvershare(swornUp);
+  // No more stapled asides from a fixed pool ("Anyway, I fuck with yall fr." twice in a row, 2026-10-04): the model
+  // writes its own "what I'm doing rn" asides as the persona asks, so they're fresh every time.
+  return swornUp;
 }
 
 // "CAPS LOCK ON" (triggered/meltdown mode) was only ever an instruction — nothing mechanically
