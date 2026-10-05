@@ -15,7 +15,7 @@ import { CANADIAN_RETAIL_DOMAINS, expandStickCounts, getPriceNote, isPriceQuesti
 import { searchTavilyDirect } from '../tavilySearch';
 import { trySolveMath } from '../mathSolver';
 import { fxNote, fxNoteEur, getUsdToCad } from '../fx';
-import { PARTNER_RE, partnershipTurn } from './partnership';
+import { isPartnershipMessage, partnershipTurn } from './partnership';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
 // Helpers that live inside reasoningEngine.ts (they use its private state), handed in by the caller.
@@ -539,7 +539,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       let progress = interviewNote(settings?.discordUserId || '', prompt);
       // Partnership requests / questions: checked against the server's partnership rules (real member count from
       // their invite link when they give one).
-      if (!progress && PARTNER_RE.test(prompt) && !looksLikeApplication(prompt)) {
+      if (!progress && isPartnershipMessage(prompt, settings?.serverContext?.channel) && !looksLikeApplication(prompt)) {
         progress = await partnershipTurn(prompt);
         thoughtSteps.push({ id: 'step-v2-partnership', type: 'reasoning', title: '🤝 Partnership check', description: progress.split('\n').slice(0, 4).join(' | ').slice(0, 300) });
       }
@@ -609,7 +609,9 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   let route = await routeMessage(prompt);
   const author = settings.discordUserId || '';
   const prev = author ? lastRoute.get(author) : undefined;
-  if (route.mode !== 'helper' && author && interviewActive(author)) {
+  if (route.mode !== 'helper' && route.mode !== 'support' && isPartnershipMessage(prompt, settings.serverContext?.channel)) {
+    route = { mode: 'helper', by: 'rule', reason: `partnership request (was ${route.mode})`, confidence: 1 };
+  } else if (route.mode !== 'helper' && author && interviewActive(author)) {
     route = { mode: 'helper', by: route.by, reason: `staff interview in progress (was ${route.mode})`, confidence: 1 };
   } else if (prev?.mode === 'helper' && Date.now() - prev.at < HELPER_STICKY_MS && deps.threadText && route.mode !== 'helper' && (route.by !== 'rule' || route.mode === 'chat' || route.mode === 'question' || route.mode === 'writing')) {
     route = { mode: 'helper', by: route.by, reason: `still in a helper conversation (was ${route.mode}: ${route.reason})`, confidence: route.confidence };

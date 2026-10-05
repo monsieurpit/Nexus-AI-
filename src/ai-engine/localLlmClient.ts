@@ -716,7 +716,8 @@ function isDegenerateRepetition(text: string): boolean {
   // bounding-box/confidence artifact leaking out instead of a real description. No legitimate
   // reply of any real length is entirely devoid of letters; gated on length so a short, genuinely
   // numeric-only real answer ("42", "3.14") isn't misflagged.
-  if (text.length >= 8 && !/[a-zA-Z]/.test(text)) return true;
+  // Any alphabet counts as letters (Cyrillic, Greek, CJK...): a Russian translation has no a-z at all (2026-10-05).
+  if (text.length >= 8 && !/\p{L}/u.test(text)) return true;
   // A third failure mode: the model echoes the style instruction as a literal fill-in-the-blank
   // placeholder instead of actually substituting real profanity — "<insert profanity>", "[insert
   // swear word here]", etc. — rather than following it. Observed live: "Shit <insert profanity>
@@ -1025,7 +1026,8 @@ async function processRawGenerateOutput(
     // in English shipped with one lone "蚪" sitting between two emoji. There's no legitimate
     // single-character case either (no real English/Polish/Spanish word is one CJK/Cyrillic/
     // Arabic glyph), so even one is enough to reject.
-    if (/[一-鿿぀-ヿ가-힯؀-ۿЀ-ӿ]/.test(text)) {
+    // Skipped for the helper (skipLanguageCheck): translating INTO Russian/Japanese/Arabic... legitimately uses these scripts.
+    if (!options.skipLanguageCheck && /[一-鿿぀-ヿ가-힯؀-ۿЀ-ӿ]/.test(text)) {
       return { status: 'unavailable', reason: 'wrong_language', detail: text.slice(0, 100) };
     }
 

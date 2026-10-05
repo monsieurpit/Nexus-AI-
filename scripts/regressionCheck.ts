@@ -887,6 +887,8 @@ async function runV2Checks() {
     check('partnership: 1,500 members = Tier 2 (no ping), 2.4k = Tier 1 (ping), 800 = not eligible, no count = ask', (await v('can we partner? we have 1,500 members, active chat')) === 'tier2' && (await v('partnership? 2.4k members')) === 'tier1' && (await v('partner with us! 800 members')) === 'too-small' && (await v('can we partner? chill community')) === 'need-info');
     check('partnership: NSFW / 18+ / hentai / account selling refused, but "no NSFW", "anti-raid", "NSFW-free" are fine', (await v('partnership: 18+ NSFW server, 5k members')) === 'nsfw' && (await v('partner? 3000 members, we sell accounts cheap')) === 'nsfw' && findBadContent('no NSFW, anti-raid bot, toxicity-free') === null && findBadContent('NSFW-free, strictly no porn') === null && claimedMembers('around 1.2k members') === 1200);
   }
+  { const { isPartnershipMessage } = await import('../src/ai-engine/v2/partnership');
+    check('partnership requests are recognised without the word "partner" (our server + member count, invites, the partnerships channel)', isPartnershipMessage('Nexus, our server is 18+ nsfw with 4K members', 'general') && isPartnershipMessage('discord.gg/abc123', '🤝・partnerships') && !isPartnershipMessage('lol nice', '🤝・partnerships') && !isPartnershipMessage('our server is the best lol', 'general')); }
   check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }
 

@@ -141,3 +141,15 @@ export async function partnershipTurn(text: string): Promise<string> {
   if (!hasData && asksRules) return `${PARTNERSHIP_RULES}\nAnswer their question from these rules, concisely (a few lines or short bullets), friendly and professional.\n`;
   return `${partnershipNote(await checkPartnership(text))}${PARTNERSHIP_RULES}\n`;
 }
+
+// Is this message a partnership request? The word "partner" anywhere; in a partnerships channel, any message that
+// describes their server (our/my server, a member count, an invite link); elsewhere "our/my server" + an invite or a
+// member count.
+// (2026-10-05: "our server is 18+ nsfw with 4K members" in #partnerships went to chat: "lol sounds like a shitshow".)
+export function isPartnershipMessage(text: string, channel?: string | null): boolean {
+  if (PARTNER_RE.test(text)) return true;
+  const aboutTheirServer = /\b(?:our|my|their|this)\s+(?:discord\s+)?(?:server|community|guild)\b/i.test(text);
+  const hasInvite = /(?:discord\.gg|discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]{2,32}/i.test(text);
+  if (channel && /partner|affiliat|partenai|partnersch/i.test(channel)) return aboutTheirServer || hasInvite || claimedMembers(text) !== null;
+  return aboutTheirServer && (hasInvite || claimedMembers(text) !== null);
+}
