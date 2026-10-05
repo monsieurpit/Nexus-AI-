@@ -6189,12 +6189,10 @@ async function generateReasoningPathInner(
     // English prompt below and getting an English reply to a Polish question. When the message
     // already matched the Polish personal-question regex above, the language is certain regardless
     // of what the generic detector thinks, so that match forces the Polish path.
-    // POLISH SUBSYSTEM DISABLED (Sept 2026) — see looksPolish() in localLlmClient.ts.
-    // The Pl flags are forced false but kept as named bindings — other branches below still
-    // reference them.
-    const isPersonalQuestionPl = false;
-    const isReassurancePl = false;
-    const isPolishConversation = false;
+    // Polish re-enabled 2026-10-05 (it was switched off on 2026-09-07 for bleeding into French).
+    const isPersonalQuestionPl = PERSONAL_QUESTION_REGEX_PL.test(effectivePrompt.toLowerCase());
+    const isReassurancePl = REASSURANCE_REGEX_PL.test(effectivePrompt.toLowerCase());
+    const isPolishConversation = looksPolishWithContext(prompt, history) || isPersonalQuestionPl || isReassurancePl;
     // French — now mirrors the Polish depth: dedicated personal-question and reassurance regexes
     // (PERSONAL_QUESTION_REGEX_FR / REASSURANCE_REGEX_FR) plus context-aware detection
     // (looksFrenchWithContext) so a short joual follow-up mid-French-conversation ("pis ?",

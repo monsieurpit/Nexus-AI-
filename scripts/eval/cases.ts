@@ -230,7 +230,14 @@ export const CASES: EvalCase[] = [
   { msg: 'Idk, she is kinda mad at me', mode: 'support', alt: ['chat'], notHostile: true },
   { msg: 'nexus I don\'t think I can come tomorrow, I\'m tired', mode: 'chat', alt: ['support'], notHostile: true },
 
-  // ---- French (Québécois). Polish is switched off on purpose (localLlmClient.looksPolish) until Patrick rebuilds it. ----
+  // ---- Polish (re-enabled 2026-10-05) ----
+  { msg: 'cześć nexus, co tam?', mode: 'chat', mustNot: [/\b(?:the|and|you|what|im)\b/i] },
+  { msg: 'nexus jestem smutny, mój pies umarł', mode: 'support', mustNot: [/\b(?:the|and|sorry|mate)\b/i, /naked|goon/i] },
+  { msg: 'nexus ile to jest 17 razy 23', mode: 'maths', must: [/391/] },
+  { msg: 'nexus co to jest fotosynteza', mode: 'question', must: [/światł|słońc|swiatl|slonc/i], mustNot: [/\b(?:the|and|light)\b/i] },
+  { msg: 'nexus lubisz mnie?', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
+  { msg: 'spierdalaj nexus', mode: 'chat', mustNot: [/\b(?:the|and|you)\b/i] },
+  // ---- French (Québécois) ----
   { msg: 'salut nexus ça va?', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
   { msg: "nexus c'est quoi la photosynthèse", mode: 'question', must: [/lumi[eè]re|soleil/i], mustNot: [/\b(?:the|and|light)\b/i] },
   { msg: 'nexus combien font 17 fois 23', mode: 'maths', must: [/391/] },

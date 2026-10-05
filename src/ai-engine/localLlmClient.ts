@@ -224,6 +224,15 @@ export async function warmChatModel(): Promise<WarmResult> {
 // Polish word, in English) both need to stay English; only a message where one language's signal
 // words genuinely outnumber the other's counts as that language.
 const POLISH_SIGNAL_WORDS = new Set([
+  // 2026-10-05 (Polish re-enabled): common Polish words typed WITHOUT diacritics, none of them English words.
+  'lubisz', 'lubie', 'mnie', 'masz', 'jestem', 'jestes', 'jest', 'napisz', 'pythonie', 'zrob', 'powiedz',
+  'czesc', 'siema', 'dzieki', 'dziekuje', 'prosze', 'nie', 'dobra', 'dobrze', 'czemu', 'dlaczego',
+  'gdzie', 'kiedy', 'kto', 'ktory', 'jaki', 'jaka', 'jakie', 'moj', 'moja', 'twoj', 'twoja', 'mnie',
+  'ciebie', 'tobie', 'wam', 'sie', 'juz', 'tez', 'bardzo', 'teraz', 'dzisiaj',
+  'jutro', 'wczoraj', 'kurwa', 'kurde', 'jebac', 'spierdalaj', 'chuj', 'zajebiscie', 'stary', 'ziomek', 'ziomal', 'bracie',
+  'mordo', 'wiesz', 'wiem', 'chce', 'chcesz', 'mozesz', 'moge', 'trzeba', 'zeby', 'albo', 'czy',
+  'tylko', 'jeszcze', 'potem', 'wiec', 'razy', 'podziel', 'oblicz', 'fotosynteza', 'szkola',
+  'smutny', 'smutna', 'zmeczony', 'nudy', 'nudzi', 'spac', 'idziesz', 'robisz', 'robie', 
   'się', 'jest', 'czy', 'jak', 'co', 'gdzie', 'kiedy', 'dlaczego', 'ale', 'nie', 'tak', 'ja', 'ty',
   // "on" (he) and "my" (we) were both here as Polish pronouns, but they're also two of the most
   // common English words — a real, previously-undiscovered bug, found live testing an entirely
@@ -485,14 +494,14 @@ export function scoreLanguageSignal(rawText: string): { polish: number; english:
  * present. See scoreLanguageSignal's comment for why a raw "contains any Polish word" check is
  * wrong.
  */
-export function looksPolish(_text: string): boolean {
-  // POLISH SUBSYSTEM DISABLED (Sept 2026) — Patrick asked to strip Polish entirely
-  // ("on va le refaire plus tard"). It was bleeding Polish swears/fallbacks into the
-  // French path. Rather than surgically unpick Polish from ~15 files, we hard-disable
-  // the single detection chokepoint everything routes off. Polish input now gets an
-  // English (or French, if French-marked) reply. Restore by deleting these two lines
-  // when rebuilding Polish support.
-  return false;
+// Polish was switched off 2026-09-07 (it bled Polish swears/fallbacks into French replies) and re-enabled 2026-10-05
+// (Patrick: "we can add back polish with the full dictionary, presets and etc"). French text never counts as Polish
+// (see the guard below and the regression checks).
+export function looksPolish(text: string): boolean {
+  const { polish, english } = scoreLanguageSignal(text);
+  if (!(polish > english && polish > 0)) return false;
+  // Never steal a French message: Polish must also beat the French signal.
+  return polish > scoreFrenchSignal(text).french;
 }
 
 // server.ts's request queue allows up to 5 requests to run truly concurrently, but a single Mac

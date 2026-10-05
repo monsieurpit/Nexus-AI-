@@ -34,8 +34,10 @@ instructions, settings and cleanup.
 Safety checks, teaching, hex colours, links, weather/time and the bot-meta answers still run before v2, as in v1.
 Québécois French and images go through v2 too (a short language note in their language ends the message; the image
 description is given as something Nexus saw). The handlers that run before the router (who made you / rules / model,
-"compliment me", live weather/time/places) keep their true facts but are worded by v2. Polish stays switched off on
-purpose (`looksPolish` in localLlmClient.ts) until Patrick rebuilds it; v2 already has a Polish note ready.
+"compliment me", live weather/time/places) keep their true facts but are worded by v2. Polish is back on since
+2026-10-05 (it was switched off 2026-09-07 for bleeding into French): `looksPolish` now also has to beat the French
+signal, so French is never taken for Polish; the Polish dictionary/spell-check (~175 MB) loads on the Mac engine only
+when someone writes in Polish — Railway (the bot) never loads it.
 Every entry point follows NEXUS_ROUTER (the bot's /api/v1/nexus, the website, /generate, /chat/completions), and the
 engine log shows `engine=v2:<specialist>`, `engine=v2:facts` or `engine=v1` on every message.
 
