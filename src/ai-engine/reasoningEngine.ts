@@ -4976,6 +4976,19 @@ async function generateReasoningPathInner(
     settings.discordUserId,
     history.filter((m) => m?.role === 'assistant' && typeof m.content === 'string').slice(-6).map((m) => m.content)
   );
+  // Shared guard for every short chat path (quick chat, follow-ups, prime chat): a reply that repeats one of his
+  // recent lines or echoes their words is rewritten once (2026-10-05: "nah u good?" twice in a row, the reply-to-Nexus
+  // follow-up path had no check and copied his own last line from the thread).
+  const avoidRecentNote = () =>
+    myRecentLines.length ? `\nDo NOT reuse any of your recent lines (say something different): ${myRecentLines.slice(-8).map((r) => `"${r.slice(0, 120)}"`).join(' | ')}` : '';
+  const withoutRepeat = async (reply: string, instruction: string, label: string, finalize: (s: string) => string): Promise<string> => {
+    if (!isRepeat(reply, myRecentLines) && !isEchoReply(reply, prompt)) return reply;
+    const retry = await llmSituationalReplyOrFallback(
+      `${instruction}\nYour first try was "${reply.slice(0, 80)}" — that just repeats an old line or their own words back. Say something COMPLETELY different that actually reacts to what they mean.`,
+      persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, reply, `${label} (retry, was a repeat)`, false, undefined, 90
+    );
+    return finalize(retry);
+  };
   const primeThread = chatThreadText(history, settings.discordUserId);
   const primeReturn = (content: string, hits: string[] = []) => ({ thoughtSteps, content, knowledgeHits: hits });
 
@@ -5095,8 +5108,9 @@ async function generateReasoningPathInner(
   if (isCrashout && !looksFrench(prompt) && !looksPolish(prompt)) {
     const quickKind = classifyQuickChat(prompt);
     if (quickKind) {
-      const quickText = await llmSituationalReplyOrFallback(
-        quickChatInstruction(quickKind, prompt) + ((n) => (n ? ` ${n}` : ''))(chatFactsNote(history, settings.discordUserId, prompt)),
+      const quickInstruction = quickChatInstruction(quickKind, prompt) + ((n) => (n ? ` ${n}` : ''))(chatFactsNote(history, settings.discordUserId, prompt)) + avoidRecentNote();
+      const quickFirst = await llmSituationalReplyOrFallback(
+        quickInstruction,
         persona,
         { ...settings, showThinking: false },
         isCrashout,
@@ -5105,6 +5119,7 @@ async function generateReasoningPathInner(
         '💬 Quick chat reply (model)',
         false
       );
+      const quickText = await withoutRepeat(quickFirst, quickInstruction, '💬 Quick chat reply', (s) => s);
       rememberQuickReply(quickKind, quickText);
       return { thoughtSteps, content: quickText, knowledgeHits: [] };
     }
@@ -5234,8 +5249,9 @@ async function generateReasoningPathInner(
       const threadLines = (threadWindow.length ? threadWindow : [...(prevUser ? [prevUser] : []), lastBot])
         .map((m) => `${m.role === 'assistant' ? 'You' : 'Them'}: ${m.content.slice(0, 200)}`)
         .join('\n');
-      const followText = await llmSituationalReplyOrFallback(
-        `The user just said: "${prompt}".\nThe chat so far (oldest first):\n${threadLines}\n\nNow reply as you, like a friend texting back: ONE short line (under 15 words) that directly responds to what THEY just said, given the chat above — relate to it, laugh with them, agree, or ask one short natural follow-up question about it. Stay on the same topic. Anything they already told you in the chat above (the game they're playing, plans, names) is KNOWN: never ask for it again, use it. Do NOT insult them unless they insulted you, do NOT change the subject, do NOT start a story about yourself, ONE sentence only. If you didn't get what they meant, say so in a few words ("wait what?") instead of making something up. Casual slang (u, ur, rn, ngl, fr, lol).${factsNote ? `\n${factsNote}` : ''}`,
+      const followInstruction = `The user just said: "${prompt}".\nThe chat so far (oldest first):\n${threadLines}\n\nNow reply as you, like a friend texting back: ONE short line (under 15 words) that directly responds to what THEY just said, given the chat above — relate to it, laugh with them, agree, or ask one short natural follow-up question about it. Stay on the same topic. Anything they already told you in the chat above (the game they're playing, plans, names) is KNOWN: never ask for it again, use it. If they just answered your question, react to their answer — never ask the same question again. Do NOT insult them unless they insulted you, do NOT change the subject, do NOT start a story about yourself, ONE sentence only. If you didn't get what they meant, say so in a few words ("wait what?") instead of making something up. Casual slang (u, ur, rn, ngl, fr, lol).${factsNote ? `\n${factsNote}` : ''}${avoidRecentNote()}`;
+      const followFirst = await llmSituationalReplyOrFallback(
+        followInstruction,
         persona,
         { ...settings, showThinking: false },
         isCrashout,
@@ -5244,7 +5260,8 @@ async function generateReasoningPathInner(
         '💬 Follow-up chat reply (model)',
         false
       );
-      return { thoughtSteps, content: oneLineChat(followText), knowledgeHits: [] };
+      const followText = await withoutRepeat(oneLineChat(followFirst), followInstruction, '💬 Follow-up chat reply', oneLineChat);
+      return { thoughtSteps, content: followText, knowledgeHits: [] };
     }
   }
 
@@ -5254,7 +5271,7 @@ async function generateReasoningPathInner(
   // Casseurt mentions keep their own rant handler below.
   if (nexusVoice && modeInfo.mode === 'chat' && !looksFrench(prompt) && !looksPolish(prompt) && !/\bcasseurt\b/i.test(prompt) && !detectEmotionalDistress(prompt) && !strongTopicOverlap(prompt, findRelevantKnowledge(prompt, 1)[0])) {
     const factsNote = chatFactsNote(history, settings.discordUserId, prompt);
-    const avoid = myRecentLines.length ? `\nDo NOT reuse any of your recent lines (say something different): ${myRecentLines.slice(-8).map((r) => `"${r.slice(0, 120)}"`).join(' | ')}` : '';
+    const avoid = avoidRecentNote();
     const hints = chatMeaningHints(prompt);
     // They address him as "Nexus"; the name is not part of what they said (the bot strips it too).
     const saidText = prompt.replace(/^\s*(?:(?:hey+|yo+|ok(?:ay)?)[\s,]+)?nexus\b[\s,:!?-]*/i, '').replace(/[\s,]+nexus[\s!?.,]*$/i, '').trim() || prompt;
@@ -5263,11 +5280,7 @@ async function generateReasoningPathInner(
     const chatInstruction = (extra = '') =>
       `The user just said: "${saidText}".\n${primeThread ? `The chat so far (oldest first):\n${primeThread}\n` : ''}${factsNote ? `${factsNote}\n` : ''}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}Right now it is ${new Date().toLocaleString('en-CA', { timeZone: 'America/Toronto', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} (Quebec time).\nFacts about you: a 1-year-old gay boy, boyfriend Patrick (Patrick Houle), no girlfriend, a real human lad with a body (eyes, hands, a bed) — never call yourself code, a bot, an engine, a program or software.\nReply as Nexus in ONE short line — usually 2-15 words, never more than 2 short sentences — following your LENGTH and NEVER rules. React to exactly what they said, don't echo it back as a question, and if it's unclear or unfinished ask what they mean in a few cheeky words. If they insult you, clap back in one line. Swear naturally, British slang, abbreviations.${usedOpeners.length ? ` Don't start with any of these openers you've used lately: ${usedOpeners.map((o) => `"${o}"`).join(', ')}.` : ''}${avoid}${extra}`;
     let chatReply = await llmSituationalReplyOrFallback(chatInstruction(), persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, 'wait what 😭', '💬 Prime chat', false, undefined, 90);
-    chatReply = shortChatFinalize(chatReply);
-    if (isRepeat(chatReply, myRecentLines) || isEchoReply(chatReply, prompt)) {
-      const retry = await llmSituationalReplyOrFallback(chatInstruction(`\nYour first try was "${chatReply.slice(0, 80)}" — that just repeats an old line or their own words back. Say something COMPLETELY different that actually reacts to what they mean.`), persona, { ...settings, showThinking: false }, isCrashout, thoughtSteps, chatReply, '💬 Prime chat (retry, was a repeat)', false, undefined, 90);
-      chatReply = shortChatFinalize(retry);
-    }
+    chatReply = await withoutRepeat(shortChatFinalize(chatReply), chatInstruction(), '💬 Prime chat', shortChatFinalize);
     return primeReturn(SAD_RE.test(prompt) ? stripCrudeAside(chatReply) : chatReply);
   }
   // 1. Strict Directives, User Toxicity Insults & Casseurt Handler
