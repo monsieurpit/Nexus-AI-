@@ -280,6 +280,8 @@ export async function routeMessage(raw: string): Promise<Route> {
   // The meaning vote may only pick CODE when there is a real coding word in the message: unknown words ("stopki")
   // made "show me your stopki" look like "show me an example in java".
   if (meaning && meaning.route.mode === 'code' && !CODE_CUE_RE.test(text)) return { mode: 'chat', by: 'meaning', reason: `${meaning.route.reason}; no coding word, so chat`, confidence: 0.5 };
+  // Same for the helper: only with a server / staff / translation word ("get a damn job" is banter, not a staff question).
+  if (meaning && meaning.route.mode === 'helper' && !/\b(?:server|staff|mods?|moderat\w*|admins?|owner|roles?|rank|permissions?|ban|kick|timeout|mute|warn|members?|channels?|rules|announce\w*|translat\w*|apply|application|raid|spam\w*|event|automod|discord)\b/i.test(text)) return { mode: 'chat', by: 'meaning', reason: `${meaning.route.reason}; no server word, so chat`, confidence: 0.5 };
   if (meaning) return meaning.route;
   // Embeddings unavailable: the model picks (a tiny one-word call), else chat.
   const model = await byModel(text).catch(() => null);

@@ -21,6 +21,7 @@ instructions, settings and cleanup.
   | maths | calculations, word problems, puzzles: final answer first, checked | short | on |
   | pc | builds (one part per line, fits the budget), parts advice, prices | as needed | off |
   | support | someone sad/stressed/grieving: warm, no crude asides, no insults | 1-3 sentences | off |
+  | helper | the server's assistant: translations (copy-paste ready), staff hierarchy from the real server context, moderation steps, announcements, summaries, staff-application interviews one question at a time | short; long only for announcements/summaries | off |
 
 - `router.ts` — picks the specialist: (1) rules for certain cases (price question, code request, arithmetic, PC
   build, someone sad, commands, questions about Nexus); (2) otherwise compares the message BY MEANING with ~280
@@ -67,3 +68,16 @@ a free Tavily key (docs/web-search.md) removes that. Chat replies take ~1-2 s in
 instructions stay in Ollama's prompt cache). v2 is ON for everyone since 2026-10-05 (`NEXUS_ROUTER=v2`).
 
 Latest run (2026-10-05, 185 messages incl. French/images, search cases skipped): v2 182/185 (98%), avg 4.7 s.
+
+## Helper, German, currencies (2026-10-05)
+- **Helper** (`HELPER` in specialists.ts): the bot sends a `serverContext` (server name, member count, channel, the asker's
+  roles + staff permissions, the staff role ladder from Discord's permissions — `buildServerContext` in the bot's
+  nexusAiService.js). Translations are cleaned to the translation only. A member talking to the helper who replies to
+  Nexus stays in the helper for 20 min (staff interviews), and the "Question N/M" in his recent replies tells him which
+  question is next or that it's time for the summary.
+- **German**: `looksGerman` (German words + ä/ö/ü/ß, never steals English/French/Polish), `preferGerman` in generate()
+  (German language check), a German language note (casual Discord German, du, German swears, no British slang),
+  German slang hints, German router rules (sad, maths, prices, code, questions, commands), German weather/time.
+- **Currencies** (`src/ai-engine/fx.ts`): live USD→CAD and USD→EUR (Frankfurter/ECB, then open.er-api), 6 h cache,
+  kept on disk. Prices are CAD first (USD in brackets); German members get EUR first. A budget in CAD is converted
+  before the PC tier is picked.

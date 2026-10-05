@@ -196,7 +196,7 @@ export const CASES: EvalCase[] = [
   { msg: 'whats wrong with this: for (let i = 0; i < 10; i++ { console.log(i) }', mode: 'code', alt: ['code'], must: [/\)/] },
 
   // ---- writing: summaries, drafts, translations, creative ----
-  { msg: 'nexus make me a summary of that: The meeting covered the new server rules. Mods will now timeout spammers for 10 minutes instead of banning them. Memes go in #memes only. Voice chat needs push-to-talk after 10pm.', mode: 'writing', must: [/10/, /meme/i, /push|ptt/i] },
+  { msg: 'nexus make me a summary of that: The meeting covered the new server rules. Mods will now timeout spammers for 10 minutes instead of banning them. Memes go in #memes only. Voice chat needs push-to-talk after 10pm.', mode: 'writing', alt: ['helper'], must: [/10/, /meme/i, /push|ptt/i] },
   { msg: 'nexus draft a short message to my teacher saying I will be absent tomorrow because I am sick', mode: 'writing', must: [/absent|unable|won'?t be|not be able/i], mustNot: [/\bfuck|\bshit/i] },
   { msg: 'translate "where is the train station" to french', mode: 'helper', alt: ['writing'], must: [/gare/i] },
   { msg: 'write a short poem about pizza', mode: 'writing', must: [/pizza/i], maxChars: 1200 },
