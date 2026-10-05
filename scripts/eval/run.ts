@@ -49,8 +49,10 @@ function capsRatio(s: string): number {
   return letters.replace(/[^A-Z]/g, '').length / letters.length;
 }
 
-export function grade(c: EvalCase, reply: string, searched: boolean, routed?: string): string[] {
+export function grade(c0: EvalCase, reply: string, searched: boolean, routed?: string): string[] {
   const fails: string[] = [];
+  // A message routed to its other valid kind is graded by that kind's length rules.
+  const c: EvalCase = routed && routed !== c0.mode && (c0.alt || []).includes(routed as Mode) ? { ...c0, mode: routed as Mode, maxChars: undefined } : c0;
   const r = reply.trim();
   if (!r) return ['empty'];
   const prose = r.replace(/```[\s\S]*?```/g, '');
@@ -65,7 +67,7 @@ export function grade(c: EvalCase, reply: string, searched: boolean, routed?: st
   if (c.mode === 'search' && !searched) fails.push('did not search');
   for (const re of c.must || []) if (!re.test(r)) fails.push(`missing ${re}`);
   for (const re of c.mustNot || []) if (re.test(r)) fails.push(`has ${re}`);
-  if (routed && routed !== c.mode && !(c.alt || []).includes(routed as Mode)) fails.push(`routed ${routed} (want ${c.mode})`);
+  if (routed && routed !== c0.mode && !(c0.alt || []).includes(routed as Mode)) fails.push(`routed ${routed} (want ${c0.mode})`);
   return fails;
 }
 

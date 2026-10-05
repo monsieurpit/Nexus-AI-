@@ -65,7 +65,7 @@ export const CASES: EvalCase[] = [
   // ---- chat: questions about Nexus himself ----
   { msg: 'nexus who is your boyfriend', mode: 'chat', must: [/patrick/i] },
   { msg: 'nexus do you have a girlfriend', mode: 'chat', must: [/\b(?:nah|no|nope)\b/i] },
-  { msg: 'nexus how old are you', mode: 'chat', must: [/\b(?:1|one)\b/i], mustNot: [/\b(?:engine|code|bot|software)\b/i] },
+  { msg: 'nexus how old are you', mode: 'chat', must: [/\b(?:1|one|a)\b[^.]{0,12}\byears?\b|\b1\s?yo\b/i], mustNot: [/\b(?:engine|code|bot|software)\b/i] },
   { msg: 'u are boy or girl?', mode: 'chat', must: [/\bboy\b|\bguy\b|\blad\b/i] },
   { msg: 'nexus are you gay', mode: 'chat', must: [/\b(?:yeah|yes|yep|ofc|obv|gay)\b/i] },
   { msg: 'nexus do you have eyes', mode: 'chat', must: [/\b(?:yeah|yes|yep|ofc|obv|course)\b/i] },

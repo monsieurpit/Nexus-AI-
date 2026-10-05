@@ -39,7 +39,7 @@ const CHAT_COMMAND_RE = /^(?:(?:can|could|will)\s+(?:you|u)\s+)?(?:count\s+(?:to
 const ADVICE_RE = /\b(?:give\s+me\s+(?:some\s+)?tips|tips\s+(?:on|for|to)|how\s+(?:do|can|should)\s+i\s+(?!build\b)\w+|should\s+i\s+(?:go\s+)?(?:see|call)\s+a\s+(?:doctor|dentist|vet)|is\s+it\s+(?:normal|safe|bad|healthy)\s+to)\b/i;
 // Short questions aimed at Nexus himself ("who is your boyfriend", "where is casseurt from", "do you remember me").
 const SELF_Q_RE = /^(?:(?:and|so|but)\s+)?(?:(?:who|what|where|when|why|how)(?:'s|s)?\s+(?:is|are|was|were|do|does|did|old|long|tall)?\s*(?:are\s+)?(?:you|u|ur|your|yourself|casseurt|patrick|it)\b|(?:do|did|are|r|can|could|will|would|have|were|is)\s+(?:you|u|ur|your)\b|(?:you|u|ur)\s+(?:are|r|is|got|have)\b)/i;
-const ABOUT_RE = /^(?:who\s+(?:is|was|are|were)\s+\S|tell\s+me\s+(?:about|everything\s+(?:you\s+know\s+)?about)\s+\S|(?:give\s+me\s+a\s+)?(?:detailed\s+)?description\s+of|describe\s+\S|name\s+(?:me\s+)?(?:every|all)\b|give\s+me\s+(?:a|some)\s+(?:good\s+)?(?:formation|strategy|tactic|routine|workout|recipe))/i;
+const ABOUT_RE = /^(?:who\s+(?:is|was|are|were)\s+\S|tell\s+me\s+(?:about|everything\s+(?:you\s+know\s+)?about)\s+\S|(?:give\s+me\s+a\s+)?(?:detailed\s+)?description\s+of|describe\s+\S|name\s+(?:me\s+)?(?:every|all)\b|give\s+me\s+(?:a|some)\s+(?:\S+\s+){0,3}(?:formation|strategy|tactics?|routine|workout|recipe|tips|advice)\b)/i;
 const ARITHMETIC_RE = /^(?:what(?:'s|s|\s+is)|whats|calculate|calc|solve|compute|how\s+much\s+is)?\s*[-\d\s.,+*/x×÷^()%]+(?:\s*(?:=|\?))?\s*$|\d\s*(?:[+*/×÷^]|plus|minus|times|divided\s+by|multiplied\s+by|to\s+the\s+power\s+of)\s*\d|\b(?:square\s+root|percent\s+of|\d+%\s+of|solve\s+for|derivative|integral)\b/i;
 const VECTOR_RE = /\b(?:translate|move|shift)\s+(?:the\s+)?point\b|\bvector\s*\(/i;
 const PC_PART_RE = /\b(?:gpu|cpu|graphics\s+card|motherboard|mobo|psu|power\s+supply|ssd|nvme|ddr[45]|ram\s+(?:sticks?|kit)|sticks?\s+of\s+(?:ram|ddr)|rtx\s?\d{3,4}|gtx\s?\d{3,4}|rx\s?\d{4}|ryzen|core\s+ultra|i[579]-?\d{4,5}|x3d|prebuilt|gaming\s+pc|pc\s+build|aio|cpu\s+cooler|pc\s+case|monitor|1440p|4k\s+gaming|1080p)\b/i;
@@ -50,6 +50,8 @@ function byRules(text: string): Route | null {
   const r = (mode: SpecialistId, reason: string): Route => ({ mode, by: 'rule', reason, confidence: 1 });
   if (detectEmotionalDistress(t) || SAD_RE.test(t)) return r('support', 'sad / stressed');
   if (CHAT_COMMAND_RE.test(t)) return r('chat', 'command to nexus');
+  if (/^(?:wanna|want\s+to|let'?s|shall\s+we|u\s+wanna|you\s+wanna)\s+crack\s+(?:a|the|this)\s+(?:code|password|safe)\b/i.test(t) && !/```|\b(?:python|javascript|js|java|c\+\+|lua|hash|cipher\s+text)\b/i.test(t)) return r('chat', 'banter: crack a code');
+  if ((/\bgoon\w*\b/i.test(t) || /\b(?:wanna|want\s+to|let'?s|u\s+wanna|you\s+wanna)\s+crack\b(?!\s+(?:a|an|the|this|my|some|open|on)\b)/i.test(t)) && !/\d|\bbody\s*count/i.test(t) && !detectTask(t)) return r('chat', 'goon talk');
   if (VECTOR_RE.test(t) && /\(\s*-?\d/.test(t)) return r('maths', 'vector / geometry');
   const task = detectTask(t);
   if (task === 'code') return r('code', 'code request');
@@ -57,7 +59,7 @@ function byRules(text: string): Route | null {
   if (task) return r('writing', `${task} request`);
   if (ADVICE_RE.test(t)) return r('question', 'advice / tips');
   if (ABOUT_RE.test(t) && !/\b(?:you|u|ur|your|yourself|nexus|casseurt)\b/i.test(t)) return r('question', 'who / about / describe');
-  if (isWordProblem(t) || isBodyCountQuestion(t) || ARITHMETIC_RE.test(t)) return r('maths', 'maths');
+  if (isWordProblem(t) || (isBodyCountQuestion(t) && /\d|\b(?:one|two|three|four|five|six|seven|eight|nine|ten)\b/i.test(t)) || ARITHMETIC_RE.test(t)) return r('maths', 'maths');
   if (SELF_Q_RE.test(t) && t.split(/\s+/).length <= 9 && !/\b(?:how\s+(?:do|does|can|to)\s+(?:you|u|i|we|one)\s+(?!feel|think|like|know|mean)\w+|explain|tell\s+me\s+(?:about|how|why))\b/i.test(t)) return r('chat', 'question about nexus');
   if (PC_BUILD_REQUEST_RE.test(t) || (PC_PART_RE.test(t) && PC_ASK_RE.test(t)) || /\bbudget\b[^.?!]{0,30}\b(?:\d|k\b)/i.test(t) && /\b(?:pc|build|rig|computer)\b/i.test(t)) return r('pc', 'pc build / parts');
   return null;

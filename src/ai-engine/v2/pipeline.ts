@@ -52,6 +52,21 @@ export function recentAsides(recent: string[]): string[] {
   return [...new Set(out.filter(Boolean))].slice(-8);
 }
 
+// "nexus say i love pizza" / "say “i am shit”" -> the words to say, or null.
+export function sayRequest(prompt: string): string | null {
+  const m = said(prompt).match(/^(?:(?:can|could|will)\s+(?:you|u)\s+)?say\s+[“"']?(.+?)[”"']?\s*$/i);
+  return m && m[1].length <= 200 ? m[1].trim() : null;
+}
+
+// Trailing emoji at most every other reply to the same person (the model put one on nearly every line).
+const TRAILING_EMOJI_RE = /\s*(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*\s*)+[.!]?$/u;
+export function alternateEmoji(reply: string, recent: string[]): string {
+  const last = recent[recent.length - 1] || '';
+  if (!TRAILING_EMOJI_RE.test(last) || !TRAILING_EMOJI_RE.test(reply)) return reply;
+  const stripped = reply.replace(TRAILING_EMOJI_RE, '').trim();
+  return stripped.length >= 2 ? stripped : reply;
+}
+
 function openersNote(recent: string[]): string {
   const openers = [...new Set(recent.map((l) => (l.toLowerCase().match(/^[a-z']+(?:,\s*[a-z']+)?/) || [''])[0]).filter(Boolean))].slice(-6);
   return openers.length ? `\nDon't start with any of these openers you've used lately: ${openers.map((o) => `"${o}"`).join(', ')}.` : '';
@@ -74,10 +89,10 @@ async function buildSearchContext(prompt: string): Promise<{ block: string; sour
       .trim()} price ${new Date().toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/Toronto' })}`;
   }
   q = q.slice(0, 200);
-  const [main, ca] = await Promise.all([
-    q ? searchTavilyDirect(q, 6, { recent: true }) : Promise.resolve([]),
-    price && q ? searchTavilyDirect(`${q} CAD`, 4, { includeDomains: CANADIAN_RETAIL_DOMAINS }) : Promise.resolve([]),
-  ]);
+  // One after the other, the Canadian-store search only when the main one worked: the keyless search tier throttles
+  // bursts (HTTP 429 pauses), and two searches at once per price question made that much more likely.
+  const main = q ? await searchTavilyDirect(q, 6, { recent: true }) : [];
+  const ca = price && q && main.length ? await searchTavilyDirect(`${q} CAD`, 4, { includeDomains: CANADIAN_RETAIL_DOMAINS }) : [];
   const results = [...main, ...ca.filter((c) => !main.some((m) => m.url === c.url))];
   const priceNote = getPriceNote(prompt);
   const block =
@@ -105,6 +120,8 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
   switch (id) {
     case 'chat': {
       const hints = chatMeaningHints(prompt);
+      const sayWhat = sayRequest(prompt);
+      if (sayWhat) hints.push(`They want you to SAY exactly: "${sayWhat}". Your reply MUST contain those exact words, word for word (it's a joke, play along), then at most a few words of reaction.`);
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him, roast him in one line (love-hate).\n' : '';
       return {
         text: `${thread}${facts}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((a) => (a.length ? `\nTMI asides you used lately (never reuse these; most replies need no aside at all): ${a.map((x) => `"${x}"`).join(' | ')}` : ''))(recentAsides(deps.recentLines))}\n\nThey just said: "${s}"\nYour one-line reply:`,
@@ -214,6 +231,12 @@ export async function runV2(prompt: string, settings: AISettings, deps: V2Deps, 
     return null; // v1 takes over (its own fallbacks)
   }
   let content = finalize(raw);
+  if (route.mode === 'chat') {
+    const sayWhat = sayRequest(prompt);
+    // The words they asked for must be there; if the model dodged, they lead the reply.
+    if (sayWhat && !content.toLowerCase().includes(sayWhat.toLowerCase().replace(/[.!?]+$/, ''))) content = `${sayWhat} ${content}`.trim();
+    content = alternateEmoji(content, deps.recentLines);
+  }
   // Repeat / echo guard for the short-reply specialists.
   if ((route.mode === 'chat' || route.mode === 'support') && (isRepeat(content, deps.recentLines) || isEchoReply(content, prompt))) {
     const retry = await generateWith(spec, `${userTurn}\n(Your first try was "${content.slice(0, 80)}" — that repeats an old line or their own words. Say something COMPLETELY different that reacts to what they mean.)`, settings);
