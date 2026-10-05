@@ -62,6 +62,7 @@ import { registerLearningAdminRoutes, loadAdminToken } from './src/ai-engine/lea
 import { timingSafeEqual } from 'crypto';
 import { startPriceTracker, refreshPrices, loadPrices } from './src/ai-engine/priceTracker';
 import { warmRouter } from './src/ai-engine/v2/router';
+import { startKeepHot, keepHotStats } from './src/ai-engine/v2/keepHot';
 import {
   executeUnifiedWebSearch,
   searchGoogleDirect,
@@ -646,6 +647,8 @@ app.get('/api/health', async (req, res) => {
       configured: Boolean(process.env.OLLAMA_BASE_URL),
       model: process.env.OLLAMA_MODEL || 'gemma3:4b',
       available: llmAvailable,
+      // Keep-hot heartbeat (src/ai-engine/v2/keepHot.ts): a one-token chat generation every 2 min while idle.
+      keepHot: keepHotStats,
     },
     // Web search status — counts only, never the key itself.
     webSearch: await getSearchStatus(),
@@ -2985,6 +2988,7 @@ async function startServer() {
     // Weekly automatic PC price snapshot via live web search (NEXUS_PRICE_TRACKER=off to disable).
     startPriceTracker(() => isModelBusy());
     warmRouter();
+    startKeepHot();
     // Load the model now so the first message after a Mac/engine restart isn't the one that pays the
     // 10-30s cold load (the default is to keep it loaded forever). NEXUS_WARM_ON_START=off to skip.
     if ((process.env.NEXUS_WARM_ON_START || 'on').toLowerCase() !== 'off') {
