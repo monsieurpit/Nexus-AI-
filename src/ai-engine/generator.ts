@@ -68,9 +68,10 @@ export async function generateAIResponse(
 
   async function runGeneration(): Promise<ChatMessage> {
     const isRaidShieldPersona = persona.id === 'raidshield-ai';
-    const promptToSend = userPrompt || (imageUrl ? 'Inspect this image and tell me what is going on here' : '');
+    const isVideo = Boolean(imageUrl && imageUrl.startsWith('data:video/'));
+    const promptToSend = userPrompt || (imageUrl ? (isVideo ? 'what do you think of this video?' : 'Inspect this image and tell me what is going on here') : '');
 
-    callbacks.onProgress?.(imageUrl ? 'Scanning image...' : 'Thinking...');
+    callbacks.onProgress?.(imageUrl ? (isVideo ? 'Watching the video (frames + sound, ~20-30 s)...' : 'Scanning image...') : 'Thinking...');
 
     let responseText = '';
     let knowledgeHits: string[] = [];

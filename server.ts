@@ -62,6 +62,7 @@ import { registerLearningAdminRoutes, loadAdminToken } from './src/ai-engine/lea
 import { timingSafeEqual } from 'crypto';
 import { startPriceTracker, refreshPrices, loadPrices } from './src/ai-engine/priceTracker';
 import { warmRouter } from './src/ai-engine/v2/router';
+import { analyzeVideo } from './src/ai-engine/videoAnalyzer';
 import { startKeepHot, keepHotStats } from './src/ai-engine/v2/keepHot';
 import {
   executeUnifiedWebSearch,
@@ -279,7 +280,8 @@ async function resolveImagePart(
 }
 
 // Middleware for CORS & JSON parsing
-app.use(express.json({ limit: '25mb' }));
+// 60 MB: a website video upload arrives as base64 (~45 MB of video); Discord videos come as URLs.
+app.use(express.json({ limit: '60mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 app.use((req, res, next) => {
@@ -1301,6 +1303,9 @@ app.post('/api/v1/nexus', async (req, res) => {
     isSuperChillUser,
     imageUrl,
     imageData,
+    // A video attachment (Discord: its CDN URL) or upload (website: a data: URI) — src/ai-engine/videoAnalyzer.ts.
+    videoUrl,
+    videoData,
     image,
     attachmentUrl,
     rules,
@@ -1413,10 +1418,13 @@ app.post('/api/v1/nexus', async (req, res) => {
   const userRules = rules || customRules || directives || instructions || systemInstruction || '';
 
   // Check for image input
-  const imagePart = await resolveImagePart(imageUrl, imageData, image || attachmentUrl);
+  // The website sends an uploaded VIDEO the same way as an image (a data:video/... URL in imageUrl/imageData).
+  const websiteVideo = [imageData, imageUrl].find((v) => typeof v === 'string' && /^data:video\//.test(v)) as string | undefined;
+  const imagePart = websiteVideo ? null : await resolveImagePart(imageUrl, imageData, image || attachmentUrl);
 
-  if (!userText && !imagePart) {
-    return res.status(400).json({ error: 'Missing prompt or image in request body.' });
+  const hasVideo = Boolean(websiteVideo || (typeof videoData === 'string' && videoData) || (typeof videoUrl === 'string' && videoUrl));
+  if (!userText && !imagePart && !hasVideo) {
+    return res.status(400).json({ error: 'Missing prompt, image or video in request body.' });
   }
 
   // A single local 3B model has to actually read every character of this before it can respond —
@@ -1562,8 +1570,23 @@ app.post('/api/v1/nexus', async (req, res) => {
         }
       }
 
+      // Video: metadata + 12 frames read by the vision model + the speech transcript (~20-30 s for a 2-minute video).
+      let videoDescription: string | null = null;
+      const videoSource = typeof videoData === 'string' && videoData ? videoData : websiteVideo ? websiteVideo : typeof videoUrl === 'string' && videoUrl ? videoUrl : null;
+      if (videoSource && !imagePart) {
+        const analysis = await analyzeVideo(videoSource, userText || '');
+        log('video', `analysis ${analysis.ok ? 'ok' : `failed (${analysis.error})`} ${JSON.stringify(analysis.timings)}`);
+        if (analysis.ok) videoDescription = analysis.description;
+      }
+
       // Pure Internal Autonomous Reasoning Engine with Multi-Document Graph Search
-      const promptToEvaluate = imagePart
+      const promptToEvaluate = videoSource && !imagePart
+        ? videoDescription
+          ? userText
+            ? `${userText}\n\n[Attached video shows: ${videoDescription}]`
+            : `React to this video: ${videoDescription}`
+          : `${userText || 'I sent a video'}\n\n[Attached video: it could not be analysed (too big, expired link or unreadable) — say so briefly.]`
+        : imagePart
         ? visionDescription
           ? userText
             ? `${userText}\n\n[Attached image shows: ${visionDescription}]`

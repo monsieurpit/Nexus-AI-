@@ -572,7 +572,10 @@ export function loadConversations(): Conversation[] {
 export function saveConversations(conversations: Conversation[]): void {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem(STORAGE_KEYS.CONVERSATIONS, JSON.stringify(conversations));
+      // A video (data:video/... up to ~45 MB) would blow the ~5 MB localStorage quota and make EVERY save fail: the saved
+      // copy keeps only its name.
+      const slim = conversations.map((c) => ({ ...c, messages: (c.messages || []).map((m: any) => (typeof m.imageUrl === 'string' && m.imageUrl.startsWith('data:video/') ? { ...m, imageUrl: undefined, imageName: m.imageName ? `🎬 ${m.imageName}` : '🎬 video' } : m)) }));
+      localStorage.setItem(STORAGE_KEYS.CONVERSATIONS, JSON.stringify(slim));
     }
   } catch (e) {
     console.error('Failed to save conversations', e);

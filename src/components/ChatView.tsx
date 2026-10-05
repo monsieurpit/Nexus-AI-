@@ -185,11 +185,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 
   const processImageFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload a valid image (PNG, JPEG, WebP, GIF).');
+    const isVideo = file.type.startsWith('video/');
+    if (!file.type.startsWith('image/') && !isVideo) {
+      alert('Please upload an image (PNG, JPEG, WebP, GIF) or a video (MP4, MOV, WebM).');
       return;
     }
-    if (file.size > MAX_IMAGE_BYTES) {
+    // Videos: up to 45 MB (sent as base64; Nexus analyses the frames, the sound and the metadata).
+    if (isVideo && file.size > 45 * 1024 * 1024) {
+      alert(`Video is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Please use a video under 45 MB.`);
+      return;
+    }
+    if (!isVideo && file.size > MAX_IMAGE_BYTES) {
       alert(
         `Image is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Please use an image under 15 MB.`
       );
@@ -201,8 +207,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const sizeKb = (file.size / 1024).toFixed(1);
       setAttachedImage({
         dataUrl,
-        name: file.name || 'image_attachment.png',
-        size: `${sizeKb} KB`,
+        name: file.name || (isVideo ? 'video.mp4' : 'image_attachment.png'),
+        size: file.size > 1024 * 1024 ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : `${sizeKb} KB`,
       });
     };
     reader.readAsDataURL(file);
@@ -218,7 +224,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const items = e.clipboardData?.items;
     if (!items) return;
     for (let i = 0; i < items.length; i++) {
-      if (items[i].type.startsWith('image/')) {
+      if (items[i].type.startsWith('image/') || items[i].type.startsWith('video/')) {
         const file = items[i].getAsFile();
         if (file) {
           e.preventDefault();
@@ -246,7 +252,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     e.preventDefault();
     setIsDraggingOver(false);
     const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) processImageFile(file);
+    if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) processImageFile(file);
   };
 
   const handleSubmit = (e?: React.FormEvent) => {
@@ -371,7 +377,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         type="file"
         ref={fileInputRef}
         onChange={handleFileInputChange}
-        accept="image/*"
+        accept="image/*,video/*"
         className="hidden"
       />
 
@@ -547,7 +553,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </span>
                   </div>
 
-                  {message.imageUrl && (
+                  {message.imageUrl?.startsWith('data:video/') && (
+                    <div className="mb-1 mt-2 max-w-sm overflow-hidden rounded-[var(--glass-r-md)] border border-[var(--glass-border)] bg-black/40">
+                      <video src={message.imageUrl} controls className="max-h-64 w-full" />
+                      {message.imageName && <div className="truncate bg-black/80 px-3 py-1.5 text-[11px] font-mono text-[var(--glass-text-muted)]">🎬 {message.imageName}</div>}
+                    </div>
+                  )}
+                  {message.imageUrl && !message.imageUrl.startsWith('data:video/') && (
                     <div className="mb-1 mt-2">
                       <div className="group/img relative max-w-sm overflow-hidden rounded-[var(--glass-r-md)] border border-[var(--glass-border)] bg-black/40">
                         <img
@@ -905,16 +917,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
           {attachedImage && (
             <div className="glass-fade-in flex items-center gap-3 rounded-[var(--glass-r-md)] border border-[var(--glass-accent)]/30 bg-[var(--glass-accent-soft)] p-2.5 text-xs text-[var(--glass-text)]">
-              <img
-                src={attachedImage.dataUrl}
-                alt="Upload preview"
-                className="h-12 w-12 rounded-[var(--glass-r-sm)] border border-[var(--glass-accent)]/40 object-cover"
-                referrerPolicy="no-referrer"
-              />
+              {attachedImage.dataUrl.startsWith('data:video/') ? (
+                <video src={attachedImage.dataUrl} muted className="h-12 w-12 rounded-[var(--glass-r-sm)] border border-[var(--glass-accent)]/40 object-cover" />
+              ) : (
+                <img
+                  src={attachedImage.dataUrl}
+                  alt="Upload preview"
+                  className="h-12 w-12 rounded-[var(--glass-r-sm)] border border-[var(--glass-accent)]/40 object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              )}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{attachedImage.name}</p>
                 <p className="font-mono text-[11px] text-[var(--glass-accent-hover)]">
-                  {attachedImage.size} · vision scanner ready
+                  {attachedImage.size} · {attachedImage.dataUrl.startsWith('data:video/') ? 'video analysis ready (frames + sound)' : 'vision scanner ready'}
                 </p>
               </div>
               <button

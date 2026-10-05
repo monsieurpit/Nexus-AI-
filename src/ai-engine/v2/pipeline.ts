@@ -52,11 +52,11 @@ export const LANG_NOTE: Record<Lang, string> = {
 
 // server.ts folds an image's description into the message ("...\n\n[Attached image shows: X]" or "React to this image: X").
 // The router must see only what the person wrote; the specialist gets the image as something it saw.
-export function splitImage(prompt: string): { text: string; image: string | null } {
-  const attached = prompt.match(/^([\s\S]*?)\n\n\[Attached image shows: ([\s\S]+)\]\s*$/);
-  if (attached) return { text: attached[1].trim(), image: attached[2].trim() };
-  const react = prompt.match(/^React to this image: ([\s\S]+)$/);
-  if (react) return { text: '', image: react[1].trim() };
+export function splitImage(prompt: string): { text: string; image: string | null; kind?: 'image' | 'video' } {
+  const attached = prompt.match(/^([\s\S]*?)\n\n\[Attached (image|video) shows: ([\s\S]+)\]\s*$/);
+  if (attached) return { text: attached[1].trim(), image: attached[3].trim(), kind: attached[2] as 'image' | 'video' };
+  const react = prompt.match(/^React to this (image|video): ([\s\S]+)$/);
+  if (react) return { text: '', image: react[2].trim(), kind: react[1] as 'image' | 'video' };
   return { text: prompt, image: null };
 }
 
@@ -603,7 +603,7 @@ async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en
 }
 
 export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Deps, thoughtSteps: ThoughtStep[]): Promise<V2Result | null> {
-  const { text, image } = splitImage(rawPrompt);
+  const { text, image, kind } = splitImage(rawPrompt);
   const prompt = text || (image ? 'look at this' : rawPrompt);
   const lang = langOf(text || rawPrompt);
   let route = await routeMessage(prompt);
@@ -624,7 +624,9 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   thoughtSteps.push({ id: 'step-v2-route', type: 'intent', title: `🧭 Router → ${spec.label}`, description: `${route.by}: ${route.reason}${lang !== 'en' ? ` (${lang})` : ''}${image ? ' (with an image)' : ''}`, data: { mode: route.mode, by: route.by, lang } as any });
   const built = await buildUserTurn(route.mode, prompt, deps, thoughtSteps, lang, settings);
   const imageBlock = image
-    ? `THE IMAGE THEY SENT (you looked at it yourself; this is what's in it): ${image}\n${text ? '' : 'They sent it with no text: react to it.\n'}\n`
+    ? kind === 'video'
+      ? `THE VIDEO THEY SENT (you watched it yourself; its details, what's on screen and what's said): ${image}\nAnswer from this like someone who watched it — quote what's said when useful, mention timestamps for specific moments. Never say you can't watch videos.\n${text ? '' : 'They sent it with no text: react to it.\n'}\n`
+      : `THE IMAGE THEY SENT (you looked at it yourself; this is what's in it): ${image}\n${text ? '' : 'They sent it with no text: react to it.\n'}\n`
     : '';
   // A translation's own text is in the TARGET language even when the asker writes German/French/Polish.
   const langNote = route.mode === 'helper' && lang !== 'en' && isTranslateRequest(prompt)
