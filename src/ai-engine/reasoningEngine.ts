@@ -4415,8 +4415,11 @@ async function llmGroundedOrFallback(
 function routerIsV2(settings: AISettings): boolean {
   return (settings.routerVersion ?? (process.env.NEXUS_ROUTER === 'v2' ? 'v2' : 'v1')) === 'v2';
 }
-function useV2(settings: AISettings, persona: ModelPersona, isCrashout: boolean): boolean {
-  return routerIsV2(settings) && (isCrashout || persona.id === 'nexus-homie');
+// Everything goes through v2 whatever persona is picked (Patrick, 2026-10-05: "everything should go to v2, not v1").
+// v1 stays for an SDK/API caller that explicitly asks for it (routerVersion: 'v1') and as the fallback when a v2 reply
+// fails. The one exception: Nexus Code's repo editing (code-architect), which has its own pipeline.
+function useV2(settings: AISettings, persona: ModelPersona, _isCrashout?: boolean): boolean {
+  return routerIsV2(settings) && persona.id !== 'code-architect' && settings.activePersonaId !== 'code-architect';
 }
 
 async function handleLocationAwareQuery(
@@ -5080,7 +5083,7 @@ async function generateReasoningPathInner(
   // ===== v2: specialist router (src/ai-engine/v2/) =====
   // One specialist per message, each with its own detailed instructions, settings and cleanup, instead of one giant
   // prompt for everything (2026-10-05). English, Québécois French and Polish, with or without an image.
-  if (routerIsV2(settings) && nexusVoice) {
+  if (useV2(settings, persona, isCrashout)) {
     const v2 = await runV2(prompt, settings, {
       threadText: primeThread,
       factsNote: chatFactsNote(history, settings.discordUserId, prompt),

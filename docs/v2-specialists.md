@@ -42,6 +42,11 @@ when someone writes in Polish — Railway (the bot) never loads it.
 Every entry point follows NEXUS_ROUTER (the bot's /api/v1/nexus, the website, /generate, /chat/completions), and the
 engine log shows `engine=v2:<specialist>`, `engine=v2:facts` or `engine=v1` on every message.
 
+## Who gets v2
+Everyone, whatever persona is picked (website personas included) — since 2026-10-05. v1 is kept for SDK/API callers
+that explicitly ask for it (`routerVersion: 'v1'` in the request, or the `routerVersion` option of nexus-ai.js) and as
+the fallback when a v2 reply fails. Only Nexus Code's repo editing (code-architect) keeps its own pipeline.
+
 ## Switching
 - Everyone: `NEXUS_ROUTER=v2` in `~/Library/LaunchAgents/com.nexus.engine.plist`, then
   `launchctl kickstart -k gui/$UID/com.nexus.engine`. Rollback: remove it (or `v1`) and restart.
