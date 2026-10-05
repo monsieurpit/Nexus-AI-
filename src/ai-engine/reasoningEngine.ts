@@ -12,6 +12,7 @@ import { detectLiveSportsIntent, resolveLiveSportsContext } from './liveSportsSe
 import { detectUrlInPrompt, fetchUrlContent } from './urlFetcher';
 import { hybridSearchKnowledgeGraph } from './vectorSearch';
 import { runV2, phraseWithFacts } from './v2/pipeline';
+import { fxNote, toUsd } from './fx';
 import { shouldTriggerLiveWebSearch, buildWebSearchQuery } from './webSearchEngine';
 import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
@@ -4605,8 +4606,18 @@ export function parseBudgetUsd(text: string): number | null {
   return Number.isFinite(n) && n >= 200 && n <= 200000 ? Math.round(n) : null;
 }
 
-function budgetGuidance(budget: number | null): string {
-  if (budget === null) return '';
+// "$2,000 CAD" / "2k cad" / "2000 canadian": the budget is in Canadian dollars (2026-10-05: it was planned as $2,000 USD,
+// about 40% more than Patrick actually had).
+export function budgetIsCad(text: string): boolean {
+  return /\b(?:cad|canadian|c\$|ca\$|\$ca)\b|\bc\$|\$\s?\d[\d,.]*\s?k?\s?(?:cad|canadian)\b/i.test(text);
+}
+
+function budgetGuidance(budgetRaw: number | null, text = ''): string {
+  if (budgetRaw === null) return '';
+  // Tiers below are in USD: a CAD budget is converted first, and the guidance states both.
+  const cad = budgetIsCad(text);
+  const budget = cad ? toUsd(budgetRaw) : budgetRaw;
+  const label = cad ? `$${budgetRaw.toLocaleString('en-US')} CAD (= about $${budget.toLocaleString('en-US')} USD at today's rate)` : `$${budgetRaw.toLocaleString('en-US')}`;
   const tier =
     budget >= 8000 ? 'an EXTREME build: RTX 5090 32GB, Ryzen 9 9950X3D or 9800X3D, X870E board, 64-96GB DDR5-6400, Samsung 9100 Pro, 1200-1600W Platinum/Titanium PSU, 360-420mm AIO or custom loop, premium case and a 4K 240Hz OLED'
     : budget >= 4500 ? 'a very high-end build: RTX 5090 or 5080, Ryzen 9 9950X3D/9800X3D, X870E, 32-64GB DDR5-6000+, 1000-1200W PSU, 360mm AIO, 4K OLED'
@@ -4614,7 +4625,7 @@ function budgetGuidance(budget: number | null): string {
     : budget >= 1800 ? 'a mid-high build: RX 9070 XT or RTX 5070 Ti, Ryzen 7 7800X3D/9800X3D, B850, 32GB DDR5-6000 CL30, 850W PSU'
     : budget >= 1100 ? 'a mid build: RX 9070 or RTX 5070, Ryzen 5 7600/9600X or 7700, B650/B850, 32GB (or 16GB) DDR5, 750W PSU'
     : 'a budget build: RX 9060 XT 16GB or RTX 5060 Ti 16GB, Ryzen 5 7600, B650, 16-32GB DDR5, 650W PSU (or an AM4 build)';
-  return `THE USER'S BUDGET IS $${budget.toLocaleString('en-US')}: plan EXACTLY for it, that is ${tier}. Never recommend a cheaper tier than the budget allows unless you explain it is overkill, and say honestly if the budget is more than the use needs (e.g. Fortnite). `;
+  return `THE USER'S BUDGET IS ${label}: plan EXACTLY for it, that is ${tier}.${cad ? ' The CAD total of your build must stay under their CAD budget.' : ''} Never recommend a cheaper tier than the budget allows unless you explain it is overkill, and say honestly if the budget is more than the use needs (e.g. Fortnite). `;
 }
 
 async function generateReasoningPathInner(
@@ -5075,7 +5086,7 @@ async function generateReasoningPathInner(
       },
       shouldSearchWeb: (q, topScore) => shouldTriggerLiveWebSearch(q, settings, topScore >= CONFIDENT_MATCH_SCORE ? 0.9 : 0.2) || false,
       webQuery: (q, reason) => buildWebSearchQuery(q, reason as any),
-      budgetNote: (text) => budgetGuidance(parseBudgetUsd(text)),
+      budgetNote: (text) => budgetGuidance(parseBudgetUsd(text), text),
       pcFacts: (text, wantsBuild) =>
         findRelevantKnowledge(`${text} pc build parts compatibility`, 8)
           .filter((f) => f.category === 'pc-building')
@@ -5119,10 +5130,10 @@ async function generateReasoningPathInner(
     thoughtSteps.push({ id: 'step-live-search', type: 'web_search', title: `🌐 Live web search: "${priceQuery}"`, description: `${results.length} result(s).` });
     if (results.length > 0 || priceNote) {
       const priceRules = priceQuestion
-        ? ` This is a PRICE question: give what it costs TODAY — the cheapest real current price and a typical range — in USD AND in CAD (use Canadian store results if there are any; otherwise roughly USD x 1.38, and say Canadian stores often charge more). There is a big RAM/storage price crisis in 2026: ignore "lowest-ever" or old pre-2026 prices (like $72 or $99 for 32GB of DDR5) and use the newest numbers. "2 sticks of 16GB" means a 32GB (2x16GB) kit. Don't pad it with advice they didn't ask for.`
+        ? ` This is a PRICE question: give what it costs TODAY — the cheapest real current price and a typical range — in CAD first and USD in brackets (use Canadian store results if there are any; otherwise CAD = USD × the exact rate: ${fxNote()}, and say Canadian stores often charge more). There is a big RAM/storage price crisis in 2026: ignore "lowest-ever" or old pre-2026 prices (like $72 or $99 for 32GB of DDR5) and use the newest numbers. "2 sticks of 16GB" means a 32GB (2x16GB) kit. Don't pad it with advice they didn't ask for.`
         : '';
       const searchReply = await llmSituationalReplyOrFallback(
-        `The user asked: "${prompt}". You just searched the web for "${priceQuery}".\n${results.length ? `LIVE RESULTS:\n${results.map((r, i) => `${i + 1}) ${r.title} — ${r.domain}: ${r.snippet.slice(0, 350)}`).join('\n')}` : 'The live search returned nothing right now.'}\n${priceNote ? `${priceNote}\n` : ''}\nAnswer from these results (real numbers and names), say it's from a live search and name 1-2 source sites, in 2-4 short lines. For prices give the USD number and roughly the CAD price too (USD x 1.38).${priceRules} If the results don't answer it, say so. Never say you can't search the web.`,
+        `The user asked: "${prompt}". You just searched the web for "${priceQuery}".\n${results.length ? `LIVE RESULTS:\n${results.map((r, i) => `${i + 1}) ${r.title} — ${r.domain}: ${r.snippet.slice(0, 350)}`).join('\n')}` : 'The live search returned nothing right now.'}\n${priceNote ? `${priceNote}\n` : ''}\nAnswer from these results (real numbers and names), say it's from a live search and name 1-2 source sites, in 2-4 short lines. For prices give CAD first and USD in brackets, converting with the exact exchange rate given (${fxNote()}).${priceRules} If the results don't answer it, say so. Never say you can't search the web.`,
         persona, settings, isCrashout, thoughtSteps, results[0]?.snippet.slice(0, 300) || priceNote, '🌐 Live search answer', false, undefined, 280
       );
       return primeReturn(searchReply, results.slice(0, 3).map((r) => `Web: ${r.title}`));
@@ -5230,7 +5241,7 @@ async function generateReasoningPathInner(
       .slice(0, 5);
     if (pcFacts.length > 0) {
       const pcText = await llmSituationalReplyOrFallback(
-        `The user asked: "${prompt}".\n${budgetGuidance(parseBudgetUsd(`${prompt} ${chatThreadText(history, settings.discordUserId)}`))}Start straight with the answer: never say you cannot build, have no parts, or are busy; you ARE helping.\n${chatThreadText(history, settings.discordUserId) ? `The chat so far (stay consistent with what You already said):\n${chatThreadText(history, settings.discordUserId)}\n\n` : ''}Use ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n${(() => { const pn = getPriceNote(`${prompt} ${chatThreadText(history, settings.discordUserId)}`, { core: true }); return pn ? `${pn} Use these real prices to keep the build inside the user's budget and give a rough total.` : ''; })()}\n\nTeach them like a friend who is great with PCs. ${/\b(?:money\s+(?:is\s+)?no\s+object|infinite|unlimited|no\s+budget|dream|ultimate|best\s+(?:gaming\s+)?pc|parts?\s+list|recommend|best\s+parts)\b/i.test(prompt) ? 'FORMAT EXACTLY: one short intro line, then a PARTS LIST with ONE PART PER LINE written as "CPU: model (why)", "GPU: model (why)", "Motherboard: ...", "RAM: ...", "SSD: ...", "PSU: ...", "Cooler: ...", "Case: ...", "Monitor: ..." (the monitor MUST match the resolution they asked for: a 1440p build gets a 1440p monitor) using the real model names from the facts (and say what the fit rule is, e.g. AM5 + DDR5), then one last line asking what they play and their resolution if they did not say. For a GAMING build you MUST name a real monitor line (never "N/A"): a high-refresh gaming monitor (144Hz+ with G-Sync/FreeSync, e.g. ASUS ROG Swift PG32UCDM 4K 240Hz QD-OLED); never a 60Hz or color-grading display like the Apple Pro Display XDR or a ProArt.' : ''}FORMAT EXACTLY (if no parts list was requested above): one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
+        `The user asked: "${prompt}".\n${budgetGuidance(parseBudgetUsd(`${prompt} ${chatThreadText(history, settings.discordUserId)}`), `${prompt} ${chatThreadText(history, settings.discordUserId)}`)}Start straight with the answer: never say you cannot build, have no parts, or are busy; you ARE helping.\n${chatThreadText(history, settings.discordUserId) ? `The chat so far (stay consistent with what You already said):\n${chatThreadText(history, settings.discordUserId)}\n\n` : ''}Use ONLY these PC facts (they are correct and current as of Oct 2026):\n${pcFacts.map((f) => `- ${f.title}: ${f.content.slice(0, 1100)}`).join('\n')}\n${(() => { const pn = getPriceNote(`${prompt} ${chatThreadText(history, settings.discordUserId)}`, { core: true }); return pn ? `${pn} Use these real prices to keep the build inside the user's budget and give a rough total.` : ''; })()}\n\nTeach them like a friend who is great with PCs. ${/\b(?:money\s+(?:is\s+)?no\s+object|infinite|unlimited|no\s+budget|dream|ultimate|best\s+(?:gaming\s+)?pc|parts?\s+list|recommend|best\s+parts)\b/i.test(prompt) ? 'FORMAT EXACTLY: one short intro line, then a PARTS LIST with ONE PART PER LINE written as "CPU: model (why)", "GPU: model (why)", "Motherboard: ...", "RAM: ...", "SSD: ...", "PSU: ...", "Cooler: ...", "Case: ...", "Monitor: ..." (the monitor MUST match the resolution they asked for: a 1440p build gets a 1440p monitor) using the real model names from the facts (and say what the fit rule is, e.g. AM5 + DDR5), then one last line asking what they play and their resolution if they did not say. For a GAMING build you MUST name a real monitor line (never "N/A"): a high-refresh gaming monitor (144Hz+ with G-Sync/FreeSync, e.g. ASUS ROG Swift PG32UCDM 4K 240Hz QD-OLED); never a 60Hz or color-grading display like the Apple Pro Display XDR or a ProArt.' : ''}FORMAT EXACTLY (if no parts list was requested above): one short intro line, then 4-6 numbered steps, EACH ON ITS OWN LINE starting with \"1) \", \"2) \", \"3) \" and so on (one or two sentences per step, real part names from the facts, what fits with what), then one last line with the one thing most beginners get wrong and a question asking their budget and monitor resolution (if they gave none, base the steps on a solid example build). You are NOT refusing and NOT a "tutor who won't help": actually teach. Casual slang and abbreviations, swearing is fine, but the information must be correct and clear.`,
         persona,
         settings,
         isCrashout,

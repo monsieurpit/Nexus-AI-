@@ -14,6 +14,7 @@ import { containsSlurOrHateSpeech } from '../swearEngine';
 import { CANADIAN_RETAIL_DOMAINS, expandStickCounts, getPriceNote, isPriceQuestion } from '../priceTracker';
 import { searchTavilyDirect } from '../tavilySearch';
 import { trySolveMath } from '../mathSolver';
+import { fxNote, getUsdToCad } from '../fx';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
 // Helpers that live inside reasoningEngine.ts (they use its private state), handed in by the caller.
@@ -166,7 +167,8 @@ async function buildSearchContext(prompt: string): Promise<{ block: string; sour
   const block =
     `You just searched the web for "${q}".\n` +
     (results.length ? `LIVE RESULTS:\n${results.map((r, i) => `${i + 1}) ${r.title} — ${r.domain}: ${r.snippet.slice(0, 350)}`).join('\n')}` : 'The live search returned nothing right now.') +
-    (priceNote ? `\n${priceNote}` : '');
+    (priceNote ? `\n${priceNote}` : '') +
+    `\n${fxNote(await getUsdToCad())}`;
   return { block, sources: results.slice(0, 3).map((r) => `Web: ${r.title}`), searchedFor: q, count: results.length };
 }
 
@@ -238,7 +240,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const wantsBuild = /\b(?:build|parts?\s+list|budget|rig|setup|infinite|unlimited|money\s+is\s+no|dream|best\s+(?:gaming\s+)?pc)\b/i.test(all);
       const priceNote = getPriceNote(all, { core: wantsBuild });
       return {
-        text: `${thread}${facts}PC FACTS (correct and current as of Oct 2026, they win over your memory):\n${deps.pcFacts(all, wantsBuild)}\n${priceNote ? `${priceNote}\n` : ''}${deps.budgetNote(all)}\n\nThey said: "${s}"\nYour answer:`,
+        text: `${thread}${facts}PC FACTS (correct and current as of Oct 2026, they win over your memory):\n${deps.pcFacts(all, wantsBuild)}\n${priceNote ? `${priceNote}\n` : ''}${fxNote(await getUsdToCad())}\n${deps.budgetNote(all)}\n\nThey said: "${s}"\nYour answer:`,
         sources: [],
       };
     }
@@ -310,6 +312,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     return null; // v1 takes over (its own fallbacks)
   }
   let content = dropBannedEmoji(finalize(raw));
+  // A parts list keeps ONE part per line even when the model runs the intro into the first part.
+  if (route.mode === 'pc') content = content.replace(/[ \t]+(?=(?:CPU|GPU|Motherboard|RAM|SSD|Storage|PSU|Power Supply|Cooler|CPU Cooler|Case|Monitor|Rough Total|Total|Estimated Total)\s*:)/g, '\n');
   if (route.mode === 'chat') {
     content = dropTrailingAside(content);
     const sayWhat = sayRequest(prompt);

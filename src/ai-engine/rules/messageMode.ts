@@ -18,7 +18,7 @@ export type TaskKind = 'code' | 'summary' | 'draft' | 'translate';
 
 const CODE_LANG = '(?:python|javascript|js|typescript|ts|java|c\\+\\+|cpp|c#|csharp|rust|go|golang|html|css|lua|luau|php|kotlin|swift|ruby|bash|shell|powershell|sql|discord\\.js|node(?:\\.?js)?|react|roblox studio)';
 const CODE_RE = new RegExp(
-  `\\b(?:write|give|show|make|create|build|code|send|gimme|need|want)\\b[^?!.]{0,40}\\b(?:code|script|function|snippet|program|regex|query|class|component|command|bot)\\b|\\bex[ae]mples?\\s+(?:of\\s+|in\\s+)?(?:some\\s+)?${CODE_LANG}\\b|\\b(?:code|script|snippet|function)\\s+(?:example|for|that|to)\\b|\\bex[ae]mple\\s+(?:of\\s+)?(?:code|script)\\b|\\b(?:in|using|with)\\s+${CODE_LANG}\\b[^?!.]{0,40}\\b(?:example|code|how)\\b|\\b${CODE_LANG}\\s+(?:code|script|ex[ae]mple|snippet|function)\\b|\\bhow\\s+(?:do\\s+i|to|can\\s+i)\\s+(?:code|program|write\\s+(?:a\\s+)?(?:script|function|program))\\b`,
+  `\\b(?:react|vue|svelte|angular)\\s+component\\b|\\b(?:write|give|show|make|create|build|code|send|gimme|need|want)\\b[^?!.]{0,40}\\b(?:code|script|function|snippet|program|regex|query|class|command|bot)\\b|\\bex[ae]mples?\\s+(?:of\\s+|in\\s+)?(?:some\\s+)?${CODE_LANG}\\b|\\b(?:code|script|snippet|function)\\s+(?:example|for|that|to)\\b|\\bex[ae]mple\\s+(?:of\\s+)?(?:code|script)\\b|\\b(?:in|using|with)\\s+${CODE_LANG}\\b[^?!.]{0,40}\\b(?:example|code|how)\\b|\\b${CODE_LANG}\\s+(?:code|script|ex[ae]mple|snippet|function)\\b|\\bhow\\s+(?:do\\s+i|to|can\\s+i)\\s+(?:code|program|write\\s+(?:a\\s+)?(?:script|function|program))\\b`,
   'i'
 );
 const SUMMARY_RE = /\b(?:summar(?:y|ies|ise|ize|ising|izing)|tl;?dr|sum\s+(?:it|this|that)\s+up|sum\s+up|recap|résumé|resume\s+(?:this|that|ça))\b/i;

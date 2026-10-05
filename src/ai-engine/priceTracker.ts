@@ -13,6 +13,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { getSearchStatus, searchTavilyDirect } from './tavilySearch';
+import { toCad, usdToCadSync } from './fx';
 
 export interface TrackedPart {
   id: string;
@@ -264,11 +265,11 @@ export function getPriceNote(text: string, opts: { core?: boolean; maxLines?: nu
     const e = file.items[part.id];
     if (!e || seen.has(part.id)) return;
     seen.add(part.id);
-    lines.push(`${e.label}: about ${money(e.median)} (typical listings ${money(e.low)}-${money(e.high)})`);
+    lines.push(`${e.label}: about ${money(toCad(e.median))} CAD / ${money(e.median)} USD (typical listings ${money(toCad(e.low))}-${money(toCad(e.high))} CAD)`);
   };
   for (const part of TRACKED_PARTS) if (part.alias.test(text)) add(part);
   if (opts.core) for (const part of TRACKED_PARTS) if (part.core) add(part);
   if (!lines.length) return '';
   const date = new Date(file.updatedAt).toISOString().slice(0, 10);
-  return `LIVE PRICE SNAPSHOT (USD, retailer listings found by web search, updated ${date}; approximate, prices move weekly): ${lines.slice(0, opts.maxLines ?? 10).join('; ')}.`;
+  return `LIVE PRICE SNAPSHOT (retailer listings found by web search, updated ${date}; CAD converted at 1 USD = ${usdToCadSync().usdToCad.toFixed(4)} CAD; approximate, prices move weekly): ${lines.slice(0, opts.maxLines ?? 10).join('; ')}.`;
 }

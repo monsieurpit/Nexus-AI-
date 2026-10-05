@@ -57,7 +57,11 @@ function byRules(text: string): Route | null {
   if ((/\bgoon\w*\b/i.test(t) || /\b(?:wanna|want\s+to|let'?s|u\s+wanna|you\s+wanna)\s+crack\b(?!\s+(?:a|an|the|this|my|some|open|on)\b)/i.test(t)) && !/\d|\bbody\s*count/i.test(t) && !detectTask(t)) return r('chat', 'goon talk');
   if (VECTOR_RE.test(t) && /\(\s*-?\d/.test(t)) return r('maths', 'vector / geometry');
   const task = detectTask(t);
-  if (task === 'code') return r('code', 'code request');
+  // A PC build request wins over a stray coding word ("give me every component" sent a $2,000 CAD build to the code
+  // specialist, 2026-10-05) — unless the message really contains code.
+  const pcBuild = PC_BUILD_REQUEST_RE.test(t) || (/\b(?:pc|computer|rig)\b/i.test(t) && /\b(?:build|budget|parts?|components?)\b/i.test(t));
+  if (task === 'code' && !(pcBuild && !/```|[{};]|\b(?:python|javascript|typescript|java|c\+\+|lua|html|css|sql|discord\.js)\b/i.test(t))) return r('code', 'code request');
+  if (pcBuild) return r('pc', 'pc build / parts');
   if (isPriceQuestion(t) || LIVE_RE.test(t)) return r('search', 'live info / price');
   if (task) return r('writing', `${task} request`);
   if (ADVICE_RE.test(t)) return r('question', 'advice / tips');
