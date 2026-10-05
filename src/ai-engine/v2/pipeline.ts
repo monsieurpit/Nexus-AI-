@@ -81,7 +81,14 @@ export function sayRequest(prompt: string): string | null {
   return m && m[1].length <= 200 ? m[1].trim() : null;
 }
 
-// Trailing emoji at most every other reply to the same person (the model put one on nearly every line).
+// Patrick (2026-10-05): emojis on most lines are good ("the first try was good with the emojis"), but never 💅.
+export function dropBannedEmoji(reply: string): string {
+  if (!reply.includes('💅')) return reply;
+  const out = reply.replace(/💅\uFE0F?/gu, '').replace(/[ \t]{2,}/g, ' ').replace(/\s+([.!?])$/, '$1').trim();
+  return out || '😏';
+}
+
+// (Unused since 2026-10-05: Patrick wants emojis on most lines.) Trailing emoji at most every other reply.
 const TRAILING_EMOJI_RE = /\s*(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*\s*)+[.!]?$/u;
 export function alternateEmoji(reply: string, recent: string[]): string {
   const last = recent[recent.length - 1] || '';
@@ -269,7 +276,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     const sayWhat = sayRequest(prompt);
     // The words they asked for must be there; if the model dodged, they lead the reply.
     if (sayWhat && !content.toLowerCase().includes(sayWhat.toLowerCase().replace(/[.!?]+$/, ''))) content = `${sayWhat} ${content}`.trim();
-    content = alternateEmoji(content, deps.recentLines);
+    content = dropBannedEmoji(content);
   }
   // Repeat / echo guard for the short-reply specialists.
   if ((route.mode === 'chat' || route.mode === 'support') && (isRepeat(content, deps.recentLines) || isEchoReply(content, prompt))) {
@@ -291,7 +298,7 @@ export async function phraseWithFacts(kind: SpecialistId, prompt: string, task: 
   const raw = await generateWith(spec, userTurn, lang);
   if (!raw) return null;
   let content = finalizeSpecialistReply(raw, spec.finalize, said(prompt), lang);
-  if (kind === 'chat') content = alternateEmoji(content, recentLines);
+  content = dropBannedEmoji(content);
   thoughtSteps.push({ id: 'step-v2-phrase', type: 'synthesis', title: `${spec.label} reply (${title})`, description: `Worded from the true facts in ${Date.now() - t0}ms.`, durationMs: Date.now() - t0 });
   return content;
 }
