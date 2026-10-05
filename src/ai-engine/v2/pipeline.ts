@@ -209,7 +209,7 @@ export function serverContextBlock(ctx: AISettings['serverContext']): string {
 // "translate this application to french\n<long text>": the model translated only the request line. The text to
 // translate (everything after the request line, or after a colon/quote) is handed over separately and explicitly.
 function translationBlock(prompt: string): string {
-  if (!/(?<![a-zà-ÿäöüß])(?:translate|traduis|traduire|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)/i.test(prompt)) return '';
+  if (!isTranslateRequest(prompt)) return '';
   const nl = prompt.indexOf('\n');
   const body = nl > 0 ? prompt.slice(nl + 1).trim() : ((prompt.match(/[:"“]\s*([\s\S]{2,})$/) || [])[1] || '').replace(/["”]\s*$/, '').trim();
   if (!body || body.length < 2) return '';
@@ -371,11 +371,61 @@ export function parseFilledForm(text: string): string[] | null {
   return filled >= 6 ? answers : null;
 }
 
-function reviewNote(author: string, answers: string[], how: string): string {
+// A staff application my form reader can't split cleanly (different layout, answers on their own lines, another
+// server's form): recognised by its signs, then the model reads the raw text itself. (2026-10-05: an application that
+// didn't parse was TRANSLATED into German instead of reviewed.)
+const APP_SIGNS = [/\bage\b/i, /time\s*zone|\bregion\b/i, /availab\w*|hours?\s+(?:per|a)\s+day/i, /experience/i, /why\s+(?:do\s+)?(?:you|u)\s+want/i, /strengths?|skills?/i, /scenario/i, /\bstaff\b|moderat\w*/i, /agreement|i\s+confirm|i\s+agree/i, /discord\s+(?:name|tag|user)/i];
+export function looksLikeApplication(text: string): boolean {
+  return text.length > 250 && APP_SIGNS.filter((re) => re.test(text)).length >= 5;
+}
+
+// An application in an unusual layout: one small model call maps the raw text onto the 9 official questions (JSON),
+// so it gets the same coded pre-checks and review as the official form (2026-10-05: read raw, a perfect "warn, then
+// timeout, then tell an admin" was marked as insufficient for the wrong scenario).
+export async function extractApplicationAnswers(raw: string): Promise<string[] | null> {
+  const res: any = await localLlmClient.generate(
+    `APPLICATION:\n<<<\n${raw.slice(0, 3500)}\n>>>\n\nMap it onto these ${STAFF_QUESTIONS.length} questions and reply with ONLY a JSON array of ${STAFF_QUESTIONS.length} strings — each string is the applicant's own answer copied word for word (\"\" if they didn't answer it):\n${STAFF_QUESTIONS.map((q, i) => `${i + 1}. ${q}`).join('\n')}`,
+    { system: 'You extract data. Output only valid JSON, nothing else.', temperature: 0, maxTokens: 900, think: false, model: localLlmClient.chatModel(), skipLanguageCheck: true } as any
+  );
+  if (res?.status !== 'success') return null;
+  try {
+    const json = String(res.text).slice(String(res.text).indexOf('['), String(res.text).lastIndexOf(']') + 1);
+    const arr = JSON.parse(json);
+    if (!Array.isArray(arr)) return null;
+    const answers = STAFF_QUESTIONS.map((_, i) => String(arr[i] ?? '').trim());
+    return answers.filter(Boolean).length >= 5 ? answers : null;
+  } catch {
+    return null;
+  }
+}
+
+function reviewRawNote(author: string, raw: string, how: string): string {
+  return `INTERVIEW: ${how} Its layout is unusual, so first read it yourself and find their answers to: name & age & timezone, daily hours, experience (server sizes, roles), why they want to join, strengths, each scenario, and the agreement. Then write the final REVIEW. Don't ask questions, don't translate it.\nTHE APPLICATION (raw):\n<<<\n${raw.slice(0, 3500)}\n>>>\n${STAFF_REVIEW_RULES}\n`;
+}
+
+function summaryNote(content: string): string {
+  return `They pasted a staff application and asked for a SUMMARY. Write a real summary, NOT the answers repeated: 2-3 sentences that give the overall picture — who the applicant is (age, where), how available they are, how much experience they claim, and their general approach to moderation (e.g. "talks first, then uses mutes" or "goes straight to long punishments"), plus anything that stands out. Max ~60 words, no list, no question-by-question recap. NO ratings, NO ✅/⚠️/❌, NO score, NO verdict, no opinion on whether it's good, sketchy or credible.\nTHE APPLICATION:\n${content}\n`;
+}
+
+export function reviewNote(author: string, answers: string[], how: string): string {
   const transcript = STAFF_QUESTIONS.map((q, i) => `Q${i + 1}. ${q}\nA${i + 1}. ${answers[i] || '(no answer)'}`).join('\n');
   const pre = staffPrechecks(answers);
   if (pre.forced) forcedVerdicts.set(author, pre.forced);
   return `INTERVIEW: ${how} Write the final REVIEW of their whole application now. Don't ask more questions.\nTHEIR APPLICATION (all questions and their exact answers):\n${transcript}\nPRE-CHECKS (computed from their answers — use them, they are correct):\n${pre.lines.map((l) => `- ${l}`).join('\n') || '- nothing flagged'}${pre.forced ? `\nREQUIRED VERDICT: ${pre.forced} (a hard rule failed).` : ''}\n${STAFF_REVIEW_RULES}\n`;
+}
+
+const TRANSLATE_ASK_RE = /(?<![a-zà-ÿäöüß])(?:translate|traduis|traduire|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)/i;
+const SUMMARY_ASK_RE = /\b(?:summar\w*|sum\s+(?:it|this)\s+up|tl;?dr|recap|résum\w*|resume|zusammenfass\w*|podsumuj\w*)\b/i;
+// Is this message a request to TRANSLATE? For a pasted application only its request line counts.
+export function isTranslateRequest(prompt: string): boolean {
+  return looksLikeApplication(prompt) ? TRANSLATE_ASK_RE.test(requestPart(prompt)) : TRANSLATE_ASK_RE.test(prompt);
+}
+
+// What they ASKED, apart from the pasted application: the first line when it's a short request ("nexus summarize
+// this:"), so an answer inside the form ("I can translate for members") never counts as a request.
+function requestPart(prompt: string): string {
+  const first = prompt.split('\n')[0] || '';
+  return prompt.includes('\n') && first.length < 200 && !/official\s+staff\s+application|discord\s+name|\bage\b\s*:/i.test(first) ? first : '';
 }
 
 // The instruction for this turn (and updates the state). '' when no interview is involved.
@@ -387,12 +437,15 @@ export function interviewNote(author: string, prompt: string): string {
     interviews.delete(author);
     // What they ASKED for with the form decides what they get (Patrick, 2026-10-05): a form alone or "review it" = the
     // review; "summarize it" = a neutral summary (no judging); "translate it" = a translation.
-    if (/(?<![a-zà-ÿäöüß])(?:translate|traduis|traduire|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)/i.test(prompt)) return '';
-    if (/\b(?:summar\w*|sum\s+(?:it|this)\s+up|tl;?dr|recap|résum\w*|resume|zusammenfass\w*|podsumuj\w*)\b/i.test(prompt)) {
-      const transcript = STAFF_QUESTIONS.map((q, i) => `Q${i + 1}. ${q}\nA${i + 1}. ${form[i] || '(no answer)'}`).join('\n');
-      return `They pasted a staff application and asked for a SUMMARY of it. Write a short, NEUTRAL summary of what the applicant answered (who they are, availability, experience, reason, skills, how they'd handle each scenario, agreement) — 6-10 short lines. NO ratings, NO ✅/⚠️/❌, NO score, NO verdict, no opinion on whether it's good, sketchy or credible.\nTHE APPLICATION:\n${transcript}\n`;
-    }
+    if (TRANSLATE_ASK_RE.test(requestPart(prompt))) return '';
+    if (SUMMARY_ASK_RE.test(requestPart(prompt))) return summaryNote(STAFF_QUESTIONS.map((q, i) => `Q${i + 1}. ${q}\nA${i + 1}. ${form[i] || '(no answer)'}`).join('\n'));
     return reviewNote(author, form, 'they pasted their whole completed staff application form in one message.');
+  }
+  if (looksLikeApplication(prompt)) {
+    interviews.delete(author);
+    if (TRANSLATE_ASK_RE.test(requestPart(prompt))) return '';
+    if (SUMMARY_ASK_RE.test(requestPart(prompt))) return summaryNote(prompt.slice(0, 3500));
+    return reviewRawNote(author, prompt, 'they pasted a staff application.');
   }
   const iv = interviewActive(author) ? interviews.get(author)! : null;
   if (iv && CANCEL_RE.test(text)) {
@@ -482,7 +535,14 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       };
     }
     case 'helper': {
-      const progress = interviewNote(settings?.discordUserId || '', prompt);
+      let progress = interviewNote(settings?.discordUserId || '', prompt);
+      if (progress.startsWith('INTERVIEW: they pasted a staff application. Its layout is unusual')) {
+        const answers = await extractApplicationAnswers(prompt);
+        if (answers) {
+          progress = reviewNote(settings?.discordUserId || '', answers, 'they pasted a staff application (its answers were extracted from an unusual layout).');
+          thoughtSteps.push({ id: 'step-v2-app-extract', type: 'reasoning', title: '📋 Application answers extracted', description: answers.map((a, i) => `${i + 1}. ${a.slice(0, 60)}`).join(' | ') });
+        }
+      }
       return {
         text: `${progress}${translationBlock(prompt)}${serverContextBlock(settings?.serverContext ?? null)}\n${deps.threadText ? `The conversation so far (oldest first; "You" = you — use it to know where you are, e.g. which application question is next):\n${deps.threadText}\n\n` : ''}${facts}${nowLine()}\n\nTheir message: "${prompt.slice(0, 3000)}"\nYour reply:`,
         sources: [],
@@ -558,7 +618,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     ? `THE IMAGE THEY SENT (you looked at it yourself; this is what's in it): ${image}\n${text ? '' : 'They sent it with no text: react to it.\n'}\n`
     : '';
   // A translation's own text is in the TARGET language even when the asker writes German/French/Polish.
-  const langNote = route.mode === 'helper' && lang !== 'en' && /(?<![a-zà-ÿäöüß])(?:translate|traduis|traduire|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)/i.test(prompt)
+  const langNote = route.mode === 'helper' && lang !== 'en' && isTranslateRequest(prompt)
     ? `${LANG_NOTE[lang]}\n(EXCEPTION: the translation itself is written in the language they want it translated INTO, not in theirs.)`
     : LANG_NOTE[lang];
   const userTurn = `${imageBlock}${built.text}${langNote}`;
@@ -577,7 +637,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // One emoji max is a CHAT rule (Patrick); a staff review needs its ✅/⚠️/❌ marks.
   let content = route.mode === 'chat' || route.mode === 'support' ? dropBannedEmoji(finalize(raw)) : finalize(raw).replace(/💅\uFE0F?/gu, '');
   // A parts list keeps ONE part per line even when the model runs the intro into the first part.
-  if (route.mode === 'helper' && /(?<![a-zà-ÿäöüß])(?:translate|traduis|traduire|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)/i.test(prompt)) content = cleanTranslation(content);
+  if (route.mode === 'helper' && isTranslateRequest(prompt)) content = cleanTranslation(content);
   if (route.mode === 'helper' && author) {
     content = enforceVerdict(author, content);
     // A staff review keeps one point per line: title, each ✅/⚠️/❌ point, the score and the verdict on their own lines.

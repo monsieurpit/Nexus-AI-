@@ -61,7 +61,8 @@ function byRules(text: string): Route | null {
   const t = text;
   const r = (mode: SpecialistId, reason: string): Route => ({ mode, by: 'rule', reason, confidence: 1 });
   if (detectEmotionalDistress(t) || SAD_RE.test(t) || DE_SAD_RE.test(t)) return r('support', 'sad / stressed');
-  // A pasted, filled-in staff application form.
+  // A pasted, filled-in staff application form (or any application by its signs, whatever its layout).
+  if (t.length > 250 && [/\bage\b/i, /time\s*zone|\bregion\b/i, /availab\w*|hours?\s+(?:per|a)\s+day/i, /experience/i, /why\s+(?:do\s+)?(?:you|u)\s+want/i, /strengths?|skills?/i, /scenario/i, /\bstaff\b|moderat\w*/i, /agreement|i\s+confirm|i\s+agree/i, /discord\s+(?:name|tag|user)/i].filter((re) => re.test(t)).length >= 5) return r('helper', 'staff application');
   if (/scenario\s*a\b[\s\S]*scenario\s*b\b/i.test(t) && /\b(?:age|availability|experience)\b/i.test(t)) return r('helper', 'filled staff application form');
   if (HELPER_RE.test(t) && !/^(?:can\s+you\s+)?translate\s+(?:the\s+)?point\b/i.test(t)) return r('helper', 'translation / staff / server management');
   if (DE_CHAT_RE.test(t)) return r('chat', 'German chat / command / about nexus');
