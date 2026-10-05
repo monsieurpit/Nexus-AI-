@@ -12,6 +12,7 @@ import { detectLiveSportsIntent, resolveLiveSportsContext } from './liveSportsSe
 import { detectUrlInPrompt, fetchUrlContent } from './urlFetcher';
 import { hybridSearchKnowledgeGraph } from './vectorSearch';
 import { runV2, phraseWithFacts } from './v2/pipeline';
+import { isPartnershipMessage } from './v2/partnership';
 import { fxNote, toUsd } from './fx';
 import { shouldTriggerLiveWebSearch, buildWebSearchQuery } from './webSearchEngine';
 import { processForSearch, splitSentences } from './bm25Engine';
@@ -5059,12 +5060,17 @@ async function generateReasoningPathInner(
   }
 
   // (c) Links: read the page (or decode a Discord invite/bot link, or a YouTube video) and answer about it.
-  const linkInPrompt = detectUrlInPrompt(prompt);
+  // A partnership request is the helper's job (it reads the invite itself, with the real member count): the link
+  // reader below used to grab it first and just say "that's a server invite" (2026-10-05).
+  const linkInPrompt = useV2(settings, persona, isCrashout) && isPartnershipMessage(prompt) ? null : detectUrlInPrompt(prompt);
   if (linkInPrompt) {
     const link = await readLink(linkInPrompt);
     thoughtSteps.push({ id: 'step-link', type: 'web_search', title: `🔗 Read link (${link.kind})`, description: link.text.slice(0, 200) });
     const askedAbout = prompt.replace(linkInPrompt, ' ').replace(/^\s*nexus[\s,:-]*/i, '').trim();
-    const linkReply = await llmSituationalReplyOrFallback(
+    const linkTask = `The user sent this link: ${link.url}${askedAbout ? ` and said: "${askedAbout}"` : ''}.\nWhat the link is / what is on it (you just opened it): ${link.text}\n\nAnswer what they asked about it; if they only sent the link, say in 1-3 short lines what it is (for a Discord bot invite: which permissions it asks for, warn if it is Administrator). Never write code unless they explicitly asked for code. If the page could not be read, say so plainly.`;
+    // v2 words it (no v1 swear top-up); the old path is only the fallback.
+    const linkV2 = useV2(settings, persona, isCrashout) ? await phraseWithFacts(modeInfo.task === 'summary' ? 'writing' : 'question', prompt, linkTask, recentRepliesFor(settings.discordUserId), thoughtSteps, 'link') : null;
+    const linkReply = linkV2 ?? await llmSituationalReplyOrFallback(
       `The user sent this link: ${link.url}${askedAbout ? ` and said: "${askedAbout}"` : ''}.\nWhat the link is / what is on it (you just opened it): ${link.text}\n\nAnswer what they asked about it; if they only sent the link, say in 1-3 short lines what it is (for a Discord bot invite: which permissions it asks for, warn if it is Administrator). Never write code unless they explicitly asked for code. If the page could not be read, say so plainly.`,
       persona, settings, isCrashout, thoughtSteps, link.text.slice(0, 400), '🔗 Link reply', false, undefined, modeInfo.task === 'summary' ? 450 : 300
     );
