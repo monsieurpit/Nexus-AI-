@@ -166,14 +166,8 @@ export async function generateAIResponse(
         : [];
     }
 
-    if (imageUrl) {
-      serverThoughtSteps.unshift({
-        id: 'step-vision-ocr',
-        type: 'verification',
-        title: 'Multimodal Vision & Bitmap OCR Processing',
-        description: 'Extracted visual coordinates, image resolution, QR code matrices, embedded text, and suspicious token/crypto patterns.',
-      });
-    }
+    // (The real image/video analysis steps now come from the engine itself — metadata, what the vision model saw,
+    // the transcript, the timings — instead of a fixed "Bitmap OCR" placeholder step.)
 
     callbacks.onReasoningComplete?.(serverThoughtSteps);
 

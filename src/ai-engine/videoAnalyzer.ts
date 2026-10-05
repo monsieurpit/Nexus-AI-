@@ -129,6 +129,12 @@ export interface VideoAnalysis {
   description: string; // folded into the prompt: "[Attached video shows: ...]"
   timings: Record<string, number>;
   error?: string;
+  // The parts, for the website's thinking panel.
+  meta?: VideoMeta;
+  frameTimes?: string[];
+  seen?: string;
+  transcript?: string;
+  transcriptLanguage?: string | null;
 }
 
 export async function analyzeVideo(source: string, question = ''): Promise<VideoAnalysis> {
@@ -192,7 +198,16 @@ export async function analyzeVideo(source: string, question = ''): Promise<Video
       `WHAT YOU SEE (12 frames from start to end): ${seen} ` +
       `WHAT IS SAID (speech transcript with timestamps): ${said}`;
     timings.total = Date.now() - t0;
-    return { ok: true, description, timings };
+    return {
+      ok: true,
+      description,
+      timings,
+      meta,
+      frameTimes: Array.from({ length: frames }, (_, i) => mmss(step * i)),
+      seen,
+      transcript: said,
+      transcriptLanguage: speech?.language ?? null,
+    };
   } catch (err: any) {
     return { ok: false, description: '', timings, error: String(err?.message || err) };
   } finally {

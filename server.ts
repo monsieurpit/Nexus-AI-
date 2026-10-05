@@ -1555,6 +1555,9 @@ app.post('/api/v1/nexus', async (req, res) => {
       // prompt the persona/reasoning pipeline sees, so retrieval and the in-character reply are
       // grounded in what's genuinely in the picture (and still combine with any text the user
       // typed alongside it, e.g. "roast this" + an image).
+      // What the image/video analysis actually did, shown first in the website's thinking panel (Patrick, 2026-10-05:
+      // members want to see "Nexus' insides" — the metadata, what the vision model saw, the transcript, the timings).
+      const mediaSteps: Array<{ type: string; title: string; description: string; data?: any; durationMs?: number }> = [];
       let visionDescription: string | null = null;
       if (imagePart) {
         // The person's own question goes to the vision model too (2026-10-04: "how many tickets" on a screenshot of ~10
@@ -1568,6 +1571,15 @@ app.post('/api/v1/nexus', async (req, res) => {
         if (visionResult.status === 'success') {
           visionDescription = visionResult.text;
         }
+        const imgBytes = Math.round((imagePart.inlineData.data.length * 3) / 4);
+        mediaSteps.push({
+          type: 'verification',
+          title: '🖼️ Image read by the vision model (qwen2.5vl:3b)',
+          description: visionResult.status === 'success'
+            ? `Image: ${imagePart.inlineData.mimeType}, ${(imgBytes / 1024).toFixed(0)} KB.${userText ? ` Their question was sent with it: "${userText.slice(0, 160)}".` : ''}\n\nWhat the vision model saw:\n${visionResult.text}`
+            : `The vision model could not read the image (${(visionResult as any).reason || 'error'}).`,
+          ...(typeof (visionResult as any).latencyMs === 'number' ? { durationMs: (visionResult as any).latencyMs } : {}),
+        });
       }
 
       // Video: metadata + 12 frames read by the vision model + the speech transcript (~20-30 s for a 2-minute video).
@@ -1577,6 +1589,17 @@ app.post('/api/v1/nexus', async (req, res) => {
         const analysis = await analyzeVideo(videoSource, userText || '');
         log('video', `analysis ${analysis.ok ? 'ok' : `failed (${analysis.error})`} ${JSON.stringify(analysis.timings)}`);
         if (analysis.ok) videoDescription = analysis.description;
+        const t = analysis.timings;
+        if (analysis.ok && analysis.meta) {
+          const m = analysis.meta;
+          const tags = Object.entries(m.tags).map(([k, v]) => `${k}: ${v}`).join(', ');
+          mediaSteps.push({ type: 'verification', title: '🎬 Video metadata (ffmpeg)', description: `Length ${Math.floor((m.durationSec || 0) / 60)}:${String(Math.floor((m.durationSec || 0) % 60)).padStart(2, '0')} · ${m.width}x${m.height}${m.fps ? ` · ${m.fps} fps` : ''} · codec ${m.videoCodec || '?'} · ${m.hasAudio ? 'with sound' : 'no sound'} · ${m.sizeMb} MB${tags ? `\nTags: ${tags}` : ''}`, data: m, durationMs: t.metadata });
+          mediaSteps.push({ type: 'verification', title: '🎞️ 12 frames read by the vision model (qwen2.5vl:3b)', description: `Frames taken at ${analysis.frameTimes?.join(', ')} and tiled into one 4x3 collage.\n\nWhat the vision model saw:\n${analysis.seen}`, durationMs: (t.vision ?? 0) - (t.frames ?? 0) });
+          mediaSteps.push({ type: 'verification', title: `🗣️ Speech transcript (Whisper small, MLX)${analysis.transcriptLanguage ? ` — ${analysis.transcriptLanguage}` : ''}`, description: analysis.transcript || '(no sound)', durationMs: t.transcript ? t.transcript - (t.frames ?? 0) : undefined });
+          mediaSteps.push({ type: 'reasoning', title: '⏱️ Video analysis timings', description: `Download ${t.download} ms → metadata ${t.metadata} ms → frames ${t.frames} ms → transcript ${t.transcript ?? '—'} ms and vision ${t.vision} ms (in parallel) → total ${t.total} ms.`, data: t, durationMs: t.total });
+        } else {
+          mediaSteps.push({ type: 'verification', title: '🎬 Video analysis failed', description: analysis.error || 'unknown error', data: t });
+        }
       }
 
       // Pure Internal Autonomous Reasoning Engine with Multi-Document Graph Search
@@ -1787,7 +1810,7 @@ app.post('/api/v1/nexus', async (req, res) => {
           relevantSentences: m.relevantSentences,
         })),
         followUpQuestions,
-        thoughtSteps: thoughtStepsResult.map((t) => ({
+        thoughtSteps: [...mediaSteps, ...thoughtStepsResult].map((t: any) => ({
           type: t.type,
           title: t.title,
           description: t.description,

@@ -653,7 +653,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     if (lastRoute.size > 5000) lastRoute.delete(lastRoute.keys().next().value!);
   }
   const spec = SPECIALISTS[route.mode];
-  thoughtSteps.push({ id: 'step-v2-route', type: 'intent', title: `🧭 Router → ${spec.label}`, description: `${route.by}: ${route.reason}${lang !== 'en' ? ` (${lang})` : ''}${image ? ' (with an image)' : ''}`, data: { mode: route.mode, by: route.by, lang } as any });
+  thoughtSteps.push({ id: 'step-v2-route', type: 'intent', title: `🧭 Router → ${spec.label}`, description: `${route.by}: ${route.reason}${lang !== 'en' ? ` (${lang})` : ''}${image ? (kind === 'video' ? ' (with a video)' : ' (with an image)') : ''}`, data: { mode: route.mode, by: route.by, lang } as any });
   const built = await buildUserTurn(route.mode, prompt, deps, thoughtSteps, lang, settings);
   const imageBlock = image
     ? kind === 'video'
