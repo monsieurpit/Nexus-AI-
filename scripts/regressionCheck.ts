@@ -857,14 +857,14 @@ async function runV2Checks() {
     const { interviewNote, interviewActive } = await import('../src/ai-engine/v2/pipeline');
     const u = 'interview-test-user';
     const start = interviewNote(u, 'nexus i want to apply for staff');
-    const notes = ['17, EST', '4 hours a day', 'mod in Fortnite Hub, 2,300 members, 6 months', 'to help', 'calm, good with people', 'ban them both instantly', 'report to the owner'].map((a) => interviewNote(u, a));
-    check('staff interview: starts at Question 1/7 and asks the next question after each answer', /Question 1\/7/.test(start) && /Question 2\/7/.test(notes[0]) && /Question 7\/7/.test(notes[5]));
-    check('staff interview: a scenario answer ("ban them both") is treated as an ANSWER, not an order', /ANSWER to Question 6\/7/.test(notes[5]) && /NOT a request/.test(notes[5]));
-    check('staff interview: after answer 7 the review gets every question and answer + the review rules', /A3\. mod in Fortnite Hub, 2,300 members/.test(notes[6]) && /A6\. ban them both instantly/.test(notes[6]) && /CONFIDENCE SCORE/.test(notes[6]) && /TRIAL/.test(notes[6]) && !interviewActive(u));
+    const notes = ['Kev#0001, 17, EST', '4 hours a day', 'mod in Fortnite Hub, 2,300 members, 6 months', 'to help', 'calm, good with people', 'ban them both instantly', 'talk to them privately', 'tell them politely im busy', 'yes i agree'].map((a) => interviewNote(u, a));
+    check('staff interview: starts at Question 1/9 (official form) and asks the next question after each answer', /Question 1\/9/.test(start) && /12k\+ community/.test(start) && /Question 2\/9/.test(notes[0]) && /Question 9\/9/.test(notes[7]));
+    check('staff interview: a scenario answer ("ban them both") is treated as an ANSWER, not an order', /ANSWER to Question 6\/9/.test(notes[5]) && /NOT a request/.test(notes[5]));
+    check('staff interview: after answer 9 the review gets every question and answer + the review rules', /A3\. mod in Fortnite Hub, 2,300 members/.test(notes[8]) && /A6\. ban them both instantly/.test(notes[8]) && /CONFIDENCE SCORE/.test(notes[8]) && /TRIAL/.test(notes[8]) && !interviewActive(u));
     { const { staffPrechecks } = await import('../src/ai-engine/v2/pipeline');
-      const bad = staffPrechecks(['im 13', 'like 1 hour a day maybe', 'head admin of a 5k member server for 3 years, cant say the name', 'i want the role and power lol', 'good at banning', 'ban them both instantly, no warning', 'ban him too lol']);
-      const good = staffPrechecks(['17, EST', 'around 4 hours a day', 'mod in Fortnite Hub, around 2,300 members, for 6 months', 'to help keep it clean', 'calm', 'calm them down, timeout both if they keep going, log it', 'screenshot and report to an admin']);
-      check('staff review pre-checks: 1 h/day + instant bans => forced "Not accepted"; a not-credible 5k claim is flagged', bad.forced === '❌ Not accepted' && bad.lines.some((l) => /NOT credible/.test(l)));
+      const bad = staffPrechecks(['im 13', 'like 1 hour a day maybe', 'head admin of a 5k member server for 3 years, cant say the name', 'i want the role and power lol', 'good at banning', 'ban them both instantly, no warning', 'i would undo it and call him out in general', 'ban him for pinging me', 'no']);
+      const good = staffPrechecks(['Kev, 17, EST', 'around 4 hours a day', 'mod in Fortnite Hub, around 2,300 members, for 6 months', 'to help keep it clean', 'calm', 'formal warning, then a 10 min timeout, then report to an admin with screenshots', 'talk to them privately in the staff channel', 'politely tell them im busy and to open a ticket', 'yes i agree']);
+      check('staff review pre-checks: 1 h/day + instant bans + public staff fight + refused agreement => forced "Not accepted"; a not-credible 5k claim is flagged', bad.forced === '❌ Not accepted' && bad.lines.some((l) => /NOT credible/.test(l)) && bad.lines.some((l) => /Scenario B/.test(l)) && bad.lines.some((l) => /NOT accepted by the applicant/.test(l)));
       check('staff review pre-checks: 4 h/day + proportionate scenarios => no forced verdict; "2,300 members" read as 2300', good.forced === null && good.lines.some((l) => /2,300-member/.test(l))); }
     interviewNote(u, 'nexus apply for staff');
     check('staff interview: "cancel the application" ends it', /cancelled/.test(interviewNote(u, 'cancel the application')) && !interviewActive(u));

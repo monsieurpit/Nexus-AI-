@@ -450,7 +450,8 @@ export function scoreFrenchSignal(rawText: string): { french: number; english: n
   let french = 0;
   let english = 0;
   for (const w of words) {
-    if (FRENCH_SIGNAL_WORDS.has(w) || FRENCH_DIACRITIC_REGEX.test(w)) french++;
+    // A word with a German letter (ä ö ü ß) is never French evidence ("übersetze" counted as French, 2026-10-05).
+    if (FRENCH_SIGNAL_WORDS.has(w) || (FRENCH_DIACRITIC_REGEX.test(w) && !/[äöüß]/.test(w))) french++;
     if (ENGLISH_SIGNAL_WORDS.has(w)) english++;
   }
   return { french, english, wordCount: words.length };

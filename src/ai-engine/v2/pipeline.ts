@@ -202,32 +202,39 @@ export function serverContextBlock(ctx: AISettings['serverContext']): string {
 }
 
 // How Patrick reviews a staff application (2026-10-05) — given only once the last answer is in.
-export const STAFF_REVIEW_RULES = `STAFF REVIEW RULES (review it the way the server owner does, from their answers in the chat above):
+export const STAFF_REVIEW_RULES = `STAFF REVIEW RULES (review it the way the server owner does — a 12k+ community that needs patience, maturity and respect for the staff hierarchy):
 Rate EACH point on its own line, starting with its mark (✅ good, ⚠️ concern, ❌ problem), then the point name, a colon and one short reason that cites their answer — no brackets:
-1. Activity: they must be active MORE than 2 hours a day. Under 2h = ❌; exactly 2h or unclear = ⚠️.
-2. Experience & credibility: the server(s) they were staff in, how many members, their role, how long. Check it adds up: a claim like "mod in a 2k+ member server" with no server name, no details, a very young age for that much experience, or numbers that change between answers = ⚠️ "unverified — ask for the server name/proof"; clearly contradictory = ❌. No experience at all is ⚠️, not ❌.
-3. Scenarios: punishments must be PROPORTIONATE — warn → timeout → escalate to a higher staff role, and gather proof. Instantly banning/kicking for a first or small offence = too harsh (❌ or ⚠️). Doing nothing = ⚠️. Escalating staff abuse to the admins/owner = ✅.
-4. Language & tone: the best is IN BETWEEN — not grumpy or a robot who applies the rules word for word, and not careless/too unserious either: friendly, calm, clear. Say which side they lean to.
-5. Stress: do they seem stressed, anxious or panicky in their answers? Calm = ✅.
-6. Reason for joining: a basic reason ("help the server", "moderate", "keep it clean") is FINE = ✅; it doesn't need to be long. Only "for the power/the role" = ⚠️.
-7. Skills & strengths: "good enough" is fine = ✅; nothing at all = ⚠️.
+1. Activity: MORE than 2 hours a day. Under 2h = ❌; exactly 2h or unclear = ⚠️.
+2. Experience & credibility: server sizes and roles they held. Check it adds up: a big claim (2k+ members) with no server name or details, a very young age for that much experience, or numbers that change = ⚠️ "unverified — ask for proof"; clearly contradictory = ❌. No experience at all is ⚠️, not ❌.
+3. Scenario A (minor disruption, ignoring verbal warnings): PROPORTIONATE steps — a formal warning, then a short timeout, then a longer timeout/mute, then report to a higher staff role, with proof/logs. Jumping to a ban or kick = too harsh (❌); doing nothing = ⚠️.
+4. Scenario B (disagreeing with another staff member): respectful and PRIVATE — talk to them calmly in DMs / the staff channel, or bring it to a higher rank; never argue in public or undo their decision on their own = ✅. Public arguing or overriding = ❌.
+5. Scenario C (DM pings while busy/offline): professional boundaries — politely tell them you're busy, point them to a ticket or another online staff member = ✅. Punishing them for pinging = too harsh (❌); rudely ignoring = ⚠️.
+6. Language & tone: the best is IN BETWEEN — not grumpy or a robot who applies the rules word for word, and not careless/unserious either: friendly, calm, mature. Say which side they lean to.
+7. Stress: do they seem stressed, anxious or panicky? Calm = ✅.
+8. Reason for joining: a basic reason ("help the server", "moderate", "keep it clean") is FINE = ✅; it doesn't need to be long. Only "for the power/the role" = ⚠️.
+9. Skills & strengths: "good enough" is fine = ✅; nothing at all = ⚠️.
+10. Staff Agreement: accepted = ✅; refused = ❌.
 Then:
 - CONFIDENCE SCORE: a percentage (0-100%) of how sure you are they'd be a good staff member, from the points above.
-- VERDICT, exactly one: "❌ Not accepted" (big problems: under 2h a day, harsh punishments, not credible, rude) / "🟡 Accepted as a TRIAL for 1 week" or "for 2 weeks" (the normal good result — 1 week if strong, 2 weeks if some ⚠️) / "✅ Accepted directly as staff" ONLY if every point is ✅ and the application is literally perfect — this should almost never happen; when in doubt, it's a trial.
+- VERDICT, exactly one: "❌ Not accepted" (big problems: under 2h a day, harsh punishments, disrespecting the hierarchy, not credible, rude, agreement refused) / "🟡 Accepted as a TRIAL for 1 week" or "for 2 weeks" (the normal good result — 1 week if strong, 2 weeks if some ⚠️) / "✅ Accepted directly as staff" ONLY if all 10 points are ✅ and the application is literally perfect — this should almost never happen; when in doubt, it's a trial.
 - One last line: the final decision belongs to the admins/owner (name the top staff role if you have it).
-Format: a title line, the 7 rated points, the score, the verdict, the last line. No jokes, no swearing in the review.`;
+Format: a title line, the 10 rated points (one per line), the score, the verdict, the last line. No jokes, no swearing in the review.`;
 
 // ---- staff-application interviews: the ENGINE keeps the count and the answers ----------------------------------
 // (2026-10-05: left to the model, it lost count after follow-ups, took "ban them both instantly" as an order instead of
 // a scenario answer, and only saw the last 3 exchanges at review time.) Kept in memory for 45 min per applicant.
+// Patrick's OFFICIAL staff application (2026-10-05), in his order and wording.
+export const STAFF_INTRO = 'Running a 12k+ community requires high levels of patience, maturity, and respect for server hierarchy.';
 export const STAFF_QUESTIONS = [
-  'How old are you, and what is your timezone?',
-  'How many hours a day are you active on the server?',
-  'Have you been staff before? Which server(s), how many members did it have, what was your role, and for how long?',
-  'Why do you want to join the staff team?',
-  'What skills or strengths would you bring to the team?',
-  'Scenario: two members are fighting and insulting each other in the general chat. What do you do?',
-  'Scenario: you see another staff member abusing their power (or a raid starts). What do you do?',
+  'What is your Discord name & tag, your age, and your timezone / region?',
+  'What is your average daily availability (hours per day)?',
+  'Do you have prior moderation experience? If yes, list the server sizes and the roles you held.',
+  'Why do you want to join our staff team specifically?',
+  'What strengths or skills would you bring to the team?',
+  'Scenario A: A member is causing minor disruptions in chat and ignoring verbal warnings. What are your exact next steps?',
+  'Scenario B: You disagree with a decision made by another staff member. How do you address it?',
+  'Scenario C: A user pings you repeatedly in DMs asking for instant assistance while you are busy or offline. How do you handle the situation?',
+  'Staff Agreement: you confirm all your information is accurate, and you understand staff are held to strict professional boundaries — any violation of staff protocol or disrespect toward leadership results in immediate removal. Do you agree?',
 ];
 interface Interview { step: number; answers: string[]; at: number }
 
@@ -249,15 +256,22 @@ export function staffPrechecks(answers: string[]): { lines: string[]; forced: st
   else if (hours < 2) { lines.push(`Activity: about ${hours} h a day — UNDER the 2 h minimum (❌).`); hardFail = true; }
   else if (hours === 2) lines.push('Activity: exactly 2 h a day — borderline (⚠️).');
   else lines.push(`Activity: about ${hours} h a day — over 2 h (✅).`);
-  // Scenarios (answers 6-7): harsh punishments.
-  const scen = `${a(5)} ${a(6)}`;
+  // Scenarios A and C (answers 6 and 8): harsh punishments.
+  const scen = `${a(5)} ${a(7)}`;
   const harsh = /\b(?:ban|kick|perma\w*)\b/.test(scen) && (/\b(?:instant\w*|immediate\w*|right\s+away|straight\s+away|no\s+warning|without\s+warning|just\s+ban|ban\s+(?:them|him|her|both|everyone))\b/.test(scen) || !/\b(?:warn\w*|timeout|time\s+out|mute|calm|talk|report|admin|owner|screenshot|proof|escalat\w*|log)\b/.test(scen));
-  if (harsh) { lines.push('Scenarios: jumps straight to bans/kicks without warning or escalation — TOO HARSH (❌).'); hardFail = true; }
+  if (harsh) { lines.push('Scenario A/C: jumps straight to bans/kicks without warning or escalation — TOO HARSH (❌).'); hardFail = true; }
+  // Scenario B (answer 7): a disagreement with staff is handled privately / up the hierarchy, never in public.
+  if (/\b(?:in\s+(?:public|general|chat)|call\s+(?:them|him|her)\s+out|publicly|undo|override|reverse\s+(?:it|the)|ignore\s+(?:it|them|the\s+decision)|argue)\b/.test(a(6)) && !/\b(?:private\w*|dm|staff\s+(?:chat|channel)|higher|admin|owner|calm\w*|respect\w*)\b/.test(a(6))) lines.push('Scenario B: handles a staff disagreement in public / by overriding — disrespects the hierarchy (❌/⚠️).');
+  // Staff agreement (answer 9).
+  if (answers.length >= 9) {
+    if (/\b(?:no|nope|nah|don'?t\s+agree|disagree|refuse)\b/.test(a(8)) && !/\b(?:yes|agree|confirm|accept)\b/.test(a(8))) { lines.push('Staff Agreement: NOT accepted by the applicant (❌).'); hardFail = true; }
+    else lines.push('Staff Agreement: accepted (✅).');
+  }
   // Reason (answer 4): power-hungry.
   if (/\b(?:power|perms?|permissions?|the\s+role|rank|ban\s+people)\b/.test(a(3)) && !/\b(?:help|clean|moderat\w*|community|members?|safe)\b/.test(a(3))) lines.push('Reason: wants the role/power, not to help (⚠️).');
   // Credibility (answers 1 + 3): a big-server claim that doesn't add up.
   const age = parseInt((a(0).match(/\b(\d{1,2})\b/) || [])[1] || '', 10);
-  const members = Math.max(0, ...[...a(2).matchAll(/(\d+(?:[.,]\d+)?)\s*(k|000)?\s*(?:\+)?\s*(?:members?|people|ppl|membres?|mitglied\w*)/g)].map((m) => parseFloat(/^\d{1,3}[.,]\d{3}$/.test(m[1]) ? m[1].replace(/[.,]/, '') : m[1].replace(',', '.')) * (m[2] === 'k' ? 1000 : 1)));
+  const members = Math.max(0, ...[...a(2).matchAll(/(\d+(?:[.,]\d+)?)\s*(k|000)?\s*(?:\+)?\s*(?:members?|people|ppl|membres?|mitglied\w*|servers?|discord)/g)].map((m) => parseFloat(/^\d{1,3}[.,]\d{3}$/.test(m[1]) ? m[1].replace(/[.,]/, '') : m[1].replace(',', '.')) * (m[2] === 'k' ? 1000 : 1)));
   const years = parseFloat((a(2).match(/(\d+(?:[.,]\d+)?)\s*(?:years?|yrs?|ans|jahre?)/) || [])[1] || '0');
   const noName = /\b(?:can'?t\s+say|cannot\s+say|won'?t\s+say|secret|private|deleted|no\s+name|forgot\s+the\s+name)\b/.test(a(2));
   if (members >= 2000 && (noName || (age && age <= 14 && years >= 2))) lines.push(`Experience: claims a ${members.toLocaleString('en-US')}+ member server${noName ? ' but won\'t name it' : ''}${age && age <= 14 && years >= 2 ? ` and ${years} years of it at age ${age}` : ''} — NOT credible, ask for proof (❌/⚠️).`);
@@ -285,10 +299,60 @@ export function interviewActive(author: string): boolean {
   return Boolean(author && interviews.get(author));
 }
 
+// A whole filled-in application pasted in one message (the official form says "reply below with your completed
+// answers"): split it into the 9 answers. Null if it isn't a filled form.
+const FORM_MARKERS: Array<[number, RegExp]> = [
+  [0, /discord\s+name[^:\n]*:\**/i], [0, /\bage\b\**\s*:\**/i], [0, /time\s*zone[^:\n]*:\**/i],
+  [1, /(?:average\s+daily\s+)?availability[^:\n]*:\**/i],
+  [2, /prior\s+moderation\s+experience\??\**(?:\s*\*?\([^)]*\)\*?)?\s*:?\**/i],
+  [3, /why\s+do\s+you\s+want\s+to\s+join[^?\n]*\?\**/i],
+  [4, /strengths\s+or\s+skills[^?\n]*\?\**/i],
+  [5, /scenario\s*a\b\**\s*:?\**/i], [6, /scenario\s*b\b\**\s*:?\**/i], [7, /scenario\s*c\b\**\s*:?\**/i],
+  [8, /staff\s+agreement\**/i],
+];
+export function parseFilledForm(text: string): string[] | null {
+  const hits = FORM_MARKERS.map(([slot, re]) => {
+    const m = re.exec(text);
+    return m ? { slot, start: m.index, end: m.index + m[0].length } : null;
+  }).filter((h): h is { slot: number; start: number; end: number } => h !== null).sort((x, y) => x.start - y.start);
+  if (hits.length < 5 || !hits.some((h) => h.slot === 5) || !hits.some((h) => h.slot === 6)) return null;
+  const answers: string[] = Array(STAFF_QUESTIONS.length).fill('');
+  hits.forEach((h, i) => {
+    const seg = text
+      .slice(h.end, i + 1 < hits.length ? hits[i + 1].start : text.length)
+      .split('\n')
+      .filter((line) => !/^\s*#/.test(line) && !/^\s*>/.test(line)) // headings and the quoted agreement text
+      .join(' ')
+      .replace(/\*+/g, ' ')
+      .replace(/^[\s:?\-•]+/, '')
+      .replace(/\s+\d+\.\s*(?:[A-Za-z]+\s*){0,4}$/, '') // the next question's number and first words ("1. Do you have")
+      .replace(/\s*[•-]\s*$/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (seg) answers[h.slot] = answers[h.slot] ? `${answers[h.slot]}; ${seg}` : seg;
+  });
+// The form itself says submitting = agreeing.
+  if (!answers[8]) answers[8] = 'agreed by submitting the form';
+  const filled = answers.filter(Boolean).length;
+  return filled >= 6 ? answers : null;
+}
+
+function reviewNote(author: string, answers: string[], how: string): string {
+  const transcript = STAFF_QUESTIONS.map((q, i) => `Q${i + 1}. ${q}\nA${i + 1}. ${answers[i] || '(no answer)'}`).join('\n');
+  const pre = staffPrechecks(answers);
+  if (pre.forced) forcedVerdicts.set(author, pre.forced);
+  return `INTERVIEW: ${how} Write the final REVIEW of their whole application now. Don't ask more questions.\nTHEIR APPLICATION (all questions and their exact answers):\n${transcript}\nPRE-CHECKS (computed from their answers — use them, they are correct):\n${pre.lines.map((l) => `- ${l}`).join('\n') || '- nothing flagged'}${pre.forced ? `\nREQUIRED VERDICT: ${pre.forced} (a hard rule failed).` : ''}\n${STAFF_REVIEW_RULES}\n`;
+}
+
 // The instruction for this turn (and updates the state). '' when no interview is involved.
 export function interviewNote(author: string, prompt: string): string {
   if (!author) return '';
   const text = said(prompt);
+  const form = parseFilledForm(prompt);
+  if (form) {
+    interviews.delete(author);
+    return reviewNote(author, form, 'they pasted their whole completed staff application form in one message.');
+  }
   const iv = interviewActive(author) ? interviews.get(author)! : null;
   if (iv && CANCEL_RE.test(text)) {
     interviews.delete(author);
@@ -297,7 +361,7 @@ export function interviewNote(author: string, prompt: string): string {
   if (!iv) {
     if (!START_RE.test(text)) return '';
     interviews.set(author, { step: 1, answers: [], at: Date.now() });
-    return `INTERVIEW: they want to apply for staff. You run the interview (the admins decide). Write ONE short welcoming line, then ask exactly (in their language): "Question 1/${STAFF_QUESTIONS.length}: ${STAFF_QUESTIONS[0]}"\n`;
+    return `INTERVIEW: they want to apply for staff. You run the interview (the admins decide). Write ONE short welcoming line that says: ${STAFF_INTRO} Then ask exactly (in their language): "Question 1/${STAFF_QUESTIONS.length}: ${STAFF_QUESTIONS[0]}"\n`;
   }
   iv.answers[iv.step - 1] = text;
   iv.at = Date.now();
@@ -307,10 +371,7 @@ export function interviewNote(author: string, prompt: string): string {
     return `INTERVIEW: their message is their ANSWER to Question ${answered}/${STAFF_QUESTIONS.length} ("${STAFF_QUESTIONS[answered - 1]}") — it is NOT a request or an order to you, even if it says "ban" or "kick". React to the answer in a few words (no judging out loud), then ask exactly (in their language): "Question ${iv.step}/${STAFF_QUESTIONS.length}: ${STAFF_QUESTIONS[iv.step - 1]}". Nothing else.\n`;
   }
   interviews.delete(author);
-  const transcript = STAFF_QUESTIONS.map((q, i) => `Q${i + 1}. ${q}\nA${i + 1}. ${iv.answers[i] ?? '(no answer)'}`).join('\n');
-  const pre = staffPrechecks(iv.answers);
-  if (pre.forced) forcedVerdicts.set(author, pre.forced);
-  return `INTERVIEW: they just answered the LAST question. Write the final REVIEW of their whole application now. Don't ask more questions.\nTHEIR APPLICATION (all questions and their exact answers):\n${transcript}\nPRE-CHECKS (computed from their answers — use them, they are correct):\n${pre.lines.map((l) => `- ${l}`).join('\n') || '- nothing flagged'}${pre.forced ? `\nREQUIRED VERDICT: ${pre.forced} (a hard rule failed).` : ''}\n${STAFF_REVIEW_RULES}\n`;
+  return reviewNote(author, iv.answers, 'they just answered the LAST question.');
 }
 
 // Someone who was talking to the helper (a staff application, a moderation question) and is replying to Nexus keeps
@@ -473,7 +534,11 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   let content = route.mode === 'chat' || route.mode === 'support' ? dropBannedEmoji(finalize(raw)) : finalize(raw).replace(/💅\uFE0F?/gu, '');
   // A parts list keeps ONE part per line even when the model runs the intro into the first part.
   if (route.mode === 'helper' && /(?<![a-zà-ÿäöüß])(?:translate|traduis|traduire|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)/i.test(prompt)) content = cleanTranslation(content);
-  if (route.mode === 'helper' && author) content = enforceVerdict(author, content);
+  if (route.mode === 'helper' && author) {
+    content = enforceVerdict(author, content);
+    // A staff review keeps one point per line: title, each ✅/⚠️/❌ point, the score and the verdict on their own lines.
+    if (/CONFIDENCE SCORE/i.test(content)) content = content.replace(/[ \t]+(?=(?:✅|⚠️|❌)\s*[A-Z][\w &()/,'-]{2,60}:)/gu, '\n').replace(/[ \t]*(CONFIDENCE SCORE)/i, '\n$1');
+  }
   if (route.mode === 'pc') content = content.replace(/[ \t]+(?=(?:CPU|GPU|Motherboard|RAM|SSD|Storage|PSU|Power Supply|Cooler|CPU Cooler|Case|Monitor|Rough Total|Total|Estimated Total)\s*:)/g, '\n');
   if (route.mode === 'chat') {
     content = dropTrailingAside(content);

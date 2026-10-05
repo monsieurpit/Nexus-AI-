@@ -61,6 +61,8 @@ function byRules(text: string): Route | null {
   const t = text;
   const r = (mode: SpecialistId, reason: string): Route => ({ mode, by: 'rule', reason, confidence: 1 });
   if (detectEmotionalDistress(t) || SAD_RE.test(t) || DE_SAD_RE.test(t)) return r('support', 'sad / stressed');
+  // A pasted, filled-in staff application form.
+  if (/scenario\s*a\b[\s\S]*scenario\s*b\b/i.test(t) && /\b(?:age|availability|experience)\b/i.test(t)) return r('helper', 'filled staff application form');
   if (HELPER_RE.test(t) && !/^(?:can\s+you\s+)?translate\s+(?:the\s+)?point\b/i.test(t)) return r('helper', 'translation / staff / server management');
   if (DE_CHAT_RE.test(t)) return r('chat', 'German chat / command / about nexus');
   if (DE_CODE_RE.test(t)) return r('code', 'German code request');
