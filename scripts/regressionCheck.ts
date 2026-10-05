@@ -842,6 +842,7 @@ async function runV2Checks() {
     const w: Array<[string, string | null | undefined]> = [
       ['is it gonna rain tomorrow in montreal', 'montreal'], ['will it snow this weekend in quebec city', 'quebec city'],
       ['do i need a jacket today in toronto', 'toronto'], ['forecast for london this week', 'london'], ['météo à montréal demain', 'montréal'],
+      ["Nexus, what's the weather in Quebec city like right now?", 'Quebec city'], ['how is the weather in paris looking', 'paris'],
       ['i need a jacket recommendation', undefined], ['what is the meaning of rain man', undefined],
     ];
     for (const [m, city] of w) check(`weather: "${m}" -> ${city ?? 'not weather'}`, city === undefined ? detectWeatherIntent(m) === null : detectWeatherIntent(m)?.city === city, JSON.stringify(detectWeatherIntent(m)));

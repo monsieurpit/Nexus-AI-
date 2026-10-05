@@ -43,6 +43,14 @@ export async function geocodeCity(city: string): Promise<GeocodeResult | null> {
   // (2026-10-05: the weather in "quebec city" came back "couldn't find that city").
   let hit = await lookup(trimmed);
   if (!hit && /\s+city$/i.test(trimmed)) hit = await lookup(trimmed.replace(/\s+city$/i, ''));
+  // Still nothing: drop trailing words one by one ("quebec city like" -> "quebec city" -> "quebec"), so a filler word
+  // stuck to the name can't make a real city "not found".
+  let words = trimmed.split(/\s+/);
+  while (!hit && words.length > 1) {
+    words = words.slice(0, -1);
+    const name = words.join(' ');
+    hit = (await lookup(name)) || (/\s+city$/i.test(name) ? await lookup(name.replace(/\s+city$/i, '')) : null);
+  }
   if (!hit || typeof hit.latitude !== 'number' || typeof hit.longitude !== 'number') return null;
   return {
     lat: hit.latitude,
@@ -173,6 +181,14 @@ const WEATHER_CITY_REGEX =
 // Time words are never part of the city ("forecast for london this week" -> "london").
 const TIME_WORDS_RE = /\s+(?:today|tonight|tomorrow|this\s+week(?:end)?|next\s+week(?:end)?|on\s+\w+day|\w+day|rn|right\s+now|now|later|demain|ce\s+soir|aujourd'hui|cette\s+semaine|ce\s+week-?end)\b.*$/i;
 
+// Words people put after the city that are never part of it ("in Quebec city like right now", "in paris looking").
+const TRAILING_FILLER_RE = /\s+(?:like|looking|lookin|looks|lol|lmao|bro|bruh|mate|fam|gng|pls|please|outside|out|there|now|rn|atm|currently|tho|though|again|nexus|today|tonight|tomorrow)$/i;
+function stripFillers(city: string): string {
+  let c = city.trim();
+  while (TRAILING_FILLER_RE.test(c)) c = c.replace(TRAILING_FILLER_RE, '').trim();
+  return c;
+}
+
 export function detectWeatherIntent(prompt: string): { city: string | null } | null {
   if (!WEATHER_REGEX.test(prompt)) return null;
   // The LAST place mentioned wins ("do i need a jacket today in toronto"), and a bare "a" (French "à" typed without
@@ -180,7 +196,7 @@ export function detectWeatherIntent(prompt: string): { city: string | null } | n
   const french = /\b(?:météo|meteo|quel\s+temps|fait[- ]il|il\s+va|demain|pleuvoir|neiger)\b/i.test(prompt);
   const matches = [...prompt.matchAll(new RegExp(WEATHER_CITY_REGEX.source, 'gi'))].filter((m) => french || !/^\s*a\s/i.test(m[0].replace(/^\s+/, '').slice(0, 2)));
   const last = matches[matches.length - 1];
-  const city = last ? last[1].replace(TIME_WORDS_RE, '').trim() || null : null;
+  const city = last ? stripFillers(last[1].replace(TIME_WORDS_RE, '')) || null : null;
   return { city };
 }
 
