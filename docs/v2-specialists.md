@@ -32,7 +32,12 @@ instructions, settings and cleanup.
   generates, cleans up (`finalizeSpecialistReply` in rules/postProcess.ts — no swear floor), and rewrites a repeat once.
 
 Safety checks, teaching, hex colours, links, weather/time and the bot-meta answers still run before v2, as in v1.
-French and Polish messages and images stay on v1 for now.
+Québécois French and images go through v2 too (a short language note in their language ends the message; the image
+description is given as something Nexus saw). The handlers that run before the router (who made you / rules / model,
+"compliment me", live weather/time/places) keep their true facts but are worded by v2. Polish stays switched off on
+purpose (`looksPolish` in localLlmClient.ts) until Patrick rebuilds it; v2 already has a Polish note ready.
+Every entry point follows NEXUS_ROUTER (the bot's /api/v1/nexus, the website, /generate, /chat/completions), and the
+engine log shows `engine=v2:<specialist>`, `engine=v2:facts` or `engine=v1` on every message.
 
 ## Switching
 - Everyone: `NEXUS_ROUTER=v2` in `~/Library/LaunchAgents/com.nexus.engine.plist`, then
@@ -58,3 +63,5 @@ Results on 2026-10-05 (same 183 messages, live engine):
 \* the four search misses were the keyless search tier throttling the test's back-to-back searches (HTTP 429);
 a free Tavily key (docs/web-search.md) removes that. Chat replies take ~1-2 s instead of ~7 s (the short, stable
 instructions stay in Ollama's prompt cache). v2 is ON for everyone since 2026-10-05 (`NEXUS_ROUTER=v2`).
+
+Latest run (2026-10-05, 185 messages incl. French/images, search cases skipped): v2 182/185 (98%), avg 4.7 s.

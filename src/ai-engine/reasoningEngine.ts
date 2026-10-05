@@ -4407,8 +4407,13 @@ async function llmGroundedOrFallback(
 // the corpus has zero live weather data and would either hallucinate or (worse) confidently ground
 // an answer in some unrelated document that merely mentions the word "weather".
 // v2 handles this request (the specialist router), for Nexus's own voice.
+// Every entry point (/api/v1/nexus, /generate, /chat/completions, the website) follows NEXUS_ROUTER unless the request
+// set routerVersion itself (the test bank does).
+function routerIsV2(settings: AISettings): boolean {
+  return (settings.routerVersion ?? (process.env.NEXUS_ROUTER === 'v2' ? 'v2' : 'v1')) === 'v2';
+}
 function useV2(settings: AISettings, persona: ModelPersona, isCrashout: boolean): boolean {
-  return settings.routerVersion === 'v2' && (isCrashout || persona.id === 'nexus-homie');
+  return routerIsV2(settings) && (isCrashout || persona.id === 'nexus-homie');
 }
 
 async function handleLocationAwareQuery(
@@ -5056,7 +5061,7 @@ async function generateReasoningPathInner(
   // ===== v2: specialist router (src/ai-engine/v2/) =====
   // One specialist per message, each with its own detailed instructions, settings and cleanup, instead of one giant
   // prompt for everything (2026-10-05). English, Québécois French and Polish, with or without an image.
-  if (settings.routerVersion === 'v2' && nexusVoice) {
+  if (routerIsV2(settings) && nexusVoice) {
     const v2 = await runV2(prompt, settings, {
       threadText: primeThread,
       factsNote: chatFactsNote(history, settings.discordUserId, prompt),

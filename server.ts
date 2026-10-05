@@ -1831,9 +1831,15 @@ app.post('/api/v1/nexus', async (req, res) => {
     // already nudged it — so the log line shows what actually colored the reply the user just
     // got, and doubles as a running record of how mood is drifting over real traffic, visible
     // straight in Railway's log viewer without needing to separately poll GET /api/v1/mood.
+    // Which engine answered: "v2:<specialist>" (router), "v2:facts" (a pre-router handler worded by v2) or "v1".
+    const steps: any[] = (queuedExecution.data as any).thoughtSteps || [];
+    const routeStep = steps.find((st) => /^🧭 Router/.test(st?.title || ''));
+    const engineLabel = routeStep ? `v2:${routeStep.data?.mode ?? '?'}` : steps.some((st) => /\(.*\)$/.test(st?.title || '') && /Chat|Live search/.test(st?.title || '') && /Worded from the true facts/.test(st?.description || '')) ? 'v2:facts' : 'v1';
+    const v2Gen = steps.find((st) => st?.id === 'step-v2-generate' || st?.id === 'step-v2-phrase' || / reply( \(.*\))?$/.test(st?.title || '') && typeof st?.durationMs === 'number');
+    const outcome = engineLabel.startsWith('v2') && v2Gen ? `real LLM (${v2Gen.durationMs}ms)` : llmOutcome;
     log(
       'nexus',
-      `"${userText.slice(0, 60)}" -> persona=${persona.id} mood=${queuedExecution.data.mood?.label ?? 'n/a'} lang=${queuedExecution.data.telemetry?.language ?? 'n/a'} ${llmOutcome} total=${queuedExecution.processTimeMs}ms`
+      `"${userText.slice(0, 60)}" -> persona=${persona.id} engine=${engineLabel} mood=${queuedExecution.data.mood?.label ?? 'n/a'} lang=${queuedExecution.data.telemetry?.language ?? (routeStep?.data?.lang || 'n/a')} ${outcome} total=${queuedExecution.processTimeMs}ms`
     );
 
     // Learning (docs/learning-system.md): queue this exchange for the idle worker. One SQLite insert
