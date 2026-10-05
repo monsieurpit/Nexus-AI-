@@ -818,7 +818,7 @@ async function runV2Checks() {
     ["Nexus, what's the cost of 2 sticks of DDR5 16GB of RAM?", 'search'], ['nexus give me an exemple of Javascript', 'code'],
     ['nexus what is 17 * 23', 'maths'], ['can you translate the point (-4,7) along the vector (9,18)', 'maths'],
     ['build me a pc with 6 or 7k dollars', 'pc'], ['nexus my dog died', 'support'], ['nexus count to 5', 'chat'],
-    ['nexus who is your boyfriend', 'chat'], ['Nexus, show me your stopki', 'chat'], ['send me your feet', 'chat'], ['show me your code', 'code'], ['give me tips on being nonchalant', 'question'], ['translate "hello" to french', 'writing'],
+    ['nexus who is your boyfriend', 'chat'], ['ich bin traurig, mein hund ist gestorben', 'support'], ['was ist 17 mal 23', 'maths'], ['wie viel kostet eine rtx 5070', 'search'], ['schreib mir ein python skript das eine liste sortiert', 'code'], ['zähl bis 5', 'chat'], ['Nexus, translate for a server member: Hello how are you? How can I help you.', 'helper'], ['nexus übersetze ins englische: guten morgen', 'helper'], ['nexus i want to apply for staff', 'helper'], ['nexus how do i timeout someone', 'helper'], ['can you translate the point (-4,7) along the vector (9,18)', 'maths'], ['Nexus, show me your stopki', 'chat'], ['send me your feet', 'chat'], ['show me your code', 'code'], ['give me tips on being nonchalant', 'question'], ['translate "hello" to french', 'helper'],
     ['summarise this: the cat sat on the mat', 'writing'], ['weather in montreal today', 'search'],
   ];
   for (const [m, want] of expect) check(`v2 rule: "${m.slice(0, 50)}" -> ${want}`, rule(m) === want, String(rule(m)));
@@ -847,6 +847,11 @@ async function runV2Checks() {
       ['i need a jacket recommendation', undefined], ['what is the meaning of rain man', undefined],
     ];
     for (const [m, city] of w) check(`weather: "${m}" -> ${city ?? 'not weather'}`, city === undefined ? detectWeatherIntent(m) === null : detectWeatherIntent(m)?.city === city, JSON.stringify(detectWeatherIntent(m)));
+  }
+  {
+    const { looksGerman } = await import('../src/ai-engine/localLlmClient');
+    check('German is detected (wie gehts, was geht digga, ich bin traurig, 17 mal 23, gute nacht)', ['hallo nexus, wie gehts?', 'was geht digga', 'ich bin traurig, mein hund ist gestorben', 'was ist 17 mal 23', 'gute nacht'].every((t) => looksGerman(t)));
+    check('English, French and Polish are never taken for German', ['hey nexus how are you', 'safe bro', 'na bro', 'lost in the sauce lol', 'salut nexus ça va?', 'cześć nexus, co tam?'].every((t) => !looksGerman(t)));
   }
   check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }

@@ -394,6 +394,47 @@ function stripSyntheticImageDescription(text: string): string {
     .trim();
 }
 
+// ---- German (added 2026-10-05 for a German server member) ----------------------------------------
+// Common German words that are NOT also English/French words ("was", "will", "die", "also", "in", "so", "man", "hat"
+// are left out on purpose), plus casual/Discord German. ä/ö/ü/ß count too.
+const GERMAN_SIGNAL_WORDS = new Set([
+  'ich', 'du', 'der', 'das', 'und', 'ist', 'nicht', 'ein', 'eine', 'einen', 'mit', 'auf', 'wie', 'bist', 'hast', 'habe',
+  'mir', 'mich', 'dich', 'dir', 'ja', 'nein', 'aber', 'oder', 'auch', 'noch', 'schon', 'jetzt', 'heute', 'morgen', 'gut',
+  'sehr', 'warum', 'wer', 'wo', 'wann', 'kann', 'kannst', 'willst', 'mal', 'doch', 'halt', 'eigentlich', 'digga', 'diggi',
+  'alter', 'bruder', 'krass', 'geil', 'scheiße', 'scheisse', 'verdammt', 'danke', 'bitte', 'hallo', 'servus', 'moin',
+  'tschüss', 'gute', 'guten', 'nacht', 'abend', 'tag', 'bis', 'später', 'tschüs', 'nix', 'nichts', 'keine', 'kein', 'mein', 'meine', 'dein', 'deine', 'wir', 'ihr', 'es', 'zu', 'von',
+  'für', 'über', 'gibt', 'geht', 'gehts', "geht's", 'machen', 'machst', 'sag', 'sagen', 'weiß', 'weiss', 'wieso',
+  'weshalb', 'welche', 'welcher', 'gerade', 'grad', 'echt', 'genau', 'vielleicht', 'immer', 'nie', 'viel', 'wenig',
+  'heißt', 'heisst', 'bin', 'sind', 'seid', 'wird', 'werden', 'würde', 'könnte', 'sollte', 'muss', 'musst', 'darf',
+  'kostet', 'wetter', 'regnet', 'schneit', 'spät', 'uhr', 'traurig', 'müde', 'schlafen', 'gestorben', 'übersetze',
+  'übersetz', 'übersetzen', 'erklär', 'erkläre', 'zeig', 'schreib', 'schreibe', 'hilf', 'hilfe', 'brauche', 'brauchst',
+  'ehrenmann', 'ehrenfrau', 'lauch', 'opfer', 'wallah', 'junge', 'jung', 'leute', 'kollege', 'ne', 'nee',
+  'nö', 'joa', 'richtig', 'voll', 'gönn', 'peinlich', 'witzig', 'lustig', 'liebe',
+  'hasse', 'magst', 'mag', 'gerne', 'gern', 'spielen', 'zocken', 'zockst', 'freund', 'freundin', 'schule', 'arbeit',
+]);
+
+export function scoreGermanSignal(rawText: string): { german: number; english: number; wordCount: number } {
+  const text = stripSyntheticImageDescription(rawText);
+  const words = text.toLowerCase().match(/[a-zäöüß]+(?:'[a-zäöüß]+)*/gi) || [];
+  let german = 0;
+  let english = 0;
+  for (const w of words) {
+    if (GERMAN_SIGNAL_WORDS.has(w) || /[äöüß]/.test(w)) german++;
+    if (ENGLISH_SIGNAL_WORDS.has(w)) english++;
+  }
+  return { german, english, wordCount: words.length };
+}
+
+// German when its signal beats English AND French AND Polish (so "bro", "safe", "lost" alone never flip an English
+// message, and French/Polish keep their own detection).
+export function looksGerman(text: string): boolean {
+  const g = scoreGermanSignal(text);
+  if (g.german < 1 || g.german <= g.english) return false;
+  if (scoreFrenchSignal(text).french >= g.german) return false;
+  if (scoreLanguageSignal(text).polish >= g.german) return false;
+  return true;
+}
+
 export function scoreFrenchSignal(rawText: string): { french: number; english: number; wordCount: number } {
   const text = stripSyntheticImageDescription(rawText);
   // Includes internal apostrophes as part of a word ("c'est", "don't") instead of stripping them
@@ -576,6 +617,8 @@ export interface OllamaGenerateOptions {
   // OLLAMA_MODEL comment above for why), just tells generate() which language to verify the
   // OUTPUT actually landed in (the wrong_language check below).
   preferPolish?: boolean;
+  // German reply expected: its language check counts German words, and the "English drifted into accents" guard is off.
+  preferGerman?: boolean;
   // Same idea as preferPolish, added alongside it for French support — a separate boolean rather
   // than widening preferPolish into an enum, so every existing call site (which only ever checks
   // `options.preferPolish`) keeps working unchanged; French-aware call sites set this one instead.
@@ -954,10 +997,13 @@ async function processRawGenerateOutput(
     // the French density calculation instead of mixing two disagreeing tokenizers.
     const signal = scoreLanguageSignal(text);
     const frenchSignal = options.preferFrench ? scoreFrenchSignal(text) : null;
-    const languageCheckWordCount = frenchSignal ? frenchSignal.wordCount : signal.wordCount;
+    const germanSignal = options.preferGerman ? scoreGermanSignal(text) : null;
+    const languageCheckWordCount = frenchSignal ? frenchSignal.wordCount : germanSignal ? germanSignal.wordCount : signal.wordCount;
     if (!options.skipLanguageCheck && languageCheckWordCount >= 8) {
       const density = options.preferPolish
         ? signal.polish / signal.wordCount
+        : germanSignal
+        ? germanSignal.german / germanSignal.wordCount
         : frenchSignal
         ? frenchSignal.french / frenchSignal.wordCount
         : signal.english / signal.wordCount;
@@ -1001,7 +1047,7 @@ async function processRawGenerateOutput(
     // drifting into an unrelated accented language, so it makes no sense applied to a genuinely
     // French response, which legitimately uses these characters constantly (a real French reply
     // easily clears the 3-smoking-gun/8-common-accent thresholds below on totally normal text).
-    if (!options.preferPolish && !options.preferFrench && signal.wordCount >= 8) {
+    if (!options.preferPolish && !options.preferFrench && !options.preferGerman && signal.wordCount >= 8) {
       // Split into two tiers rather than one flat count. "Smoking gun" characters (ą ć ę ł ń ś ź
       // ż from Polish, ă â î ș ț from Romanian) never appear in any common English loanword —
       // there's no legitimate reason even ONE of these shows up in a real English reply, so a

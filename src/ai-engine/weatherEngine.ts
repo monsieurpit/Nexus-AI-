@@ -167,7 +167,7 @@ export async function getWeather(lat: number, lon: number, locationLabel: string
 // --- Intent detection (regex, same style/discipline as the rest of this codebase's solvers) ---
 
 const WEATHER_REGEX =
-  /\b(?:will|gonna|going\s+to|is\s+it\s+(?:gonna|going\s+to))\s+(?:it\s+)?(?:rain|snow|storm|be\s+(?:sunny|cold|hot|warm|windy|nice))\b|\b(?:rain|snow|storm)\w*\s+(?:today|tonight|tomorrow|this\s+week(?:end)?|on\s+\w+day)\b|\b(?:do|should|will)\s+i\s+(?:need|bring|wear)\s+(?:a|an|my)\s+(?:jacket|coat|umbrella|hoodie|sweater)\b|\bweather\s+(?:tomorrow|tonight|this\s+week(?:end)?)\b|\bforecast\b|\b(?:il\s+va\s+(?:pleuvoir|neiger|faire\s+(?:beau|froid|chaud)))\b|\b(?:what'?s|whats|how'?s|hows)\s+the\s+weather\b|\bweather\s+(?:in|for|at|like)\b|\bweather\s+today\b|\bis\s+it\s+(?:raining|snowing|sunny|cold|hot|windy)\b|\bhow\s+(?:hot|cold)\s+is\s+it\b|\btemperature\s+(?:in|outside|today)\b|\bforecast\s+(?:for|in)\b|\bm[ée]t[ée]o\b|\bquel\s+temps\s+(?:fait[- ]il|il\s+fait)\b|\bfait[- ]il\s+(?:beau|froid|chaud)\b/i;
+  /\bwetter\b|\b(?:regnet|schneit|gewittert)\s+es\b|\bwird\s+es\s+(?:morgen\s+|heute\s+)?(?:regnen|schneien|warm|kalt|sonnig)\b|\bwie\s+(?:warm|kalt|heiß|heiss)\s+ist\s+es\b|\bbrauche?\s+ich\s+(?:eine?n?\s+)?(?:jacke|regenschirm)\b|\b(?:will|gonna|going\s+to|is\s+it\s+(?:gonna|going\s+to))\s+(?:it\s+)?(?:rain|snow|storm|be\s+(?:sunny|cold|hot|warm|windy|nice))\b|\b(?:rain|snow|storm)\w*\s+(?:today|tonight|tomorrow|this\s+week(?:end)?|on\s+\w+day)\b|\b(?:do|should|will)\s+i\s+(?:need|bring|wear)\s+(?:a|an|my)\s+(?:jacket|coat|umbrella|hoodie|sweater)\b|\bweather\s+(?:tomorrow|tonight|this\s+week(?:end)?)\b|\bforecast\b|\b(?:il\s+va\s+(?:pleuvoir|neiger|faire\s+(?:beau|froid|chaud)))\b|\b(?:what'?s|whats|how'?s|hows)\s+the\s+weather\b|\bweather\s+(?:in|for|at|like)\b|\bweather\s+today\b|\bis\s+it\s+(?:raining|snowing|sunny|cold|hot|windy)\b|\bhow\s+(?:hot|cold)\s+is\s+it\b|\btemperature\s+(?:in|outside|today)\b|\bforecast\s+(?:for|in)\b|\bm[ée]t[ée]o\b|\bquel\s+temps\s+(?:fait[- ]il|il\s+fait)\b|\bfait[- ]il\s+(?:beau|froid|chaud)\b/i;
 
 // Captures a trailing "in/for/at <city>" (EN) or "à/en/pour/dans <city>" (FR) — deliberately
 // conservative (stops at common sentence-ending punctuation/conjunctions) so it doesn't swallow
@@ -179,7 +179,7 @@ const WEATHER_CITY_REGEX =
   /(?:^|\s)(?:in|for|at|à|a|en|pour|dans)\s+([a-zà-ÿ][a-zà-ÿ\s'-]{1,40}?)(?:[?.!,]|$|\s+(?:today|right now|rn|tonight|tomorrow|là|maintenant|aujourd'hui|demain|ce\s+soir))/i;
 
 // Time words are never part of the city ("forecast for london this week" -> "london").
-const TIME_WORDS_RE = /\s+(?:today|tonight|tomorrow|this\s+week(?:end)?|next\s+week(?:end)?|on\s+\w+day|\w+day|rn|right\s+now|now|later|demain|ce\s+soir|aujourd'hui|cette\s+semaine|ce\s+week-?end)\b.*$/i;
+const TIME_WORDS_RE = /\s+(?:heute|morgen|übermorgen|jetzt|gerade|am\s+wochenende|diese\s+woche|today|tonight|tomorrow|this\s+week(?:end)?|next\s+week(?:end)?|on\s+\w+day|\w+day|rn|right\s+now|now|later|demain|ce\s+soir|aujourd'hui|cette\s+semaine|ce\s+week-?end)\b.*$/i;
 
 // Words people put after the city that are never part of it ("in Quebec city like right now", "in paris looking").
 const TRAILING_FILLER_RE = /\s+(?:like|looking|lookin|looks|lol|lmao|bro|bruh|mate|fam|gng|pls|please|outside|out|there|now|rn|atm|currently|tho|though|again|nexus|today|tonight|tomorrow)$/i;
@@ -201,7 +201,7 @@ export function detectWeatherIntent(prompt: string): { city: string | null } | n
 }
 
 const TIME_REGEX =
-  /\bwhat\s+time\s+is\s+it\b|\bwhat'?s\s+the\s+time\b|\bcurrent\s+time\b|\bquelle\s+heure\s+(?:est[- ]il|il\s+est|qu'il\s+est)\b|\bil\s+est\s+quelle\s+heure\b/i;
+  /\bwie\s+sp(?:ä|ae)t\s+ist\s+es\b|\bwieviel\s+uhr\s+ist\s+es\b|\bwhat\s+time\s+is\s+it\b|\bwhat'?s\s+the\s+time\b|\bcurrent\s+time\b|\bquelle\s+heure\s+(?:est[- ]il|il\s+est|qu'il\s+est)\b|\bil\s+est\s+quelle\s+heure\b/i;
 const TIME_CITY_REGEX = /(?:^|\s)(?:in|for|at|à|a|en|pour|dans)\s+([a-zà-ÿ][a-zà-ÿ\s'-]{1,40}?)(?:[?.!,]|$)/i;
 
 export function detectTimeIntent(prompt: string): { city: string | null } | null {

@@ -1328,6 +1328,7 @@ app.post('/api/v1/nexus', async (req, res) => {
     // Specialist router (v2) vs the old path (v1); the test bank (scripts/eval/run.ts) compares both on the live engine.
     routerVersion: requestedRouterVersion,
     evalRun: requestedEvalRun,
+    serverContext: requestedServerContext,
     // The website's own settings (persona choice, reasoning mode, temperature, everything the
     // customizer modal lets a user configure) — sent as one opaque blob rather than threading
     // every individual field through this handler's destructuring one at a time. Only ever sent
@@ -1534,6 +1535,7 @@ app.post('/api/v1/nexus', async (req, res) => {
             showThinking: false,
             routerVersion,
             evalRun: requestedEvalRun === true,
+            serverContext: requestedServerContext && typeof requestedServerContext === 'object' ? requestedServerContext : null,
           };
 
       // Real image understanding, not a fake header on top of a blind text-only response — this

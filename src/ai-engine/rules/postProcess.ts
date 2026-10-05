@@ -654,7 +654,7 @@ export function toShoutCase(text: string): string {
 //   list   -> keeps line breaks (parts lists, poems, drafts to friends)
 //   code   -> code blocks untouched, only the text around them is cleaned
 //   formal -> a draft to send: swearing scrubbed, no abbreviations
-export function finalizeSpecialistReply(text: string, kind: 'chat' | 'answer' | 'code' | 'list' | 'formal', userPrompt: string, lang: 'en' | 'fr' | 'pl' = 'en'): string {
+export function finalizeSpecialistReply(text: string, kind: 'chat' | 'answer' | 'code' | 'list' | 'formal', userPrompt: string, lang: 'en' | 'fr' | 'pl' | 'de' = 'en'): string {
   // English chat abbreviations ("rn", "u") only make sense in English.
   const abbr = (x: string) => (lang === 'en' ? abbreviateChat(x) : x);
   const clean = (part: string): string => {

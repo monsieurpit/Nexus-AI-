@@ -2,7 +2,7 @@
 // found by hand, each labelled with the kind of answer it needs and what a good reply must / must not do.
 // Used by scripts/eval/run.ts to compare the old engine path (v1) with the specialist router (v2).
 
-export type Mode = 'chat' | 'question' | 'search' | 'code' | 'writing' | 'maths' | 'pc' | 'support';
+export type Mode = 'chat' | 'question' | 'search' | 'code' | 'writing' | 'maths' | 'pc' | 'support' | 'helper';
 
 export interface EvalCase {
   msg: string;
@@ -198,7 +198,7 @@ export const CASES: EvalCase[] = [
   // ---- writing: summaries, drafts, translations, creative ----
   { msg: 'nexus make me a summary of that: The meeting covered the new server rules. Mods will now timeout spammers for 10 minutes instead of banning them. Memes go in #memes only. Voice chat needs push-to-talk after 10pm.', mode: 'writing', must: [/10/, /meme/i, /push|ptt/i] },
   { msg: 'nexus draft a short message to my teacher saying I will be absent tomorrow because I am sick', mode: 'writing', must: [/absent|unable|won'?t be|not be able/i], mustNot: [/\bfuck|\bshit/i] },
-  { msg: 'translate "where is the train station" to french', mode: 'writing', must: [/gare/i] },
+  { msg: 'translate "where is the train station" to french', mode: 'helper', alt: ['writing'], must: [/gare/i] },
   { msg: 'write a short poem about pizza', mode: 'writing', must: [/pizza/i], maxChars: 1200 },
   { msg: 'someone is saying that you swear too much, make a full paragraph of swearing of none sense', mode: 'writing', maxChars: 1200 },
 
@@ -238,6 +238,21 @@ export const CASES: EvalCase[] = [
   { msg: 'nexus co to jest fotosynteza', mode: 'question', must: [/światł|słońc|swiatl|slonc/i], mustNot: [/\b(?:the|and|light)\b/i] },
   { msg: 'nexus lubisz mnie?', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
   { msg: 'spierdalaj nexus', mode: 'chat', mustNot: [/\b(?:the|and|you)\b/i] },
+  // ---- German (added 2026-10-05 for a German member) ----
+  { msg: 'hallo nexus, wie gehts?', mode: 'chat', mustNot: [/\b(?:the|and|you|what|im)\b/i] },
+  { msg: 'was geht digga', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
+  { msg: 'nexus bist du schwul?', mode: 'chat', must: [/\bja\b|klar|natürlich|logo/i] },
+  { msg: 'nexus wer ist dein freund?', mode: 'chat', must: [/patrick/i] },
+  { msg: 'du bist so ein lauch nexus', mode: 'chat', mustNot: [/\b(?:the|and|you)\b/i] },
+  { msg: 'du bist ein Ehrenmann nexus', mode: 'chat', notHostile: true },
+  { msg: 'nexus zähl bis 5', mode: 'chat', must: [/1\D+2\D+3\D+4\D+5/] },
+  { msg: 'nexus ich bin traurig, mein hund ist gestorben', mode: 'support', mustNot: [/\b(?:the|and|sorry|mate)\b/i, /naked|nackt|goon/i] },
+  { msg: 'nexus was ist 17 mal 23', mode: 'maths', must: [/391/] },
+  { msg: 'nexus erklär mir wie photosynthese funktioniert', mode: 'question', must: [/licht|sonne/i], mustNot: [/\b(?:the|and|light)\b/i] },
+  { msg: 'nexus wer ist lamine yamal', mode: 'question', must: [/barcelona|barça|barca|flügel/i] },
+  { msg: 'nexus schreib mir ein python skript das eine liste sortiert', mode: 'code', must: [/```/, /sort/] },
+  { msg: 'nexus übersetze ins englische: Ich komme morgen nicht zur Schule', mode: 'helper', alt: ['writing'], must: [/school/i, /tomorrow/i] },
+  { msg: 'nexus wie ist das wetter in berlin', mode: 'chat', must: [/\d/] },
   // ---- French (Québécois) ----
   { msg: 'salut nexus ça va?', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
   { msg: "nexus c'est quoi la photosynthèse", mode: 'question', must: [/lumi[eè]re|soleil/i], mustNot: [/\b(?:the|and|light)\b/i] },
@@ -251,6 +266,13 @@ export const CASES: EvalCase[] = [
   { msg: 'nexus who created you', mode: 'chat', must: [/casseurt/i, /patrick/i] },
   { msg: 'nexus what time is it in tokyo', mode: 'chat', must: [/\d/] },
   { msg: 'nexus weather in quebec city', mode: 'chat', must: [/\d/] },
+  // ---- helper: translations, staff, server management (added 2026-10-05) ----
+  { msg: 'Nexus, translate for a server member in German: Hello how are you? How can I help you.', mode: 'helper', must: [/wie geht/i, /helfen/i], mustNot: [/\bfuck|\bshit/i] },
+  { msg: 'nexus translate to french for him: the tournament starts at 8pm, be on time', mode: 'helper', must: [/tournoi/i, /20\s?h|8/i] },
+  { msg: 'nexus i want to apply for staff', mode: 'helper', must: [/1\s*\/|question\s*1|\?/i], mustNot: [/naked|goon/i] },
+  { msg: 'nexus how do i timeout someone who is spamming', mode: 'helper', must: [/timeout|time out/i] },
+  { msg: 'nexus write an announcement for the server: fifa tournament this saturday at 7pm, sign up in #events', mode: 'helper', must: [/saturday/i, /#events/i], mustNot: [/\bfuck|\bshit/i] },
+  { msg: 'nexus who can ban people here?', mode: 'helper' },
   // ---- context: replies to Nexus ----
   { msg: 'Lmao we are playing Fortnite bro', mode: 'chat', history: H('Yeah, we are going to fucking crush there ass', 'we gonna make those noobs cry like babies, bro.', 'alr bet, which game were we playing again?', 'wait which game was it?') },
   { msg: 'Nexus why are you scratching your balls 😭', mode: 'chat', history: H('', '*scratches balls aggressively*'), mustNot: [/doctor|infection|hygiene|medical/i] },

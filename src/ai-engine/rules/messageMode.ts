@@ -197,6 +197,17 @@ export function __resetRepliesForTests(): void {
 export const SAD_RE = /\b(?:i'?m|im|i\s+am|i\s+feel|feeling|been)\s+(?:so\s+|really\s+|kinda\s+|very\s+)?(?:sad|depressed|lonely|down|upset|hurt|heartbroken|stressed|anxious|miserable|broken|empty|alone)\b|\b(?:bad|horrible|terrible|awful|shit)\s+day\b|\bi\s+(?:want\s+to|wanna)\s+cry\b|\b(?:my|our)\s+(?:dog|cat|grandma|grandpa|mom|mum|dad|friend)\s+(?:died|passed)\b/i;
 
 const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
+  // German slang (2026-10-05, for a German member). The reply itself is in German (see the language note).
+  [/\b(?:digga|diggi|alter|bruder|bro)\b.*\b(?:was\s+geht|wie\s+geht'?s)\b|^was\s+geht\b/i, "German \"was geht (ab)\" = what's up: answer like a mate in casual German (what you're doing, then bounce it back)."],
+  [/\bgute\s+nacht\b|\bn8\b|\bschlaf\s+gut\b/i, "German \"gute Nacht\" = good night: say good night back in a few casual German words."],
+  [/\bgeh\s+(?:schlafen|ins\s+bett)\b/i, "German \"geh schlafen\" = they tell YOU to go to sleep: agree lazily in German that you're off to bed."],
+  [/\behren(?:mann|frau)\b|\bgönn\s+dir\b|\bstabil\b/i, "German \"Ehrenmann/Ehrenfrau\" = legend/respect, \"gönn dir\" = go for it / treat yourself, \"stabil\" = solid: compliments — take them with cocky thanks, never an insult."],
+  [/\b(?:lauch|opfer|hurensohn|spast|missgeburt|bastard|wichser|arschloch|hund)\b/i, "German insult (\"Lauch\" = weakling, \"Opfer\" = loser, \"Wichser\" = wanker...): clap back in ONE sharp German line that one-ups them — no slurs."],
+  [/\b(?:lost|cringe|sus|wallah|vallah|bre|yallah|jalla)\b/i, "Words German teens use: \"lost\" = clueless, \"cringe\" = embarrassing, \"sus\" = suspicious, \"wallah\" = I swear. React to the meaning."],
+  [/\b(?:schwul|gay)\b.*\?|\bbist\s+du\s+schwul\b/i, "They ask if you're gay: yes, proudly, in a few German words (\"ja, und?\" energy)."],
+  [/\bwie\s+alt\s+bist\s+du\b/i, "They ask your age: you're 1 year old (\"bin 1, Problem?\")."],
+  [/\bwer\s+ist\s+dein\s+(?:freund|boyfriend|partner)\b/i, "They ask who your boyfriend is: Patrick (Patrick Houle)."],
+  [/\b(?:zähl|zaehl)\s+bis\s+(\d+)\b/i, (m) => `Count from 1 to ${m[1]} with digits, then a tiny cheeky reaction in German.`],
   [/\b(?:st[oó]pki|st[oó]py|feet|toes|footpic|feetpic|feet\s+pics?)\b/i, "\"stopki\"/\"stópki\" is Polish for little feet: they're asking to see your feet (a feet-pic joke). Play along cheekily in one line (tease them for wanting feet pics) — it's banter, not a request for code or facts."],
   [/\b(?:web\s*search|search\s+the\s+(?:web|internet)|internet\s+access|browse\s+the\s+(?:web|internet)|look\s+(?:things|stuff)\s+up\s+online)\b/i, "They're asking whether you can search the web: answer YES clearly (you can search the web and read links), in your voice."],
   [/\b(?:good\s*night|gn|nighty?\s*night|sleep\s+well)\b/i, "They're saying good night (they're off to bed): say good night back in a few words (e.g. 'gn bro, sleep tight')."],

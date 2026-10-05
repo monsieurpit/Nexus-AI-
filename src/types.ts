@@ -73,6 +73,17 @@ export interface AISettings {
   routerVersion?: 'v1' | 'v2';
   // Test-bank request (scripts/eval): never changes Nexus's shared mood and is never learned from.
   evalRun?: boolean;
+  // Discord server context from the bot (server name, asker's roles/staff permissions, staff role ladder) — for the
+  // helper specialist.
+  serverContext?: {
+    serverName?: string;
+    memberCount?: number | null;
+    channel?: string | null;
+    askerIsOwner?: boolean;
+    askerRoles?: string[];
+    askerStaffPermissions?: string[];
+    staffRoles?: Array<{ name: string; members?: number | null; permissions?: string[] }>;
+  } | null;
 }
 
 export interface WebSearchResult {

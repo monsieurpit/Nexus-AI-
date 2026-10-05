@@ -21,8 +21,8 @@ const out = arg('out') || `/tmp/nexus-eval-${router}.json`;
 const runSeq = !args.includes('--no-seq');
 const idBase = router === 'v1' ? 740000000000000000 : 750000000000000000;
 
-const MODE_MAX: Record<Mode, number> = { chat: 220, question: 750, search: 750, code: 4000, writing: 1500, maths: 600, pc: 2000, support: 450 };
-const MODE_MIN: Record<Mode, number> = { chat: 1, question: 40, search: 40, code: 60, writing: 10, maths: 1, pc: 120, support: 20 };
+const MODE_MAX: Record<Mode, number> = { helper: 1500, chat: 220, question: 750, search: 750, code: 4000, writing: 1500, maths: 600, pc: 2000, support: 450 };
+const MODE_MIN: Record<Mode, number> = { helper: 10, chat: 1, question: 40, search: 40, code: 60, writing: 10, maths: 1, pc: 120, support: 20 };
 
 // Universal problems, any mode.
 const STOCK = /don'?t (?:actually )?know that one|don'?t quote me|\bhell yeah\b|\bbuzzing\b|gonna be (?:epic|a banger|a (?:fucking )?fun)|local engine|custom engine|piece of shit code|\bi'?m (?:just )?(?:a |some )?(?:bot|code|software|program|toaster)\b|wait what 😭$|my brain just blue-screened|calculator just died/i;

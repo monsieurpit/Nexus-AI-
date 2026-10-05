@@ -46,10 +46,26 @@ const VECTOR_RE = /\b(?:translate|move|shift)\s+(?:the\s+)?point\b|\bvector\s*\(
 const PC_PART_RE = /\b(?:gpu|cpu|graphics\s+card|motherboard|mobo|psu|power\s+supply|ssd|nvme|ddr[45]|ram\s+(?:sticks?|kit)|sticks?\s+of\s+(?:ram|ddr)|rtx\s?\d{3,4}|gtx\s?\d{3,4}|rx\s?\d{4}|ryzen|core\s+ultra|i[579]-?\d{4,5}|x3d|prebuilt|gaming\s+pc|pc\s+build|aio|cpu\s+cooler|pc\s+case|monitor|1440p|4k\s+gaming|1080p)\b/i;
 const PC_ASK_RE = /\b(?:should\s+i\s+(?:get|buy|pick|go\s+with)|what\s+(?:gpu|cpu|ram|psu|motherboard|ssd|monitor|cooler|case|parts?)|which\s+(?:gpu|cpu|ram|psu|motherboard|ssd|monitor)|is\s+(?:a|an|the|this|my)?\s*\S+(?:\s+\S+)?\s+(?:good|enough|worth)|upgrade|bottleneck|compatible|fit|for\s+(?:gaming|fortnite|valorant|1440p|1080p|4k)|i'?m\s+getting|getting\s+\d|(?:my|a)\s+(?:build|setup|rig))\b/i;
 
+// German (2026-10-05, for a German server member): the same kinds of rules in German.
+// Helper requests (translations, staff, moderation, server management). Checked before the code/writing rules.
+const HELPER_RE = /(?<![a-zà-ÿäöüß])(?:translate|translation|traduis|traduire|traduction|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)(?![a-zäöüß])|\b(?:tell|say\s+to)\s+(?:him|her|them|the\s+member)\s+in\s+[a-z]+\b|\bwhat\s+did\s+(?:he|she|they)\s+(?:just\s+)?say\b|\b(?:apply|application|applying)\s+(?:for|to\s+be(?:come)?)\s+(?:staff|mod|moderator|admin|helper)\b|\b(?:staff|mod|moderator)\s+application\b|\b(?:can\s+i\s+be|become|be)\s+(?:a\s+)?(?:staff|mod|moderator|admin)\b|\binterview\s+me\b|\b(?:how\s+(?:do|can|should)\s+i|how\s+to)\s+(?:ban|kick|timeout|time\s+out|mute|warn|unban|purge|set\s+up\s+automod|give\s+(?:someone|a\s+member|him|her)\s+(?:a\s+)?role|make\s+(?:a\s+)?role)\b|\b(?:who\s+can|who\s+is\s+allowed\s+to)\s+(?:ban|kick|timeout|mute|manage)\b|\b(?:staff|mod)\s+(?:roles?|team|hierarchy|ranks?)\b|\b(?:highest|top)\s+(?:staff|role|rank)\b|\b(?:server|discord)\s+(?:rules|announcement|event)\b|\b(?:write|make|draft)\s+(?:an?\s+)?(?:announcement|welcome\s+message|warning\s+for|server\s+rules|rules\s+for\s+the\s+server)\b|\b(?:raid|spammer|spamming)\b.*\b(?:what\s+(?:do|should)\s+(?:i|we)|help)\b|\bsumm?ari[sz]e\s+(?:the\s+)?(?:chat|discussion|conversation|argument|drama|what\s+happened)\b/i;
+
+const DE_SAD_RE = /\b(?:ich\s+bin|mir\s+geht'?s|ich\s+f(?:ü|ue)hl\w*(?:\s+mich)?)\s+(?:so\s+|echt\s+|voll\s+|richtig\s+|grad\s+)?(?:traurig|einsam|schlecht|scheiße|scheisse|depressiv|gestresst|am\s+ende|kaputt)\b|\b(?:mein|meine)\s+\w+\s+(?:ist\s+)?(?:gestorben|tot)\b|\bich\s+will\s+nicht\s+mehr\b/i;
+const DE_MATH_RE = /\d\s*(?:mal|geteilt\s+durch|durch|hoch|plus|minus)\s*\d|\b(?:wurzel\s+aus|prozent\s+von|rechne|berechne)\b/i;
+const DE_PRICE_RE = /\b(?:wie\s*viel\s+kostet|was\s+kostet|wie\s+teuer\s+(?:ist|sind)|preis\s+(?:von|für|fuer|einer?|eines?))\b/i;
+const DE_CODE_RE = /\b(?:schreib|programmier|code|mach|erstell|bau)\w*\b[^?!.]{0,40}\b(?:code|skript|script|programm|funktion|bot|website|webseite|app)\b|\bwas\s+ist\s+falsch\s+(?:an|mit)\s+(?:meinem|diesem)\s+code\b/i;
+const DE_QUESTION_RE = /^(?:wer\s+(?:ist|war|sind)\s+\S|was\s+(?:ist|sind|bedeutet|heißt|heisst)\s+(?:ein|eine|der|die|das)?\s*\S|wie\s+funktionier\w*|erklär\w*\s+(?:mir\s+)?\S|warum\s+\S|wieso\s+\S|gib\s+mir\s+(?:ein\s+paar\s+)?tipps)/i;
+const DE_CHAT_RE = /^(?:zähl|zaehl)\s+bis\s+\d+|^sag\s+\S|^geh\s+(?:schlafen|ins\s+bett|in\s+deine\s+ecke)|^gute\s+nacht|^(?:wirf|wirfst)\s+(?:eine\s+)?münze|^würfel|^(?:bist|hast|magst|liebst|kannst|willst)\s+du\b|^wie\s+alt\s+bist\s+du|^wer\s+(?:ist\s+dein|bist\s+du|hat\s+dich)|^was\s+(?:geht|machst\s+du)|^wie\s+geht'?s/i;
+
 function byRules(text: string): Route | null {
   const t = text;
   const r = (mode: SpecialistId, reason: string): Route => ({ mode, by: 'rule', reason, confidence: 1 });
-  if (detectEmotionalDistress(t) || SAD_RE.test(t)) return r('support', 'sad / stressed');
+  if (detectEmotionalDistress(t) || SAD_RE.test(t) || DE_SAD_RE.test(t)) return r('support', 'sad / stressed');
+  if (HELPER_RE.test(t) && !/^(?:can\s+you\s+)?translate\s+(?:the\s+)?point\b/i.test(t)) return r('helper', 'translation / staff / server management');
+  if (DE_CHAT_RE.test(t)) return r('chat', 'German chat / command / about nexus');
+  if (DE_CODE_RE.test(t)) return r('code', 'German code request');
+  if (DE_PRICE_RE.test(t)) return r('search', 'German price question');
+  if (DE_MATH_RE.test(t)) return r('maths', 'German maths');
   if (CHAT_COMMAND_RE.test(t)) return r('chat', 'command to nexus');
   // "show me your feet / dih / stopki" — about Nexus himself, never code (2026-10-05: "show me your stopki" got a Python script).
   if (/^(?:(?:can|could|will)\s+(?:you|u)\s+)?(?:show|send|give)\s+(?:me\s+)?(?:your|ur|yo)\s+(?!code\b|script\b|source\b)\S/i.test(t)) return r('chat', 'about nexus himself');
@@ -64,7 +80,7 @@ function byRules(text: string): Route | null {
   if (pcBuild) return r('pc', 'pc build / parts');
   if (isPriceQuestion(t) || LIVE_RE.test(t)) return r('search', 'live info / price');
   if (task) return r('writing', `${task} request`);
-  if (ADVICE_RE.test(t)) return r('question', 'advice / tips');
+  if (ADVICE_RE.test(t) || DE_QUESTION_RE.test(t)) return r('question', 'advice / tips / German question');
   if (ABOUT_RE.test(t) && !/\b(?:you|u|ur|your|yourself|nexus|casseurt)\b/i.test(t)) return r('question', 'who / about / describe');
   if (isWordProblem(t) || (isBodyCountQuestion(t) && /\d|\b(?:one|two|three|four|five|six|seven|eight|nine|ten)\b/i.test(t)) || ARITHMETIC_RE.test(t)) return r('maths', 'maths');
   if (SELF_Q_RE.test(t) && t.split(/\s+/).length <= 9 && !/\b(?:how\s+(?:do|does|can|to)\s+(?:you|u|i|we|one)\s+(?!feel|think|like|know|mean)\w+|explain|tell\s+me\s+(?:about|how|why))\b/i.test(t)) return r('chat', 'question about nexus');
@@ -133,6 +149,15 @@ const EXAMPLES: Record<SpecialistId, string[]> = {
     'is 16gb ram enough', 'recommend me a gaming monitor', 'amd or intel', 'what case fits a big gpu', 'how do i build a pc',
     'should i get a prebuilt', 'best pc for fortnite', 'is my cpu bottlenecking my gpu', 'what ssd should i get', 'liquid cooling or air',
     'i have 1500 dollars for a pc', 'is the 9070 xt better than the 5070', 'nvme vs sata',
+  ],
+  helper: [
+    'translate this for him', 'how do i say this in spanish to a member', 'tell her in german that the event starts at 8', 'what did he just say',
+    'i want to apply for staff', 'can i be a mod', 'interview me for staff', 'how do i become a moderator here', 'who is the highest staff',
+    'who can ban people here', 'what role do i need to manage channels', 'how do i timeout someone', 'someone is spamming what do i do',
+    'there is a raid what should we do', 'write an announcement for the server', 'make server rules', 'write a welcome message',
+    'summarize what happened in chat', 'summarise the argument above', 'how do i set up automod', 'how do i give someone a role',
+    'should i ban him or just warn him', 'write a warning for a member', 'plan a server event', 'who should i ask about this',
+    'übersetze das für ihn', 'traduis ça pour lui', 'what are the staff roles here', 'how do permissions work for my role',
   ],
   support: [
     'she is mad at me and idk what to do', 'my friends left me out', 'i feel like a failure',

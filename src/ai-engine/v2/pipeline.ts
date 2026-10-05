@@ -14,7 +14,7 @@ import { containsSlurOrHateSpeech } from '../swearEngine';
 import { CANADIAN_RETAIL_DOMAINS, expandStickCounts, getPriceNote, isPriceQuestion } from '../priceTracker';
 import { searchTavilyDirect } from '../tavilySearch';
 import { trySolveMath } from '../mathSolver';
-import { fxNote, getUsdToCad } from '../fx';
+import { fxNote, fxNoteEur, getUsdToCad } from '../fx';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
 // Helpers that live inside reasoningEngine.ts (they use its private state), handed in by the caller.
@@ -38,13 +38,14 @@ export interface V2Result {
 // ---- languages and images ---------------------------------------------------------------------------
 // French (Québécois) and Polish go through the same specialists: the instructions stay in English (stable prompt cache),
 // and a short note in THEIR language at the end of the message — the strongest slot for a small model — sets the language.
-export type Lang = 'en' | 'fr' | 'pl';
+export type Lang = 'en' | 'fr' | 'pl' | 'de';
 export function langOf(text: string): Lang {
-  return localLlmClient.looksPolish(text) ? 'pl' : localLlmClient.looksFrench(text) ? 'fr' : 'en';
+  return localLlmClient.looksPolish(text) ? 'pl' : localLlmClient.looksGerman(text) ? 'de' : localLlmClient.looksFrench(text) ? 'fr' : 'en';
 }
 export const LANG_NOTE: Record<Lang, string> = {
   en: '',
   fr: "\n\n(LANGUE : réponds UNIQUEMENT en français québécois (joual), comme un jeune de Québec sur Discord — pas en anglais, pas en français de France. Sacre naturellement DANS tes phrases (tabarnak, câlisse, ostie, criss, calvaire), jamais putain/merde/bordel/con, et jamais une rafale de sacres au début. Même longueur et mêmes règles que plus haut. N'invente pas de mots.)",
+  de: '\n\n(SPRACHE: Antworte NUR auf Deutsch — lockeres, modernes Deutsch wie ein Jugendlicher auf Discord: du (nie Sie, außer in einem formellen Entwurf), Umgangssprache und Jugendsprache wo es passt (Digga, Alter, Bruder, krass, safe, lost, Ehrenmann, cringe, wallah). Fluche natürlich IM Satz (Scheiße, verdammt, verfickt, Arschloch, Fick dich bei Beleidigungen) — nie eine Fluchkette am Anfang, keine Beleidigungen gegen Gruppen. Richtige Grammatik, Fälle und Endungen, keine erfundenen Wörter, kein Englisch dazwischen außer üblichen Anglizismen — vor allem KEIN britischer Slang (knackered, bruv, mate, innit, bloody, wanker) und kein Französisch, das ist nur für andere Sprachen; auf Deutsch heißt das: müde/platt, Digga/Bruder/Alter, oder?, verdammt, Wichser. Gleiche Länge und Regeln wie oben; Fakten, Code und Zahlen genauso genau.)',
   pl: '\n\n(JĘZYK: odpowiadaj WYŁĄCZNIE po polsku, naturalnie i poprawnie — pilnuj końcówek, nie wymyślaj słów. Przeklinaj naturalnie w środku zdań (kurwa, chuj, cholera, pierdolić), nigdy serią na początku. Ta sama długość i zasady co wyżej.)',
 };
 
@@ -83,6 +84,16 @@ export function sayRequest(prompt: string): string | null {
 }
 
 // Patrick (2026-10-05): emojis on most lines are good ("the first try was good with the emojis"), but never 💅.
+// A translation is copy-paste ready: an intro the model adds anyway ("damn, here's the goddamn translation:",
+// "the translation for "X" is:") and the quotes around the result are cut.
+export function cleanTranslation(reply: string): string {
+  let t = reply.trim();
+  const intro = t.match(/^[\s\S]{0,240}?(?:translat\w*|übersetzung|traduction|tłumaczenie|here\s+(?:it\s+is|u\s+go|you\s+go)|voici|hier\s+ist)[^:\n]{0,120}:\s*/i);
+  if (intro && intro[0].length < t.length - 2) t = t.slice(intro[0].length);
+  t = t.replace(/^["“„«']\s*|\s*["”“»']\s*$/g, '').trim();
+  return t || reply.trim();
+}
+
 // Patrick (2026-10-05): "I don't like how he says something after (he puts things like these around the rest of his
 // message)" -> a chat reply never ends with a bracketed add-on; the joke belongs in the reply itself.
 export function dropTrailingAside(reply: string): string {
@@ -143,7 +154,7 @@ function openersNote(recent: string[]): string {
 
 // ---- what each specialist gets ------------------------------------------------------------------
 
-async function buildSearchContext(prompt: string): Promise<{ block: string; sources: string[]; searchedFor: string; count: number }> {
+async function buildSearchContext(prompt: string, lang: Lang = 'en'): Promise<{ block: string; sources: string[]; searchedFor: string; count: number }> {
   const price = isPriceQuestion(prompt);
   let q = expandStickCounts(said(prompt))
     .replace(/\b(?:can|could|would)\s+(?:you|u)\s+/gi, '')
@@ -168,7 +179,7 @@ async function buildSearchContext(prompt: string): Promise<{ block: string; sour
     `You just searched the web for "${q}".\n` +
     (results.length ? `LIVE RESULTS:\n${results.map((r, i) => `${i + 1}) ${r.title} — ${r.domain}: ${r.snippet.slice(0, 350)}`).join('\n')}` : 'The live search returned nothing right now.') +
     (priceNote ? `\n${priceNote}` : '') +
-    `\n${fxNote(await getUsdToCad())}`;
+    `\n${lang === 'de' ? fxNoteEur(await getUsdToCad()) : fxNote(await getUsdToCad())}`;
   return { block, sources: results.slice(0, 3).map((r) => `Web: ${r.title}`), searchedFor: q, count: results.length };
 }
 
@@ -183,7 +194,19 @@ function mathsFacts(prompt: string): string {
   return '';
 }
 
-async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, thoughtSteps: ThoughtStep[]): Promise<{ text: string; sources: string[] }> {
+// The server context the bot sends (server name, the asker's roles/permissions, staff ladder) as plain lines.
+export function serverContextBlock(ctx: AISettings['serverContext']): string {
+  if (!ctx || !ctx.serverName) return 'SERVER CONTEXT: not available for this message. Only if they ask about THIS server\'s roles, rules or who can do what: give the usual Discord setup and add that the owner/admins can confirm. Otherwise don\'t mention it.\n';
+  const ladder = (ctx.staffRoles || []).map((r, i) => `${i + 1}. ${r.name}${typeof r.members === 'number' ? ` (${r.members} member${r.members === 1 ? '' : 's'})` : ''}${r.permissions?.length ? ` — can: ${r.permissions.join(', ')}` : ''}`).join('\n');
+  return `SERVER CONTEXT (real, use it):\nServer: ${ctx.serverName}${ctx.memberCount ? ` (${ctx.memberCount} members)` : ''}${ctx.channel ? `, channel #${ctx.channel}` : ''}.\nThe person asking: ${ctx.askerIsOwner ? 'the SERVER OWNER; ' : ''}roles ${ctx.askerRoles?.length ? ctx.askerRoles.join(', ') : 'none'}; staff permissions: ${ctx.askerStaffPermissions?.length ? ctx.askerStaffPermissions.join(', ') : 'none (a regular member)'}.\nStaff ladder (highest first):\n${ladder || '(no roles with moderation permissions found)'}\n`;
+}
+
+// Someone who was talking to the helper (a staff application, a moderation question) and is replying to Nexus keeps
+// the helper, even for a short answer like "17" or "EST" (it would otherwise go to chat).
+const lastRoute = new Map<string, { mode: SpecialistId; at: number }>();
+const HELPER_STICKY_MS = 20 * 60_000;
+
+async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, thoughtSteps: ThoughtStep[], lang: Lang = 'en', settings?: AISettings): Promise<{ text: string; sources: string[] }> {
   const s = said(prompt);
   const thread = deps.threadText ? `The chat so far (oldest first; "You" = you):\n${deps.threadText}\n\n` : '';
   const facts = deps.factsNote ? `${deps.factsNote}\n` : '';
@@ -218,7 +241,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       return { text: `${thread}${factBlock}${nowLine()}\n\nTheir question: "${s}"\nYour answer:`, sources };
     }
     case 'search': {
-      const ctx = await buildSearchContext(prompt);
+      const ctx = await buildSearchContext(prompt, lang);
       thoughtSteps.push({ id: 'step-live-search', type: 'web_search', title: `🌐 Live web search: "${ctx.searchedFor}"`, description: `${ctx.count} result(s).` });
       return { text: `${thread}${ctx.block}\n\n${nowLine()}\n\nThey asked: "${s}"\nYour answer:`, sources: ctx.sources };
     }
@@ -240,7 +263,25 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const wantsBuild = /\b(?:build|parts?\s+list|budget|rig|setup|infinite|unlimited|money\s+is\s+no|dream|best\s+(?:gaming\s+)?pc)\b/i.test(all);
       const priceNote = getPriceNote(all, { core: wantsBuild });
       return {
-        text: `${thread}${facts}PC FACTS (correct and current as of Oct 2026, they win over your memory):\n${deps.pcFacts(all, wantsBuild)}\n${priceNote ? `${priceNote}\n` : ''}${fxNote(await getUsdToCad())}\n${deps.budgetNote(all)}\n\nThey said: "${s}"\nYour answer:`,
+        text: `${thread}${facts}PC FACTS (correct and current as of Oct 2026, they win over your memory):\n${deps.pcFacts(all, wantsBuild)}\n${priceNote ? `${priceNote}\n` : ''}${lang === 'de' ? fxNoteEur(await getUsdToCad()) : fxNote(await getUsdToCad())}\n${deps.budgetNote(all)}\n\nThey said: "${s}"\nYour answer:`,
+        sources: [],
+      };
+    }
+    case 'helper': {
+      // Where a staff interview is: the highest "Question N/M" in his recent replies to this person (the chat
+      // thread only holds the last 3 exchanges, so he once asked question 3 again after question 4).
+      let progress = '';
+      const asked = deps.recentLines.flatMap((l) => [...l.matchAll(/question\s+(\d+)\s*\/\s*(\d+)/gi)].map((m) => [Number(m[1]), Number(m[2])] as const));
+      // Only mid-interview: his LAST reply to them asked a numbered question (after the summary it's over).
+      const lastAskedQuestion = /question\s+\d+\s*\/\s*\d+/i.test(deps.recentLines[deps.recentLines.length - 1] || '');
+      if (asked.length && deps.threadText && lastAskedQuestion) {
+        const [n, total] = asked.reduce((a, b) => (b[0] > a[0] ? b : a));
+        progress = n >= total
+          ? `INTERVIEW STATUS: you already asked all ${total} questions — now give the final summary of their answers (strengths, concerns) and say the admins/owner decide. Don't ask more questions.\n`
+          : `INTERVIEW STATUS: you already asked up to Question ${n}/${total}. Their message answers it — acknowledge it in a few words, then ask Question ${n + 1}/${total} (a NEW question, never one you already asked).\n`;
+      }
+      return {
+        text: `${progress}${serverContextBlock(settings?.serverContext ?? null)}\n${deps.threadText ? `The conversation so far (oldest first; "You" = you — use it to know where you are, e.g. which application question is next):\n${deps.threadText}\n\n` : ''}${facts}${nowLine()}\n\nTheir message: "${prompt.slice(0, 3000)}"\nYour reply:`,
         sources: [],
       };
     }
@@ -261,6 +302,7 @@ async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en
     temperature: lang === 'en' ? spec.temperature : Math.min(spec.temperature, 0.6),
     preferFrench: lang === 'fr',
     preferPolish: lang === 'pl',
+    preferGerman: lang === 'de',
     maxTokens: spec.maxTokens + (spec.think ? (spec.id === 'maths' ? 1400 : 800) : 0),
     think: spec.think,
     model: localLlmClient.chatModel(),
@@ -291,14 +333,27 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const { text, image } = splitImage(rawPrompt);
   const prompt = text || (image ? 'look at this' : rawPrompt);
   const lang = langOf(text || rawPrompt);
-  const route = await routeMessage(prompt);
+  let route = await routeMessage(prompt);
+  const author = settings.discordUserId || '';
+  const prev = author ? lastRoute.get(author) : undefined;
+  if (prev?.mode === 'helper' && Date.now() - prev.at < HELPER_STICKY_MS && deps.threadText && route.mode !== 'helper' && (route.by !== 'rule' || route.mode === 'chat' || route.mode === 'question' || route.mode === 'writing')) {
+    route = { mode: 'helper', by: route.by, reason: `still in a helper conversation (was ${route.mode}: ${route.reason})`, confidence: route.confidence };
+  }
+  if (author) {
+    lastRoute.set(author, { mode: route.mode, at: Date.now() });
+    if (lastRoute.size > 5000) lastRoute.delete(lastRoute.keys().next().value!);
+  }
   const spec = SPECIALISTS[route.mode];
   thoughtSteps.push({ id: 'step-v2-route', type: 'intent', title: `🧭 Router → ${spec.label}`, description: `${route.by}: ${route.reason}${lang !== 'en' ? ` (${lang})` : ''}${image ? ' (with an image)' : ''}`, data: { mode: route.mode, by: route.by, lang } as any });
-  const built = await buildUserTurn(route.mode, prompt, deps, thoughtSteps);
+  const built = await buildUserTurn(route.mode, prompt, deps, thoughtSteps, lang, settings);
   const imageBlock = image
     ? `THE IMAGE THEY SENT (you looked at it yourself; this is what's in it): ${image}\n${text ? '' : 'They sent it with no text: react to it.\n'}\n`
     : '';
-  const userTurn = `${imageBlock}${built.text}${LANG_NOTE[lang]}`;
+  // A translation's own text is in the TARGET language even when the asker writes German/French/Polish.
+  const langNote = route.mode === 'helper' && lang !== 'en' && /(?<![a-zà-ÿäöüß])(?:translate|traduis|traduire|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)/i.test(prompt)
+    ? `${LANG_NOTE[lang]}\n(EXCEPTION: the translation itself is written in the language they want it translated INTO, not in theirs.)`
+    : LANG_NOTE[lang];
+  const userTurn = `${imageBlock}${built.text}${langNote}`;
   const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt);
   const finalize = (t: string) => {
@@ -313,6 +368,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   }
   let content = dropBannedEmoji(finalize(raw));
   // A parts list keeps ONE part per line even when the model runs the intro into the first part.
+  if (route.mode === 'helper' && /(?<![a-zà-ÿäöüß])(?:translate|traduis|traduire|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)/i.test(prompt)) content = cleanTranslation(content);
   if (route.mode === 'pc') content = content.replace(/[ \t]+(?=(?:CPU|GPU|Motherboard|RAM|SSD|Storage|PSU|Power Supply|Cooler|CPU Cooler|Case|Monitor|Rough Total|Total|Estimated Total)\s*:)/g, '\n');
   if (route.mode === 'chat') {
     content = dropTrailingAside(content);
