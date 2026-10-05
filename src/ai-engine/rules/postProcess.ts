@@ -654,7 +654,9 @@ export function toShoutCase(text: string): string {
 //   list   -> keeps line breaks (parts lists, poems, drafts to friends)
 //   code   -> code blocks untouched, only the text around them is cleaned
 //   formal -> a draft to send: swearing scrubbed, no abbreviations
-export function finalizeSpecialistReply(text: string, kind: 'chat' | 'answer' | 'code' | 'list' | 'formal', userPrompt: string): string {
+export function finalizeSpecialistReply(text: string, kind: 'chat' | 'answer' | 'code' | 'list' | 'formal', userPrompt: string, lang: 'en' | 'fr' | 'pl' = 'en'): string {
+  // English chat abbreviations ("rn", "u") only make sense in English.
+  const abbr = (x: string) => (lang === 'en' ? abbreviateChat(x) : x);
   const clean = (part: string): string => {
     let t = part
       .replace(/:(sob|skull|joy|fire|sweat_smile|pleading_face|nerd|smirk|eyes|clown|100|pray|rofl|melting_face|weary|rage|thumbsup|heart):/g, (_m, name: string) => (({ sob: '😭', skull: '💀', joy: '😂', fire: '🔥', sweat_smile: '😅', pleading_face: '🥺', nerd: '🤓', smirk: '😏', eyes: '👀', clown: '🤡', '100': '💯', pray: '🙏', rofl: '🤣', melting_face: '🫠', weary: '😩', rage: '😡', thumbsup: '👍', heart: '❤️' }) as Record<string, string>)[name] || _m)
@@ -667,11 +669,14 @@ export function finalizeSpecialistReply(text: string, kind: 'chat' | 'answer' | 
     t = stripContextLeaks(t, userPrompt);
     if (kind === 'formal') return scrubSwearingForDraft(t.trim());
     t = deStackLeadingInterjections(uncensorProfanity(t));
-    if (kind === 'chat') return abbreviateChat(shortChatFinalize(t));
+    // Québécois, not continental French swears (the model keeps reaching for putain/merde).
+    if (lang === 'fr')
+      t = t.replace(/\bputain\b/gi, 'tabarnak').replace(/\bmerde\b/gi, 'marde').replace(/\bbordel\b/gi, 'criss de bordel').replace(/\bconnard\b/gi, 'trou de cul').replace(/\bt'?es un con\b/gi, "t'es un cave");
+    if (kind === 'chat') return abbr(shortChatFinalize(t));
     // Keep line structure; tidy spaces inside lines; drop lone swear interjections between clauses.
     return t
       .split('\n')
-      .map((line) => (line.trim() ? abbreviateChat(collapseFillerInterjections(line.replace(/[ \t]{2,}/g, ' ').trim())) : ''))
+      .map((line) => (line.trim() ? abbr(collapseFillerInterjections(line.replace(/[ \t]{2,}/g, ' ').trim())) : ''))
       .join('\n')
       .replace(/\n{3,}/g, '\n\n')
       .trim();

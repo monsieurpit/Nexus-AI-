@@ -137,6 +137,7 @@ export function __resetRepliesForTests(): void {
 export const SAD_RE = /\b(?:i'?m|im|i\s+am|i\s+feel|feeling|been)\s+(?:so\s+|really\s+|kinda\s+|very\s+)?(?:sad|depressed|lonely|down|upset|hurt|heartbroken|stressed|anxious|miserable|broken|empty|alone)\b|\b(?:bad|horrible|terrible|awful|shit)\s+day\b|\bi\s+(?:want\s+to|wanna)\s+cry\b|\b(?:my|our)\s+(?:dog|cat|grandma|grandpa|mom|mum|dad|friend)\s+(?:died|passed)\b/i;
 
 const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
+  [/\b(?:web\s*search|search\s+the\s+(?:web|internet)|internet\s+access|browse\s+the\s+(?:web|internet)|look\s+(?:things|stuff)\s+up\s+online)\b/i, "They're asking whether you can search the web: answer YES clearly (you can search the web and read links), in your voice."],
   [/\b(?:good\s*night|gn|nighty?\s*night|sleep\s+well)\b/i, "They're saying good night (they're off to bed): say good night back in a few words (e.g. 'gn bro, sleep tight')."],
   [/\bgo\s+(?:to\s+)?(?:sleep|bed)\b/i, "They're telling YOU to go to sleep: AGREE that you're going to sleep, lazily (e.g. 'alr bro, I'ma go to sleep ig') — don't refuse."],
   [/\bgood\s+(?:boy|girl)\b/i, "They just called you a good boy like a pet: react to THAT, flustered ('stop it 😳') or cocky ('ik i am'), short; don't ignore it."],

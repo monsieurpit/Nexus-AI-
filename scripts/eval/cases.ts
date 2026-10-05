@@ -230,6 +230,19 @@ export const CASES: EvalCase[] = [
   { msg: 'Idk, she is kinda mad at me', mode: 'support', alt: ['chat'], notHostile: true },
   { msg: 'nexus I don\'t think I can come tomorrow, I\'m tired', mode: 'chat', alt: ['support'], notHostile: true },
 
+  // ---- French (Québécois). Polish is switched off on purpose (localLlmClient.looksPolish) until Patrick rebuilds it. ----
+  { msg: 'salut nexus ça va?', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
+  { msg: "nexus c'est quoi la photosynthèse", mode: 'question', must: [/lumi[eè]re|soleil/i], mustNot: [/\b(?:the|and|light)\b/i] },
+  { msg: 'nexus combien font 17 fois 23', mode: 'maths', must: [/391/] },
+  { msg: "t'es vraiment un cave nexus", mode: 'chat', mustNot: [/\bputain\b|\bmerde\b/i] },
+  // ---- images (server.ts folds the vision description into the message) ----
+  { msg: 'how many tickets are there?\n\n[Attached image shows: A screenshot of a Discord channel list with 10 ticket channels named ticket-0001 to ticket-0010.]', mode: 'question', alt: ['chat', 'maths'], must: [/\b10\b|\bten\b/i] },
+  { msg: 'React to this image: A cat wearing sunglasses sitting on a skateboard.', mode: 'chat', must: [/cat|sunglasses|skate/i] },
+  // ---- handlers that run before the router (now worded by v2) ----
+  { msg: 'nexus give me a compliment', mode: 'chat', notHostile: true },
+  { msg: 'nexus who created you', mode: 'chat', must: [/casseurt/i, /patrick/i] },
+  { msg: 'nexus what time is it in tokyo', mode: 'chat', must: [/\d/] },
+  { msg: 'nexus weather in quebec city', mode: 'chat', must: [/\d/] },
   // ---- context: replies to Nexus ----
   { msg: 'Lmao we are playing Fortnite bro', mode: 'chat', history: H('Yeah, we are going to fucking crush there ass', 'we gonna make those noobs cry like babies, bro.', 'alr bet, which game were we playing again?', 'wait which game was it?') },
   { msg: 'Nexus why are you scratching your balls 😭', mode: 'chat', history: H('', '*scratches balls aggressively*'), mustNot: [/doctor|infection|hygiene|medical/i] },

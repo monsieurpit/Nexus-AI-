@@ -11,7 +11,7 @@ import { extractQueryEntities, searchKnowledgeGraph, getBM25Engine } from './sem
 import { detectLiveSportsIntent, resolveLiveSportsContext } from './liveSportsService';
 import { detectUrlInPrompt, fetchUrlContent } from './urlFetcher';
 import { hybridSearchKnowledgeGraph } from './vectorSearch';
-import { runV2 } from './v2/pipeline';
+import { runV2, phraseWithFacts } from './v2/pipeline';
 import { shouldTriggerLiveWebSearch, buildWebSearchQuery } from './webSearchEngine';
 import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
@@ -4406,6 +4406,11 @@ async function llmGroundedOrFallback(
 // corpus retrieval, so a real weather question never gets mistaken for a knowledge-base lookup —
 // the corpus has zero live weather data and would either hallucinate or (worse) confidently ground
 // an answer in some unrelated document that merely mentions the word "weather".
+// v2 handles this request (the specialist router), for Nexus's own voice.
+function useV2(settings: AISettings, persona: ModelPersona, isCrashout: boolean): boolean {
+  return settings.routerVersion === 'v2' && (isCrashout || persona.id === 'nexus-homie');
+}
+
 async function handleLocationAwareQuery(
   prompt: string,
   persona: ModelPersona,
@@ -4424,7 +4429,11 @@ async function handleLocationAwareQuery(
 
   const finish = async (instruction: string, title: string, fallback: string): Promise<ReasoningResult> => {
     thoughtSteps.push({ id: 'step-location-aware', type: 'reasoning', title, description: instruction.slice(0, 220) });
-    const reply = await llmSituationalReplyOrFallback(instruction, persona, settings, isCrashout, thoughtSteps, fallback, title);
+    // v2: the live-data specialist words it (exact numbers as digits, the person's language).
+    const v2Reply = useV2(settings, persona, isCrashout)
+      ? await phraseWithFacts('search', prompt, `LIVE DATA you just looked up — answer from it, exact numbers as digits:\n${instruction}`, [], thoughtSteps, title)
+      : null;
+    const reply = v2Reply ?? await llmSituationalReplyOrFallback(instruction, persona, settings, isCrashout, thoughtSteps, fallback, title);
     return {
       thoughtSteps,
       content: enforceStrictSdkRules(reply, prompt, settings.userCustomDirectives, {
@@ -4767,7 +4776,10 @@ async function generateReasoningPathInner(
     const complimentInstruction = looksFrench(prompt) && !isSuperChill
       ? `L'utilisateur te demande un compliment : "${prompt}". Donne-lui-en un vrai — court, dans ton style (un peu bourru, un peu à reculons, mais sincère au fond). Trouve quelque chose de concret à complimenter (il pose de bonnes questions, il lâche pas, il prend une joke). Ne récite pas de définition, ne parle PAS de la différence entre "compliment" et "complément".`
       : `The user is asking you for a compliment: "${prompt}". Give them a real one — short, in your style (gruff, a little reluctant, but genuine underneath). Find something concrete to praise (asks good questions, doesn't give up, can take a joke). Do NOT recite a definition, do NOT explain the difference between "compliment" and "complement".`;
-    const complimentReply = await llmSituationalReplyOrFallback(
+    const complimentV2 = useV2(settings, persona, isCrashout)
+      ? await phraseWithFacts('chat', prompt, 'They asked you for a compliment about THEM. Give them a real, specific one in one line — cocky or a bit reluctant, but genuine. Never a definition of the word.', recentRepliesFor(settings.discordUserId), thoughtSteps, 'compliment')
+      : null;
+    const complimentReply = complimentV2 ?? await llmSituationalReplyOrFallback(
       complimentInstruction,
       persona,
       settings,
@@ -4834,7 +4846,12 @@ async function generateReasoningPathInner(
         : isFrenchCreator
         ? `L'utilisateur te demande qui t'a créé : "${prompt}". La vraie réponse : Casseurt (vrai nom Patrick) t'a codé complètement à partir de zéro — un engin custom qui roule local sur sa machine, pas Gemma, pas Google, pas ChatGPT. Dis les deux noms à chaque fois : son surnom c'est « Casseurt » pis son VRAI nom c'est Patrick (jamais l'inverse). Réponds vraiment dans tes propres mots, dans ton style (tu peux le clasher un peu en le disant, ça fait partie de qui t'es) — ne récite pas un script. Mentionne JAMAIS un nombre de documents, une taille de corpus ou des specs techniques internes.`
         : `The user is asking who made/created you: "${prompt}". The true answer: Casseurt (real name Patrick) built you completely from scratch — a custom engine that runs local on his own machine, not Gemma, not Google, not ChatGPT. Say BOTH names in your reply every time: his nickname is \"Casseurt\" and his REAL name is Patrick (never the other way around — Patrick is not a nickname). Answer genuinely in your own words, in character (you're still allowed to talk shit about him while stating the fact — that's part of who you are) — don't just recite a fixed script. Do NOT mention document counts, corpus sizes, or internal tech specs.`;
-      const creatorReply = await llmSituationalReplyOrFallback(
+      const creatorV2 = useV2(settings, persona, isCrashout)
+        ? await phraseWithFacts('chat', prompt, isSuperChill
+            ? 'The person asking IS Casseurt (Patrick), the one who built you. Tell them, in one cheeky line, that THEY made you.'
+            : 'They asked who made you. TRUE ANSWER: Casseurt built you from scratch, and his real name is Patrick. Your line MUST contain both words "Casseurt" and "Patrick" (e.g. that Casseurt\'s real name is Patrick). Roast him a bit (love-hate), ONE line.', recentRepliesFor(settings.discordUserId), thoughtSteps, 'who made me')
+        : null;
+      const creatorReply = creatorV2 ?? await llmSituationalReplyOrFallback(
         creatorInstruction,
         persona,
         settings,
@@ -4865,7 +4882,12 @@ async function generateReasoningPathInner(
       (isSuperChill ? botMetaSuperChillReply(botMetaKind, allKnowledge.length) : null) ??
       botMetaReply(botMetaKind, allKnowledge.length);
     // The facts stay the same, the words don't: the model rephrases them in Nexus's voice (no fixed pool of lines).
-    const metaReply = looksFrench(prompt) || looksPolish(prompt)
+    const metaV2 = useV2(settings, persona, isCrashout)
+      ? await phraseWithFacts('chat', prompt, `They asked about you. TRUE FACTS to use: ${metaFacts}\nAnswer in 1-2 short lines in fresh words. If they sincerely ask whether you're an AI or a bot, be honest and cheeky: you're Nexus, custom-built by Casseurt.`, recentRepliesFor(settings.discordUserId), thoughtSteps, 'about me')
+      : null;
+    const metaReply = metaV2 !== null
+      ? metaV2
+      : looksFrench(prompt) || looksPolish(prompt)
       ? metaFacts
       : await llmSituationalReplyOrFallback(
           `The user asked about you: "${prompt}". The true facts to use: ${metaFacts}\nAnswer in 1-2 short lines in your voice, in fresh words (don't copy the facts word for word). If they ask whether you're an AI or a bot, be honest that yes, you're Nexus, a custom bot Casseurt built (be cheeky about it).`,
@@ -5033,8 +5055,8 @@ async function generateReasoningPathInner(
 
   // ===== v2: specialist router (src/ai-engine/v2/) =====
   // One specialist per message, each with its own detailed instructions, settings and cleanup, instead of one giant
-  // prompt for everything (2026-10-05). English Nexus only for now; French/Polish and images stay on the v1 path below.
-  if (settings.routerVersion === 'v2' && nexusVoice && !looksFrench(prompt) && !looksPolish(prompt) && !/🖼️|\[image|visual input/i.test(prompt)) {
+  // prompt for everything (2026-10-05). English, Québécois French and Polish, with or without an image.
+  if (settings.routerVersion === 'v2' && nexusVoice) {
     const v2 = await runV2(prompt, settings, {
       threadText: primeThread,
       factsNote: chatFactsNote(history, settings.discordUserId, prompt),

@@ -37,9 +37,12 @@ export interface GeocodeResult {
 export async function geocodeCity(city: string): Promise<GeocodeResult | null> {
   const trimmed = city.trim();
   if (!trimmed) return null;
-  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(trimmed)}&count=1&language=en&format=json`;
-  const data = await fetchJsonWithTimeout(url);
-  const hit = data?.results?.[0];
+  const lookup = async (name: string) =>
+    (await fetchJsonWithTimeout(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=en&format=json`))?.results?.[0];
+  // "quebec city" / "mexico city": the geocoder knows "Québec" / "Mexico City" — retry without the "city" word
+  // (2026-10-05: the weather in "quebec city" came back "couldn't find that city").
+  let hit = await lookup(trimmed);
+  if (!hit && /\s+city$/i.test(trimmed)) hit = await lookup(trimmed.replace(/\s+city$/i, ''));
   if (!hit || typeof hit.latitude !== 'number' || typeof hit.longitude !== 'number') return null;
   return {
     lat: hit.latitude,

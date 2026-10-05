@@ -14,6 +14,7 @@ const arg = (name: string) => {
 const BASE = process.env.NEXUS_ENGINE_URL || 'http://localhost:3000';
 const router = (arg('router') || 'v2') as 'v1' | 'v2';
 const onlyMode = arg('mode') as Mode | undefined;
+const grepRe = arg('grep') ? new RegExp(arg('grep') as string, 'i') : null; // only cases whose message matches
 const skipModes = (arg('skip') || '').split(',').filter(Boolean); // e.g. --skip search (saves the daily search quota)
 const limit = Number(arg('limit') || 0);
 const out = arg('out') || `/tmp/nexus-eval-${router}.json`;
@@ -86,7 +87,7 @@ async function ask(msg: string, userId: string, history: EvalCase['history'] = [
   return { reply: String(j.response ?? j.text ?? ''), ms: Date.now() - t0, searched, routed };
 }
 
-const cases = CASES.filter((c) => (!onlyMode || c.mode === onlyMode) && !skipModes.includes(c.mode)).slice(0, limit || undefined);
+const cases = CASES.filter((c) => (!onlyMode || c.mode === onlyMode) && !skipModes.includes(c.mode) && (!grepRe || grepRe.test(c.msg))).slice(0, limit || undefined);
 const results: Graded[] = [];
 let i = 0;
 for (const c of cases) {
@@ -100,7 +101,7 @@ for (const c of cases) {
 
 // Repeat loops: the same person sends 4 messages in a row, each as a reply to Nexus.
 const seqResults: Array<{ name: string; replies: string[]; repeats: number }> = [];
-if (runSeq && !onlyMode && !limit) {
+if (runSeq && !onlyMode && !limit && !grepRe) {
   const { isRepeat } = await import('../../src/ai-engine/rules/messageMode');
   for (const [si, seq] of SEQUENCES.entries()) {
     const userId = String(idBase + 900000 + si);

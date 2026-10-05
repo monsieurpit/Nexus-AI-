@@ -34,6 +34,29 @@ export interface V2Result {
   sources: string[];
 }
 
+// ---- languages and images ---------------------------------------------------------------------------
+// French (Québécois) and Polish go through the same specialists: the instructions stay in English (stable prompt cache),
+// and a short note in THEIR language at the end of the message — the strongest slot for a small model — sets the language.
+export type Lang = 'en' | 'fr' | 'pl';
+export function langOf(text: string): Lang {
+  return localLlmClient.looksPolish(text) ? 'pl' : localLlmClient.looksFrench(text) ? 'fr' : 'en';
+}
+export const LANG_NOTE: Record<Lang, string> = {
+  en: '',
+  fr: "\n\n(LANGUE : réponds UNIQUEMENT en français québécois (joual), comme un jeune de Québec sur Discord — pas en anglais, pas en français de France. Sacre naturellement DANS tes phrases (tabarnak, câlisse, ostie, criss, calvaire), jamais putain/merde/bordel/con, et jamais une rafale de sacres au début. Même longueur et mêmes règles que plus haut. N'invente pas de mots.)",
+  pl: '\n\n(JĘZYK: odpowiadaj WYŁĄCZNIE po polsku, naturalnie i poprawnie — pilnuj końcówek, nie wymyślaj słów. Przeklinaj naturalnie w środku zdań (kurwa, chuj, cholera, pierdolić), nigdy serią na początku. Ta sama długość i zasady co wyżej.)',
+};
+
+// server.ts folds an image's description into the message ("...\n\n[Attached image shows: X]" or "React to this image: X").
+// The router must see only what the person wrote; the specialist gets the image as something it saw.
+export function splitImage(prompt: string): { text: string; image: string | null } {
+  const attached = prompt.match(/^([\s\S]*?)\n\n\[Attached image shows: ([\s\S]+)\]\s*$/);
+  if (attached) return { text: attached[1].trim(), image: attached[2].trim() };
+  const react = prompt.match(/^React to this image: ([\s\S]+)$/);
+  if (react) return { text: '', image: react[1].trim() };
+  return { text: prompt, image: null };
+}
+
 const nowLine = () =>
   `Right now it is ${new Date().toLocaleString('en-CA', { timeZone: 'America/Toronto', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} in Quebec (Eastern time).`;
 
@@ -182,16 +205,19 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
 // ---- generation -----------------------------------------------------------------------------------
 
 let lastFailure = '';
-async function generateWith(spec: Specialist, userTurn: string, settings: AISettings): Promise<string | null> {
+async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en'): Promise<string | null> {
   lastFailure = '';
   const system = spec.system;
   const options = {
     system,
-    temperature: spec.temperature,
+    // A small model's French/Polish garbles at high temperature (fused words, leaked instructions) — capped lower.
+    temperature: lang === 'en' ? spec.temperature : Math.min(spec.temperature, 0.6),
+    preferFrench: lang === 'fr',
+    preferPolish: lang === 'pl',
     maxTokens: spec.maxTokens + (spec.think ? (spec.id === 'maths' ? 1400 : 800) : 0),
     think: spec.think,
     model: localLlmClient.chatModel(),
-    userPreamble: spec.moodPreamble ? buildMoodUserPreamble(false, false, false) : undefined,
+    userPreamble: spec.moodPreamble ? buildMoodUserPreamble(false, lang === 'pl', lang === 'fr') : undefined,
   };
   let res: any = await localLlmClient.generate(userTurn, options as any);
   // Thinking ran out of room / sampling fluke: once more without thinking.
@@ -214,18 +240,26 @@ async function generateWith(spec: Specialist, userTurn: string, settings: AISett
   return String(res.text || '').trim() || null;
 }
 
-export async function runV2(prompt: string, settings: AISettings, deps: V2Deps, thoughtSteps: ThoughtStep[]): Promise<V2Result | null> {
+export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Deps, thoughtSteps: ThoughtStep[]): Promise<V2Result | null> {
+  const { text, image } = splitImage(rawPrompt);
+  const prompt = text || (image ? 'look at this' : rawPrompt);
+  const lang = langOf(text || rawPrompt);
   const route = await routeMessage(prompt);
   const spec = SPECIALISTS[route.mode];
-  thoughtSteps.push({ id: 'step-v2-route', type: 'intent', title: `🧭 Router → ${spec.label}`, description: `${route.by}: ${route.reason}`, data: { mode: route.mode, by: route.by } as any });
-  const { text: userTurn, sources } = await buildUserTurn(route.mode, prompt, deps, thoughtSteps);
+  thoughtSteps.push({ id: 'step-v2-route', type: 'intent', title: `🧭 Router → ${spec.label}`, description: `${route.by}: ${route.reason}${lang !== 'en' ? ` (${lang})` : ''}${image ? ' (with an image)' : ''}`, data: { mode: route.mode, by: route.by, lang } as any });
+  const built = await buildUserTurn(route.mode, prompt, deps, thoughtSteps);
+  const imageBlock = image
+    ? `THE IMAGE THEY SENT (you looked at it yourself; this is what's in it): ${image}\n${text ? '' : 'They sent it with no text: react to it.\n'}\n`
+    : '';
+  const userTurn = `${imageBlock}${built.text}${LANG_NOTE[lang]}`;
+  const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt);
   const finalize = (t: string) => {
-    const out = finalizeSpecialistReply(t, formal ? 'formal' : spec.finalize, said(prompt));
+    const out = finalizeSpecialistReply(t, formal ? 'formal' : spec.finalize, said(prompt), lang);
     return route.mode === 'support' || SAD_RE.test(prompt) ? stripCrudeAside(out) : out;
   };
   const t0 = Date.now();
-  const raw = await generateWith(spec, userTurn, settings);
+  const raw = await generateWith(spec, userTurn, lang);
   if (!raw) {
     thoughtSteps.push({ id: 'step-v2-failed', type: 'verification', title: '⚠️ v2 generation failed, v1 takes over', description: lastFailure || 'empty reply' });
     return null; // v1 takes over (its own fallbacks)
@@ -239,9 +273,25 @@ export async function runV2(prompt: string, settings: AISettings, deps: V2Deps, 
   }
   // Repeat / echo guard for the short-reply specialists.
   if ((route.mode === 'chat' || route.mode === 'support') && (isRepeat(content, deps.recentLines) || isEchoReply(content, prompt))) {
-    const retry = await generateWith(spec, `${userTurn}\n(Your first try was "${content.slice(0, 80)}" — that repeats an old line or their own words. Say something COMPLETELY different that reacts to what they mean.)`, settings);
+    const retry = await generateWith(spec, `${userTurn}\n(Your first try was "${content.slice(0, 80)}" — that repeats an old line or their own words. Say something COMPLETELY different that reacts to what they mean.)`, lang);
     if (retry) content = finalize(retry);
   }
   thoughtSteps.push({ id: 'step-v2-generate', type: 'synthesis', title: `${spec.label} reply`, description: `Generated in ${Date.now() - t0}ms (temp ${spec.temperature}${spec.think ? ', thinking on' : ''}).`, durationMs: Date.now() - t0 });
   return { content, route, sources };
+}
+
+// For the handlers that run before the router and already hold the true facts (questions about Nexus, "compliment
+// me", live weather/time/places): the chosen specialist words the answer from those facts, in the v2 voice and in
+// the person's language. Null if the model call fails (the caller keeps its own fallback).
+export async function phraseWithFacts(kind: SpecialistId, prompt: string, task: string, recentLines: string[], thoughtSteps: ThoughtStep[], title: string): Promise<string | null> {
+  const spec = SPECIALISTS[kind];
+  const lang = langOf(prompt);
+  const userTurn = `${task}\n${nowLine()}${kind === 'chat' ? avoidNote(recentLines) : ''}\n\nThey said: "${said(prompt)}"\nYour reply:${LANG_NOTE[lang]}`;
+  const t0 = Date.now();
+  const raw = await generateWith(spec, userTurn, lang);
+  if (!raw) return null;
+  let content = finalizeSpecialistReply(raw, spec.finalize, said(prompt), lang);
+  if (kind === 'chat') content = alternateEmoji(content, recentLines);
+  thoughtSteps.push({ id: 'step-v2-phrase', type: 'synthesis', title: `${spec.label} reply (${title})`, description: `Worded from the true facts in ${Date.now() - t0}ms.`, durationMs: Date.now() - t0 });
+  return content;
 }
