@@ -837,6 +837,15 @@ async function runV2Checks() {
     check('v2 variety: a line already said to someone else counts as a repeat', mm.isRepeat('yeah i dig that fucking much tbh 😭', mm.recentRepliesFor('u2')));
     mm.__resetRepliesForTests();
   }
+  {
+    const { detectWeatherIntent } = await import('../src/ai-engine/weatherEngine');
+    const w: Array<[string, string | null | undefined]> = [
+      ['is it gonna rain tomorrow in montreal', 'montreal'], ['will it snow this weekend in quebec city', 'quebec city'],
+      ['do i need a jacket today in toronto', 'toronto'], ['forecast for london this week', 'london'], ['météo à montréal demain', 'montréal'],
+      ['i need a jacket recommendation', undefined], ['what is the meaning of rain man', undefined],
+    ];
+    for (const [m, city] of w) check(`weather: "${m}" -> ${city ?? 'not weather'}`, city === undefined ? detectWeatherIntent(m) === null : detectWeatherIntent(m)?.city === city, JSON.stringify(detectWeatherIntent(m)));
+  }
   check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }
 

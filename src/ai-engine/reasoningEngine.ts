@@ -24,6 +24,7 @@ import {
   detectTimeIntent,
   detectNearbyPlacesIntent,
   findNearbyPlaces,
+  describeForecast,
 } from './weatherEngine';
 import { detectSubjectiveDebate, pickDebateSide, buildDebateInstruction, buildDebateInstructionFr } from './argumentEngine';
 import { registerMoodEvent, getMoodResponseLengthMultiplier } from './rules/mood';
@@ -4436,7 +4437,7 @@ async function handleLocationAwareQuery(
     thoughtSteps.push({ id: 'step-location-aware', type: 'reasoning', title, description: instruction.slice(0, 220) });
     // v2: the live-data specialist words it (exact numbers as digits, the person's language).
     const v2Reply = useV2(settings, persona, isCrashout)
-      ? await phraseWithFacts('search', prompt, `LIVE DATA you just looked up — answer from it, exact numbers as digits:\n${instruction}`, [], thoughtSteps, title)
+      ? await phraseWithFacts('search', prompt, `LIVE DATA you just looked up — answer from it, exact numbers as digits, only what they asked (today, tomorrow, the weekend...). If you name a source, it's Open-Meteo (weather) — never say "web search" for this:\n${instruction}`, [], thoughtSteps, title)
       : null;
     const reply = v2Reply ?? await llmSituationalReplyOrFallback(instruction, persona, settings, isCrashout, thoughtSteps, fallback, title);
     return {
@@ -4491,7 +4492,7 @@ async function handleLocationAwareQuery(
         "Weather lookup's not responding right now — try again in a bit?"
       );
     }
-    const facts = `Real current weather for ${weather.locationLabel} (local time there: ${weather.localTime}): ${weather.temperatureC}°C, feels like ${weather.feelsLikeC}°C, ${weather.condition}, ${weather.humidity}% humidity, wind ${weather.windKph} km/h, currently ${weather.isDay ? 'daytime' : 'nighttime'} there.`;
+    const facts = `Real current weather for ${weather.locationLabel} (local time there: ${weather.localTime}): ${weather.temperatureC}°C, feels like ${weather.feelsLikeC}°C, ${weather.condition}, ${weather.humidity}% humidity, wind ${weather.windKph} km/h, currently ${weather.isDay ? 'daytime' : 'nighttime'} there.${weather.daily.length ? ` FORECAST (use it for tomorrow / the weekend / this week / "do I need a jacket"): ${describeForecast(weather.daily)}.` : ''} Source: Open-Meteo, a live weather service (not a web search).`;
     const instruction = isFrenchQuery
       ? `L'utilisateur demande la météo : "${prompt}". Voici les VRAIES données météo actuelles — n'invente rien d'autre : ${facts}. Réponds dans tes propres mots, dans ton style, en te basant UNIQUEMENT sur ces faits.`
       : `The user is asking about the weather: "${prompt}". Here is the REAL current weather data — don't invent anything beyond it: ${facts}. Answer in your own words, in character, based ONLY on these facts.`;

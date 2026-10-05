@@ -96,12 +96,35 @@ export interface WeatherResult {
   isDay: boolean;
   timezone: string;
   localTime: string;
+  // 7-day forecast (2026-10-05: "is it gonna rain tomorrow", "will it snow this weekend" had no data to answer from).
+  daily: DailyForecast[];
+}
+
+export interface DailyForecast {
+  date: string; // YYYY-MM-DD, local to the city
+  weekday: string;
+  condition: string;
+  maxC: number;
+  minC: number;
+  rainChance: number | null; // %
+  rainMm: number;
+  snowCm: number;
+}
+
+// One line per day for the model ("Tomorrow (Tuesday) Oct 6: light rain, 9 to 14°C, rain chance 80% (4 mm)") — weekday
+// written out next to the date, so the model never mismatches them.
+export function describeForecast(daily: DailyForecast[], days = 7): string {
+  return daily
+    .slice(0, days)
+    .map((d, i) => `${i === 0 ? `Today (${d.weekday})` : i === 1 ? `Tomorrow (${d.weekday})` : d.weekday} ${new Date(`${d.date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}: ${d.condition}, ${d.minC} to ${d.maxC}°C${d.rainChance !== null ? `, rain chance ${d.rainChance}%` : ''}${d.rainMm > 0 ? ` (${d.rainMm} mm)` : ''}${d.snowCm > 0 ? `, snow ${d.snowCm} cm` : ''}`)
+    .join('; ');
 }
 
 export async function getWeather(lat: number, lon: number, locationLabel: string): Promise<WeatherResult | null> {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     `&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,snowfall_sum&forecast_days=7` +
     `&timezone=auto`;
   const data = await fetchJsonWithTimeout(url);
   const c = data?.current;
@@ -118,13 +141,25 @@ export async function getWeather(lat: number, lon: number, locationLabel: string
     isDay: c.is_day === 1,
     timezone: data.timezone || 'UTC',
     localTime: c.time || '',
+    daily: Array.isArray(data?.daily?.time)
+      ? data.daily.time.map((date: string, i: number) => ({
+          date,
+          weekday: new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }),
+          condition: WMO_DESCRIPTIONS[data.daily.weather_code?.[i]] || 'unclear conditions',
+          maxC: Math.round(data.daily.temperature_2m_max?.[i] ?? 0),
+          minC: Math.round(data.daily.temperature_2m_min?.[i] ?? 0),
+          rainChance: typeof data.daily.precipitation_probability_max?.[i] === 'number' ? data.daily.precipitation_probability_max[i] : null,
+          rainMm: Math.round((data.daily.precipitation_sum?.[i] ?? 0) * 10) / 10,
+          snowCm: Math.round((data.daily.snowfall_sum?.[i] ?? 0) * 10) / 10,
+        }))
+      : [],
   };
 }
 
 // --- Intent detection (regex, same style/discipline as the rest of this codebase's solvers) ---
 
 const WEATHER_REGEX =
-  /\b(?:what'?s|whats|how'?s|hows)\s+the\s+weather\b|\bweather\s+(?:in|for|at|like)\b|\bweather\s+today\b|\bis\s+it\s+(?:raining|snowing|sunny|cold|hot|windy)\b|\bhow\s+(?:hot|cold)\s+is\s+it\b|\btemperature\s+(?:in|outside|today)\b|\bforecast\s+(?:for|in)\b|\bm[ée]t[ée]o\b|\bquel\s+temps\s+(?:fait[- ]il|il\s+fait)\b|\bfait[- ]il\s+(?:beau|froid|chaud)\b/i;
+  /\b(?:will|gonna|going\s+to|is\s+it\s+(?:gonna|going\s+to))\s+(?:it\s+)?(?:rain|snow|storm|be\s+(?:sunny|cold|hot|warm|windy|nice))\b|\b(?:rain|snow|storm)\w*\s+(?:today|tonight|tomorrow|this\s+week(?:end)?|on\s+\w+day)\b|\b(?:do|should|will)\s+i\s+(?:need|bring|wear)\s+(?:a|an|my)\s+(?:jacket|coat|umbrella|hoodie|sweater)\b|\bweather\s+(?:tomorrow|tonight|this\s+week(?:end)?)\b|\bforecast\b|\b(?:il\s+va\s+(?:pleuvoir|neiger|faire\s+(?:beau|froid|chaud)))\b|\b(?:what'?s|whats|how'?s|hows)\s+the\s+weather\b|\bweather\s+(?:in|for|at|like)\b|\bweather\s+today\b|\bis\s+it\s+(?:raining|snowing|sunny|cold|hot|windy)\b|\bhow\s+(?:hot|cold)\s+is\s+it\b|\btemperature\s+(?:in|outside|today)\b|\bforecast\s+(?:for|in)\b|\bm[ée]t[ée]o\b|\bquel\s+temps\s+(?:fait[- ]il|il\s+fait)\b|\bfait[- ]il\s+(?:beau|froid|chaud)\b/i;
 
 // Captures a trailing "in/for/at <city>" (EN) or "à/en/pour/dans <city>" (FR) — deliberately
 // conservative (stops at common sentence-ending punctuation/conjunctions) so it doesn't swallow
@@ -135,10 +170,17 @@ const WEATHER_REGEX =
 const WEATHER_CITY_REGEX =
   /(?:^|\s)(?:in|for|at|à|a|en|pour|dans)\s+([a-zà-ÿ][a-zà-ÿ\s'-]{1,40}?)(?:[?.!,]|$|\s+(?:today|right now|rn|tonight|tomorrow|là|maintenant|aujourd'hui|demain|ce\s+soir))/i;
 
+// Time words are never part of the city ("forecast for london this week" -> "london").
+const TIME_WORDS_RE = /\s+(?:today|tonight|tomorrow|this\s+week(?:end)?|next\s+week(?:end)?|on\s+\w+day|\w+day|rn|right\s+now|now|later|demain|ce\s+soir|aujourd'hui|cette\s+semaine|ce\s+week-?end)\b.*$/i;
+
 export function detectWeatherIntent(prompt: string): { city: string | null } | null {
   if (!WEATHER_REGEX.test(prompt)) return null;
-  const cityMatch = prompt.match(WEATHER_CITY_REGEX);
-  const city = cityMatch ? cityMatch[1].trim() : null;
+  // The LAST place mentioned wins ("do i need a jacket today in toronto"), and a bare "a" (French "à" typed without
+  // its accent) only counts in French — otherwise "a jacket" became the city "jacket".
+  const french = /\b(?:météo|meteo|quel\s+temps|fait[- ]il|il\s+va|demain|pleuvoir|neiger)\b/i.test(prompt);
+  const matches = [...prompt.matchAll(new RegExp(WEATHER_CITY_REGEX.source, 'gi'))].filter((m) => french || !/^\s*a\s/i.test(m[0].replace(/^\s+/, '').slice(0, 2)));
+  const last = matches[matches.length - 1];
+  const city = last ? last[1].replace(TIME_WORDS_RE, '').trim() || null : null;
   return { city };
 }
 
