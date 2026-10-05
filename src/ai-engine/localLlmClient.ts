@@ -398,6 +398,12 @@ function stripSyntheticImageDescription(text: string): string {
 // Common German words that are NOT also English/French words ("was", "will", "die", "also", "in", "so", "man", "hat"
 // are left out on purpose), plus casual/Discord German. ä/ö/ü/ß count too.
 const GERMAN_SIGNAL_WORDS = new Set([
+  // German insults/swears (2026-10-05: "Nexus du hurensohn" tied 1-1 with French — "du" is also French — and got a
+  // Québécois reply). None of these are French or English words.
+  'hurensohn', 'hurensöhne', 'hurenson', 'wichser', 'spast', 'spasti', 'missgeburt', 'fotze', 'schlampe', 'arschloch',
+  'penner', 'dummkopf', 'vollidiot', 'depp', 'trottel', 'fresse', 'verpiss', 'verpisst', 'scheiß', 'fick', 'ficken',
+  'fickt', 'kacke', 'mist', 'dumm', 'dumme', 'dummer', 'blöd', 'blöde', 'behindert', 'schwul', 'schwuchtel', 'kek',
+  'hund', 'missgeburten', 'drecks', 'dreck', 'halt', 'maul', 'ruhe', 'leck', 'lutsch', 'mutter', 'deine', 'deiner',
   'ich', 'du', 'der', 'das', 'und', 'ist', 'nicht', 'ein', 'eine', 'einen', 'mit', 'auf', 'wie', 'bist', 'hast', 'habe',
   'mir', 'mich', 'dich', 'dir', 'ja', 'nein', 'aber', 'oder', 'auch', 'noch', 'schon', 'jetzt', 'heute', 'morgen', 'gut',
   'sehr', 'warum', 'wer', 'wo', 'wann', 'kann', 'kannst', 'willst', 'mal', 'doch', 'halt', 'eigentlich', 'digga', 'diggi',

@@ -851,6 +851,7 @@ async function runV2Checks() {
   {
     const { looksGerman } = await import('../src/ai-engine/localLlmClient');
     check('German is detected (wie gehts, was geht digga, ich bin traurig, 17 mal 23, gute nacht)', ['hallo nexus, wie gehts?', 'was geht digga', 'ich bin traurig, mein hund ist gestorben', 'was ist 17 mal 23', 'gute nacht'].every((t) => looksGerman(t)));
+    check('German insults are German, not French ("Nexus du hurensohn", "du spast", "deine mutter") while "je mange du pain" stays French', ['Nexus du hurensohn', 'du spast', 'du missgeburt', 'deine mutter'].every((t) => looksGerman(t)) && !looksGerman('je mange du pain') && !looksGerman('du calme nexus'));
     check('English, French and Polish are never taken for German', ['hey nexus how are you', 'safe bro', 'na bro', 'lost in the sauce lol', 'salut nexus ça va?', 'cześć nexus, co tam?'].every((t) => !looksGerman(t)));
   }
   {
