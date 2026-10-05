@@ -82,9 +82,40 @@ export function sayRequest(prompt: string): string | null {
 }
 
 // Patrick (2026-10-05): emojis on most lines are good ("the first try was good with the emojis"), but never 💅.
+// Patrick, later the same day: "he is using too much emojis, limit him to 1" -> at most ONE emoji per reply (the first
+// one is kept), outside code blocks.
+const EMOJI_RE = /\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/gu;
 export function dropBannedEmoji(reply: string): string {
-  if (!reply.includes('💅')) return reply;
-  const out = reply.replace(/💅\uFE0F?/gu, '').replace(/[ \t]{2,}/g, ' ').replace(/\s+([.!?])$/, '$1').trim();
+  const limit = (raw: string) => {
+    let kept = false;
+    // A leading emoji moves to the end of the first sentence (before an aside); [aside] becomes (aside); an aside that
+    // talks about the instruction itself ("smth gross for tmi") is dropped.
+    let text = raw.replace(/\[([^\]]{3,160})\]/g, '($1)').replace(/\(\s*<([^>]{2,160})>\s*\)/g, '($1)').replace(/\s*\((?=[^)]*\b(?:tmi|aside|smth gross|something gross)\b)[^)]*\)/gi, '');
+    const lead = text.match(/^((?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*\s*)+)(\S[\s\S]*)$/u);
+    if (lead) {
+      const emoji = lead[1].trim();
+      const rest = lead[2];
+      const paren = rest.search(/\s*\(/);
+      text = paren > 0 ? `${rest.slice(0, paren).replace(/[.!]$/, '')} ${emoji}${rest.slice(paren)}` : `${rest.replace(/[.!]$/, '')} ${emoji}`;
+    }
+    return text
+      .replace(/💅\uFE0F?/gu, '')
+      .replace(EMOJI_RE, (e) => (kept ? '' : ((kept = true), e)))
+      .replace(/\(\s+/g, '(')
+      .replace(/\s+\)/g, ')')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\s+([.!?,])/g, '$1')
+      .trim();
+  };
+  if (!EMOJI_RE.test(reply) && !reply.includes('💅')) return reply;
+  EMOJI_RE.lastIndex = 0;
+  let keptInCode = false;
+  const out = /```/.test(reply)
+    ? reply
+        .split(/(```[\s\S]*?(?:```|$))/)
+        .map((part) => (part.startsWith('```') ? part : part.replace(/💅\uFE0F?/gu, '').replace(EMOJI_RE, (e) => (keptInCode ? '' : ((keptInCode = true), e)))))
+        .join('')
+    : limit(reply);
   return out || '😏';
 }
 
@@ -271,7 +302,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     thoughtSteps.push({ id: 'step-v2-failed', type: 'verification', title: '⚠️ v2 generation failed, v1 takes over', description: lastFailure || 'empty reply' });
     return null; // v1 takes over (its own fallbacks)
   }
-  let content = finalize(raw);
+  let content = dropBannedEmoji(finalize(raw));
   if (route.mode === 'chat') {
     const sayWhat = sayRequest(prompt);
     // The words they asked for must be there; if the model dodged, they lead the reply.
@@ -281,7 +312,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // Repeat / echo guard for the short-reply specialists.
   if ((route.mode === 'chat' || route.mode === 'support') && (isRepeat(content, deps.recentLines) || isEchoReply(content, prompt))) {
     const retry = await generateWith(spec, `${userTurn}\n(Your first try was "${content.slice(0, 80)}" — that repeats an old line or their own words. Say something COMPLETELY different that reacts to what they mean.)`, lang);
-    if (retry) content = finalize(retry);
+    if (retry) content = dropBannedEmoji(finalize(retry));
   }
   thoughtSteps.push({ id: 'step-v2-generate', type: 'synthesis', title: `${spec.label} reply`, description: `Generated in ${Date.now() - t0}ms (temp ${spec.temperature}${spec.think ? ', thinking on' : ''}).`, durationMs: Date.now() - t0 });
   return { content, route, sources };
