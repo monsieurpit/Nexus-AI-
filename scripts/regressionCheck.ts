@@ -888,7 +888,7 @@ async function runV2Checks() {
     check('partnership: NSFW / 18+ / hentai / account selling refused, but "no NSFW", "anti-raid", "NSFW-free" are fine', (await v('partnership: 18+ NSFW server, 5k members')) === 'nsfw' && (await v('partner? 3000 members, we sell accounts cheap')) === 'nsfw' && findBadContent('no NSFW, anti-raid bot, toxicity-free') === null && findBadContent('NSFW-free, strictly no porn') === null && claimedMembers('around 1.2k members') === 1200);
   }
   { const { isPartnershipMessage } = await import('../src/ai-engine/v2/partnership');
-    check('partnership requests are recognised without the word "partner" (our server + member count, invites, the partnerships channel)', isPartnershipMessage('Nexus, our server is 18+ nsfw with 4K members', 'general') && isPartnershipMessage('discord.gg/abc123', '🤝・partnerships') && !isPartnershipMessage('lol nice', '🤝・partnerships') && !isPartnershipMessage('our server is the best lol', 'general')); }
+    check('a partnership check only runs when the message says "partner"/"partnership" (Patrick\'s choice), in any channel', isPartnershipMessage('nexus partnership? our server is 18+ nsfw with 4K members', 'general') && isPartnershipMessage('can we partner', 'general') && !isPartnershipMessage('nexus my server is a 18+ nsfw server with 4K member', '🤝・partnerships') && !isPartnershipMessage('discord.gg/abc123', '🤝・partnerships')); }
   check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }
 
