@@ -97,7 +97,7 @@ export const __loadRealEmbeddingsForTests = () => loadRealEmbeddings();
 const QUERY_EMBED_CACHE = new Map<string, number[]>();
 const QUERY_EMBED_CACHE_MAX = 200;
 
-async function embedQueryCached(text: string): Promise<number[] | null> {
+export async function embedQueryCached(text: string): Promise<number[] | null> {
   const cached = QUERY_EMBED_CACHE.get(text);
   if (cached) return cached;
   // "search_query:" prefix matches nomic-embed-text's recommended usage — corpus documents were

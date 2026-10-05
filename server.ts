@@ -61,6 +61,7 @@ import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
 import { registerLearningAdminRoutes, loadAdminToken } from './src/ai-engine/learning/admin';
 import { timingSafeEqual } from 'crypto';
 import { startPriceTracker, refreshPrices, loadPrices } from './src/ai-engine/priceTracker';
+import { warmRouter } from './src/ai-engine/v2/router';
 import {
   executeUnifiedWebSearch,
   searchGoogleDirect,
@@ -1321,6 +1322,8 @@ app.post('/api/v1/nexus', async (req, res) => {
     // the new askCodeEdit() client method sets this; every other existing caller (including the
     // rest of the Discord bot's own normal chat traffic) is completely unaffected.
     codeEditRequest: requestedCodeEdit,
+    // Specialist router (v2) vs the old path (v1); the test bank (scripts/eval/run.ts) compares both on the live engine.
+    routerVersion: requestedRouterVersion,
     // The website's own settings (persona choice, reasoning mode, temperature, everything the
     // customizer modal lets a user configure) — sent as one opaque blob rather than threading
     // every individual field through this handler's destructuring one at a time. Only ever sent
@@ -1468,6 +1471,7 @@ app.post('/api/v1/nexus', async (req, res) => {
   // isCodeEdit true and settings.activePersonaId correctly set to 'code-architect'.
   if (isCodeEdit) persona = DEFAULT_PERSONAS['code-architect'];
 
+  const routerVersion: 'v1' | 'v2' = requestedRouterVersion === 'v1' || requestedRouterVersion === 'v2' ? requestedRouterVersion : (process.env.NEXUS_ROUTER === 'v2' ? 'v2' : 'v1');
   try {
     // "Nexus Code" needs more than the default 45s: generateCodeEditWithReview's own budget is
     // ~58s (up to 3 generation passes + up to 2 self-review passes) — the default queue timeout
@@ -1488,6 +1492,7 @@ app.post('/api/v1/nexus', async (req, res) => {
             activePersonaId: persona.id as ModelPersonaId,
             userName: username || clientSettings.userName || '',
             discordUserId: effectiveAuthorId,
+            routerVersion,
             isSuperChillUser: isSuperChill || Boolean(clientSettings.isSuperChillUser),
             userCustomDirectives:
               (typeof userRules === 'string' ? userRules : Array.isArray(userRules) ? userRules.join('\n') : '') ||
@@ -1522,6 +1527,7 @@ app.post('/api/v1/nexus', async (req, res) => {
             // Nexus Code (isCodeEdit) keeps its own explicit think:true in
             // generateCodeEditWithReview, which doesn't read this field.
             showThinking: false,
+            routerVersion,
           };
 
       // Real image understanding, not a fake header on top of a blind text-only response — this
@@ -2969,6 +2975,7 @@ async function startServer() {
     console.log(`Nexus & RaidShield API Server active at http://0.0.0.0:${PORT}`);
     // Weekly automatic PC price snapshot via live web search (NEXUS_PRICE_TRACKER=off to disable).
     startPriceTracker(() => isModelBusy());
+    warmRouter();
     // Load the model now so the first message after a Mac/engine restart isn't the one that pays the
     // 10-30s cold load (the default is to keep it loaded forever). NEXUS_WARM_ON_START=off to skip.
     if ((process.env.NEXUS_WARM_ON_START || 'on').toLowerCase() !== 'off') {

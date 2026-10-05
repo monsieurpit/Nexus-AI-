@@ -68,6 +68,9 @@ export interface AISettings {
   // length cap never actually holding (the cap is on thinking+answer combined, so a short think
   // left the answer ~400 tokens of room instead of ~110).
   showThinking?: boolean;
+  // 'v2' = the specialist router (src/ai-engine/v2/), 'v1' = the old single-prompt path. Set by server.ts from the
+  // request (test bank) or NEXUS_ROUTER.
+  routerVersion?: 'v1' | 'v2';
 }
 
 export interface WebSearchResult {

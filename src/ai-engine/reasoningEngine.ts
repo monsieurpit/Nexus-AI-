@@ -11,6 +11,8 @@ import { extractQueryEntities, searchKnowledgeGraph, getBM25Engine } from './sem
 import { detectLiveSportsIntent, resolveLiveSportsContext } from './liveSportsService';
 import { detectUrlInPrompt, fetchUrlContent } from './urlFetcher';
 import { hybridSearchKnowledgeGraph } from './vectorSearch';
+import { runV2 } from './v2/pipeline';
+import { shouldTriggerLiveWebSearch, buildWebSearchQuery } from './webSearchEngine';
 import { processForSearch, splitSentences } from './bm25Engine';
 import { trySolveMath } from './mathSolver';
 import { trySolveCategoryClassification } from './categorySolver';
@@ -5027,6 +5029,33 @@ async function generateReasoningPathInner(
       persona, settings, isCrashout, thoughtSteps, link.text.slice(0, 400), '🔗 Link reply', false, undefined, modeInfo.task === 'summary' ? 450 : 300
     );
     return primeReturn(linkReply, [`Link: ${link.url}`]);
+  }
+
+  // ===== v2: specialist router (src/ai-engine/v2/) =====
+  // One specialist per message, each with its own detailed instructions, settings and cleanup, instead of one giant
+  // prompt for everything (2026-10-05). English Nexus only for now; French/Polish and images stay on the v1 path below.
+  if (settings.routerVersion === 'v2' && nexusVoice && !looksFrench(prompt) && !looksPolish(prompt) && !/🖼️|\[image|visual input/i.test(prompt)) {
+    const v2 = await runV2(prompt, settings, {
+      threadText: primeThread,
+      factsNote: chatFactsNote(history, settings.discordUserId, prompt),
+      recentLines: myRecentLines,
+      findFacts: async (q) => {
+        const hits = await hybridSearchKnowledgeGraph(q, allKnowledge, 3).catch(() => []);
+        const good = hits.filter((h, i) => (i === 0 && h.score >= CONFIDENT_MATCH_SCORE) || strongTopicOverlap(q, h.item));
+        return { text: good.length ? buildGroundingContext(good as any) : '', topScore: good.length ? hits[0].score : 0, titles: good.map((h) => h.item.title) };
+      },
+      shouldSearchWeb: (q, topScore) => shouldTriggerLiveWebSearch(q, settings, topScore >= CONFIDENT_MATCH_SCORE ? 0.9 : 0.2) || false,
+      webQuery: (q, reason) => buildWebSearchQuery(q, reason as any),
+      budgetNote: (text) => budgetGuidance(parseBudgetUsd(text)),
+      pcFacts: (text, wantsBuild) =>
+        findRelevantKnowledge(`${text} pc build parts compatibility`, 8)
+          .filter((f) => f.category === 'pc-building')
+          .filter((f) => /\b(?:edit|render|workstation|creator|ai|llm|blender|3d|video|stream)\b/i.test(text) || f.id !== 'kb-pc-best-infinite-money-creator-ai')
+          .slice(0, 5)
+          .map((f) => `- ${f.title}: ${f.content.slice(0, wantsBuild ? 1100 : 900)}`)
+          .join('\n'),
+    }, thoughtSteps);
+    if (v2) return primeReturn(v2.content, v2.sources);
   }
 
   // (d) Explicit live web searches ("search the web for the price of DDR5 32GB right now") — Nexus CAN search.

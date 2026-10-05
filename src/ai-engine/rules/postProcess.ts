@@ -645,3 +645,47 @@ export function toShoutCase(text: string): string {
   });
   return protectedText.toUpperCase().replace(/__CODE_(\d+)__/g, (_m, i) => blocks[Number(i)]);
 }
+
+// ---- v2 specialists (2026-10-05) ----------------------------------------------------------------------
+// Cleanup for a specialist's reply. Unlike topUpLlmSwearing there is NO swear floor: the specialist instructions ask
+// for natural swearing, and the mechanical top-up was what produced "shit, ... damn, ... goddamn" filler piles.
+//   chat   -> one line (<= 2 short sentences), abbreviations
+//   answer -> prose answer, keeps line breaks (numbered steps), abbreviations
+//   list   -> keeps line breaks (parts lists, poems, drafts to friends)
+//   code   -> code blocks untouched, only the text around them is cleaned
+//   formal -> a draft to send: swearing scrubbed, no abbreviations
+export function finalizeSpecialistReply(text: string, kind: 'chat' | 'answer' | 'code' | 'list' | 'formal', userPrompt: string): string {
+  const clean = (part: string): string => {
+    let t = part
+      .replace(/:(sob|skull|joy|fire|sweat_smile|pleading_face|nerd|smirk|eyes|clown|100|pray|rofl|melting_face|weary|rage|thumbsup|heart):/g, (_m, name: string) => (({ sob: '😭', skull: '💀', joy: '😂', fire: '🔥', sweat_smile: '😅', pleading_face: '🥺', nerd: '🤓', smirk: '😏', eyes: '👀', clown: '🤡', '100': '💯', pray: '🙏', rofl: '🤣', melting_face: '🫠', weary: '😩', rage: '😡', thumbsup: '👍', heart: '❤️' }) as Record<string, string>)[name] || _m)
+      .replace(/<\/?(?:blockquote|p|br|b|i|u|em|strong|span|div|li|ul|ol|code|pre|h[1-6])\b[^>]*>/gi, ' ')
+      .replace(/\b([Cc])as{3,}eurt/g, '$1asseurt')
+      .replace(/^\s*(?:real answer|answer|reply|nexus)\s*:\s*/i, '')
+      .replace(/^["“]|["”]$/g, '');
+    t = stripLearningMentions(t);
+    t = stripUnpromptedCreatorMentions(t, userPrompt);
+    t = stripContextLeaks(t, userPrompt);
+    if (kind === 'formal') return scrubSwearingForDraft(t.trim());
+    t = deStackLeadingInterjections(uncensorProfanity(t));
+    if (kind === 'chat') return abbreviateChat(shortChatFinalize(t));
+    // Keep line structure; tidy spaces inside lines; drop lone swear interjections between clauses.
+    return t
+      .split('\n')
+      .map((line) => (line.trim() ? abbreviateChat(collapseFillerInterjections(line.replace(/[ \t]{2,}/g, ' ').trim())) : ''))
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+  const src = (text || '').trim();
+  if (!src) return src;
+  if (/```/.test(src)) {
+    return src
+      .split(/(```[\s\S]*?(?:```|$))/)
+      .map((part) => (part.startsWith('```') || !/[a-z]/i.test(part) ? part.trim() : clean(part)))
+      .filter(Boolean)
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+  return clean(src);
+}

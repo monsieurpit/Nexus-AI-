@@ -806,12 +806,39 @@ async function runLiveChecks() {
   );
 }
 
+// v2 specialist router (2026-10-05): rules, cleanup, instruction sizes. The meaning vote needs Ollama (routeCheck.ts).
+async function runV2Checks() {
+  console.log('\n--- v2 specialists ---');
+  const { __test } = await import('../src/ai-engine/v2/router');
+  const { SPECIALISTS, IDENTITY } = await import('../src/ai-engine/v2/specialists');
+  const { finalizeSpecialistReply } = await import('../src/ai-engine/rules/postProcess');
+  const rule = (m: string) => __test.byRules(__test.strip(m))?.mode;
+  const expect: Array<[string, string]> = [
+    ["Nexus, what's the cost of 2 sticks of DDR5 16GB of RAM?", 'search'], ['nexus give me an exemple of Javascript', 'code'],
+    ['nexus what is 17 * 23', 'maths'], ['can you translate the point (-4,7) along the vector (9,18)', 'maths'],
+    ['build me a pc with 6 or 7k dollars', 'pc'], ['nexus my dog died', 'support'], ['nexus count to 5', 'chat'],
+    ['nexus who is your boyfriend', 'chat'], ['give me tips on being nonchalant', 'question'], ['translate "hello" to french', 'writing'],
+    ['summarise this: the cat sat on the mat', 'writing'], ['weather in montreal today', 'search'],
+  ];
+  for (const [m, want] of expect) check(`v2 rule: "${m.slice(0, 50)}" -> ${want}`, rule(m) === want, String(rule(m)));
+  check('v2: "how are you" is left to the meaning vote (no rule)', rule('hey nexus how are you') === undefined || rule('hey nexus how are you') === 'chat');
+  const code = 'here u go:\n```python\ndef f(x):\n    if x:\n        return 1\n```\nrun it with python3';
+  check('v2 cleanup: code block indentation untouched', finalizeSpecialistReply(code, 'code', 'give me python').includes('    if x:\n        return 1'));
+  check('v2 cleanup: formal draft has no swearing', !/fuck|shit/i.test(finalizeSpecialistReply('Dear Ms. Smith, I am fucking sick and will be absent tomorrow. Regards', 'formal', 'draft a message to my teacher')));
+  check('v2 cleanup: chat reply is one short line', finalizeSpecialistReply('nah im chillin rn. watching tv. my cat is asleep. its raining outside. what about you though mate?', 'chat', 'wyd').length <= 220);
+  check('v2 cleanup: numbered steps keep their own lines', finalizeSpecialistReply('steps:\n1) APU on\n2) Beacon on\n3) Eng 2 start', 'answer', 'how do you start an a320').split('\n').length === 4);
+  check('v2 cleanup: :sob: becomes 😭', finalizeSpecialistReply('lmao :sob:', 'chat', 'lol').includes('😭'));
+  for (const sp of Object.values(SPECIALISTS)) check(`v2 instructions: ${sp.id} is detailed but under 7000 chars (${sp.system.length})`, sp.system.length > IDENTITY.length + 800 && sp.system.length < 7000);
+  check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const liveOnly = args.includes('--live-only');
   const detOnly = args.includes('--det-only');
 
   if (!liveOnly) await runDeterministicChecks();
+  if (!liveOnly) await runV2Checks();
   if (!detOnly) await runLiveChecks();
 
   console.log(`\n${passed} passed, ${failed} failed\n`);
