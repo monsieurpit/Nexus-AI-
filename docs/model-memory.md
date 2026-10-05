@@ -33,5 +33,11 @@ unreachable through the Cloudflare tunnel.
   longer kicks the chat model out (which made the next reply a cold start and images time out).
 - `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`, `OLLAMA_KEEP_ALIVE=30m` (the chat model overrides this with
   "forever" per request).
-- The port must be owned by `com.nexus.ollamaserve` (it has these variables). If the Ollama menu-bar app starts its
-  own server first, quit the app and run `launchctl kickstart -k gui/$UID/com.nexus.ollamaserve`.
+- The port must be owned by `com.nexus.ollamaserve` (it has these variables). The Ollama menu-bar app stays in the login
+  items (Patrick wants it) and uses the service's server when one is running — but at boot it can start first and run
+  its OWN server without these settings (2 parallel slots, model at 17 GB). `com.nexus.ollamatakeover`
+  (`~/.nexus-tunnel/ollama-takeover.sh`, at login + every 2 min) fixes that by itself: if the port is held by an
+  `ollama serve` that isn't the service, it stops exactly that process and starts the service. Log:
+  `~/.nexus-tunnel/ollama-takeover.log`. Everything at once after a reboot: `bash scripts/check-after-reboot.sh`.
+- Keep-hot: `src/ai-engine/v2/keepHot.ts` runs a 1-token chat generation every 2 min while idle, so macOS never evicts
+  the weights (the MLX runner reads them from disk; "loaded Forever" alone still gave 12 s first replies).

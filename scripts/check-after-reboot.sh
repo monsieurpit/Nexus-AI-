@@ -15,6 +15,7 @@ for s in com.nexus.ollamaserve com.nexus.engine com.nexus.enginetunnel com.nexus
   [[ "$st" == "running" ]] && ok "$s running" || bad "$s: ${st:-not loaded}"
 done
 
+launchctl print "gui/$UID/com.nexus.ollamatakeover" >/dev/null 2>&1 && ok "com.nexus.ollamatakeover loaded (keeps the port on the service even if the Ollama app starts first)" || bad "com.nexus.ollamatakeover not loaded: launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.nexus.ollamatakeover.plist"
 echo "== Ollama"
 owner=$(lsof -nP -iTCP:11434 -sTCP:LISTEN 2>/dev/null | awk 'NR==2{print $2}')
 svc=$(launchctl print "gui/$UID/com.nexus.ollamaserve" 2>/dev/null | awk '/^\tpid =/{print $3; exit}')
