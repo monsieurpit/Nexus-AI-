@@ -316,6 +316,9 @@ const POLISH_DIACRITIC_REGEX = /[ąćęłńóśźż]/i;
 // this fix: looksFrench("no comment") and looksFrench("dig a grave") both incorrectly returned
 // true.
 const FRENCH_SIGNAL_WORDS = new Set([
+  // Texting French (2026-10-05: "allo nexus, cv?" scored zero French and got an English reply).
+  'allo', 'allô', 'cv', 'cava', 'bjr', 'bsr', 'stp', 'svp', 'mdr', 'ptdr', 'jsp', 'jpp', 'tkt', 'tqt', 'oklm', 'wesh', 'frr', 'chui', 'jsuis',
+  'jte', 'jtm', 'dac', 'bcp', 'pk', 'pcq', 'ajd', 'auj', 'mtn', 'qqch', 'qqn', 'cmb', 'jvais', 'jveux', 'jpense', 'tsais', 'pantoute',
   'salut', 'bonjour', 'bonsoir', 'merci', 'oui', 'non', 'pourquoi', 'combien',
   'quoi', 'quel', 'quelle', 'quels', 'quelles', 'ça', 'cest', "c'est", 'je', 'tu', 'nous', 'vous',
   'ils', 'elles', 'avec', 'sans', 'être', 'avoir', 'créé', 'créer', 'peux', 'veux', 'sais',

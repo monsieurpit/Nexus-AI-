@@ -1324,6 +1324,7 @@ app.post('/api/v1/nexus', async (req, res) => {
     codeEditRequest: requestedCodeEdit,
     // Specialist router (v2) vs the old path (v1); the test bank (scripts/eval/run.ts) compares both on the live engine.
     routerVersion: requestedRouterVersion,
+    evalRun: requestedEvalRun,
     // The website's own settings (persona choice, reasoning mode, temperature, everything the
     // customizer modal lets a user configure) — sent as one opaque blob rather than threading
     // every individual field through this handler's destructuring one at a time. Only ever sent
@@ -1493,6 +1494,7 @@ app.post('/api/v1/nexus', async (req, res) => {
             userName: username || clientSettings.userName || '',
             discordUserId: effectiveAuthorId,
             routerVersion,
+            evalRun: requestedEvalRun === true,
             isSuperChillUser: isSuperChill || Boolean(clientSettings.isSuperChillUser),
             userCustomDirectives:
               (typeof userRules === 'string' ? userRules : Array.isArray(userRules) ? userRules.join('\n') : '') ||
@@ -1528,6 +1530,7 @@ app.post('/api/v1/nexus', async (req, res) => {
             // generateCodeEditWithReview, which doesn't read this field.
             showThinking: false,
             routerVersion,
+            evalRun: requestedEvalRun === true,
           };
 
       // Real image understanding, not a fake header on top of a blind text-only response — this
@@ -1845,7 +1848,7 @@ app.post('/api/v1/nexus', async (req, res) => {
     // Learning (docs/learning-system.md): queue this exchange for the idle worker. One SQLite insert
     // after the reply is built; triage drops most messages before anything is stored.
     const replyForLearning = queuedExecution.data?.response;
-    if (typeof replyForLearning === 'string' && replyForLearning) {
+    if (typeof replyForLearning === 'string' && replyForLearning && requestedEvalRun !== true) {
       // Remembered so a Discord reaction on this exact reply can be accepted as feedback later.
       registerNexusReply(userText, replyForLearning);
       const lastBotIndex = historyArray.map((m: any) => m?.role).lastIndexOf('assistant');

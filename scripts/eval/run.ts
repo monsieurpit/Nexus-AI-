@@ -77,7 +77,7 @@ async function ask(msg: string, userId: string, history: EvalCase['history'] = [
   const res = await fetch(`${BASE}/api/v1/nexus`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: msg, userId, username: 'Tester', history, routerVersion: router }),
+    body: JSON.stringify({ message: msg, userId, username: 'Tester', history, routerVersion: router, evalRun: true }),
     signal: AbortSignal.timeout(180_000),
   });
   const j: any = await res.json().catch(() => ({}));

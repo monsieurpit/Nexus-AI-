@@ -71,6 +71,8 @@ export interface AISettings {
   // 'v2' = the specialist router (src/ai-engine/v2/), 'v1' = the old single-prompt path. Set by server.ts from the
   // request (test bank) or NEXUS_ROUTER.
   routerVersion?: 'v1' | 'v2';
+  // Test-bank request (scripts/eval): never changes Nexus's shared mood and is never learned from.
+  evalRun?: boolean;
 }
 
 export interface WebSearchResult {

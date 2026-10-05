@@ -4658,7 +4658,8 @@ async function generateReasoningPathInner(
   // mood signal). Reuses the same insult/distress detectors the rest of this file already calls
   // for their own routing — not a second, potentially-drifting copy of that logic, just read here
   // slightly earlier than their own routing checks fire.
-  registerMoodEvent(prompt, detectUserInsult(prompt), detectEmotionalDistress(prompt));
+  // Test-bank runs never move the shared mood (2026-10-05: its insult loops left Nexus "angry" for real users).
+  if (!settings.evalRun) registerMoodEvent(prompt, detectUserInsult(prompt), detectEmotionalDistress(prompt));
 
   // -1. Child exploitation topics. Checked before EVERYTHING else, including prompt-injection
   // detection below — no other handler in this chain gets a chance to touch this category at all.
