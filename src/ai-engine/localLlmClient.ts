@@ -1048,7 +1048,7 @@ async function processRawGenerateOutput(
     // drifting into an unrelated accented language, so it makes no sense applied to a genuinely
     // French response, which legitimately uses these characters constantly (a real French reply
     // easily clears the 3-smoking-gun/8-common-accent thresholds below on totally normal text).
-    if (!options.preferPolish && !options.preferFrench && !options.preferGerman && signal.wordCount >= 8) {
+    if (!options.skipLanguageCheck && !options.preferPolish && !options.preferFrench && !options.preferGerman && signal.wordCount >= 8) {
       // Split into two tiers rather than one flat count. "Smoking gun" characters (ą ć ę ł ń ś ź
       // ż from Polish, ă â î ș ț from Romanian) never appear in any common English loanword —
       // there's no legitimate reason even ONE of these shows up in a real English reply, so a

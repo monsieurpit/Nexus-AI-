@@ -866,6 +866,14 @@ async function runV2Checks() {
       const good = staffPrechecks(['Kev, 17, EST', 'around 4 hours a day', 'mod in Fortnite Hub, around 2,300 members, for 6 months', 'to help keep it clean', 'calm', 'formal warning, then a 10 min timeout, then report to an admin with screenshots', 'talk to them privately in the staff channel', 'politely tell them im busy and to open a ticket', 'yes i agree']);
       check('staff review pre-checks: 1 h/day + instant bans + public staff fight + refused agreement => forced "Not accepted"; a not-credible 5k claim is flagged', bad.forced === '❌ Not accepted' && bad.lines.some((l) => /NOT credible/.test(l)) && bad.lines.some((l) => /Scenario B/.test(l)) && bad.lines.some((l) => /NOT accepted by the applicant/.test(l)));
       check('staff review pre-checks: 4 h/day + proportionate scenarios => no forced verdict; "2,300 members" read as 2300', good.forced === null && good.lines.some((l) => /2,300-member/.test(l))); }
+    { const { parseFilledForm, staffPrechecks, interviewNote: note } = await import('../src/ai-engine/v2/pipeline');
+      const { readFileSync } = await import('fs');
+      const form = readFileSync(new URL('./eval/fixtures/staff-form-belucat.txt', import.meta.url), 'utf8');
+      const ans = parseFilledForm(form);
+      check('official form pasted with answers after each question: every answer read, question text and footer stripped', !!ans && ans[5] === 'I kindly ask them to stop, if they dont, they will be given a 3 day mute' && ans[7] === 'I warn them and depending how much pings ill probably mute' && ans[8] === 'Yes i confirm' && /27k/.test(ans[2]));
+      const pre = staffPrechecks(ans || []);
+      check('pasted form pre-checks: 2-3+ h ok, 3-day mute for a minor disruption and muting for pings flagged, 27k claim unverified', pre.lines.some((l) => /2-3\+ h/.test(l)) && pre.lines.some((l) => /3 day punishment/.test(l)) && pre.lines.some((l) => /Scenario C: punishes/.test(l)) && pre.lines.some((l) => /27,000-member/.test(l)));
+      check('a pasted form: alone = review, "summarize" = neutral summary (no verdict), "translate" = normal translation', /Write the final REVIEW/.test(note('f1', form)) && /NEUTRAL summary/.test(note('f2', `summarize this staff app\n${form}`)) && !/REVIEW/.test(note('f2b', `summarize this staff app\n${form}`)) && note('f3', `translate this application to french\n${form}`) === ''); }
     interviewNote(u, 'nexus apply for staff');
     check('staff interview: "cancel the application" ends it', /cancelled/.test(interviewNote(u, 'cancel the application')) && !interviewActive(u));
   }

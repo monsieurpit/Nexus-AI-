@@ -87,8 +87,13 @@ export function sayRequest(prompt: string): string | null {
 // A translation is copy-paste ready: an intro the model adds anyway ("damn, here's the goddamn translation:",
 // "the translation for "X" is:") and the quotes around the result are cut.
 export function cleanTranslation(reply: string): string {
-  let t = reply.trim();
-  const intro = t.match(/^[\s\S]{0,240}?(?:translat\w*|übersetzung|traduction|tłumaczenie|here\s+(?:it\s+is|u\s+go|you\s+go)|voici|hier\s+ist)[^:\n]{0,120}:\s*/i);
+  // The <<< >>> markers from the translation job, wherever the model left them, and markdown headings back on their own line.
+  let t = reply.replace(/^\s*(?:<<<|>>>)\s*$/gm, '').replace(/[ \t]+(#{1,3}\s)/g, '\n\n$1').replace(/\n{3,}/g, '\n\n').trim();
+  // The translation quoted inside commentary ('... here's the german: "Hallo, wie geht es dir?". u absolute ...'):
+  // keep the quoted part when it is most of the useful text.
+  const quoted = [...t.matchAll(/["“„«]([^"”“»]{8,})["”“»]/g)].map((m) => m[1].trim()).sort((a, b) => b.length - a.length)[0];
+  if (quoted && quoted.length >= 0.1 * t.length && /\b(?:here'?s|translat\w*|in\s+[a-z]+:|knobhead|shit|fuck|basic)\b/i.test(t.replace(quoted, ''))) return quoted;
+  const intro = t.match(/^[\s\S]{0,240}?(?:translat\w*|übersetzung|traduction|tłumaczenie|here(?:'?s|\s+is)\s+(?:the|it|ur|your)\b[^:\n]{0,30}|here\s+(?:it\s+is|u\s+go|you\s+go)|voici|hier\s+ist)[^:\n]{0,120}:\s*/i);
   if (intro && intro[0].length < t.length - 2) t = t.slice(intro[0].length);
   t = t.replace(/^["“„«']\s*|\s*["”“»']\s*$/g, '').trim();
   return t || reply.trim();
@@ -201,6 +206,17 @@ export function serverContextBlock(ctx: AISettings['serverContext']): string {
   return `SERVER CONTEXT (real, use it):\nServer: ${ctx.serverName}${ctx.memberCount ? ` (${ctx.memberCount} members)` : ''}${ctx.channel ? `, channel #${ctx.channel}` : ''}.\nThe person asking: ${ctx.askerIsOwner ? 'the SERVER OWNER; ' : ''}roles ${ctx.askerRoles?.length ? ctx.askerRoles.join(', ') : 'none'}; staff permissions: ${ctx.askerStaffPermissions?.length ? ctx.askerStaffPermissions.join(', ') : 'none (a regular member)'}.\nStaff ladder (highest first):\n${ladder || '(no roles with moderation permissions found)'}\n`;
 }
 
+// "translate this application to french\n<long text>": the model translated only the request line. The text to
+// translate (everything after the request line, or after a colon/quote) is handed over separately and explicitly.
+function translationBlock(prompt: string): string {
+  if (!/(?<![a-zà-ÿäöüß])(?:translate|traduis|traduire|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)/i.test(prompt)) return '';
+  const nl = prompt.indexOf('\n');
+  const body = nl > 0 ? prompt.slice(nl + 1).trim() : ((prompt.match(/[:"“]\s*([\s\S]{2,})$/) || [])[1] || '').replace(/["”]\s*$/, '').trim();
+  if (!body || body.length < 2) return '';
+  const request = nl > 0 ? prompt.slice(0, nl) : prompt.slice(0, Math.max(0, prompt.length - body.length));
+  return `TRANSLATION JOB: their request is "${request.replace(/^\s*nexus[\s,:]*/i, '').trim()}". Translate the WHOLE text below, every line, keeping its layout (headings, bullets, emojis, line breaks). Output ONLY the translated text — no intro, no comment, no swearing.\nTEXT TO TRANSLATE:\n<<<\n${body.slice(0, 3500)}\n>>>\n\n`;
+}
+
 // How Patrick reviews a staff application (2026-10-05) — given only once the last answer is in.
 export const STAFF_REVIEW_RULES = `STAFF REVIEW RULES (review it the way the server owner does — a 12k+ community that needs patience, maturity and respect for the staff hierarchy):
 Rate EACH point on its own line, starting with its mark (✅ good, ⚠️ concern, ❌ problem), then the point name, a colon and one short reason that cites their answer — no brackets:
@@ -247,19 +263,32 @@ export function staffPrechecks(answers: string[]): { lines: string[]; forced: st
   // Activity (answer 2): hours a day.
   const hm = a(1).match(/(\d+(?:[.,]\d+)?)\s*(?:-|to|à|bis)?\s*(\d+(?:[.,]\d+)?)?\s*(h|hours?|hrs?|heures?|stunden?|godzin\w*|min\w*)/);
   let hours: number | null = null;
+  let hoursLabel = '';
   if (hm) {
-    const n = parseFloat((hm[2] || hm[1]).replace(',', '.'));
-    hours = /^min/.test(hm[3]) ? n / 60 : n;
+    // A range ("2-3 hours") is rated on its LOWER number, shown as written.
+    const lo = parseFloat(hm[1].replace(',', '.'));
+    const hi = hm[2] ? parseFloat(hm[2].replace(',', '.')) : null;
+    const scale = /^min/.test(hm[3]) ? 1 / 60 : 1;
+    hours = lo * scale;
+    if (hi !== null && hi > lo) {
+      hoursLabel = `${lo}-${hi}${/\b(?:or\s+more|\+|plus)\b|\+/.test(a(1)) ? '+' : ''} h`;
+      if (hours === 2) hours = 2.5; // "2-3 hours (or more)" is over 2 h on average
+    }
   } else if (/\b(?:one|an|une|eine|jedn\w*)\s+(?:hour|heure|stunde|godzin\w*)\b/.test(a(1))) hours = 1;
   else if (/\b(?:all\s+day|whole\s+day|always|24\/7)\b/.test(a(1))) hours = 8;
   if (hours === null) lines.push('Activity: unclear how many hours (⚠️).');
-  else if (hours < 2) { lines.push(`Activity: about ${hours} h a day — UNDER the 2 h minimum (❌).`); hardFail = true; }
+  else if (hours < 2) { lines.push(`Activity: about ${hoursLabel || `${hours} h`} a day — UNDER the 2 h minimum (❌).`); hardFail = true; }
   else if (hours === 2) lines.push('Activity: exactly 2 h a day — borderline (⚠️).');
-  else lines.push(`Activity: about ${hours} h a day — over 2 h (✅).`);
+  else lines.push(`Activity: about ${hoursLabel || `${hours} h`} a day — over 2 h (✅).`);
   // Scenarios A and C (answers 6 and 8): harsh punishments.
   const scen = `${a(5)} ${a(7)}`;
   const harsh = /\b(?:ban|kick|perma\w*)\b/.test(scen) && (/\b(?:instant\w*|immediate\w*|right\s+away|straight\s+away|no\s+warning|without\s+warning|just\s+ban|ban\s+(?:them|him|her|both|everyone))\b/.test(scen) || !/\b(?:warn\w*|timeout|time\s+out|mute|calm|talk|report|admin|owner|screenshot|proof|escalat\w*|log)\b/.test(scen));
   if (harsh) { lines.push('Scenario A/C: jumps straight to bans/kicks without warning or escalation — TOO HARSH (❌).'); hardFail = true; }
+  // Scenario A: a minor disruption deserves minutes/hours, not days.
+  const longPunish = a(5).match(/(\d+)\s*(day|days|d|week|weeks|month|months)\b[^.]{0,20}\b(?:mute|timeout|time\s*out|ban)|\b(?:mute|timeout|time\s*out|ban)\b[^.]{0,20}?(\d+)\s*(day|days|week|weeks|month|months)\b/);
+  if (!harsh && longPunish) lines.push(`Scenario A: a ${longPunish[1] || longPunish[3]} ${longPunish[2] || longPunish[4]} punishment for a MINOR disruption, and no step in between — too harsh, should be a warning then short timeouts (⚠️).`);
+  // Scenario C: the member only asked for help — muting/timing them out for pinging is punishing a request.
+  if (!harsh && /\b(?:mute|timeout|time\s*out|block|kick|ban)\b/.test(a(7))) lines.push('Scenario C: punishes a member for pinging/asking for help instead of setting a polite boundary and redirecting them to a ticket or other staff (⚠️).');
   // Scenario B (answer 7): a disagreement with staff is handled privately / up the hierarchy, never in public.
   if (/\b(?:in\s+(?:public|general|chat)|call\s+(?:them|him|her)\s+out|publicly|undo|override|reverse\s+(?:it|the)|ignore\s+(?:it|them|the\s+decision)|argue)\b/.test(a(6)) && !/\b(?:private\w*|dm|staff\s+(?:chat|channel)|higher|admin|owner|calm\w*|respect\w*)\b/.test(a(6))) lines.push('Scenario B: handles a staff disagreement in public / by overriding — disrespects the hierarchy (❌/⚠️).');
   // Staff agreement (answer 9).
@@ -271,7 +300,7 @@ export function staffPrechecks(answers: string[]): { lines: string[]; forced: st
   if (/\b(?:power|perms?|permissions?|the\s+role|rank|ban\s+people)\b/.test(a(3)) && !/\b(?:help|clean|moderat\w*|community|members?|safe)\b/.test(a(3))) lines.push('Reason: wants the role/power, not to help (⚠️).');
   // Credibility (answers 1 + 3): a big-server claim that doesn't add up.
   const age = parseInt((a(0).match(/\b(\d{1,2})\b/) || [])[1] || '', 10);
-  const members = Math.max(0, ...[...a(2).matchAll(/(\d+(?:[.,]\d+)?)\s*(k|000)?\s*(?:\+)?\s*(?:members?|people|ppl|membres?|mitglied\w*|servers?|discord)/g)].map((m) => parseFloat(/^\d{1,3}[.,]\d{3}$/.test(m[1]) ? m[1].replace(/[.,]/, '') : m[1].replace(',', '.')) * (m[2] === 'k' ? 1000 : 1)));
+  const members = Math.max(0, ...[...a(2).matchAll(/(\d+(?:[.,]\d+)?)\s*(k|000)?\s*(?:\+)?(?:\s+[a-z]+){0,3}\s*(?:members?|people|ppl|membres?|mitglied\w*|servers?|discord|community)/g)].map((m) => parseFloat(/^\d{1,3}[.,]\d{3}$/.test(m[1]) ? m[1].replace(/[.,]/, '') : m[1].replace(',', '.')) * (m[2] === 'k' ? 1000 : 1)));
   const years = parseFloat((a(2).match(/(\d+(?:[.,]\d+)?)\s*(?:years?|yrs?|ans|jahre?)/) || [])[1] || '0');
   const noName = /\b(?:can'?t\s+say|cannot\s+say|won'?t\s+say|secret|private|deleted|no\s+name|forgot\s+the\s+name)\b/.test(a(2));
   if (members >= 2000 && (noName || (age && age <= 14 && years >= 2))) lines.push(`Experience: claims a ${members.toLocaleString('en-US')}+ member server${noName ? ' but won\'t name it' : ''}${age && age <= 14 && years >= 2 ? ` and ${years} years of it at age ${age}` : ''} — NOT credible, ask for proof (❌/⚠️).`);
@@ -329,7 +358,12 @@ export function parseFilledForm(text: string): string[] | null {
       .replace(/\s*[•-]\s*$/, '')
       .replace(/\s+/g, ' ')
       .trim();
-    if (seg) answers[h.slot] = answers[h.slot] ? `${answers[h.slot]}; ${seg}` : seg;
+    // The form's own question text, when the answer was written after it on the same line, and the form's footer.
+    const answer = seg
+      .replace(/^(?:A member is causing|You disagree with a decision|A user pings you repeatedly)[^?]*\?(?:[^?]{0,80}\?)?\s*/i, '')
+      .replace(/\b(?:By submitting this application[^.]*\.(?:[^.]*\.){0,2}|Reply below with your completed answers\.?|Please copy this form[^:]*:?)\s*/gi, '')
+      .trim();
+    if (answer) answers[h.slot] = answers[h.slot] ? `${answers[h.slot]}; ${answer}` : answer;
   });
 // The form itself says submitting = agreeing.
   if (!answers[8]) answers[8] = 'agreed by submitting the form';
@@ -351,6 +385,13 @@ export function interviewNote(author: string, prompt: string): string {
   const form = parseFilledForm(prompt);
   if (form) {
     interviews.delete(author);
+    // What they ASKED for with the form decides what they get (Patrick, 2026-10-05): a form alone or "review it" = the
+    // review; "summarize it" = a neutral summary (no judging); "translate it" = a translation.
+    if (/(?<![a-zà-ÿäöüß])(?:translate|traduis|traduire|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)/i.test(prompt)) return '';
+    if (/\b(?:summar\w*|sum\s+(?:it|this)\s+up|tl;?dr|recap|résum\w*|resume|zusammenfass\w*|podsumuj\w*)\b/i.test(prompt)) {
+      const transcript = STAFF_QUESTIONS.map((q, i) => `Q${i + 1}. ${q}\nA${i + 1}. ${form[i] || '(no answer)'}`).join('\n');
+      return `They pasted a staff application and asked for a SUMMARY of it. Write a short, NEUTRAL summary of what the applicant answered (who they are, availability, experience, reason, skills, how they'd handle each scenario, agreement) — 6-10 short lines. NO ratings, NO ✅/⚠️/❌, NO score, NO verdict, no opinion on whether it's good, sketchy or credible.\nTHE APPLICATION:\n${transcript}\n`;
+    }
     return reviewNote(author, form, 'they pasted their whole completed staff application form in one message.');
   }
   const iv = interviewActive(author) ? interviews.get(author)! : null;
@@ -443,7 +484,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
     case 'helper': {
       const progress = interviewNote(settings?.discordUserId || '', prompt);
       return {
-        text: `${progress}${serverContextBlock(settings?.serverContext ?? null)}\n${deps.threadText ? `The conversation so far (oldest first; "You" = you — use it to know where you are, e.g. which application question is next):\n${deps.threadText}\n\n` : ''}${facts}${nowLine()}\n\nTheir message: "${prompt.slice(0, 3000)}"\nYour reply:`,
+        text: `${progress}${translationBlock(prompt)}${serverContextBlock(settings?.serverContext ?? null)}\n${deps.threadText ? `The conversation so far (oldest first; "You" = you — use it to know where you are, e.g. which application question is next):\n${deps.threadText}\n\n` : ''}${facts}${nowLine()}\n\nTheir message: "${prompt.slice(0, 3000)}"\nYour reply:`,
         sources: [],
       };
     }
@@ -465,6 +506,9 @@ async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en
     preferFrench: lang === 'fr',
     preferPolish: lang === 'pl',
     preferGerman: lang === 'de',
+    // The helper translates INTO other languages: the "English reply drifted into another language" guard would reject a
+    // correct French/German translation (2026-10-05: v2 failed and v1's fallback answered).
+    skipLanguageCheck: spec.id === 'helper',
     maxTokens: spec.maxTokens + (spec.think ? (spec.id === 'maths' ? 1400 : 800) : 0),
     think: spec.think,
     model: localLlmClient.chatModel(),
