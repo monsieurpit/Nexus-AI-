@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
 // "Prime Nexus" routing (Patrick, 2026-10-04): short, concise answers for chat; real, complete output for tasks
 // (code, summaries, drafts); normal tight answers for knowledge questions. Before this, small messages ("nexus b",
 // "go to your corner", "count to 5", "how long is it") fell into knowledge/template branches and came back as
@@ -75,10 +78,62 @@ export function classifyMessageMode(raw: string): { mode: MessageMode; task?: Ta
 // The same reply three times in a row ("a clone?" x3) is what made Nexus feel broken. Recent replies are kept per
 // person (and a few globally) so the model can be told what NOT to say again, and a duplicate gets regenerated.
 
+// Saved to disk (2026-10-05: "yeah i dig that fucking much tbh 😭" came back word for word after an engine restart had
+// wiped the in-memory list), so a restart never resets what he has already said.
 const perAuthor = new Map<string, string[]>();
 const globalRecent: string[] = [];
-const MAX_PER_AUTHOR = 10;
-const MAX_GLOBAL = 20;
+const MAX_PER_AUTHOR = 12;
+const MAX_GLOBAL = 40;
+const RECENT_FILE = join(process.env.NEXUS_ROUTER_DIR || join(homedir(), '.nexus-router'), 'recent-replies.json');
+let loadedFromDisk = false;
+let persistOff = process.env.NEXUS_RECENT_PERSIST === 'off';
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function loadRecent(): void {
+  if (loadedFromDisk || persistOff) return;
+  loadedFromDisk = true;
+  try {
+    if (!existsSync(RECENT_FILE)) return;
+    const data = JSON.parse(readFileSync(RECENT_FILE, 'utf8'));
+    for (const [id, list] of Object.entries(data.perAuthor || {})) if (Array.isArray(list)) perAuthor.set(id, (list as string[]).slice(-MAX_PER_AUTHOR));
+    if (Array.isArray(data.global)) globalRecent.push(...(data.global as string[]).slice(-MAX_GLOBAL));
+  } catch {
+    /* a broken file just starts fresh */
+  }
+}
+
+function saveRecentSoon(): void {
+  if (saveTimer || persistOff) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    try {
+      mkdirSync(join(RECENT_FILE, '..'), { recursive: true });
+      writeFileSync(RECENT_FILE, JSON.stringify({ perAuthor: Object.fromEntries([...perAuthor].slice(-500)), global: globalRecent }), { mode: 0o600 });
+    } catch {
+      /* only a memory aid */
+    }
+  }, 2000);
+  saveTimer.unref?.();
+}
+
+// 3-word phrases he has used in 2+ of his last 40 replies (to anyone): the chat specialist is told to avoid them, so a
+// pet phrase can't take over ("dig that fucking", "proper fucking mental").
+export function overusedPhrases(max = 8): string[] {
+  loadRecent();
+  const counts = new Map<string, number>();
+  const STOP = /^(?:i|u|ur|im|a|the|to|it|is|and|of|in|on|my|me|you|your|that|this|so|be|just|its|it's|for|with|at|rn|tbh|fr|lol|lmao|ngl)$/;
+  for (const line of globalRecent) {
+    const words = line.toLowerCase().replace(/[^a-z0-9'\s]/g, ' ').split(/\s+/).filter(Boolean);
+    const seen = new Set<string>();
+    for (let i = 0; i + 2 < words.length; i++) {
+      const tri = words.slice(i, i + 3);
+      if (tri.filter((w) => !STOP.test(w)).length < 2) continue;
+      seen.add(tri.join(' '));
+    }
+    for (const p of seen) counts.set(p, (counts.get(p) || 0) + 1);
+  }
+  return [...counts].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, max).map(([p]) => p);
+}
 
 export function normalizeReply(text: string): string {
   return (text || '')
@@ -99,6 +154,7 @@ function similarity(a: string, b: string): number {
 }
 
 export function recentRepliesFor(authorId?: string, extra: string[] = []): string[] {
+  loadRecent();
   const mine = authorId ? perAuthor.get(authorId) || [] : [];
   const all = [...extra, ...mine, ...globalRecent.slice(-6)].map((r) => r.trim()).filter(Boolean);
   return [...new Set(all)].slice(-12);
@@ -114,6 +170,7 @@ export function isRepeat(reply: string, recent: string[]): boolean {
 }
 
 export function rememberReply(reply: string, authorId?: string): void {
+  loadRecent();
   const text = (reply || '').trim().slice(0, 300);
   if (!text) return;
   if (authorId) {
@@ -124,9 +181,12 @@ export function rememberReply(reply: string, authorId?: string): void {
   }
   globalRecent.push(text);
   if (globalRecent.length > MAX_GLOBAL) globalRecent.splice(0, globalRecent.length - MAX_GLOBAL);
+  saveRecentSoon();
 }
 
 export function __resetRepliesForTests(): void {
+  persistOff = true; // tests never read or write the real file
+  loadedFromDisk = true;
   perAuthor.clear();
   globalRecent.length = 0;
 }

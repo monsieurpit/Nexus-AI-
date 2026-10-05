@@ -8470,7 +8470,7 @@ export async function generateCodeEditWithReview(
 export async function generateReasoningPath(...args: Parameters<typeof generateReasoningPathInner>): Promise<ReasoningResult> {
   const result = await generateReasoningPathInner(...args);
   try {
-    rememberReply(result.content, args[3]?.discordUserId);
+    if (!args[3]?.evalRun) rememberReply(result.content, args[3]?.discordUserId);
   } catch {
     /* never let bookkeeping break a reply */
   }

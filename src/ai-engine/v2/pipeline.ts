@@ -7,7 +7,7 @@ import * as localLlmClient from '../localLlmClient';
 import type { AISettings, ThoughtStep } from '../../types';
 import { routeMessage, type Route } from './router';
 import { SPECIALISTS, type Specialist, type SpecialistId } from './specialists';
-import { chatMeaningHints, isRepeat, isEchoReply, SAD_RE } from '../rules/messageMode';
+import { chatMeaningHints, isRepeat, isEchoReply, SAD_RE, overusedPhrases } from '../rules/messageMode';
 import { finalizeSpecialistReply, hasContextLeak, stripCrudeAside } from '../rules/postProcess';
 import { isFormalDraftRequest, buildMoodUserPreamble } from '../rules/promptBuilder';
 import { containsSlurOrHateSpeech } from '../swearEngine';
@@ -192,7 +192,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       if (sayWhat) hints.push(`They want you to SAY exactly: "${sayWhat}". Your reply MUST contain those exact words, word for word (it's a joke, play along), then at most a few words of reaction.`);
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him, roast him in one line (love-hate).\n' : '';
       return {
-        text: `${thread}${facts}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }

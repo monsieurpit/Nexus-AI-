@@ -829,6 +829,14 @@ async function runV2Checks() {
   check('v2 cleanup: numbered steps keep their own lines', finalizeSpecialistReply('steps:\n1) APU on\n2) Beacon on\n3) Eng 2 start', 'answer', 'how do you start an a320').split('\n').length === 4);
   check('v2 cleanup: :sob: becomes 😭', finalizeSpecialistReply('lmao :sob:', 'chat', 'lol').includes('😭'));
   for (const sp of Object.values(SPECIALISTS)) check(`v2 instructions: ${sp.id} is detailed but under 7000 chars (${sp.system.length})`, sp.system.length > IDENTITY.length + 800 && sp.system.length < 7000);
+  {
+    const mm = await import('../src/ai-engine/rules/messageMode');
+    mm.__resetRepliesForTests();
+    for (const r of ['yeah i dig that fucking much tbh 😭', 'nah i dig that fucking vibe', 'ur mum prob still uses those rags 💀']) mm.rememberReply(r, 'u1');
+    check('v2 variety: a phrase used twice lately is flagged as overused', mm.overusedPhrases().includes('dig that fucking'));
+    check('v2 variety: a line already said to someone else counts as a repeat', mm.isRepeat('yeah i dig that fucking much tbh 😭', mm.recentRepliesFor('u2')));
+    mm.__resetRepliesForTests();
+  }
   check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }
 
