@@ -40,6 +40,7 @@ const ADVICE_RE = /\b(?:give\s+me\s+(?:some\s+)?tips|tips\s+(?:on|for|to)|how\s+
 // Short questions aimed at Nexus himself ("who is your boyfriend", "where is casseurt from", "do you remember me").
 const SELF_Q_RE = /^(?:(?:and|so|but)\s+)?(?:(?:who|what|where|when|why|how)(?:'s|s)?\s+(?:is|are|was|were|do|does|did|old|long|tall)?\s*(?:are\s+)?(?:you|u|ur|your|yourself|casseurt|patrick|it)\b|(?:do|did|are|r|can|could|will|would|have|were|is)\s+(?:you|u|ur|your)\b|(?:you|u|ur)\s+(?:are|r|is|got|have)\b)/i;
 const ABOUT_RE = /^(?:who\s+(?:is|was|are|were)\s+\S|tell\s+me\s+(?:about|everything\s+(?:you\s+know\s+)?about)\s+\S|(?:give\s+me\s+a\s+)?(?:detailed\s+)?description\s+of|describe\s+\S|name\s+(?:me\s+)?(?:every|all)\b|give\s+me\s+(?:a|some)\s+(?:\S+\s+){0,3}(?:formation|strategy|tactics?|routine|workout|recipe|tips|advice)\b)/i;
+const CODE_CUE_RE = /```|[{};]|=>|\b(?:let|const|var|def|import|return|console\.log|print|elif|else\s*:)\b|\w\(\s*\w*\s*\)|\b(?:code|coding|script|function|program|programming|python|javascript|js|typescript|ts|java|c\+\+|cpp|c#|rust|golang|html|css|lua|luau|php|sql|bash|regex|api|bug|error|exception|compile|debug|loop|variable|class|bot|app|website|web\s*site|game|roblox|discord\.js|node|react|json|terminal|command\s+line)\b/i;
 const ARITHMETIC_RE = /^(?:what(?:'s|s|\s+is)|whats|calculate|calc|solve|compute|how\s+much\s+is)?\s*[-\d\s.,+*/x×÷^()%]+(?:\s*(?:=|\?))?\s*$|\d\s*(?:[+*/×÷^]|plus|minus|times|divided\s+by|multiplied\s+by|to\s+the\s+power\s+of)\s*\d|\b(?:square\s+root|percent\s+of|\d+%\s+of|solve\s+for|derivative|integral)\b/i;
 const VECTOR_RE = /\b(?:translate|move|shift)\s+(?:the\s+)?point\b|\bvector\s*\(/i;
 const PC_PART_RE = /\b(?:gpu|cpu|graphics\s+card|motherboard|mobo|psu|power\s+supply|ssd|nvme|ddr[45]|ram\s+(?:sticks?|kit)|sticks?\s+of\s+(?:ram|ddr)|rtx\s?\d{3,4}|gtx\s?\d{3,4}|rx\s?\d{4}|ryzen|core\s+ultra|i[579]-?\d{4,5}|x3d|prebuilt|gaming\s+pc|pc\s+build|aio|cpu\s+cooler|pc\s+case|monitor|1440p|4k\s+gaming|1080p)\b/i;
@@ -50,6 +51,8 @@ function byRules(text: string): Route | null {
   const r = (mode: SpecialistId, reason: string): Route => ({ mode, by: 'rule', reason, confidence: 1 });
   if (detectEmotionalDistress(t) || SAD_RE.test(t)) return r('support', 'sad / stressed');
   if (CHAT_COMMAND_RE.test(t)) return r('chat', 'command to nexus');
+  // "show me your feet / dih / stopki" — about Nexus himself, never code (2026-10-05: "show me your stopki" got a Python script).
+  if (/^(?:(?:can|could|will)\s+(?:you|u)\s+)?(?:show|send|give)\s+(?:me\s+)?(?:your|ur|yo)\s+(?!code\b|script\b|source\b)\S/i.test(t)) return r('chat', 'about nexus himself');
   if (/^(?:wanna|want\s+to|let'?s|shall\s+we|u\s+wanna|you\s+wanna)\s+crack\s+(?:a|the|this)\s+(?:code|password|safe)\b/i.test(t) && !/```|\b(?:python|javascript|js|java|c\+\+|lua|hash|cipher\s+text)\b/i.test(t)) return r('chat', 'banter: crack a code');
   if ((/\bgoon\w*\b/i.test(t) || /\b(?:wanna|want\s+to|let'?s|u\s+wanna|you\s+wanna)\s+crack\b(?!\s+(?:a|an|the|this|my|some|open|on)\b)/i.test(t)) && !/\d|\bbody\s*count/i.test(t) && !detectTask(t)) return r('chat', 'goon talk');
   if (VECTOR_RE.test(t) && /\(\s*-?\d/.test(t)) return r('maths', 'vector / geometry');
@@ -245,6 +248,9 @@ export async function routeMessage(raw: string): Promise<Route> {
   // Very short messages ("ok", "W", "😭", "nexus b") are always chat.
   if (text.split(/\s+/).filter(Boolean).length <= 2 && !/\?$/.test(text) && text.length < 18) return { mode: 'chat', by: 'rule', reason: 'very short', confidence: 1 };
   const meaning = await byMeaning(text).catch(() => null);
+  // The meaning vote may only pick CODE when there is a real coding word in the message: unknown words ("stopki")
+  // made "show me your stopki" look like "show me an example in java".
+  if (meaning && meaning.route.mode === 'code' && !CODE_CUE_RE.test(text)) return { mode: 'chat', by: 'meaning', reason: `${meaning.route.reason}; no coding word, so chat`, confidence: 0.5 };
   if (meaning) return meaning.route;
   // Embeddings unavailable: the model picks (a tiny one-word call), else chat.
   const model = await byModel(text).catch(() => null);

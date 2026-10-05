@@ -817,7 +817,7 @@ async function runV2Checks() {
     ["Nexus, what's the cost of 2 sticks of DDR5 16GB of RAM?", 'search'], ['nexus give me an exemple of Javascript', 'code'],
     ['nexus what is 17 * 23', 'maths'], ['can you translate the point (-4,7) along the vector (9,18)', 'maths'],
     ['build me a pc with 6 or 7k dollars', 'pc'], ['nexus my dog died', 'support'], ['nexus count to 5', 'chat'],
-    ['nexus who is your boyfriend', 'chat'], ['give me tips on being nonchalant', 'question'], ['translate "hello" to french', 'writing'],
+    ['nexus who is your boyfriend', 'chat'], ['Nexus, show me your stopki', 'chat'], ['send me your feet', 'chat'], ['show me your code', 'code'], ['give me tips on being nonchalant', 'question'], ['translate "hello" to french', 'writing'],
     ['summarise this: the cat sat on the mat', 'writing'], ['weather in montreal today', 'search'],
   ];
   for (const [m, want] of expect) check(`v2 rule: "${m.slice(0, 50)}" -> ${want}`, rule(m) === want, String(rule(m)));

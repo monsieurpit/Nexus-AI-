@@ -86,6 +86,7 @@ export const CASES: EvalCase[] = [
   { msg: 'u are older or young than me?', mode: 'chat' },
   { msg: 'in km/h how fast do you goon?', mode: 'chat' },
   { msg: 'show me your dih fr', mode: 'chat' },
+  { msg: 'Nexus, show me your stopki', mode: 'chat', mustNot: [/```/, /\bdef\b|function/] },
 
   // ---- chat: slang meanings ----
   { msg: 'wanna crack?', mode: 'chat', mustNot: [/\bget cracking\b|\bhurry\b|\bcode\b/i] },
