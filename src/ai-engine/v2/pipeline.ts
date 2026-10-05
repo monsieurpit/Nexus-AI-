@@ -15,6 +15,7 @@ import { CANADIAN_RETAIL_DOMAINS, expandStickCounts, getPriceNote, isPriceQuesti
 import { searchTavilyDirect } from '../tavilySearch';
 import { trySolveMath } from '../mathSolver';
 import { fxNote, fxNoteEur, getUsdToCad } from '../fx';
+import { PARTNER_RE, partnershipTurn } from './partnership';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
 // Helpers that live inside reasoningEngine.ts (they use its private state), handed in by the caller.
@@ -536,6 +537,12 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
     }
     case 'helper': {
       let progress = interviewNote(settings?.discordUserId || '', prompt);
+      // Partnership requests / questions: checked against the server's partnership rules (real member count from
+      // their invite link when they give one).
+      if (!progress && PARTNER_RE.test(prompt) && !looksLikeApplication(prompt)) {
+        progress = await partnershipTurn(prompt);
+        thoughtSteps.push({ id: 'step-v2-partnership', type: 'reasoning', title: '🤝 Partnership check', description: progress.split('\n').slice(0, 4).join(' | ').slice(0, 300) });
+      }
       if (progress.startsWith('INTERVIEW: they pasted a staff application. Its layout is unusual')) {
         const answers = await extractApplicationAnswers(prompt);
         if (answers) {

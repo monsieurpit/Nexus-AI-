@@ -881,6 +881,12 @@ async function runV2Checks() {
     interviewNote(u, 'nexus apply for staff');
     check('staff interview: "cancel the application" ends it', /cancelled/.test(interviewNote(u, 'cancel the application')) && !interviewActive(u));
   }
+  {
+    const { checkPartnership, findBadContent, claimedMembers } = await import('../src/ai-engine/v2/partnership');
+    const v = async (t: string) => (await checkPartnership(t)).verdict;
+    check('partnership: 1,500 members = Tier 2 (no ping), 2.4k = Tier 1 (ping), 800 = not eligible, no count = ask', (await v('can we partner? we have 1,500 members, active chat')) === 'tier2' && (await v('partnership? 2.4k members')) === 'tier1' && (await v('partner with us! 800 members')) === 'too-small' && (await v('can we partner? chill community')) === 'need-info');
+    check('partnership: NSFW / 18+ / hentai / account selling refused, but "no NSFW", "anti-raid", "NSFW-free" are fine', (await v('partnership: 18+ NSFW server, 5k members')) === 'nsfw' && (await v('partner? 3000 members, we sell accounts cheap')) === 'nsfw' && findBadContent('no NSFW, anti-raid bot, toxicity-free') === null && findBadContent('NSFW-free, strictly no porn') === null && claimedMembers('around 1.2k members') === 1200);
+  }
   check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }
 
