@@ -82,6 +82,13 @@ export function sayRequest(prompt: string): string | null {
 }
 
 // Patrick (2026-10-05): emojis on most lines are good ("the first try was good with the emojis"), but never 💅.
+// Patrick (2026-10-05): "I don't like how he says something after (he puts things like these around the rest of his
+// message)" -> a chat reply never ends with a bracketed add-on; the joke belongs in the reply itself.
+export function dropTrailingAside(reply: string): string {
+  const out = reply.replace(/\s*[([][^)\]]*[a-z]{3}[^)\]]*[)\]]\s*([.!?…]*)\s*$/i, '$1').trim();
+  return out.length >= 2 ? out : reply;
+}
+
 // Patrick, later the same day: "he is using too much emojis, limit him to 1" -> at most ONE emoji per reply (the first
 // one is kept), outside code blocks.
 const EMOJI_RE = /\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/gu;
@@ -185,7 +192,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       if (sayWhat) hints.push(`They want you to SAY exactly: "${sayWhat}". Your reply MUST contain those exact words, word for word (it's a joke, play along), then at most a few words of reaction.`);
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him, roast him in one line (love-hate).\n' : '';
       return {
-        text: `${thread}${facts}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((a) => (a.length ? `\nTMI asides you used lately (never reuse or rephrase these — a new one, or none): ${a.map((x) => `"${x}"`).join(' | ')}` : ''))(recentAsides(deps.recentLines))}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }
@@ -304,6 +311,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   }
   let content = dropBannedEmoji(finalize(raw));
   if (route.mode === 'chat') {
+    content = dropTrailingAside(content);
     const sayWhat = sayRequest(prompt);
     // The words they asked for must be there; if the model dodged, they lead the reply.
     if (sayWhat && !content.toLowerCase().includes(sayWhat.toLowerCase().replace(/[.!?]+$/, ''))) content = `${sayWhat} ${content}`.trim();
