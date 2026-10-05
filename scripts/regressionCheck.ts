@@ -890,6 +890,10 @@ async function runV2Checks() {
   }
   { const { isPartnershipMessage } = await import('../src/ai-engine/v2/partnership');
     check('a partnership check only runs when the message says "partner"/"partnership" (Patrick\'s choice), in any channel', isPartnershipMessage('nexus partnership? our server is 18+ nsfw with 4K members', 'general') && isPartnershipMessage('can we partner', 'general') && !isPartnershipMessage('nexus my server is a 18+ nsfw server with 4K member', '🤝・partnerships') && !isPartnershipMessage('discord.gg/abc123', '🤝・partnerships')); }
+  { const { pickVideoKind } = await import('../src/ai-engine/v2/pipeline');
+    const pk = (seen: string, q = '') => pickVideoKind(seen, q);
+    check('video sub-personas: gaming / football / tutorial / music / meme / talk / food picked from what is seen and said', pk('A Fortnite gameplay clip, the player gets 3 kills and a Victory Royale.') === 'gaming' && pk('A football match, a striker dribbles past the defender and scores a goal in the stadium.') === 'football' && pk('First we install the CPU into the motherboard, then the RAM, then the GPU.') === 'tutorial' && pk('A music video, the singer raps the chorus over a phonk beat.') === 'music' && pk('A funny prank, everyone is laughing.') === 'meme' && pk('A podcast interview, two people talking about the news.') === 'talk' && pk('A chef in a kitchen frying a burger, ingredients on the table.') === 'food' && pk('A cat sitting on a sofa.') === 'general');
+    check('video sub-personas: the question counts double ("rate my edit" on a game clip = music/edit)', pk('Fortnite gameplay with transitions and a beat', 'rate my edit') === 'music'); }
   check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }
 

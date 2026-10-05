@@ -162,6 +162,7 @@ const EXAMPLES: Record<SpecialistId, string[]> = {
     'should i ban him or just warn him', 'write a warning for a member', 'plan a server event', 'who should i ask about this',
     'übersetze das für ihn', 'traduis ça pour lui', 'what are the staff roles here', 'how do permissions work for my role',
   ],
+  video: [], // only chosen when a video is attached (pipeline.ts), never by meaning
   support: [
     'she is mad at me and idk what to do', 'my friends left me out', 'i feel like a failure',
     'i feel so alone', 'nobody likes me', 'my girlfriend broke up with me', 'i failed my exam and i feel terrible', 'my parents are fighting',

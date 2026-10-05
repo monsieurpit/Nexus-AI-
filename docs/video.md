@@ -20,3 +20,11 @@ Hugging Face cache. Env: `NEXUS_MLX_PYTHON`, `NEXUS_WHISPER_MODEL` (default `mlx
 **Paths**: the bot forwards a video attachment as `videoUrl`; the website sends the upload as a `data:video/...` URL
 (in `imageUrl`). The website never saves videos in the browser's history (localStorage would overflow) — only the name.
 The engine log shows `[video] analysis ok {...timings}` per video.
+
+## Video specialist and its sub-personas
+A video always goes to the 🎬 Video specialist (`VIDEO` in src/ai-engine/v2/specialists.ts), which answers like someone
+who watched it (timestamps, quotes, never invents what isn't seen or said). It picks a sub-persona (`VIDEO_SUBS`) from
+keywords in what's seen and said plus the question (`pickVideoKind` in pipeline.ts; the question counts double):
+🎮 gaming · ⚽ football/sports · 🛠️ tutorial/tech · 🎵 music/edit · 😂 meme/funny · 🎙️ talk/vlog/news · 🍳 food · 🎬 general.
+Each one has its own focus (gameplay + skill read + tip; the moment + players + rating; steps with timestamps + mistakes;
+song + edit quality /10; get the joke; key points + dubious claims; dish + steps).

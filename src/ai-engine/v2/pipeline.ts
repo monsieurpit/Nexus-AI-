@@ -6,7 +6,7 @@
 import * as localLlmClient from '../localLlmClient';
 import type { AISettings, ThoughtStep } from '../../types';
 import { routeMessage, type Route } from './router';
-import { SPECIALISTS, type Specialist, type SpecialistId } from './specialists';
+import { SPECIALISTS, VIDEO_SUBS, type Specialist, type SpecialistId, type VideoKind } from './specialists';
 import { chatMeaningHints, isRepeat, isEchoReply, SAD_RE, overusedPhrases } from '../rules/messageMode';
 import { finalizeSpecialistReply, hasContextLeak, stripCrudeAside } from '../rules/postProcess';
 import { isFormalDraftRequest, buildMoodUserPreamble } from '../rules/promptBuilder';
@@ -98,6 +98,29 @@ export function cleanTranslation(reply: string): string {
   if (intro && intro[0].length < t.length - 2) t = t.slice(intro[0].length);
   t = t.replace(/^["“„«']\s*|\s*["”“»']\s*$/g, '').trim();
   return t || reply.trim();
+}
+
+// Which video sub-persona: keywords in what's seen and said (the analysis) and in their question. Scores per kind;
+// the question counts double (\"rate my edit\" is an edit even if the clip shows a game).
+const VIDEO_KIND_CUES: Array<[VideoKind, RegExp]> = [
+  ['gaming', /\b(?:fortnite|valorant|minecraft|roblox|call\s+of\s+duty|cod|warzone|apex|gta|fifa|ea\s+fc|league\s+of\s+legends|lol\s+match|cs2|csgo|counter[-\s]?strike|overwatch|rocket\s+league|gameplay|game\s?play|kills?|victory\s+royale|clutch|headshot|respawn|lobby|ranked|controller|keyboard\s+and\s+mouse|hud|health\s+bar|minimap|crosshair|video\s+game|gaming)\b/i],
+  ['football', /\b(?:football|soccer|goal|goalkeeper|keeper|penalty|free\s+kick|corner|offside|dribbl\w*|striker|midfield\w*|defender|referee|stadium|pitch|la\s+liga|premier\s+league|champions\s+league|barça|barca|barcelona|real\s+madrid|messi|ronaldo|yamal|pedri|mbapp[eé]|lewandowski|jersey|kit|nba|basketball|dunk|hockey|tennis|f1|formula\s+1)\b/i],
+  ['tutorial', /\b(?:tutorial|how\s+to|step\s+\d|first\s+(?:we|you)|install\w*|motherboard|gpu|graphics\s+card|cpu|ram|psu|thermal\s+paste|cable\s+management|pc\s+build|setup|settings|code|coding|terminal|screwdriver|repair|guide|explain\w*\s+how)\b/i],
+  ['music', /\b(?:song|music|lyrics?|singing|singer|rap|rapper|beat|bass\s+drop|dj|concert|edit|montage|amv|transition\w*|velocity|phonk|remix|music\s+video|chorus|verse)\b|♪|🎵/i],
+  ['meme', /\b(?:meme|funny|prank|fail|lmao|lol|skit|brainrot|skibidi|sigma|rizz|cringe|reaction|laughing|joke|troll)\b|😂|🤣|💀/i],
+  ['talk', /\b(?:podcast|interview|vlog|news|breaking|report\w*|announc\w*|story\s*time|today\s+i|i\s+think|in\s+my\s+opinion|talking\s+(?:to|about)|speech|press\s+conference|microphone|talking\s+head)\b/i],
+  ['food', /\b(?:recipe|cooking|cook|chef|kitchen|oven|pan|fry|frying|bake|baking|ingredients?|dish|meal|burger|pizza|pasta|sauce|mcdonald'?s|kfc|poutine|taste\s+test|mukbang)\b/i],
+];
+export function pickVideoKind(analysis: string, question: string): VideoKind {
+  const score = new Map<VideoKind, number>();
+  for (const [kind, re] of VIDEO_KIND_CUES) {
+    const g = new RegExp(re.source, 'gi');
+    const inVideo = (analysis.match(g) || []).length;
+    const inQuestion = (question.match(g) || []).length;
+    if (inVideo + inQuestion) score.set(kind, inVideo + 2 * inQuestion);
+  }
+  const best = [...score].sort((a, b) => b[1] - a[1])[0];
+  return best && best[1] >= 2 ? best[0] : best && best[1] === 1 && question ? best[0] : 'general';
 }
 
 // Patrick (2026-10-05): "I don't like how he says something after (he puts things like these around the rest of his
@@ -555,6 +578,9 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
         sources: [],
       };
     }
+    case 'video':
+      // The video's analysis and sub-persona are put in front of this (runV2's image/video block).
+      return { text: `${thread}${nowLine()}\n\nYour answer:`, sources: [] };
     case 'support':
       return { text: `${thread}${facts}They just said: "${s}"\nYour reply (warm, 1-3 short sentences):`, sources: [] };
   }
@@ -607,6 +633,12 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const prompt = text || (image ? 'look at this' : rawPrompt);
   const lang = langOf(text || rawPrompt);
   let route = await routeMessage(prompt);
+  // A video always goes to the video specialist, which picks its sub-persona from the video itself.
+  let videoKind: VideoKind | null = null;
+  if (kind === 'video' && image) {
+    videoKind = pickVideoKind(image, text);
+    route = { mode: 'video', by: 'rule', reason: `video attached → ${VIDEO_SUBS[videoKind].label}`, confidence: 1 };
+  }
   const author = settings.discordUserId || '';
   const prev = author ? lastRoute.get(author) : undefined;
   if (route.mode !== 'helper' && route.mode !== 'support' && isPartnershipMessage(prompt, settings.serverContext?.channel)) {
@@ -625,7 +657,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const built = await buildUserTurn(route.mode, prompt, deps, thoughtSteps, lang, settings);
   const imageBlock = image
     ? kind === 'video'
-      ? `THE VIDEO THEY SENT (you watched it yourself; its details, what's on screen and what's said): ${image}\nAnswer from this like someone who watched it — quote what's said when useful, mention timestamps for specific moments. Never say you can't watch videos.\n${text ? '' : 'They sent it with no text: react to it.\n'}\n`
+      ? `THE VIDEO THEY SENT (you watched it yourself; its details, what's on screen and what's said): ${image}\nSUB-PERSONA: ${videoKind ? `${VIDEO_SUBS[videoKind].label} — ${VIDEO_SUBS[videoKind].focus}` : VIDEO_SUBS.general.focus}\n${text ? `Their message with it: "${text}"` : 'They sent it with no text: react to it.'}\n\n`
       : `THE IMAGE THEY SENT (you looked at it yourself; this is what's in it): ${image}\n${text ? '' : 'They sent it with no text: react to it.\n'}\n`
     : '';
   // A translation's own text is in the TARGET language even when the asker writes German/French/Polish.
