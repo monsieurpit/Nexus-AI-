@@ -1,8 +1,8 @@
 {
   "model": "bge-m3",
   "dim": 1024,
-  "generatedAt": "2026-10-04T22:27:57.820Z",
-  "count": 5845,
+  "generatedAt": "2026-10-06T00:13:35.886Z",
+  "count": 5986,
   "shards": [
     "shard-000.json",
     "shard-001.json",

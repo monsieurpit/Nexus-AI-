@@ -18,6 +18,7 @@ import { PC_BUILD_REQUEST_RE } from '../rules/postProcess';
 import { detectEmotionalDistress } from '../swearEngine';
 import { isBodyCountQuestion } from '../rules/bodyCount';
 import type { SpecialistId } from './specialists';
+import { detectCodeLang, type CodeLang } from './codeTools';
 
 export interface Route {
   mode: SpecialistId;
@@ -57,6 +58,12 @@ const DE_CODE_RE = /\b(?:schreib|programmier|code|mach|erstell|bau)\w*\b[^?!.]{0
 const DE_QUESTION_RE = /^(?:wer\s+(?:ist|war|sind)\s+\S|was\s+(?:ist|sind|bedeutet|heißt|heisst)\s+(?:ein|eine|der|die|das)?\s*\S|wie\s+funktionier\w*|erklär\w*\s+(?:mir\s+)?\S|warum\s+\S|wieso\s+\S|gib\s+mir\s+(?:ein\s+paar\s+)?tipps)/i;
 const DE_CHAT_RE = /^(?:zähl|zaehl)\s+bis\s+\d+|^sag\s+\S|^geh\s+(?:schlafen|ins\s+bett|in\s+deine\s+ecke)|^gute\s+nacht|^(?:wirf|wirfst)\s+(?:eine\s+)?münze|^würfel|^(?:bist|hast|magst|liebst|kannst|willst)\s+du\b|^wie\s+alt\s+bist\s+du|^wer\s+(?:ist\s+dein|bist\s+du|hat\s+dich)|^was\s+(?:geht|machst\s+du)|^wie\s+geht'?s/i;
 
+const LOOSE_LANGS = new Set<CodeLang>(['lua', 'html', 'git', 'json', 'c', 'r', 'javascript', 'css']);
+const CODE_STRONG_RE = /\b(?:write|code|coding|script|program|implement|function|method|class|component|query|snippet|syntax|fix|debug|error|bug|compile|hello\s+world|command|regex|selector|stylesheet|flexbox|grid|center|merge|commit|branch|rebase|parse|leaderstats|remote\s*event|datastore|plot|ggplot|dplyr)\b/i;
+// Algorithm / data-structure work with no language named ("implement dijkstra", "explain big o notation").
+const ALGO_TASK_RE = /\b(?:dijkstra|a\*\s*pathfinding|binary\s+search|bfs|dfs|breadth[\s-]first|depth[\s-]first|quick\s*sort|merge\s*sort|bubble\s*sort|insertion\s*sort|heap\s*sort|linked\s+list|binary\s+(?:search\s+)?tree|hash\s*(?:map|table)|dynamic\s+programming|memoi[sz]ation|big\s*o(?:\s+notation)?|time\s+complexity|recursion|backtracking|topological\s+sort|sorting\s+algorithm|data\s+structures?|leetcode|two\s+sum|fizz\s*buzz|design\s+patterns?|solid\s+principles)\b/i;
+const CODE_INTENT_RE = /\b(?:write|code|coding|script|program|implement|function|method|class|struct|component|query|hello\s+world|example|snippet|syntax|fix|debug|error|bug|compile|explain|how\s+(?:do|to|can|does|would)|what\s+(?:is|are|does)|difference\s+between|make|create|build|set\s*up|generate|convert|refactor|optimi[sz]e|server|api|app|screen|page|counter|todo|plot|one[\s-]?liner|monads?|genserver|dockerfile|workflow|pipeline)\b/i;
+
 function byRules(text: string): Route | null {
   const t = text;
   const r = (mode: SpecialistId, reason: string): Route => ({ mode, by: 'rule', reason, confidence: 1 });
@@ -80,6 +87,11 @@ function byRules(text: string): Route | null {
   // specialist, 2026-10-05) — unless the message really contains code.
   const pcBuild = PC_BUILD_REQUEST_RE.test(t) || (/\b(?:pc|computer|rig)\b/i.test(t) && /\b(?:build|budget|parts?|components?)\b/i.test(t));
   if (task === 'code' && !(pcBuild && !/```|[{};]|\b(?:python|javascript|typescript|java|c\+\+|lua|html|css|sql|discord\.js)\b/i.test(t))) return r('code', 'code request');
+  // v2code: any of the 40 languages named + a coding intent ("svelte counter component", "hello world in x86 assembly").
+  // Loose cues (Roblox, "website", git, JSON, "in c", "in r") need a clearly technical word.
+  const codeLang = detectCodeLang(t);
+  if (codeLang && !pcBuild && (LOOSE_LANGS.has(codeLang) ? CODE_STRONG_RE : CODE_INTENT_RE).test(t)) return r('code', `${codeLang} request`);
+  if (ALGO_TASK_RE.test(t) && CODE_INTENT_RE.test(t)) return r('code', 'algorithms / data structures');
   if (pcBuild) return r('pc', 'pc build / parts');
   if (isPriceQuestion(t) || LIVE_RE.test(t)) return r('search', 'live info / price');
   if (task) return r('writing', `${task} request`);

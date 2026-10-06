@@ -13,6 +13,7 @@ import { detectUrlInPrompt, fetchUrlContent } from './urlFetcher';
 import { hybridSearchKnowledgeGraph } from './vectorSearch';
 import { runV2, phraseWithFacts } from './v2/pipeline';
 import { isPartnershipMessage } from './v2/partnership';
+import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL } from './v2/codeTools';
 import { fxNote, toUsd } from './fx';
 import { shouldTriggerLiveWebSearch, buildWebSearchQuery } from './webSearchEngine';
 import { processForSearch, splitSentences } from './bm25Engine';
@@ -8418,8 +8419,17 @@ export async function generateCodeEditWithReview(
 ): Promise<CodeEditReviewResult> {
   const deadline = Date.now() + CODE_EDIT_TOTAL_BUDGET_MS;
   const notes: string[] = [];
-  let currentPrompt = prompt;
+  // v2code (2026-10-05): the language's reference docs go in front of the instruction, and every pass is
+  // checked by the language's real parser/compiler (codeTools.ts — syntax only, never executed).
+  const codeLang = detectCodeLang(prompt.slice(0, 6000));
+  const ref = codeReference(codeLang, prompt.slice(0, 1500));
+  if (ref.titles.length) notes.push(`v2code reference (${codeLang ? LANG_LABEL[codeLang] : 'algorithms & design'}): ${ref.titles.join(' · ')}`);
+  const basePrompt = ref.text
+    ? `${codeLang ? `LANGUAGE: ${LANG_LABEL[codeLang]} — use its current, idiomatic style and real APIs.\n` : ''}REFERENCE (correct and current — use it where it applies):\n${ref.text}\n\n---\n\n${prompt}`
+    : prompt;
+  let currentPrompt = basePrompt;
   let lastGoodText: string | null = null;
+  let passesRun = 0;
 
   for (let pass = 1; pass <= CODE_EDIT_MAX_PASSES; pass++) {
     const remaining = deadline - Date.now();
@@ -8444,10 +8454,25 @@ export async function generateCodeEditWithReview(
       return { text: '', status: 'unavailable', passes: pass, notes };
     }
     lastGoodText = genResult.text;
+    passesRun = pass;
     if (genResult.thinking) notes.push(`Pass ${pass} reasoning: ${genResult.thinking.slice(0, 400)}`);
+
+    // Compiler check on the blocks that name their language (an untagged/diff block can't be checked fairly).
+    let compilerErrors = '';
+    for (const block of extractCodeBlocks(genResult.text).slice(0, 4)) {
+      if (!block.tag || block.tag === 'diff') continue;
+      const res = await checkCode(codeLang, block.tag, block.code);
+      if (!res.checked) continue;
+      notes.push(`Pass ${pass} ${res.checker}: ${res.ok ? 'no syntax errors' : 'errors found'}`);
+      if (!res.ok) compilerErrors += `\n[${res.checker}]\n${res.errors}`;
+    }
 
     const remainingAfterGen = deadline - Date.now();
     if (pass === CODE_EDIT_MAX_PASSES || remainingAfterGen < 6000) break;
+    if (compilerErrors) {
+      currentPrompt = `${basePrompt}\n\nYour previous attempt:\n${genResult.text.slice(0, 6000)}\n\nThe compiler found these errors in it:${compilerErrors.slice(0, 1500)}\n\nWrite the corrected version. (If a block is intentionally an excerpt of a larger file, ignore errors caused only by the missing surrounding code.)`;
+      continue;
+    }
 
     // Review pass — short and focused (max 150 tokens: a verdict, not a rewrite), so it costs a
     // fraction of what a full generation pass does.
@@ -8476,13 +8501,13 @@ export async function generateCodeEditWithReview(
     }
     const critique = reviewResult.text.trim().slice(0, 300);
     notes.push(`Pass ${pass} self-review found an issue: ${critique}`);
-    currentPrompt = `${prompt}\n\nYour previous attempt had a problem, caught by your own review: ${critique}\n\nWrite the corrected version, addressing that specifically.`;
+    currentPrompt = `${basePrompt}\n\nYour previous attempt had a problem, caught by your own review: ${critique}\n\nWrite the corrected version, addressing that specifically.`;
   }
 
   return {
     text: lastGoodText ?? '',
     status: lastGoodText ? 'success' : 'unavailable',
-    passes: notes.length + 1,
+    passes: Math.max(passesRun, 1),
     notes,
   };
 }

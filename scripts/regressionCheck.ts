@@ -896,6 +896,26 @@ async function runV2Checks() {
     check('video sub-personas: the question counts double ("rate my edit" on a game clip = music/edit)', pk('Fortnite gameplay with transitions and a beat', 'rate my edit') === 'music'); }
   { const { isPartnershipMessage } = await import('../src/ai-engine/v2/partnership');
     check('a partnership ad with an invite link is a partnership request (the link reader must not grab it)', isPartnershipMessage('Nexus, partnership\n🔥⚽ EPC SEASON 3 IS COMING! ⚽🔥\n@everyone\nhttps://discord.gg/wn4rvhJcQ')); }
+  { const { detectCodeLang, codeReference, refExcerpt, checkCode, extractCodeBlocks } = await import('../src/ai-engine/v2/codeTools');
+    const { CODE_REFERENCE } = await import('../src/ai-engine/corpus/code');
+    const langs: Array<[string, string]> = [['make a discord.js slash command', 'discordjs'], ['python discord bot', 'discordpy'], ['roblox coin script', 'lua'], ['c++ vector sort', 'cpp'], ['in c how do i malloc', 'c'], ['unity jump script c#', 'csharp'], ['fix my java NullPointerException', 'java'], ['go http server', 'go'], ['rust borrow checker error', 'rust'], ['center a div', 'css'], ['make a vue counter', 'vue'], ['flutter login page', 'dart'], ['powershell script to rename files', 'powershell'], ['ggplot in R', 'r'], ['sql top 3 per group', 'sql'], ['regex for email', 'regex']];
+    const wrong = langs.filter(([q, l]) => detectCodeLang(q) !== l);
+    check('v2code: the language is detected from the request (16 languages)', wrong.length === 0 && detectCodeLang("let's go to the server") === null, wrong.map(([q]) => q).join(', '));
+    check('v2code: the corpus has one category per language, ids unique, 120+ docs', CODE_REFERENCE.length >= 120 && new Set(CODE_REFERENCE.map((d) => d.id)).size === CODE_REFERENCE.length && new Set(CODE_REFERENCE.map((d) => d.category)).size >= 30);
+    const sqlRef = codeReference('sql', 'sql query to get top 3 salaries per department');
+    check('v2code: reference picks that language\'s docs and keeps the relevant lines of long docs', sqlRef.titles.length === 3 && /Top 3 per group/.test(sqlRef.text) && codeReference('discordjs', 'slash command to ban someone').titles[0].startsWith('discord.js slash commands') && refExcerpt('a\nb', 'x', 100) === 'a\nb');
+    check('v2code: an algorithms question gets the algorithms doc, with or without a language', codeReference(null, 'explain big o notation').titles.some((t) => /Big O/.test(t)) && codeReference('javascript', 'write a binary search in javascript').titles.some((t) => /binary search/i.test(t)));
+    const py = await checkCode('python', 'python', 'def f(:\n  pass\n');
+    const pyOk = await checkCode('python', 'python', 'def f(x):\n    return x * 2\n');
+    const ts = await checkCode('typescript', 'ts', 'const x: number = ;\n');
+    check('v2code: the syntax checkers catch broken code and pass valid code (python, ts)', py.checked && !py.ok && pyOk.ok && ts.checked && !ts.ok);
+    const { __test: rt } = await import('../src/ai-engine/v2/router');
+    const codeQs = ['explain haskell monads with an example', 'hello world in x86 assembly', 'svelte counter component', 'flutter login screen', 'ggplot scatter plot in R', 'implement dijkstra', 'set up github actions for my repo', 'write a go http server', 'sql query for top 3 per group', 'perl one liner to replace text in files'];
+    const notCode = ['we had a school assembly today', 'i love roblox', 'roblox is boring', 'make me laugh', 'i hate recursion lol', 'nexus show me your stopki'];
+    const missed = codeQs.filter((q) => rt.byRules(q)?.mode !== 'code');
+    const grabbed = notCode.filter((q) => rt.byRules(q)?.mode === 'code');
+    check('v2code router: a named language/algorithm + a coding intent = code; banter about it is not', missed.length === 0 && grabbed.length === 0, [...missed, ...grabbed].join(', '));
+    check('v2code: code blocks are extracted with their tag', JSON.stringify(extractCodeBlocks('hi\n```js\nlet a = 1;\n```\nok')) === JSON.stringify([{ tag: 'js', code: 'let a = 1;\n' }])); }
   check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }
 

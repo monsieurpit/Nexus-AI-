@@ -16,6 +16,7 @@ import { searchTavilyDirect } from '../tavilySearch';
 import { trySolveMath } from '../mathSolver';
 import { fxNote, fxNoteEur, getUsdToCad } from '../fx';
 import { isPartnershipMessage, partnershipTurn } from './partnership';
+import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
 // Helpers that live inside reasoningEngine.ts (they use its private state), handed in by the caller.
@@ -241,6 +242,8 @@ function translationBlock(prompt: string): string {
   return `TRANSLATION JOB: their request is "${request.replace(/^\s*nexus[\s,:]*/i, '').trim()}". Translate the WHOLE text below, every line, keeping its layout (headings, bullets, emojis, line breaks). Output ONLY the translated text — no intro, no comment, no swearing.\nTEXT TO TRANSLATE:\n<<<\n${body.slice(0, 3500)}\n>>>\n\n`;
 }
 
+// ---- v2code: language references + real syntax checks ---------------------------------------------------------
+// Related reference categories per language (a discord.js bot also needs Node/JavaScript docs, React needs JS/TS...).
 // How Patrick reviews a staff application (2026-10-05) — given only once the last answer is in.
 export const STAFF_REVIEW_RULES = `STAFF REVIEW RULES (review it the way the server owner does — a 12k+ community that needs patience, maturity and respect for the staff hierarchy):
 Rate EACH point on its own line, starting with its mark (✅ good, ⚠️ concern, ❌ problem), then the point name, a colon and one short reason that cites their answer — no brackets:
@@ -536,8 +539,15 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       thoughtSteps.push({ id: 'step-live-search', type: 'web_search', title: `🌐 Live web search: "${ctx.searchedFor}"`, description: `${ctx.count} result(s).` });
       return { text: `${thread}${ctx.block}\n\n${nowLine()}\n\nThey asked: "${s}"\nYour answer:`, sources: ctx.sources };
     }
-    case 'code':
-      return { text: `${thread}Their request: "${prompt.slice(0, 3500)}"\nYour answer (attitude line, then the code block, then how to run it):`, sources: [] };
+    case 'code': {
+      const lang = detectCodeLang(`${prompt}\n${deps.threadText}`);
+      const ref = codeReference(lang, prompt);
+      if (ref.titles.length) thoughtSteps.push({ id: 'step-v2code-ref', type: 'web_search', title: `📘 v2code: ${lang ? LANG_LABEL[lang] : 'algorithms & design'} reference`, description: ref.titles.join(' · ') });
+      return {
+        text: `${thread}${lang ? `LANGUAGE: ${LANG_LABEL[lang]} (use its current, idiomatic style and real APIs).\n` : ''}${ref.text ? `REFERENCE (correct and current — follow it, but write fresh code for THEIR request):\n${ref.text}\n\n` : ''}Their request: "${prompt.slice(0, 3500)}"\nYour answer (attitude line, then the code block, then how to run it):`,
+        sources: ref.titles.map((t) => `Doc: ${t}`),
+      };
+    }
     case 'writing': {
       const formal = isFormalDraftRequest(prompt);
       return {
@@ -694,6 +704,29 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     if (sayWhat && !content.toLowerCase().includes(sayWhat.toLowerCase().replace(/[.!?]+$/, ''))) content = `${sayWhat} ${content}`.trim();
     content = dropBannedEmoji(content);
   }
+  // v2code: every code block gets a REAL syntax check with the language's own parser/compiler (never executed); errors
+  // go back to the model with the exact compiler output, up to 2 fixes.
+  if (route.mode === 'code') {
+    const lang = detectCodeLang(`${prompt}\n${content}`);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const blocks = extractCodeBlocks(content);
+      if (!blocks.length) break;
+      const results = await Promise.all(blocks.map((b) => checkCode(lang, b.tag, b.code)));
+      const failed = results.filter((r) => r.checked && !r.ok);
+      const checked = results.filter((r) => r.checked);
+      thoughtSteps.push({
+        id: `step-v2code-check-${attempt}`,
+        type: 'verification',
+        title: checked.length ? (failed.length ? `❌ v2code check ${attempt + 1}: ${failed.length} block(s) with errors` : `✅ v2code check ${attempt + 1}: code compiles`) : '➖ v2code: no checker for this language here (model review only)',
+        description: checked.length ? `${checked.map((r) => r.checker).join(', ')}${failed.length ? `\n${failed.map((r) => r.errors).join('\n---\n')}` : ''}` : (lang ? LANG_LABEL[lang] : 'unknown language'),
+      });
+      if (!failed.length || attempt === 2) break;
+      const fix = await generateWith(spec, `${userTurn}\n\nYOUR PREVIOUS ANSWER:\n${content.slice(0, 6000)}\n\nTHE COMPILER FOUND THESE ERRORS IN IT:\n${failed.map((r) => `${r.checker}:\n${r.errors}`).join('\n\n')}\n\nFix every error and write your WHOLE answer again (attitude line, the complete corrected code block, how to run it). Don't mention the errors or that you fixed something.`, langOf(prompt));
+      if (!fix) break;
+      content = finalize(fix);
+    }
+  }
+
   // Repeat / echo guard for the short-reply specialists.
   if ((route.mode === 'chat' || route.mode === 'support') && (isRepeat(content, deps.recentLines) || isEchoReply(content, prompt))) {
     const retry = await generateWith(spec, `${userTurn}\n(Your first try was "${content.slice(0, 80)}" — that repeats an old line or their own words. Say something COMPLETELY different that reacts to what they mean.)`, lang);

@@ -174,6 +174,7 @@ import { PC_BEST_PARTS_BUILDS } from './corpus/pcBestPartsBuilds';
 import { PC_EXTRA_GAMES_PLATFORMS } from './corpus/pcExtraGamesPlatforms';
 import { PC_EXTRA_STANDARDS_SECURITY_MISC } from './corpus/pcExtraStandardsSecurityMisc';
 import { AVIATION_PROCEDURES } from './corpus/aviationProcedures';
+import { CODE_REFERENCE } from './corpus/code';
 import { HEALTH_FITNESS_CONCEPTS_GAPS } from './corpus/healthFitnessConceptsGaps';
 import { CIVICS_CONCEPTS_GAPS } from './corpus/civicsConceptsGaps';
 import { ENGINEERING_MACHINES_CONCEPTS_GAPS } from './corpus/engineeringMachinesConceptsGaps';
@@ -1216,6 +1217,7 @@ export const BUILTIN_KNOWLEDGE: KnowledgeItem[] = [
   ...PC_EXTRA_GAMES_PLATFORMS,
   ...PC_EXTRA_STANDARDS_SECURITY_MISC,
   ...AVIATION_PROCEDURES,
+  ...CODE_REFERENCE,
   ...HEALTH_FITNESS_CONCEPTS_GAPS,
   ...CIVICS_CONCEPTS_GAPS,
   ...ENGINEERING_MACHINES_CONCEPTS_GAPS,
