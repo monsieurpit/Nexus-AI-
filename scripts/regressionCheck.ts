@@ -918,6 +918,10 @@ async function runV2Checks() {
     const ideaQs = ['how should I name my new girl?', 'nexus give me ideas of girl names for a newborn baby girl', 'name ideas for my baby girl', 'what should i name my daughter', 'suggest some names for my puppy', 'gift ideas for my mom'];
     const ideaMiss = ideaQs.filter((q) => rt.byRules(q)?.mode !== 'question');
     check('asking for names / ideas goes to the question specialist (real options), "what is your name" stays chat', ideaMiss.length === 0 && rt.byRules('what is your name')?.mode !== 'question', ideaMiss.join(', '));
+    const { nameIdeasBlock, formatNameList } = await import('../src/ai-engine/v2/names');
+    const beauty = nameIdeasBlock('give me girl names that make people think shes beautiful') || '';
+    check('name ideas: "beautiful" girl names get the beauty list with meanings (no boys), puppies get dog names, "what is your name" gets none', /beautiful/.test(beauty) && /Isabella|Belle|Calista|Mirabelle|Jolie|Naomi|Amara|Linda|Bonnie|Annabelle|Shayna|Jamila/.test(beauty) && !/BOYS/.test(beauty) && /dog names/.test(nameIdeasBlock('names for my puppy') || '') && nameIdeasBlock('what is your name') === null && rt.byRules('strong boy names')?.mode === 'question');
+    check('name ideas: one "Name — meaning" per line, the favourite on its own line', formatNameList("Hermosa — beautiful; Amara — grace; Jolie — pretty. I'd pick Hermosa.") === "Hermosa — beautiful\nAmara — grace\nJolie — pretty.\nI'd pick Hermosa.");
     check('v2code: code blocks are extracted with their tag', JSON.stringify(extractCodeBlocks('hi\n```js\nlet a = 1;\n```\nok')) === JSON.stringify([{ tag: 'js', code: 'let a = 1;\n' }])); }
   check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }

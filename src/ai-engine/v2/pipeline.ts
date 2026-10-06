@@ -16,6 +16,7 @@ import { searchTavilyDirect } from '../tavilySearch';
 import { trySolveMath } from '../mathSolver';
 import { fxNote, fxNoteEur, getUsdToCad } from '../fx';
 import { isPartnershipMessage, partnershipTurn } from './partnership';
+import { formatNameList, nameIdeasBlock } from './names';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
@@ -516,6 +517,11 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       };
     }
     case 'question': {
+      const names = nameIdeasBlock(s);
+      if (names) {
+        thoughtSteps.push({ id: 'step-v2-names', type: 'web_search', title: '📛 Name list with meanings', description: names.split('\n').slice(1).join('\n').slice(0, 600) });
+        return { text: `${thread}${names}\n\nTheir request: "${s}"\nYour answer:`, sources: [] };
+      }
       const found = await deps.findFacts(s);
       let web = '';
       const sources = found.titles.map((t) => `Doc: ${t}`);
@@ -704,6 +710,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     if (sayWhat && !content.toLowerCase().includes(sayWhat.toLowerCase().replace(/[.!?]+$/, ''))) content = `${sayWhat} ${content}`.trim();
     content = dropBannedEmoji(content);
   }
+  if (route.mode === 'question' && nameIdeasBlock(said(prompt))) content = formatNameList(content);
   // v2code: every code block gets a REAL syntax check with the language's own parser/compiler (never executed); errors
   // go back to the model with the exact compiler output, up to 2 fixes.
   if (route.mode === 'code') {
