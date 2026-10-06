@@ -915,6 +915,9 @@ async function runV2Checks() {
     const missed = codeQs.filter((q) => rt.byRules(q)?.mode !== 'code');
     const grabbed = notCode.filter((q) => rt.byRules(q)?.mode === 'code');
     check('v2code router: a named language/algorithm + a coding intent = code; banter about it is not', missed.length === 0 && grabbed.length === 0, [...missed, ...grabbed].join(', '));
+    const ideaQs = ['how should I name my new girl?', 'nexus give me ideas of girl names for a newborn baby girl', 'name ideas for my baby girl', 'what should i name my daughter', 'suggest some names for my puppy', 'gift ideas for my mom'];
+    const ideaMiss = ideaQs.filter((q) => rt.byRules(q)?.mode !== 'question');
+    check('asking for names / ideas goes to the question specialist (real options), "what is your name" stays chat', ideaMiss.length === 0 && rt.byRules('what is your name')?.mode !== 'question', ideaMiss.join(', '));
     check('v2code: code blocks are extracted with their tag', JSON.stringify(extractCodeBlocks('hi\n```js\nlet a = 1;\n```\nok')) === JSON.stringify([{ tag: 'js', code: 'let a = 1;\n' }])); }
   check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }

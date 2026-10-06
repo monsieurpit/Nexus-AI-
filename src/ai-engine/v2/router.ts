@@ -64,6 +64,8 @@ const CODE_STRONG_RE = /\b(?:write|code|coding|script|program|implement|function
 const ALGO_TASK_RE = /\b(?:dijkstra|a\*\s*pathfinding|binary\s+search|bfs|dfs|breadth[\s-]first|depth[\s-]first|quick\s*sort|merge\s*sort|bubble\s*sort|insertion\s*sort|heap\s*sort|linked\s+list|binary\s+(?:search\s+)?tree|hash\s*(?:map|table)|dynamic\s+programming|memoi[sz]ation|big\s*o(?:\s+notation)?|time\s+complexity|recursion|backtracking|topological\s+sort|sorting\s+algorithm|data\s+structures?|leetcode|two\s+sum|fizz\s*buzz|design\s+patterns?|solid\s+principles)\b/i;
 const CODE_INTENT_RE = /\b(?:write|code|coding|script|program|implement|function|method|class|struct|component|query|hello\s+world|example|snippet|syntax|fix|debug|error|bug|compile|explain|how\s+(?:do|to|can|does|would)|what\s+(?:is|are|does)|difference\s+between|make|create|build|set\s*up|generate|convert|refactor|optimi[sz]e|server|api|app|screen|page|counter|todo|plot|one[\s-]?liner|monads?|genserver|dockerfile|workflow|pipeline)\b/i;
 
+const IDEAS_RE = /\b(?:names?|gift|costume|date|party|business|username|server|video|content)\s+(?:ideas?|suggestions?|recommendations?)\b|\b(?:ideas?|suggestions?)\s+(?:of|for)\s+(?:a\s+|some\s+)?(?:\w+\s+){0,3}(?:names?|gifts?|presents?|things?|what\s+to)\b|\b(?:what|how)\s+should\s+(?:i|we)\s+(?:name|call)\b|\bsuggest\s+(?:me\s+)?(?:some|a\s+few|good|cute|cool)?\s*(?:\w+\s+){0,2}names?\b|\b(?:give|tell|list)\s+me\s+(?:some\s+|a\s+few\s+|\d+\s+)?(?:\w+\s+){0,4}(?:names|ideas)\b|\b(?:good|cute|cool|unique|pretty)\s+(?:\w+\s+)?names\s+for\b|\bnames?\s+for\s+(?:my|a|an|our)\s+(?:new\s*born\s+|new\s+|baby\s+)?(?:baby|daughter|son|girl|boy|kid|child|twins?|dog|puppy|cat|kitten|pet|fish|hamster|bunny|rabbit|horse|bird|car|server|team|band|channel|business|company|shop|clan|guild)\b/i;
+
 function byRules(text: string): Route | null {
   const t = text;
   const r = (mode: SpecialistId, reason: string): Route => ({ mode, by: 'rule', reason, confidence: 1 });
@@ -92,6 +94,8 @@ function byRules(text: string): Route | null {
   const codeLang = detectCodeLang(t);
   if (codeLang && !pcBuild && (LOOSE_LANGS.has(codeLang) ? CODE_STRONG_RE : CODE_INTENT_RE).test(t)) return r('code', `${codeLang} request`);
   if (ALGO_TASK_RE.test(t) && CODE_INTENT_RE.test(t)) return r('code', 'algorithms / data structures');
+  // Asking for ideas / names (2026-10-06: "how should I name my new girl?" got "Barca" instead of baby names).
+  if (IDEAS_RE.test(t)) return r('question', 'ideas / name suggestions');
   if (pcBuild) return r('pc', 'pc build / parts');
   if (isPriceQuestion(t) || LIVE_RE.test(t)) return r('search', 'live info / price');
   if (task) return r('writing', `${task} request`);
