@@ -567,7 +567,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const hints = chatMeaningHints(prompt);
       const sayWhat = sayRequest(prompt);
       if (sayWhat) hints.push(`They want you to SAY exactly: "${sayWhat}". Your reply MUST contain those exact words, word for word (it's a joke, play along), then at most a few words of reaction.`);
-      const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him, roast him in one line (love-hate).\n' : '';
+      const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
         text: `${thread}${facts}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
@@ -575,10 +575,11 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
     }
     case 'roast': {
       const who = settings?.userName ? `The person coming at you: ${settings.userName}.\n` : '';
+      const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
       const move = nextRoastMove(settings?.discordUserId || settings?.userName || 'anon', s);
       thoughtSteps.push({ id: 'step-v2-roast-move', type: 'reasoning', title: `🔥 Comeback move: ${move}`, description: 'Picked at random (weighted by their message) so comebacks change shape every time.' });
       return {
-        text: `${thread}${facts}${who}${roastMoveNote(move)}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nWrite 3 DIFFERENT comebacks using your move, one per line, no numbers, no intro (the best one gets sent):`,
+        text: `${thread}${facts}${who}${people.length ? `${people.join(' ')}\n` : ''}${roastMoveNote(move)}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nWrite 3 DIFFERENT comebacks using your move, one per line, no numbers, no intro (the best one gets sent):`,
         sources: [],
       };
     }
@@ -974,6 +975,9 @@ export async function phraseWithFacts(kind: SpecialistId, prompt: string, task: 
   if (!raw) return null;
   let content = finalizeSpecialistReply(raw, spec.finalize, said(prompt), lang);
   content = dropBannedEmoji(content);
+  // Same habits as every other reply: swears in full, human emojis (no 🙄).
+  content = uncensorSwears(content);
+  content = kind === 'chat' ? humanEmoji(content, recentLines) : content.replace(/[🙄🤔😊🤷👀🍻😏💅]\uFE0F?/gu, '').trim();
   thoughtSteps.push({ id: 'step-v2-phrase', type: 'synthesis', title: `${spec.label} reply (${title})`, description: `Worded from the true facts in ${Date.now() - t0}ms.`, durationMs: Date.now() - t0 });
   return content;
 }

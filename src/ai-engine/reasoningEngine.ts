@@ -4443,7 +4443,7 @@ async function handleLocationAwareQuery(
     thoughtSteps.push({ id: 'step-location-aware', type: 'reasoning', title, description: instruction.slice(0, 220) });
     // v2: the live-data specialist words it (exact numbers as digits, the person's language).
     const v2Reply = useV2(settings, persona, isCrashout)
-      ? await phraseWithFacts('search', prompt, `LIVE DATA you just looked up — answer from it, exact numbers as digits, only what they asked (today, tomorrow, the weekend...). If you name a source, it's Open-Meteo (weather) — never say "web search" for this:\n${instruction}`, [], thoughtSteps, title)
+      ? await phraseWithFacts('search', prompt, `LIVE DATA you just looked up — answer from it, exact numbers as digits, only what they asked (today, tomorrow, the weekend...). For the weather, if you name a source it's Open-Meteo; for the TIME, don't name any source — never say "web search":\n${instruction}`, [], thoughtSteps, title)
       : null;
     const reply = v2Reply ?? await llmSituationalReplyOrFallback(instruction, persona, settings, isCrashout, thoughtSteps, fallback, title);
     return {
@@ -4526,7 +4526,11 @@ async function handleLocationAwareQuery(
       lon = clientLocation.lon;
       label = 'your location';
     } else {
-      return askForLocation('time');
+      // No city, no shared location (Discord): the server's home time, Quebec (2026-10-11: "quelle heure il est" got
+      // "tell me your timezone").
+      lat = 46.8139;
+      lon = -71.208;
+      label = 'Quebec City (Eastern time — the server\'s home; they can name a city for another one)';
     }
     // Reused purely for its timezone/localTime fields — no need for a second, separate API.
     const weather = await getWeather(lat, lon, label);
@@ -4873,7 +4877,7 @@ async function generateReasoningPathInner(
       const creatorV2 = useV2(settings, persona, isCrashout)
         ? await phraseWithFacts('chat', prompt, isSuperChill
             ? 'The person asking IS Casseurt (Patrick), the one who built you. Tell them, in one cheeky line, that THEY made you.'
-            : 'They asked who made you. TRUE ANSWER: Casseurt built you from scratch, and his real name is Patrick. Your line MUST contain both words "Casseurt" and "Patrick" (e.g. that Casseurt\'s real name is Patrick). Roast him a bit (love-hate), ONE line.', recentRepliesFor(settings.discordUserId), thoughtSteps, 'who made me')
+            : 'They asked who made you. TRUE ANSWER: Casseurt built you from scratch, and his real name is Patrick. Your line MUST contain both words "Casseurt" and "Patrick" (e.g. that Casseurt\'s real name is Patrick). Big him up — he\'s the boss and you\'ve got his back (light banter ok, never insult him), ONE line.', recentRepliesFor(settings.discordUserId), thoughtSteps, 'who made me')
         : null;
       const creatorReply = creatorV2 ?? await llmSituationalReplyOrFallback(
         creatorInstruction,
