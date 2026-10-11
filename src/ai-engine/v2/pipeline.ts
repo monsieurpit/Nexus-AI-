@@ -644,11 +644,16 @@ async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en
   return String(res.text || '').trim() || null;
 }
 
+// The last request's stage timings, for the [nexus] log line (server.ts).
+export let lastTiming: { route: number; build: number; generate: number; after: number } | null = null;
+
 export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Deps, thoughtSteps: ThoughtStep[]): Promise<V2Result | null> {
   const { text, image, kind } = splitImage(rawPrompt);
   const prompt = text || (image ? 'look at this' : rawPrompt);
   const lang = langOf(text || rawPrompt);
+  const tStart = Date.now();
   let route = await routeMessage(prompt);
+  const tRouted = Date.now();
   // A video always goes to the video specialist, which picks its sub-persona from the video itself.
   let videoKind: VideoKind | null = null;
   if (kind === 'video' && image) {
@@ -671,6 +676,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const spec = SPECIALISTS[route.mode];
   thoughtSteps.push({ id: 'step-v2-route', type: 'intent', title: `🧭 Router → ${spec.label}`, description: `${route.by}: ${route.reason}${lang !== 'en' ? ` (${lang})` : ''}${image ? (kind === 'video' ? ' (with a video)' : ' (with an image)') : ''}`, data: { mode: route.mode, by: route.by, lang } as any });
   const built = await buildUserTurn(route.mode, prompt, deps, thoughtSteps, lang, settings);
+  const tBuilt = Date.now();
   const imageBlock = image
     ? kind === 'video'
       ? `THE VIDEO THEY SENT (you watched it yourself; its details, what's on screen and what's said): ${image}\nSUB-PERSONA: ${videoKind ? `${VIDEO_SUBS[videoKind].label} — ${VIDEO_SUBS[videoKind].focus}` : VIDEO_SUBS.general.focus}\n${text ? `Their message with it: "${text}"` : 'They sent it with no text: react to it.'}\n\n`
@@ -689,6 +695,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   };
   const t0 = Date.now();
   const raw = await generateWith(spec, userTurn, lang);
+  const tGenerated = Date.now();
   if (!raw) {
     thoughtSteps.push({ id: 'step-v2-failed', type: 'verification', title: '⚠️ v2 generation failed, v1 takes over', description: lastFailure || 'empty reply' });
     return null; // v1 takes over (its own fallbacks)
@@ -739,6 +746,9 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     const retry = await generateWith(spec, `${userTurn}\n(Your first try was "${content.slice(0, 80)}" — that repeats an old line or their own words. Say something COMPLETELY different that reacts to what they mean.)`, lang);
     if (retry) content = dropBannedEmoji(finalize(retry));
   }
+  const timing = { route: tRouted - tStart, build: tBuilt - tRouted, generate: tGenerated - tBuilt, after: Date.now() - tGenerated };
+  lastTiming = timing;
+  thoughtSteps.push({ id: 'step-v2-timing', type: 'reasoning', title: '⏱️ v2 timings', description: `router ${timing.route} ms → context ${timing.build} ms → reply ${timing.generate} ms → checks/retries ${timing.after} ms`, data: timing as any });
   thoughtSteps.push({ id: 'step-v2-generate', type: 'synthesis', title: `${spec.label} reply`, description: `Generated in ${Date.now() - t0}ms (temp ${spec.temperature}${spec.think ? ', thinking on' : ''}).`, durationMs: Date.now() - t0 });
   return { content, route, sources };
 }

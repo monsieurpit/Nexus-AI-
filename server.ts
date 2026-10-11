@@ -1891,9 +1891,13 @@ app.post('/api/v1/nexus', async (req, res) => {
     const engineLabel = routeStep ? `v2:${routeStep.data?.mode ?? '?'}` : steps.some((st) => /\(.*\)$/.test(st?.title || '') && /Chat|Live search/.test(st?.title || '') && /Worded from the true facts/.test(st?.description || '')) ? 'v2:facts' : 'v1';
     const v2Gen = steps.find((st) => st?.id === 'step-v2-generate' || st?.id === 'step-v2-phrase' || / reply( \(.*\))?$/.test(st?.title || '') && typeof st?.durationMs === 'number');
     const outcome = engineLabel.startsWith('v2') && v2Gen ? `real LLM (${v2Gen.durationMs}ms)` : llmOutcome;
+    const pre = steps.find((st) => st?.id === 'step-pre-v2')?.durationMs;
+    const tmDesc = String(steps.find((st) => st?.id === 'step-v2-timing')?.description || '').match(/router (\d+) ms → context (\d+) ms → reply (\d+) ms → checks\/retries (\d+) ms/);
+    const tm = tmDesc ? { route: tmDesc[1], build: tmDesc[2], generate: tmDesc[3], after: tmDesc[4] } : null;
+    const stages = tm ? ` [pre=${pre ?? '?'} route=${tm.route} ctx=${tm.build} gen=${tm.generate} after=${tm.after}]` : '';
     log(
       'nexus',
-      `"${userText.slice(0, 60)}" -> persona=${persona.id} engine=${engineLabel} mood=${queuedExecution.data.mood?.label ?? 'n/a'} lang=${queuedExecution.data.telemetry?.language ?? (routeStep?.data?.lang || 'n/a')} ${outcome} total=${queuedExecution.processTimeMs}ms`
+      `"${userText.slice(0, 60)}" -> persona=${persona.id} engine=${engineLabel} mood=${queuedExecution.data.mood?.label ?? 'n/a'} lang=${queuedExecution.data.telemetry?.language ?? (routeStep?.data?.lang || 'n/a')} ${outcome} total=${queuedExecution.processTimeMs}ms${stages}`
     );
 
     // Learning (docs/learning-system.md): queue this exchange for the idle worker. One SQLite insert

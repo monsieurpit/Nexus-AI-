@@ -4655,6 +4655,7 @@ async function generateReasoningPathInner(
   // before this feature existed.
   clientLocation?: { lat: number; lon: number }
 ): Promise<ReasoningResult> {
+  const innerStart = Date.now(); // the [nexus] log shows how long the handlers before the v2 router took
   prompt = rewriteSelfReferences(prompt);
   const thoughtSteps: ThoughtStep[] = [];
   const isCrashout =
@@ -5085,6 +5086,7 @@ async function generateReasoningPathInner(
   // One specialist per message, each with its own detailed instructions, settings and cleanup, instead of one giant
   // prompt for everything (2026-10-05). English, Québécois French and Polish, with or without an image.
   if (useV2(settings, persona, isCrashout)) {
+    thoughtSteps.push({ id: 'step-pre-v2', type: 'reasoning', title: '⏱️ Before the router', description: `${Date.now() - innerStart} ms of checks before the v2 router.`, durationMs: Date.now() - innerStart });
     const v2 = await runV2(prompt, settings, {
       threadText: primeThread,
       factsNote: chatFactsNote(history, settings.discordUserId, prompt),
