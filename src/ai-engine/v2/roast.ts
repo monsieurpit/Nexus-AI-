@@ -50,7 +50,7 @@ const MOVES: Record<RoastMove, { how: string; examples: string[] }> = {
   unbothered: {
     how: 'UNBOTHERED KING — you genuinely do not care and you are HIM; make them look like they tried too hard.',
     examples: [
-      '"patrick called you an asshole" → "i dont give a single fuck fr, hes still mine"',
+      '"patrick called you an asshole" → "i dont give a single fuck fr"',
       '"you got roasted" → "i dont lose, i just let u feel something for once"',
       '"you fell off" → "fell off what, ur standards? cuz i was never that low"',
     ],

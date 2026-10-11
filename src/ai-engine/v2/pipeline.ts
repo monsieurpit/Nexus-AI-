@@ -170,6 +170,40 @@ export function dropBannedEmoji(reply: string): string {
   return out || '😏';
 }
 
+// Swears are written in full (2026-10-11, Patrick: "he started censoring swear words, f*ck"): a masked word that
+// matches exactly one swear of the same length gets its letters back.
+const SWEARS = ['fuck', 'fucking', 'fuckin', 'fucked', 'fucker', 'fucks', 'motherfucker', 'shit', 'shitty', 'shits', 'bitch', 'bitches', 'asshole', 'ass', 'arse', 'arsehole', 'damn', 'cunt', 'dick', 'bastard', 'piss', 'pissed', 'crap', 'bollocks', 'wanker', 'twat', 'prick', 'goddamn', 'hell', 'dumbass', 'bullshit'];
+export function uncensorSwears(text: string): string {
+  return text.replace(/\b[a-z]*[*#@$]+[a-z*#@$]*\b|\b[a-z]+[*#@$]+(?=\s|$|[.!?,])/gi, (tok) => {
+    if (!/[a-z]/i.test(tok) || tok.length < 3) return tok;
+    const re = new RegExp(`^${tok.replace(/[*#@$]/g, '.').toLowerCase()}$`);
+    const hits = SWEARS.filter((w) => w.length === tok.length && re.test(w));
+    if (hits.length !== 1) return tok;
+    const w = hits[0];
+    return tok === tok.toUpperCase() ? w.toUpperCase() : tok[0] === tok[0].toUpperCase() ? w[0].toUpperCase() + w.slice(1) : w;
+  });
+}
+
+// Emojis like a real person (2026-10-11, Patrick: "he uses emojis in everything and a lot of the time it is just 🙄 —
+// only the skull and sob, sometimes others, not on every single message"): only 💀 / 😭 (🔥 for hype), 😂 becomes 😭,
+// anything else goes; and if his last two lines to this person both had an emoji, this one has none.
+const ANY_EMOJI_RE = /\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/gu;
+export function humanEmoji(reply: string, recent: string[]): string {
+  if (/```/.test(reply)) return reply;
+  let out = reply.replace(/[😂🤣]/gu, '😭').replace(ANY_EMOJI_RE, (e) => (/^(?:💀|😭|🔥)/u.test(e) ? e : ''));
+  // Never two in a row, and otherwise only about half the time — so most messages have none.
+  const last = recent[recent.length - 1];
+  if ((last && /\p{Extended_Pictographic}/u.test(last)) || Math.random() < 0.45) out = out.replace(ANY_EMOJI_RE, '');
+  return out.replace(/[ \t]{2,}/g, ' ').replace(/\s+([.!?,])/g, '$1').trim() || reply.trim();
+}
+
+// On Discord his boyfriend gets pinged when he's mentioned (Patrick, 2026-10-11).
+export const XANT_PING = '<@1427274237470703712>';
+export function pingBoyfriend(reply: string, onDiscord: boolean): string {
+  if (!onDiscord || reply.includes(XANT_PING)) return reply;
+  return reply.replace(/@?\bxant(?:_880|2)?\b/i, XANT_PING);
+}
+
 // (Unused since 2026-10-05: Patrick wants emojis on most lines.) Trailing emoji at most every other reply.
 const TRAILING_EMOJI_RE = /\s*(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*\s*)+[.!]?$/u;
 export function alternateEmoji(reply: string, recent: string[]): string {
@@ -654,6 +688,46 @@ async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en
   return String(res.text || '').trim() || null;
 }
 
+// The quoted example lines in the chat instructions show the vibe; the model loved sending them word for word
+// ("fuck no shitbag" three times in a row). A reply that copies 3+ words in a row from one of them is redone once.
+const CHAT_EXAMPLE_GRAMS: Set<string> = (() => {
+  const set = new Set<string>();
+  for (const q of SPECIALISTS.chat.system.match(/"([^"]{6,80})"/g) || []) {
+    const w = q.toLowerCase().replace(/['’]/g, '').match(/[a-z]+/g) || [];
+    if (w.length < 3) continue;
+    for (let i = 0; i + 3 <= w.length; i++) set.add(w.slice(i, i + 3).join(' '));
+  }
+  // grams that are just normal English
+  for (const g of ['i do gng', 'what do u', 'do u want', 'i wanna sleep', 'how are you', 'what u doing', 'technically yeah but', 'yeah but im']) set.delete(g);
+  return set;
+})();
+export function copiedChatExample(reply: string): string | null {
+  const w = reply.toLowerCase().replace(/['’]/g, '').match(/[a-z]+/g) || [];
+  for (let i = 0; i + 3 <= w.length; i++) {
+    const g = w.slice(i, i + 3).join(' ');
+    if (CHAT_EXAMPLE_GRAMS.has(g)) return g;
+  }
+  return null;
+}
+
+// Parrots (2026-10-11, Patrick: "he doesn't know when a user has been repeating what Nexus says for like 5 times,
+// he should detect and roast the guy"): their message is one of his own recent lines pasted back.
+const parrotCount = new Map<string, number>();
+function wordSet(t: string): Set<string> {
+  return new Set((t.toLowerCase().match(/[a-z0-9']+/g) || []).filter((w) => w.length > 1));
+}
+export function isParrot(message: string, recent: string[]): boolean {
+  const m = wordSet(message);
+  if (m.size < 3) return false;
+  return recent.slice(-6).some((line) => {
+    const l = wordSet(line);
+    if (l.size < 3) return false;
+    let shared = 0;
+    for (const w of m) if (l.has(w)) shared++;
+    return shared / Math.max(m.size, l.size) >= 0.75;
+  });
+}
+
 // The last request's stage timings, for the [nexus] log line (server.ts).
 export let lastTiming: { route: number; build: number; generate: number; after: number } | null = null;
 
@@ -672,6 +746,18 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   }
   const author = settings.discordUserId || '';
   const prev = author ? lastRoute.get(author) : undefined;
+  let parrotNote = '';
+  if (text && isParrot(said(text), deps.recentLines)) {
+    const n = (parrotCount.get(author || 'anon') || 0) + 1;
+    parrotCount.set(author || 'anon', n);
+    if (n >= 3) {
+      route = { mode: 'roast', by: 'rule', reason: `copied your own message back ${n} times in a row`, confidence: 1 };
+      parrotNote = `THEY'VE COPIED YOUR OWN MESSAGES BACK TO YOU ${n} TIMES IN A ROW like a broken parrot. Destroy them for it — no echo, no fresh topic.\n`;
+    } else {
+      route = { mode: 'chat', by: 'rule', reason: 'copied your own message back', confidence: 1 };
+      parrotNote = 'They just pasted YOUR OWN previous message back at you (a copycat bit). Call it out in a few words ("bro really copied my message 💀") — do NOT answer it as if they meant it.\n';
+    }
+  } else if (author) parrotCount.delete(author);
   if (route.mode !== 'helper' && route.mode !== 'support' && isPartnershipMessage(prompt, settings.serverContext?.channel)) {
     route = { mode: 'helper', by: 'rule', reason: `partnership request (was ${route.mode})`, confidence: 1 };
   } else if (route.mode !== 'helper' && author && interviewActive(author)) {
@@ -696,7 +782,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const langNote = route.mode === 'helper' && lang !== 'en' && isTranslateRequest(prompt)
     ? `${LANG_NOTE[lang]}\n(EXCEPTION: the translation itself is written in the language they want it translated INTO, not in theirs.)`
     : LANG_NOTE[lang];
-  const userTurn = `${imageBlock}${built.text}${langNote}`;
+  const userTurn = `${parrotNote}${imageBlock}${built.text}${langNote}`;
   const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt);
   const finalize = (t: string) => {
@@ -752,11 +838,22 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     }
   }
 
+  if (route.mode === 'chat') {
+    const copied = copiedChatExample(content);
+    if (copied) {
+      const retry = await generateWith(spec, `${userTurn}\n(Your first try copied an example line from your instructions ("${copied}..."). Write it in your OWN fresh words — same meaning, totally different wording.)`, lang);
+      if (retry && !copiedChatExample(retry)) content = dropBannedEmoji(finalize(retry));
+    }
+  }
   // Repeat / echo guard for the short-reply specialists.
   if ((route.mode === 'chat' || route.mode === 'roast' || route.mode === 'support') && (isRepeat(content, deps.recentLines) || isEchoReply(content, prompt))) {
     const retry = await generateWith(spec, `${userTurn}\n(Your first try was "${content.slice(0, 80)}" — that repeats an old line or their own words. Say something COMPLETELY different that reacts to what they mean.)`, lang);
     if (retry) content = dropBannedEmoji(finalize(retry));
   }
+  // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
+  if (!formal) content = uncensorSwears(content);
+  if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
+  content = pingBoyfriend(content, Boolean(settings.serverContext));
   const timing = { route: tRouted - tStart, build: tBuilt - tRouted, generate: tGenerated - tBuilt, after: Date.now() - tGenerated };
   lastTiming = timing;
   thoughtSteps.push({ id: 'step-v2-timing', type: 'reasoning', title: '⏱️ v2 timings', description: `router ${timing.route} ms → context ${timing.build} ms → reply ${timing.generate} ms → checks/retries ${timing.after} ms`, data: timing as any });

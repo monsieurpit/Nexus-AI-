@@ -532,7 +532,7 @@ async function runDeterministicChecks() {
     check('word problem detected', isWordProblem('A train leaves at 3:15 PM going 84 km/h, a second at 4:00 PM going 112 km/h, at what time does it catch up?') && !isWordProblem('what is 2+2'));
     check('echo replies are detected', isEchoReply('shit, a clone?', 'YES A CLONE NEXUS') && isEchoReply('lazy?', 'nexus you lazy ass') && !isEchoReply('nah im not lazy, ur just slow', 'nexus you lazy ass'));
     check('repeats are detected', isRepeat('a clone?', ['a clone?']) && !isRepeat('nah fam', ['a clone?']));
-    check('meaning hints: good night / crack / boyfriend', chatMeaningHints('nexus good night').some((h) => /good night/.test(h)) && chatMeaningHints('nexus wanna crack?').some((h) => /goon/.test(h)) && chatMeaningHints('who is your boyfriend').some((h) => /Patrick Houle/.test(h)) && !chatMeaningHints('can you crack this code').some((h) => /goon/.test(h)));
+    check('meaning hints: good night / crack / boyfriend', chatMeaningHints('nexus good night').some((h) => /good night/.test(h)) && chatMeaningHints('nexus wanna crack?').some((h) => /goon/.test(h)) && chatMeaningHints('who is your boyfriend').some((h) => /xant_880/.test(h)) && !chatMeaningHints('can you crack this code').some((h) => /goon/.test(h)));
     check('hex colour is described', /RGB\(134, 41, 69\)/.test(describeHexColor('862945') || ''));
     check('discord bot invite link is decoded as Administrator, not code', /Administrator/.test(describeDiscordLink('https://discord.com/oauth2/authorize?client_id=1513007319858942062&permissions=8&integration_type=0&scope=bot') || ''));
     check('teaching: subject and teacher check', looksLikeTeaching('Nexus, here is how to start engines on Airbus A320: turn on BAT 1 and BAT 2') && teachingSubject('Nexus, here is how to start engines on Airbus A320: x') === 'How to start engines on Airbus A320' && isTeacher('1394001641899954368') && !isTeacher('123'));
@@ -941,11 +941,16 @@ async function runV2Checks() {
     check('routing: "." and "aren\'t you gooning 24/7" are not maths; questions about Nexus/Casseurt are not "factual"', rt2.byRules('.')?.mode !== 'maths' && rt2.byRules("aren't you gooning 24/7")?.mode !== 'maths' && rt2.byRules('who made you')?.mode !== 'question' && rt2.byRules('where is casseurt from')?.mode !== 'question' && rt2.byRules('how long is it')?.mode !== 'question');
     const { pickBestComeback, copiesExample, pickRoastMove } = await import('../src/ai-engine/v2/roast');
     check('roast: the best of 3 comebacks wins (their topic beats filler / copied examples), "roast me" is never a dismissal', pickBestComeback("ur mum's got more personality than ur entire life story\nlmao ur mum is so ancient her windows 98 still asks for floppy disks\nthats it?", 'your mom so old she runs windows 98').includes('windows 98') && copiesExample('ur mums so dusty she was the beta tester for dirt') && !copiesExample('ur mum still uses a flip phone') && pickRoastMove('roast me') !== 'dismiss'); }
+  { const { uncensorSwears, humanEmoji, pingBoyfriend, isParrot, copiedChatExample } = await import('../src/ai-engine/v2/pipeline');
+    check('persona: swears written in full ("f*ck" → "fuck"), maths like 5*3 untouched', uncensorSwears("i wouldn't f*ck anyone, sh*t, f**king") === "i wouldn't fuck anyone, shit, fucking" && uncensorSwears('5*3 = 15') === '5*3 = 15');
+    check('persona: only 💀/😭/🔥 emojis, 🙄 dropped, never an emoji right after a line that had one', humanEmoji('lol ur such a prick 🙄', []) === 'lol ur such a prick' && humanEmoji('yo 💀', ['a line 😭']) === 'yo');
+    check('persona: xant gets pinged on Discord only', pingBoyfriend('my bf is xant_880 fr', true) === 'my bf is <@1427274237470703712> fr' && pingBoyfriend('my bf is xant_880 fr', false) === 'my bf is xant_880 fr');
+    check('persona: a message that is his own line pasted back is a parrot; instruction example lines are caught when copied', isParrot('ah mate, that sounds genuinely rough, bein fucking knackered is the worst', ['ah mate, that sounds genuinely rough, bein fucking knackered is the worst. maybe grab a brew?']) && !isParrot('yeah im tired too', ['ah mate, that sounds genuinely rough']) && copiedChatExample('alr bet fuck no shitbag') !== null && copiedChatExample('nah im chilling with xant') === null); }
   { const { normalizeImageForVision } = await import('../src/ai-engine/imageNormalize');
     const png1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
     const n = await normalizeImageForVision(png1x1);
     check('images are converted to JPEG before the vision model (WebP/AVIF/huge photos used to fail)', n.converted && n.data.startsWith('/9j/')); }
-  check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
+  check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /xant_880/.test(sp.system) && /763-0275/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }
 
 async function main() {
