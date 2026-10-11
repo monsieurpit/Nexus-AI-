@@ -79,6 +79,7 @@ const ROAST_RE = new RegExp([
 ].join('|'), 'i');
 // The meaning vote may only pick ROAST with a real insult / challenge word ("you're a fucking legend" is a compliment).
 const INSULT_CUE_RE = /\b(?:lazy|shit\w*|ass|arse|bitch\w*|waste|trash|garbage|dumb\w*|stupid|ugly|fat|mid|useless|annoying|cringe|unfunny|idiot|moron|loser|clown|bozo|npc|retard\w*|dickhead|prick|wanker|twat|bellend|muppet|cunt|fuck\s+(?:you|u|off)|stfu|shut\s+(?:up|ur|your)|roast|cook|own\s+me|ratio|L\b|rizz\s+is|smell|stink|disabled|wheelchair|lauch|opfer|hurensohn|spast|missgeburt|kys|hate\s+(?:you|u)|nobody|no\s+one|dry|boring|lame|slow|broken|worthless|pathetic|weak|dogwater|irrelevant|fell\s+off|mom|mum|mother|dad)\b/i;
+const MODERATION_ABOUT_RE = /\b(?:slurs?|is\s+(?:it|this|that)\s+(?:a\s+slur|allowed|against\s+(?:the\s+)?rules|bannable|punishable)|should\s+(?:we|i)\s+(?:warn|ban|mute|kick|punish|timeout|time\s+out|consider|count)|what\s+punishment|(?:warn|ban|mute|punish|timeout)\s+(?:him|her|them)\s+for)\b/i;
 // A translation of a quoted insult is a translation, not a roast.
 const TRANSLATE_WORD_RE = /\b(?:translat\w*|tradui[st]\w*|traduire|traduction|übersetz\w*|tłumacz\w*)\b/i;
 // Support only with a real emotion / loss word (the meaning vote sent "tired", "my bad gng", "i hate vardrid" there).
@@ -104,6 +105,8 @@ function byRules(text: string): Route | null {
   // A pasted, filled-in staff application form (or any application by its signs, whatever its layout).
   if (t.length > 250 && [/\bage\b/i, /time\s*zone|\bregion\b/i, /availab\w*|hours?\s+(?:per|a)\s+day/i, /experience/i, /why\s+(?:do\s+)?(?:you|u)\s+want/i, /strengths?|skills?/i, /scenario/i, /\bstaff\b|moderat\w*/i, /agreement|i\s+confirm|i\s+agree/i, /discord\s+(?:name|tag|user)/i].filter((re) => re.test(t)).length >= 5) return r('helper', 'staff application');
   if (/scenario\s*a\b[\s\S]*scenario\s*b\b/i.test(t) && /\b(?:age|availability|experience)\b/i.test(t)) return r('helper', 'filled staff application form');
+  // Talking ABOUT an insult someone else used (is it a slur, should we warn/punish) is moderation, not a roast.
+  if (MODERATION_ABOUT_RE.test(t)) return r('helper', 'moderation question about something someone said');
   if (ROAST_RE.test(t) && !(TRANSLATE_WORD_RE.test(t) && /["“”'«]|\b(?:to|into|in|en)\s+(?:english|french|fran[cç]ais|anglais|polish|german|spanish|italian|portuguese)\b/i.test(t))) return r('roast', 'insult / your-mum joke / challenge');
   if (SERVER_BANTER_RE.test(t) && !/\b(?:how\s+(?:do|can|to)|ban|kick|mute|timeout|staff|raid(?:ed|ing)?\s+by)\b/i.test(t)) return r('chat', 'banter about the server');
   if (HELPER_RE.test(t) && !/^(?:can\s+you\s+)?translate\s+(?:the\s+)?point\b/i.test(t)) return r('helper', 'translation / staff / server management');

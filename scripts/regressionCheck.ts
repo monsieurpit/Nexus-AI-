@@ -934,7 +934,7 @@ async function runV2Checks() {
       ['whats the Ligue 1 leaderboard?', 'search'], ['who is leading the Bundesliga leaderboard?', 'search'], ['was the red card from gravenberch deserved today', 'search'], ['who are the top scorers in la liga', 'search'],
       ['who won the 1998 champions league final?', 'question'], ['how much oil is in our ocean water', 'question'], ['whats the capital of australia', 'question'], ['what does FIFA stand for', 'question'],
       ['can u help me get mac back on this old imac thats running linux', 'question'], ['can i install mac os with a flashdrive i bought?', 'question'], ['what is my location', 'question'],
-      ['traduit Il y a une bosse sur mon pantalon en anglais', 'helper'], ["translate 'you are dumb' to french", 'helper'], ['my dog died today', 'support'], ['i feel so alone', 'support'],
+      ['traduit Il y a une bosse sur mon pantalon en anglais', 'helper'], ['he said "Patrick good retarded" but retard is a slur, should we consider it', 'helper'], ["translate 'you are dumb' to french", 'helper'], ['my dog died today', 'support'], ['i feel so alone', 'support'],
     ];
     const wrong = expect.filter(([q, m]) => rt2.byRules(q)?.mode !== m).map(([q, m]) => `${q} → ${rt2.byRules(q)?.mode ?? 'none'} (want ${m})`);
     check('routing: insults → roast, server banter → chat, live sports → search, facts/tech help → question, "traduit" → helper', wrong.length === 0, wrong.join(' | '));
