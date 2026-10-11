@@ -17,7 +17,7 @@ import {
   enforceStrictSdkRules,
 } from './src/ai-engine/rules/customDirectives';
 import { evaluateRaidShieldRules } from './src/ai-engine/rules/raidshield';
-import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommendReasoningMode, generateCodeEditWithReview } from './src/ai-engine/reasoningEngine';
+import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommendReasoningMode, generateCodeEditWithReview, useV2 } from './src/ai-engine/reasoningEngine';
 import { getMoodDisplay } from './src/ai-engine/rules/mood';
 import {
   checkAvailability as checkLocalLlmAvailability,
@@ -1632,9 +1632,13 @@ app.post('/api/v1/nexus', async (req, res) => {
 
       // Autonomous Web Search Grounding
       const searchAllowed = req.body.search !== false && req.body.webSearch !== false;
-      const knowledgeConfidence = promptToEvaluate ? await assessCorpusConfidence(promptToEvaluate, allKnowledge) : undefined;
+      // v2 does its own lookups (each specialist searches when it needs to); this v1 pre-search only fed v1, and for
+      // every v2 message it cost a corpus pass plus, often, a web search nobody read — burning the keyless search quota
+      // (HTTP 429) that v2's own searches need (2026-10-11).
+      const v2Handles = !isCodeEdit && useV2(settings, persona);
+      const knowledgeConfidence = promptToEvaluate && !v2Handles ? await assessCorpusConfidence(promptToEvaluate, allKnowledge) : undefined;
       const searchTriggerReason =
-        !imagePart && promptToEvaluate && searchAllowed
+        !v2Handles && !imagePart && promptToEvaluate && searchAllowed
           ? shouldTriggerLiveWebSearch(promptToEvaluate, settings, knowledgeConfidence)
           : false;
       if (searchTriggerReason) {
@@ -1891,8 +1895,8 @@ app.post('/api/v1/nexus', async (req, res) => {
     const engineLabel = routeStep ? `v2:${routeStep.data?.mode ?? '?'}` : steps.some((st) => /\(.*\)$/.test(st?.title || '') && /Chat|Live search/.test(st?.title || '') && /Worded from the true facts/.test(st?.description || '')) ? 'v2:facts' : 'v1';
     const v2Gen = steps.find((st) => st?.id === 'step-v2-generate' || st?.id === 'step-v2-phrase' || / reply( \(.*\))?$/.test(st?.title || '') && typeof st?.durationMs === 'number');
     const outcome = engineLabel.startsWith('v2') && v2Gen ? `real LLM (${v2Gen.durationMs}ms)` : llmOutcome;
-    const pre = steps.find((st) => st?.id === 'step-pre-v2')?.durationMs;
-    const tmDesc = String(steps.find((st) => st?.id === 'step-v2-timing')?.description || '').match(/router (\d+) ms → context (\d+) ms → reply (\d+) ms → checks\/retries (\d+) ms/);
+    const pre = steps.find((st) => st?.title === '⏱️ Before the router')?.durationMs;
+    const tmDesc = String(steps.find((st) => st?.title === '⏱️ v2 timings')?.description || '').match(/router (\d+) ms → context (\d+) ms → reply (\d+) ms → checks\/retries (\d+) ms/);
     const tm = tmDesc ? { route: tmDesc[1], build: tmDesc[2], generate: tmDesc[3], after: tmDesc[4] } : null;
     const stages = tm ? ` [pre=${pre ?? '?'} route=${tm.route} ctx=${tm.build} gen=${tm.generate} after=${tm.after}]` : '';
     log(

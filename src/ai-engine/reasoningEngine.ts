@@ -4419,7 +4419,7 @@ function routerIsV2(settings: AISettings): boolean {
 // Everything goes through v2 whatever persona is picked (Patrick, 2026-10-05: "everything should go to v2, not v1").
 // v1 stays for an SDK/API caller that explicitly asks for it (routerVersion: 'v1') and as the fallback when a v2 reply
 // fails. The one exception: Nexus Code's repo editing (code-architect), which has its own pipeline.
-function useV2(settings: AISettings, persona: ModelPersona, _isCrashout?: boolean): boolean {
+export function useV2(settings: AISettings, persona: ModelPersona, _isCrashout?: boolean): boolean {
   return routerIsV2(settings) && persona.id !== 'code-architect' && settings.activePersonaId !== 'code-architect';
 }
 
