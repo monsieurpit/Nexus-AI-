@@ -1,3 +1,4 @@
+import { normalizeImageForVision } from './imageNormalize';
 import {
   computeInvalidPolishWordRatio,
   countInvalidPolishWords,
@@ -1300,6 +1301,8 @@ export async function generateVision(
   prompt: string,
   options: { timeoutMs?: number } = {}
 ): Promise<VisionResult> {
+  // Every image becomes a JPEG of at most 1024 px first (too-big images overflowed the vision context; WebP didn't decode).
+  imageBase64 = (await normalizeImageForVision(imageBase64)).data;
   const first = await generateVisionOnce(imageBase64, prompt, options);
   if (first.status === 'success') return first;
   if (first.reason !== 'empty_response' && first.reason !== 'degenerate_output') return first;

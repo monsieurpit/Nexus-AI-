@@ -923,6 +923,10 @@ async function runV2Checks() {
     check('name ideas: "beautiful" girl names get the beauty list with meanings (no boys), puppies get dog names, "what is your name" gets none', /beautiful/.test(beauty) && /Isabella|Belle|Calista|Mirabelle|Jolie|Naomi|Amara|Linda|Bonnie|Annabelle|Shayna|Jamila/.test(beauty) && !/BOYS/.test(beauty) && /dog names/.test(nameIdeasBlock('names for my puppy') || '') && nameIdeasBlock('what is your name') === null && rt.byRules('strong boy names')?.mode === 'question');
     check('name ideas: one "Name — meaning" per line, the favourite on its own line', formatNameList("Hermosa — beautiful; Amara — grace; Jolie — pretty. I'd pick Hermosa.") === "Hermosa — beautiful\nAmara — grace\nJolie — pretty.\nI'd pick Hermosa.");
     check('v2code: code blocks are extracted with their tag', JSON.stringify(extractCodeBlocks('hi\n```js\nlet a = 1;\n```\nok')) === JSON.stringify([{ tag: 'js', code: 'let a = 1;\n' }])); }
+  { const { normalizeImageForVision } = await import('../src/ai-engine/imageNormalize');
+    const png1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const n = await normalizeImageForVision(png1x1);
+    check('images are converted to JPEG before the vision model (WebP/AVIF/huge photos used to fail)', n.converted && n.data.startsWith('/9j/')); }
   check('v2 identity: boyfriend, age and gay facts are in every specialist', Object.values(SPECIALISTS).every((sp) => /Patrick Houle/.test(sp.system) && /1 year old/.test(sp.system) && /gay/.test(sp.system)));
 }
 
