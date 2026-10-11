@@ -189,15 +189,18 @@ function stripFillers(city: string): string {
   return c;
 }
 
+// "weather rn?", "weather?", "weather now" (2026-10-11: missed, so the website's shared location was never used).
+const SHORT_WEATHER_RE = /^\s*(?:(?:hey\s+)?nexus[\s,]*)?(?:the\s+|what'?s\s+the\s+|how'?s\s+the\s+)?weather(?:\s+(?:rn|now|right\s+now|today|tonight|outside|here|like|looking|update))*\s*[?!.]*\s*$|\bweather\s+(?:rn|right\s+now|outside|here)\b/i;
+const ONLY_TIME_WORD_RE = /^(?:today|tonight|tomorrow|tmrw|tmr|now|rn|right\s+now|this\s+week(?:end)?|the\s+week(?:end)?|next\s+week|later|the\s+day|demain|aujourd'?hui|ce\s+soir|cette\s+semaine)$/i;
 export function detectWeatherIntent(prompt: string): { city: string | null } | null {
-  if (!WEATHER_REGEX.test(prompt)) return null;
+  if (!WEATHER_REGEX.test(prompt) && !SHORT_WEATHER_RE.test(prompt)) return null;
   // The LAST place mentioned wins ("do i need a jacket today in toronto"), and a bare "a" (French "à" typed without
   // its accent) only counts in French — otherwise "a jacket" became the city "jacket".
   const french = /\b(?:météo|meteo|quel\s+temps|fait[- ]il|il\s+va|demain|pleuvoir|neiger)\b/i.test(prompt);
   const matches = [...prompt.matchAll(new RegExp(WEATHER_CITY_REGEX.source, 'gi'))].filter((m) => french || !/^\s*a\s/i.test(m[0].replace(/^\s+/, '').slice(0, 2)));
   const last = matches[matches.length - 1];
   const city = last ? stripFillers(last[1].replace(TIME_WORDS_RE, '')) || null : null;
-  return { city };
+  return { city: city && !ONLY_TIME_WORD_RE.test(city.trim()) ? city : null };
 }
 
 const TIME_REGEX =
