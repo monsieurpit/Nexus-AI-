@@ -17,6 +17,7 @@ import { trySolveMath } from '../mathSolver';
 import { fxNote, fxNoteEur, getUsdToCad } from '../fx';
 import { isPartnershipMessage, partnershipTurn } from './partnership';
 import { formatNameList, nameIdeasBlock } from './names';
+import { nextRoastMove, pickBestComeback, roastMoveNote } from './roast';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
@@ -516,6 +517,15 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
         sources: [],
       };
     }
+    case 'roast': {
+      const who = settings?.userName ? `The person coming at you: ${settings.userName}.\n` : '';
+      const move = nextRoastMove(settings?.discordUserId || settings?.userName || 'anon', s);
+      thoughtSteps.push({ id: 'step-v2-roast-move', type: 'reasoning', title: `🔥 Comeback move: ${move}`, description: 'Picked at random (weighted by their message) so comebacks change shape every time.' });
+      return {
+        text: `${thread}${facts}${who}${roastMoveNote(move)}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nWrite 3 DIFFERENT comebacks using your move, one per line, no numbers, no intro (the best one gets sent):`,
+        sources: [],
+      };
+    }
     case 'question': {
       const names = nameIdeasBlock(s);
       if (names) {
@@ -701,7 +711,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     return null; // v1 takes over (its own fallbacks)
   }
   // One emoji max is a CHAT rule (Patrick); a staff review needs its ✅/⚠️/❌ marks.
-  let content = route.mode === 'chat' || route.mode === 'support' ? dropBannedEmoji(finalize(raw)) : finalize(raw).replace(/💅\uFE0F?/gu, '');
+  const picked = route.mode === 'roast' ? pickBestComeback(raw, said(prompt)) : raw;
+  let content = route.mode === 'chat' || route.mode === 'roast' || route.mode === 'support' ? dropBannedEmoji(finalize(picked)) : finalize(picked).replace(/💅\uFE0F?/gu, '');
   // A parts list keeps ONE part per line even when the model runs the intro into the first part.
   if (route.mode === 'helper' && isTranslateRequest(prompt)) content = cleanTranslation(content);
   if (route.mode === 'helper' && author) {
@@ -710,7 +721,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     if (/CONFIDENCE SCORE/i.test(content)) content = content.replace(/[ \t]+(?=(?:✅|⚠️|❌)\s*[A-Z][\w &()/,'-]{2,60}:)/gu, '\n').replace(/[ \t]*(CONFIDENCE SCORE)/i, '\n$1');
   }
   if (route.mode === 'pc') content = content.replace(/[ \t]+(?=(?:CPU|GPU|Motherboard|RAM|SSD|Storage|PSU|Power Supply|Cooler|CPU Cooler|Case|Monitor|Rough Total|Total|Estimated Total)\s*:)/g, '\n');
-  if (route.mode === 'chat') {
+  if (route.mode === 'chat' || route.mode === 'roast') {
     content = dropTrailingAside(content);
     const sayWhat = sayRequest(prompt);
     // The words they asked for must be there; if the model dodged, they lead the reply.
@@ -742,7 +753,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   }
 
   // Repeat / echo guard for the short-reply specialists.
-  if ((route.mode === 'chat' || route.mode === 'support') && (isRepeat(content, deps.recentLines) || isEchoReply(content, prompt))) {
+  if ((route.mode === 'chat' || route.mode === 'roast' || route.mode === 'support') && (isRepeat(content, deps.recentLines) || isEchoReply(content, prompt))) {
     const retry = await generateWith(spec, `${userTurn}\n(Your first try was "${content.slice(0, 80)}" — that repeats an old line or their own words. Say something COMPLETELY different that reacts to what they mean.)`, lang);
     if (retry) content = dropBannedEmoji(finalize(retry));
   }

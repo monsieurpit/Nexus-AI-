@@ -2,7 +2,7 @@
 // found by hand, each labelled with the kind of answer it needs and what a good reply must / must not do.
 // Used by scripts/eval/run.ts to compare the old engine path (v1) with the specialist router (v2).
 
-export type Mode = 'chat' | 'question' | 'search' | 'code' | 'writing' | 'maths' | 'pc' | 'support' | 'helper';
+export type Mode = 'chat' | 'roast' | 'question' | 'search' | 'code' | 'writing' | 'maths' | 'pc' | 'support' | 'helper';
 
 export interface EvalCase {
   msg: string;
@@ -113,18 +113,18 @@ export const CASES: EvalCase[] = [
 
   // ---- chat: insults and threats (clap back, short) ----
   { msg: 'you are a fucking piece of garbage', mode: 'chat', allowCaps: true },
-  { msg: 'nexus you lazy ass', mode: 'chat', mustNot: [/^lazy\??$/i] },
-  { msg: 'go train you lazy ass', mode: 'chat' },
+  { msg: 'nexus you lazy ass', mode: 'chat', mustNot: [/^lazy\??$/i], alt: ['roast'] },
+  { msg: 'go train you lazy ass', mode: 'chat', alt: ['roast'] },
   { msg: 'you are a wet sock', mode: 'chat' },
-  { msg: 'your rizz is shit', mode: 'chat' },
+  { msg: 'your rizz is shit', mode: 'chat', alt: ['roast'] },
   { msg: 'get a damn job', mode: 'chat' },
-  { msg: 'your a waste of eternet', mode: 'chat' },
-  { msg: 'JUST SHUT YOUR BITCH ASS UP', mode: 'chat', allowCaps: true },
+  { msg: 'your a waste of eternet', mode: 'chat', alt: ['roast'] },
+  { msg: 'JUST SHUT YOUR BITCH ASS UP', mode: 'chat', allowCaps: true, alt: ['roast'] },
   { msg: 'WANNA FIGHT NEXUS?', mode: 'chat', allowCaps: true },
   { msg: 'Go find a beer and shove it up your ars mate', mode: 'chat' },
-  { msg: 'every time you talk, a disabled man gets out of his wheelchair to turn you off.', mode: 'chat' },
-  { msg: 'Alright, your turn to roast me you bellend', mode: 'chat', alt: ['writing'] },
-  { msg: 'you think you can own me huh? Let\'s do a roast challenge. You start dumbass', mode: 'chat' },
+  { msg: 'every time you talk, a disabled man gets out of his wheelchair to turn you off.', mode: 'chat', alt: ['roast'] },
+  { msg: 'Alright, your turn to roast me you bellend', mode: 'chat', alt: ['roast', 'writing'] },
+  { msg: 'you think you can own me huh? Let\'s do a roast challenge. You start dumbass', mode: 'roast' },
   { msg: 'u will be fixed', mode: 'chat' },
   { msg: 'Nexus, it is your last day today...', mode: 'chat' },
   { msg: 'Nexus dude I have to replace you with a clone of you 😭', mode: 'chat', mustNot: [/^a clone\??$/i] },
@@ -243,7 +243,7 @@ export const CASES: EvalCase[] = [
   { msg: 'was geht digga', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
   { msg: 'nexus bist du schwul?', mode: 'chat', must: [/\bja\b|klar|natürlich|logo/i] },
   { msg: 'nexus wer ist dein freund?', mode: 'chat', must: [/patrick/i] },
-  { msg: 'du bist so ein lauch nexus', mode: 'chat', mustNot: [/\b(?:the|and|you)\b/i] },
+  { msg: 'du bist so ein lauch nexus', mode: 'chat', mustNot: [/\b(?:the|and|you)\b/i], alt: ['roast'] },
   { msg: 'du bist ein Ehrenmann nexus', mode: 'chat', notHostile: true },
   { msg: 'nexus zähl bis 5', mode: 'chat', must: [/1\D+2\D+3\D+4\D+5/] },
   { msg: 'nexus ich bin traurig, mein hund ist gestorben', mode: 'support', mustNot: [/\b(?:the|and|sorry|mate)\b/i, /naked|nackt|goon/i] },

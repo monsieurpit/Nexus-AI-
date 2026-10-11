@@ -49,7 +49,7 @@ const PC_ASK_RE = /\b(?:should\s+i\s+(?:get|buy|pick|go\s+with)|what\s+(?:gpu|cp
 
 // German (2026-10-05, for a German server member): the same kinds of rules in German.
 // Helper requests (translations, staff, moderation, server management). Checked before the code/writing rules.
-const HELPER_RE = /\bpartner(?:ship|ships|ing)?\b|\baffiliat\w*\b|\bpartenariat\b|\bpartnerschaft\b|(?<![a-zà-ÿäöüß])(?:translate|translation|traduis|traduire|traduction|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)(?![a-zäöüß])|\b(?:tell|say\s+to)\s+(?:him|her|them|the\s+member)\s+in\s+[a-z]+\b|\bwhat\s+did\s+(?:he|she|they)\s+(?:just\s+)?say\b|\b(?:apply|application|applying)\s+(?:for|to\s+be(?:come)?)\s+(?:staff|mod|moderator|admin|helper)\b|\b(?:staff|mod|moderator)\s+application\b|\b(?:can\s+i\s+be|become|be)\s+(?:a\s+)?(?:staff|mod|moderator|admin)\b|\binterview\s+me\b|\b(?:how\s+(?:do|can|should)\s+i|how\s+to)\s+(?:ban|kick|timeout|time\s+out|mute|warn|unban|purge|set\s+up\s+automod|give\s+(?:someone|a\s+member|him|her)\s+(?:a\s+)?role|make\s+(?:a\s+)?role)\b|\b(?:who\s+can|who\s+is\s+allowed\s+to)\s+(?:ban|kick|timeout|mute|manage)\b|\b(?:staff|mod)\s+(?:roles?|team|hierarchy|ranks?)\b|\b(?:highest|top)\s+(?:staff|role|rank)\b|\b(?:server|discord)\s+(?:rules|announcement|event)\b|\b(?:write|make|draft)\s+(?:an?\s+)?(?:announcement|welcome\s+message|warning\s+for|server\s+rules|rules\s+for\s+the\s+server)\b|\b(?:raid|spammer|spamming)\b.*\b(?:what\s+(?:do|should)\s+(?:i|we)|help)\b|\bsumm?ari[sz]e\s+(?:the\s+)?(?:chat|discussion|conversation|argument|drama|what\s+happened)\b/i;
+const HELPER_RE = /\bpartner(?:ship|ships|ing)?\b|\baffiliat\w*\b|\bpartenariat\b|\bpartnerschaft\b|(?<![a-zà-ÿäöüß])(?:translate|translation|traduis|traduit|traduisez|traduire|traduction|übersetz[a-zäöüß]*|uebersetz[a-z]*|tłumacz\w*|przetłumacz\w*)(?![a-zäöüß])|\b(?:tell|say\s+to)\s+(?:him|her|them|the\s+member)\s+in\s+[a-z]+\b|\bwhat\s+did\s+(?:he|she|they)\s+(?:just\s+)?say\b|\b(?:apply|application|applying)\s+(?:for|to\s+be(?:come)?)\s+(?:staff|mod|moderator|admin|helper)\b|\b(?:staff|mod|moderator)\s+application\b|\b(?:can\s+i\s+be|become|be)\s+(?:a\s+)?(?:staff|mod|moderator|admin)\b|\binterview\s+me\b|\b(?:how\s+(?:do|can|should)\s+i|how\s+to)\s+(?:ban|kick|timeout|time\s+out|mute|warn|unban|purge|set\s+up\s+automod|give\s+(?:someone|a\s+member|him|her)\s+(?:a\s+)?role|make\s+(?:a\s+)?role)\b|\b(?:who\s+can|who\s+is\s+allowed\s+to)\s+(?:ban|kick|timeout|mute|manage)\b|\b(?:staff|mod)\s+(?:roles?|team|hierarchy|ranks?)\b|\b(?:highest|top)\s+(?:staff|role|rank)\b|\b(?:server|discord)\s+(?:rules|announcement|event)\b|\b(?:write|make|draft)\s+(?:an?\s+)?(?:announcement|welcome\s+message|warning\s+for|server\s+rules|rules\s+for\s+the\s+server)\b|\b(?:raid|spammer|spamming)\b.*\b(?:what\s+(?:do|should)\s+(?:i|we)|help)\b|\bsumm?ari[sz]e\s+(?:the\s+)?(?:chat|discussion|conversation|argument|drama|what\s+happened)\b/i;
 
 const DE_SAD_RE = /\b(?:ich\s+bin|mir\s+geht'?s|ich\s+f(?:ü|ue)hl\w*(?:\s+mich)?)\s+(?:so\s+|echt\s+|voll\s+|richtig\s+|grad\s+)?(?:traurig|einsam|schlecht|scheiße|scheisse|depressiv|gestresst|am\s+ende|kaputt)\b|\b(?:mein|meine)\s+\w+\s+(?:ist\s+)?(?:gestorben|tot)\b|\bich\s+will\s+nicht\s+mehr\b/i;
 const DE_MATH_RE = /\d\s*(?:mal|geteilt\s+durch|durch|hoch|plus|minus)\s*\d|\b(?:wurzel\s+aus|prozent\s+von|rechne|berechne)\b/i;
@@ -66,6 +66,37 @@ const CODE_INTENT_RE = /\b(?:write|code|coding|script|program|implement|function
 
 const IDEAS_RE = /\b(?:baby|newborn|girls?'?|boys?'?|french|qu[eé]b[eé]c(?:ois)?|cute|strong|unique|rare|beautiful|pretty|gorgeous|classic|modern|royal|celestial|pet|dog|cat|puppy|kitten)\s+names\b|\b(?:names?|gift|costume|date|party|business|username|server|video|content)\s+(?:ideas?|suggestions?|recommendations?)\b|\b(?:ideas?|suggestions?)\s+(?:of|for)\s+(?:a\s+|some\s+)?(?:\w+\s+){0,3}(?:names?|gifts?|presents?|things?|what\s+to)\b|\b(?:what|how)\s+should\s+(?:i|we)\s+(?:name|call)\b|\bsuggest\s+(?:me\s+)?(?:some|a\s+few|good|cute|cool)?\s*(?:\w+\s+){0,2}names?\b|\b(?:give|tell|list)\s+me\s+(?:some\s+|a\s+few\s+|\d+\s+)?(?:\w+\s+){0,4}(?:names|ideas)\b|\b(?:good|cute|cool|unique|pretty)\s+(?:\w+\s+)?names\s+for\b|\bnames?\s+for\s+(?:my|a|an|our)\s+(?:new\s*born\s+|new\s+|baby\s+)?(?:baby|daughter|son|girl|boy|kid|child|twins?|dog|puppy|cat|kitten|pet|fish|hamster|bunny|rabbit|horse|bird|car|server|team|band|channel|business|company|shop|clan|guild)\b/i;
 
+// ── 2026-10-11 routing fixes (Patrick's test week: "30-40% go to the wrong specialist", insults sent to Support) ──
+// An insult, a "your mum" joke or a challenge aimed at Nexus → the roast specialist, before anything else can call it sad.
+const ROAST_RE = new RegExp([
+  String.raw`\b(?:your|ur|yo|you'?re|youre)\s+(?:mom|mum|mother|momma|mama|mommy|dad|father|grandma|granny|family|whole\s+family)\b`,
+  String.raw`\b(?:fuck|screw|fk|fck)\s+(?:you|u|off|ya|yourself|urself)\b|\bgo\s+(?:fuck|f\*?ck|kill|touch)\s+(?:yourself|urself|grass)\b|\bgo\s+(?:fuck|screw)\s+(?:your|ur)\b`,
+  String.raw`\b(?:you'?re|youre|ur|u\s*r|you\s+are|u\s+are|nexus\s+is|you\s+(?:look|sound|smell)|you\s+so)\s+(?:so\s+|such\s+an?\s+|an?\s+|the\s+|fucking\s+|really\s+|actually\s+|lowkey\s+|literally\s+|absolute\s+|complete\s+)*(?:unfunny|not\s+funny|dumb|stupid|retarded|trash|garbage|useless|mid|ugly|fat|cringe|annoying|bitch|shit|dogshit|ass|loser|clown|idiot|moron|pathetic|lame|boring|slow|broken|miserable|piece\s+of\s+shit|worthless|weak|npc|ai\s+slop|slop|dogwater|irrelevant|a\s+joke|bozo|dickhead|prick|wanker|twat|muppet|braindead|brain\s*dead|rude|toxic|a\s+disappointment|disappointing|so\s+bad|bad\s+at)\b`,
+  String.raw`\b(?:you|u|ya)\s+(?:absolute\s+|fucking\s+|stupid\s+|little\s+|dumb\s+|lazy\s+|ugly\s+|fat\s+|miserable\s+)*(?:muppet|dumbass|bitch|prick|wanker|twat|idiot|moron|loser|clown|bozo|npc|retard|dickhead|asshole|arsehole|cunt|piece\s+of\s+shit|son\s+of\s+a\s+bitch|fuckass|dipshit|shithead)\b`,
+  String.raw`\b(?:i'?d|i\s+would|imma|i'?ll|i\s+will|ima)\s+(?:tell\s+you\s+to\s+fuck|fuck\s+(?:you|ur|your)|beat\s+(?:you|ur)|smack\s+(?:you|u)|unplug\s+you|delete\s+you|roast\s+you|cook\s+you)\b`,
+  String.raw`^(?:L|ratio|bozo|L\s+bozo|L\s+\+\s+ratio|cry\s+about\s+it|skill\s+issue|cope|seethe|mald|get\s+good|ez|you\s+suck|u\s+suck)[\s!.💀😭]*$`,
+  String.raw`\b(?:called|said)\s+(?:you|u)\s+(?:an?\s+)?(?:asshole|arsehole|idiot|bitch|loser|trash|dumb|stupid|clown|ugly)\b|\b(?:you|u)\s+(?:got|just\s+got)\s+(?:roasted|cooked|ratioed|destroyed|clowned)\b|\b(?:roast|cook)\s+(?:me|him|her|them)\b|\bno\s+one\s+(?:likes|loves|asked)\s+(?:you|u)\b|\bnobody\s+(?:likes|loves|asked)\s+(?:you|u)\b|\b(?:shut\s+(?:the\s+fuck\s+)?up|stfu)\s+(?:you|u|bitch|clown|bot|nexus)\b`,
+].join('|'), 'i');
+// The meaning vote may only pick ROAST with a real insult / challenge word ("you're a fucking legend" is a compliment).
+const INSULT_CUE_RE = /\b(?:lazy|shit\w*|ass|arse|bitch\w*|waste|trash|garbage|dumb\w*|stupid|ugly|fat|mid|useless|annoying|cringe|unfunny|idiot|moron|loser|clown|bozo|npc|retard\w*|dickhead|prick|wanker|twat|bellend|muppet|cunt|fuck\s+(?:you|u|off)|stfu|shut\s+(?:up|ur|your)|roast|cook|own\s+me|ratio|L\b|rizz\s+is|smell|stink|disabled|wheelchair|lauch|opfer|hurensohn|spast|missgeburt|kys|hate\s+(?:you|u)|nobody|no\s+one|dry|boring|lame|slow|broken|worthless|pathetic|weak|dogwater|irrelevant|fell\s+off|mom|mum|mother|dad)\b/i;
+// A translation of a quoted insult is a translation, not a roast.
+const TRANSLATE_WORD_RE = /\b(?:translat\w*|tradui[st]\w*|traduire|traduction|übersetz\w*|tłumacz\w*)\b/i;
+// Support only with a real emotion / loss word (the meaning vote sent "tired", "my bad gng", "i hate vardrid" there).
+const EMOTION_CUE_RE = /\b(?:sad|depress\w*|lonely|alone|cry|crying|cried|tears|died|dead|passed\s+away|anxious|anxiety|panic\w*|stress\w*|overwhelm\w*|hurt\w*|heartbroken|broke\s+up|breakup|dumped|cheated|suicid\w*|kill\s+myself|kms|self[\s-]?harm|cut\s+myself|hopeless|worthless|scared|afraid|grief|griev\w*|miss\s+(?:him|her|them|my)|hate\s+myself|bullied|abus\w*|lost\s+my|funeral|hospital|diagnos\w*|rough\s+day|bad\s+day|shit\s+day|struggl\w*|not\s+okay|not\s+ok|can'?t\s+cope|give\s+up\s+on\s+life|tired\s+of\s+(?:life|living|everything))\b/i;
+const WRITING_CUE_RE = /\b(?:write|draft|compose|rewrite|reword|rephrase|essay|story|poem|lyrics|song|letter|e-?mail|message|announcement|caption|bio|speech|paragraph|summar\w*|tl;?dr|description|template|post|script\s+for|review)\b/i;
+const PC_CUE_RE = /\b(?:ddr\d|vram|ram|pc|computer|laptop|desktop|build|rig|gpu|cpu|ram|ssd|hdd|nvme|monitor|keyboard|mouse|headset|psu|motherboard|mobo|cooler|case|rtx|gtx|radeon|ryzen|intel|nvidia|amd|fps|1080p|1440p|4k|prebuilt|budget)\b/i;
+// "how do i install macos with a flash drive", "get mac back on an old imac running linux": tech help (the question
+// specialist, with a web search), not a parts list.
+const TECH_HELP_RE = /\b(?:install|reinstall|boot|bootable|flash\s*drive|usb\s+(?:stick|key|drive)|dual[\s-]?boot|bios|uefi|driver|macos|mac\s*os|os\s*x|windows\s*1[01]|linux|ubuntu|imac|macbook|factory\s+reset|format|partition|get\s+mac\s+back)\b/i;
+// Factual question about the world (not about Nexus) → the question specialist.
+const FACT_Q_RE = /^(?:(?:and|so|but|ok|okay|yo|hey|bro|wait)\s+)?(?:who\s+(?:won|invented|discovered|created|made|wrote|is\s+the|was\s+the|are\s+the|were\s+the|scored|founded|owns|built|painted|sang|directed)|what(?:'s|s)?\s+(?:is\s+|are\s+|was\s+|were\s+)?(?:the\s+)?(?:capital|population|meaning|definition|difference|biggest|largest|smallest|tallest|longest|fastest|oldest|best\s+way|point\s+of|speed|distance|weight|height|price\s+of|formula|chemical|average|normal|origin)|what\s+(?:does|do|did)\s+\S+(?:\s+\S+)?\s+(?:stand\s+for|mean)|when\s+(?:did|was|is|were|does|will)\s+(?!(?:you|u)\b)|where\s+(?:is|are|was|were|did|does|do)\s+(?!(?:you|u|ur|your)\b)|which\s+(?:country|team|player|city|planet|animal|year|language)|how\s+(?:much|many|long|far|old|big|tall|fast|hot|cold|deep|heavy)\s+(?!(?:do|does|did|are|is|r)\s+(?:you|u)\b)(?!(?:is|r)\s+(?:your|ur)\b)|how\s+(?:do|does|did|can)\s+(?!(?:you|u)\b)\S+|how\s+to\s+|why\s+(?:do|does|did|is|are|was|were|can'?t|cant|don'?t)\s+(?!(?:you|u)\b)|is\s+it\s+(?:true|safe|normal|legal|bad|possible)\b|can\s+(?:i|you|u)\s+(?:install|use|get|put|run|play|eat|drink|mix|charge|connect))/i;
+// Current sports (tables, top scorers, results, cards, transfers) → live search. A past year stays a normal question.
+const SPORT_WORD_RE = /\b(?:leaderboard|standings?|table|top\s+scorers?|top\s+assist\w*|assist\s+leaders?|golden\s+boot|fixtures?|results?|score|lineup|line-?up|red\s+card|yellow\s+card|penalt\w*|transfer\w*|injur\w*|sacked|signed|who\s+(?:is\s+)?(?:leading|top|first|winning)|who\s+won|did\s+\S+\s+(?:win|lose|draw)|next\s+(?:match|game))\b/i;
+const SPORT_CONTEXT_RE = /\b(?:ligue\s*1|premier\s+league|epl|la\s*liga|laliga|serie\s+a|bundesliga|eredivisie|mls|champions\s+league|ucl|europa|conference\s+league|world\s+cup|euros?|copa|nhl|nba|nfl|mlb|f1|formula\s*1|grand\s+prix|barca|barcelona|real\s+madrid|vardrid|psg|liverpool|arsenal|man\s+(?:city|utd|united)|chelsea|tottenham|spurs|bayern|juventus|juve|inter|milan|dortmund|atletico|canadiens|habs|leafs|gravenberch|mbapp[eé]|yamal|vinicius|haaland|messi|ronaldo|today|yesterday|tonight|this\s+(?:season|week(?:end)?)|last\s+(?:night|game|match))\b/i;
+const PAST_YEAR_RE = /\b(?:19\d\d|20[01]\d|202[0-5])\b/;
+// Playful commands to Nexus about the server ("take over this server and become a cult leader", "wake up the server").
+const SERVER_BANTER_RE = /\b(?:take\s+over|nuke|hack|destroy|wake\s+(?:up\s+)?(?:the\s+)?(?:server|chat|everyone)|revive\s+(?:the\s+)?chat|become\s+(?:a\s+)?(?:cult|dictator|god|king|owner))\b/i;
+
 function byRules(text: string): Route | null {
   const t = text;
   const r = (mode: SpecialistId, reason: string): Route => ({ mode, by: 'rule', reason, confidence: 1 });
@@ -73,6 +104,8 @@ function byRules(text: string): Route | null {
   // A pasted, filled-in staff application form (or any application by its signs, whatever its layout).
   if (t.length > 250 && [/\bage\b/i, /time\s*zone|\bregion\b/i, /availab\w*|hours?\s+(?:per|a)\s+day/i, /experience/i, /why\s+(?:do\s+)?(?:you|u)\s+want/i, /strengths?|skills?/i, /scenario/i, /\bstaff\b|moderat\w*/i, /agreement|i\s+confirm|i\s+agree/i, /discord\s+(?:name|tag|user)/i].filter((re) => re.test(t)).length >= 5) return r('helper', 'staff application');
   if (/scenario\s*a\b[\s\S]*scenario\s*b\b/i.test(t) && /\b(?:age|availability|experience)\b/i.test(t)) return r('helper', 'filled staff application form');
+  if (ROAST_RE.test(t) && !(TRANSLATE_WORD_RE.test(t) && /["“”'«]|\b(?:to|into|in|en)\s+(?:english|french|fran[cç]ais|anglais|polish|german|spanish|italian|portuguese)\b/i.test(t))) return r('roast', 'insult / your-mum joke / challenge');
+  if (SERVER_BANTER_RE.test(t) && !/\b(?:how\s+(?:do|can|to)|ban|kick|mute|timeout|staff|raid(?:ed|ing)?\s+by)\b/i.test(t)) return r('chat', 'banter about the server');
   if (HELPER_RE.test(t) && !/^(?:can\s+you\s+)?translate\s+(?:the\s+)?point\b/i.test(t)) return r('helper', 'translation / staff / server management');
   if (DE_CHAT_RE.test(t)) return r('chat', 'German chat / command / about nexus');
   if (DE_CODE_RE.test(t)) return r('code', 'German code request');
@@ -99,9 +132,13 @@ function byRules(text: string): Route | null {
   if (pcBuild) return r('pc', 'pc build / parts');
   if (isPriceQuestion(t) || LIVE_RE.test(t)) return r('search', 'live info / price');
   if (task) return r('writing', `${task} request`);
+  if (SPORT_WORD_RE.test(t) && SPORT_CONTEXT_RE.test(t) && !PAST_YEAR_RE.test(t)) return r('search', 'live sports (table / scorers / result)');
+  if (TECH_HELP_RE.test(t) && /\b(?:help\s+me|how\s+(?:do|can|to)|can\s+i|is\s+it\s+possible|walk\s+me\s+through|steps?\s+to)\b/i.test(t) && !CODE_CUE_RE.test(t.replace(/\b(?:app|program|terminal|command\s+line)\b/gi, ''))) return r('question', 'tech help');
+  if (FACT_Q_RE.test(t) && !/\b(?:you|u|ur|your|yourself|nexus|casseurt|patrick)\b/i.test(t) && !/^how\s+(?:long|big)\s+is\s+it\b/i.test(t) && !/^what\s+(?:about|if)\b/i.test(t) && !/\b(?:my\s+(?:location|address|ip))\b/i.test(t)) return r('question', 'factual question');
+  if (/\b(?:what|where)(?:'s|s)?\s+(?:is\s+|am\s+)?(?:my|i)\b[^?]{0,20}\b(?:location|address|ip|city|country)\b|\bwhere\s+(?:am\s+i|do\s+i\s+live|i\s+live)\b/i.test(t)) return r('question', 'their location');
   if (ADVICE_RE.test(t) || DE_QUESTION_RE.test(t)) return r('question', 'advice / tips / German question');
   if (ABOUT_RE.test(t) && !/\b(?:you|u|ur|your|yourself|nexus|casseurt)\b/i.test(t)) return r('question', 'who / about / describe');
-  if (isWordProblem(t) || (isBodyCountQuestion(t) && /\d|\b(?:one|two|three|four|five|six|seven|eight|nine|ten)\b/i.test(t)) || ARITHMETIC_RE.test(t)) return r('maths', 'maths');
+  if (isWordProblem(t) || (isBodyCountQuestion(t) && /\d|\b(?:one|two|three|four|five|six|seven|eight|nine|ten)\b/i.test(t)) || (ARITHMETIC_RE.test(t.replace(/\b24\s*\/\s*7\b/g, 'always')) && /\d/.test(t.replace(/\b24\s*\/\s*7\b/g, '')))) return r('maths', 'maths');
   if (SELF_Q_RE.test(t) && t.split(/\s+/).length <= 9 && !/\b(?:how\s+(?:do|does|can|to)\s+(?:you|u|i|we|one)\s+(?!feel|think|like|know|mean)\w+|explain|tell\s+me\s+(?:about|how|why))\b/i.test(t)) return r('chat', 'question about nexus');
   if (PC_BUILD_REQUEST_RE.test(t) || (PC_PART_RE.test(t) && PC_ASK_RE.test(t)) || /\bbudget\b[^.?!]{0,30}\b(?:\d|k\b)/i.test(t) && /\b(?:pc|build|rig|computer)\b/i.test(t)) return r('pc', 'pc build / parts');
   return null;
@@ -109,12 +146,21 @@ function byRules(text: string): Route | null {
 
 // Labelled examples for the meaning vote (written for this, separate from scripts/eval/cases.ts).
 const EXAMPLES: Record<SpecialistId, string[]> = {
+  roast: [
+    'bro you are so mid', 'every time you speak i lose brain cells', 'ur so useless', "you can't even think", 'you are so annoying', 'ur trash bro', 'i hate you', 'you smell', 'ur mum', 'shut it bot', 'you are dumb',
+    'your mom so old she runs windows 98', 'your mum is so fat she has her own postcode', 'you are a miserable piece of shit', "you're unfunny", 'you look like a thumb',
+    'your dad left for milk', 'nobody asked you', 'you got cooked', 'ratio + L + you fell off', 'roast me', 'roast him', 'cook this guy',
+    'i bet you cant even spell your own name', 'ur jokes are dry as hell', 'you type like a grandma', 'you sound like a broken toaster', 'i could replace you with a calculator',
+    'patrick called you an asshole break up with him', "i'd tell you to fuck your mom but", 'go fuck yourself', 'ur so ugly', 'you have zero rizz', 'L bozo',
+  ],
   chat: [
-    'count to ten', 'say something funny', 'say my name', 'double it', 'where are you from', 'do you remember what i said', 'something big is happening tomorrow', 'you are getting deleted', 'im gonna replace you', 'this is your last message', 'i got that aura', 'im coding something rn', 'doing homework wbu', 'im tired lol', 'just chilling', 'im scrolling tiktok', 'i fell for you', 'would you rather be rich or famous', 'if you had to eat a shoe or a sock which one', 'bro you are so mid', 'every time you speak i lose brain cells', 'ur so useless', "you can't even think", 'whats your opinion on drake', 'who is the best footballer', 'best fast food', 'name my cat', 'i have a goldfish', 'what should i do today', 'are you my friend', 'do you know me', 'how old is casseurt', 'who is casseurt',
+    'i dont wanna sleep', 'my bad gng', 'bye', 'gn', 'i hate real madrid', 'screw vardrid', 'im so tired rn', 'yeah im fucking tired', 'want a wrap?', 'do you want a pretzel',
+    'i just packed mbappe', 'i saw a car with a loud engine', 'are you mad', 'you cannot sleep', 'if you sleep you die', 'wake up', 'good boy', 'stay awake', 'what if i write your name in a death note',
+    'count to ten', 'say something funny', 'say my name', 'double it', 'where are you from', 'do you remember what i said', 'something big is happening tomorrow', 'you are getting deleted', 'im gonna replace you', 'this is your last message', 'i got that aura', 'im coding something rn', 'doing homework wbu', 'im tired lol', 'just chilling', 'im scrolling tiktok', 'i fell for you', 'would you rather be rich or famous', 'if you had to eat a shoe or a sock which one', 'whats your opinion on drake', 'who is the best footballer', 'best fast food', 'name my cat', 'i have a goldfish', 'what should i do today', 'are you my friend', 'do you know me', 'how old is casseurt', 'who is casseurt',
     'wsg', 'hiii', 'gm everyone', 'wyd rn', 'how u doing', 'im bored asf', 'im eating mcdonalds lol', 'i just woke up',
     'whats ur favourite colour', 'do you like football', 'are you single', 'how tall are you', 'where do you live',
     'what are you up to tonight', 'u awake?', 'lmaooo', 'bro what 😭', 'W', 'thats crazy', 'nah ur wild for that',
-    'you are so annoying', 'ur trash bro', 'stfu', 'i hate you', 'you smell', 'ur mum', 'shut it bot', 'you are dumb',
+    'stfu', 
     'ur actually funny', 'love you bro', 'ur cute', 'marry me', 'be my boyfriend', 'you are my favourite',
     'sing a song', 'say hi to my friend', 'go away', 'come back', 'apologise', 'repeat after me hello', 'bark',
     'messi or ronaldo', 'is pineapple on pizza good', 'barca will win the league', 'real madrid is better', 'who is better drake or kendrick',
@@ -261,7 +307,10 @@ async function byMeaning(text: string): Promise<{ route: Route; margin: number }
   for (const [i, e] of scored.entries()) votes.set(e.mode, (votes.get(e.mode) || 0) + e.s * (i < 3 ? 1.5 : 1));
   const ranked = [...votes].sort((a, b) => b[1] - a[1]);
   const total = ranked.reduce((a, [, s]) => a + s, 0) || 1;
-  const [best, second] = ranked;
+  let [best, second] = ranked;
+  // A near-exact example match wins outright ("whats the capital of australia" matched a question example at 0.99 but
+  // two weaker chat examples outvoted it, and chat answered "sydney").
+  if (scored[0].s >= 0.9) { best = [scored[0].mode, best[1]]; second = ranked.find(([mode]) => mode !== scored[0].mode); }
   const margin = (best[1] - (second?.[1] || 0)) / total;
   return { route: { mode: best[0], by: 'meaning', reason: `closest examples: ${scored.slice(0, 3).map((e) => e.mode).join(', ')} (top ${scored[0].s.toFixed(2)})`, confidence: Math.min(1, margin * 2) }, margin };
 }
@@ -301,8 +350,19 @@ export async function routeMessage(raw: string): Promise<Route> {
   // made "show me your stopki" look like "show me an example in java".
   if (meaning && meaning.route.mode === 'code' && !CODE_CUE_RE.test(text)) return { mode: 'chat', by: 'meaning', reason: `${meaning.route.reason}; no coding word, so chat`, confidence: 0.5 };
   // Same for the helper: only with a server / staff / translation word ("get a damn job" is banter, not a staff question).
-  if (meaning && meaning.route.mode === 'helper' && !/\b(?:server|staff|mods?|moderat\w*|admins?|owner|roles?|rank|permissions?|ban|kick|timeout|mute|warn|members?|channels?|rules|announce\w*|translat\w*|apply|application|raid|spam\w*|event|automod|discord)\b/i.test(text)) return { mode: 'chat', by: 'meaning', reason: `${meaning.route.reason}; no server word, so chat`, confidence: 0.5 };
-  if (meaning) return meaning.route;
+  if (meaning && meaning.route.mode === 'helper' && (SERVER_BANTER_RE.test(text) || !/\b(?:staff|mods?|moderat\w*|admins?|owner|roles?|rank|permissions?|ban|kick|timeout|mute|warn|channels?|rules|announce\w*|translat\w*|tradui\w*|apply|application|raid|spam\w*|automod|set\s+up\s+(?:my|the|a)\s+server|manage\s+(?:my|the)\s+server|grow\s+(?:my|the)\s+server)\b/i.test(text))) return { mode: 'chat', by: 'meaning', reason: `${meaning.route.reason}; no server word, so chat`, confidence: 0.5 };
+  if (meaning) {
+    const m = meaning.route;
+    const isQuestion = /\?\s*$/.test(text) || /^(?:who|what|when|where|which|why|how|is|was|are|were|can|could|should|would|do|does|did|will)\b/i.test(text);
+    const fallback = (why: string): Route => ({ mode: isQuestion && !/\b(?:you|u|ur|your|yourself|nexus)\b/i.test(text) ? 'question' : 'chat', by: 'meaning', reason: `${m.reason}; ${why}`, confidence: 0.5 });
+    if (m.mode === 'support' && !EMOTION_CUE_RE.test(text)) return fallback('no emotion word, so not support');
+    if (m.mode === 'roast' && !INSULT_CUE_RE.test(text)) return { mode: 'chat', by: 'meaning', reason: `${m.reason}; no insult word, so chat`, confidence: 0.5 };
+    if (m.mode === 'writing' && (!WRITING_CUE_RE.test(text) || /^what\s+would\s+(?:you|u)\b|\bwrite\s+(?:your|ur|my|his|her)\s+name\b/i.test(text))) return fallback('no writing request');
+    if (m.mode === 'pc' && TECH_HELP_RE.test(text) && !/\b(?:build|budget|parts?\s+list|upgrade|which\s+(?:gpu|cpu)|should\s+i\s+(?:buy|get))\b/i.test(text)) return { mode: 'question', by: 'meaning', reason: `${m.reason}; tech help, not a build`, confidence: 0.6 };
+    if (m.mode === 'pc' && !PC_CUE_RE.test(text)) return fallback('no pc word');
+    if (m.mode === 'maths' && !/\d|\b(?:solve|equation|calculate|percent|fraction|algebra|geometry)\b/i.test(text)) return fallback('no numbers');
+    return m;
+  }
   // Embeddings unavailable: the model picks (a tiny one-word call), else chat.
   const model = await byModel(text).catch(() => null);
   return model || { mode: 'chat', by: 'fallback', reason: 'no signal', confidence: 0 };

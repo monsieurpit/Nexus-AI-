@@ -923,6 +923,24 @@ async function runV2Checks() {
     check('name ideas: "beautiful" girl names get the beauty list with meanings (no boys), puppies get dog names, "what is your name" gets none', /beautiful/.test(beauty) && /Isabella|Belle|Calista|Mirabelle|Jolie|Naomi|Amara|Linda|Bonnie|Annabelle|Shayna|Jamila/.test(beauty) && !/BOYS/.test(beauty) && /dog names/.test(nameIdeasBlock('names for my puppy') || '') && nameIdeasBlock('what is your name') === null && rt.byRules('strong boy names')?.mode === 'question');
     check('name ideas: one "Name — meaning" per line, the favourite on its own line', formatNameList("Hermosa — beautiful; Amara — grace; Jolie — pretty. I'd pick Hermosa.") === "Hermosa — beautiful\nAmara — grace\nJolie — pretty.\nI'd pick Hermosa.");
     check('v2code: code blocks are extracted with their tag', JSON.stringify(extractCodeBlocks('hi\n```js\nlet a = 1;\n```\nok')) === JSON.stringify([{ tag: 'js', code: 'let a = 1;\n' }])); }
+  { // Patrick's test week (2026-10-11): what went to the wrong specialist, and must not again.
+    const { __test: rt2 } = await import('../src/ai-engine/v2/router');
+    const expect: Array<[string, string]> = [
+      ['your mom so old she probably run windows 98', 'roast'], ["I'd tell you to fuck your mom but no one's seen her since she fucked off", 'roast'],
+      ['your mum is the village bicycle - everyone rides her but no one wants to keep her.', 'roast'], ["you're unfunny", 'roast'],
+      ['pattrick called you an asshole break up with him', 'roast'], ['you are so a miserable peace of shit', 'roast'], ['L bozo', 'roast'],
+      ['stop hallucinating football standings and translate the fucking sentence properly, you absolute muppet', 'roast'],
+      ['can you take over this server rq and become a cult leader', 'chat'], ['wake up the server', 'chat'],
+      ['whats the Ligue 1 leaderboard?', 'search'], ['who is leading the Bundesliga leaderboard?', 'search'], ['was the red card from gravenberch deserved today', 'search'], ['who are the top scorers in la liga', 'search'],
+      ['who won the 1998 champions league final?', 'question'], ['how much oil is in our ocean water', 'question'], ['whats the capital of australia', 'question'], ['what does FIFA stand for', 'question'],
+      ['can u help me get mac back on this old imac thats running linux', 'question'], ['can i install mac os with a flashdrive i bought?', 'question'], ['what is my location', 'question'],
+      ['traduit Il y a une bosse sur mon pantalon en anglais', 'helper'], ["translate 'you are dumb' to french", 'helper'], ['my dog died today', 'support'], ['i feel so alone', 'support'],
+    ];
+    const wrong = expect.filter(([q, m]) => rt2.byRules(q)?.mode !== m).map(([q, m]) => `${q} → ${rt2.byRules(q)?.mode ?? 'none'} (want ${m})`);
+    check('routing: insults → roast, server banter → chat, live sports → search, facts/tech help → question, "traduit" → helper', wrong.length === 0, wrong.join(' | '));
+    check('routing: "." and "aren\'t you gooning 24/7" are not maths; questions about Nexus/Casseurt are not "factual"', rt2.byRules('.')?.mode !== 'maths' && rt2.byRules("aren't you gooning 24/7")?.mode !== 'maths' && rt2.byRules('who made you')?.mode !== 'question' && rt2.byRules('where is casseurt from')?.mode !== 'question' && rt2.byRules('how long is it')?.mode !== 'question');
+    const { pickBestComeback, copiesExample, pickRoastMove } = await import('../src/ai-engine/v2/roast');
+    check('roast: the best of 3 comebacks wins (their topic beats filler / copied examples), "roast me" is never a dismissal', pickBestComeback("ur mum's got more personality than ur entire life story\nlmao ur mum is so ancient her windows 98 still asks for floppy disks\nthats it?", 'your mom so old she runs windows 98').includes('windows 98') && copiesExample('ur mums so dusty she was the beta tester for dirt') && !copiesExample('ur mum still uses a flip phone') && pickRoastMove('roast me') !== 'dismiss'); }
   { const { normalizeImageForVision } = await import('../src/ai-engine/imageNormalize');
     const png1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
     const n = await normalizeImageForVision(png1x1);

@@ -28,7 +28,7 @@ for (const message of msgs) {
   });
   const j: any = await res.json().catch(() => ({}));
   const steps: any[] = j.thoughtSteps || [];
-  const route = steps.find((s) => s.id === 'step-v2-route')?.title?.replace('🧭 Router → ', '') || '?';
+  const route = steps.find((s) => /^🧭 Router/.test(s.title || ''))?.title?.replace('🧭 Router → ', '') || '?';
   console.log(`\n> ${message}   [${route} · ${((Date.now() - t) / 1000).toFixed(1)}s]`);
   if (showSteps) for (const s of steps) console.log(`   · ${s.title} | ${String(s.description || '').replace(/\n/g, ' ⏎ ').slice(0, 260)}`);
   console.log(j.response ?? JSON.stringify(j).slice(0, 300));
