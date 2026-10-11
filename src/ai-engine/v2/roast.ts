@@ -6,7 +6,7 @@
 
 export type RoastMove = 'flip' | 'twist' | 'escalate' | 'dismiss' | 'unbothered';
 
-const MOVES: Record<RoastMove, { how: string; examples: string[] }> = {
+export const MOVES: Record<RoastMove, { how: string; examples: string[] }> = {
   flip: {
     how: 'FLIP IT — take the exact topic of THEIR joke and turn it on them, more specific and more brutal.',
     examples: [
@@ -22,9 +22,9 @@ const MOVES: Record<RoastMove, { how: string; examples: string[] }> = {
     how: 'THE TWIST — start like you agree or concede, then stab at the end.',
     examples: [
       '"you\'re unfunny" → "ur right, im not as funny as ur haircut"',
-      '"nobody likes you" → "fair, but at least my mum stayed 😭"',
+      '"nobody likes you" → "true, i only have ur mum 😭"',
       '"you\'re mid" → "true, mid is still two levels above u"',
-      '"your jokes suck" → "they do, thats why i save the good ones for ur mum"',
+      '"your jokes suck" → "they do, i save the good ones for ur mum"',
       '"you\'re a bot" → "and ur still losing to me, imagine"',
     ],
   },

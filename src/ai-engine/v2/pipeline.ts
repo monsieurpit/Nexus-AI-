@@ -17,7 +17,8 @@ import { trySolveMath } from '../mathSolver';
 import { fxNote, fxNoteEur, getUsdToCad } from '../fx';
 import { isPartnershipMessage, partnershipTurn } from './partnership';
 import { formatNameList, nameIdeasBlock } from './names';
-import { nextRoastMove, pickBestComeback, roastMoveNote } from './roast';
+import { pickBestComeback } from './roast';
+import { ammoFrom, battleActive, classifyHit, pickComeback, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
@@ -574,12 +575,14 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       };
     }
     case 'roast': {
-      const who = settings?.userName ? `The person coming at you: ${settings.userName}.\n` : '';
+      // The roast engine (roastEngine.ts): what kind of hit it is, the right shape and length, ammo, battle round.
+      const person = settings?.discordUserId || settings?.userName || 'anon';
+      const plan = planRoast(person, s, deps.threadText, settings?.userName);
+      lastRoastPlan = { plan, ammo: ammoFrom(deps.threadText) };
       const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
-      const move = nextRoastMove(settings?.discordUserId || settings?.userName || 'anon', s);
-      thoughtSteps.push({ id: 'step-v2-roast-move', type: 'reasoning', title: `🔥 Comeback move: ${move}`, description: 'Picked at random (weighted by their message) so comebacks change shape every time.' });
+      thoughtSteps.push({ id: 'step-v2-roast-plan', type: 'reasoning', title: `🔥 Roast engine: ${plan.kind}${plan.move ? ` / ${plan.move}` : ''}${plan.round > 1 ? ` · round ${plan.round}` : ''}`, description: plan.note.slice(0, 600) });
       return {
-        text: `${thread}${facts}${who}${people.length ? `${people.join(' ')}\n` : ''}${roastMoveNote(move)}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nWrite 3 DIFFERENT comebacks using your move, one per line, no numbers, no intro (the best one gets sent):`,
+        text: `${thread}${facts}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nWrite 3 DIFFERENT comebacks of that type, one per line, no numbers, no intro (the best one gets sent):`,
         sources: [],
       };
     }
@@ -815,6 +818,9 @@ export function isParrot(message: string, recent: string[]): boolean {
   });
 }
 
+// The roast plan of the request being built (read back when the 3 comebacks are scored).
+let lastRoastPlan: { plan: RoastPlan; ammo: string[] } | null = null;
+
 // The last request's stage timings, for the [nexus] log line (server.ts).
 export let lastTiming: { route: number; build: number; generate: number; after: number } | null = null;
 
@@ -843,6 +849,10 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     const lastYou = [...lines].reverse().find((l) => l.startsWith('You: '))?.slice(5);
     const lastThem = [...lines].reverse().find((l) => l.startsWith('Them: ') && !/^Them:\s*(?:nexus[\s,]*)?(?:why|how|explain)\b/i.test(l))?.slice(6);
     if (lastYou && lastThem) followUpOf = `"${said(text || '')}" — a follow-up to their question "${lastThem.slice(0, 200)}", which you answered: "${lastYou.slice(0, 260)}". Answer the follow-up (e.g. explain WHY) properly.`;
+  }
+  // In a running roast battle, a concession ("ok you win") or a lazy comeback ("no u") is still part of the battle.
+  if (author && route.mode !== 'roast' && battleActive(author) && text && ['concede', 'weak', 'swear'].includes(classifyHit(said(text), true))) {
+    route = { mode: 'roast', by: 'rule', reason: 'still in a roast battle', confidence: 1 };
   }
   let parrotNote = '';
   if (text && isParrot(said(text), deps.recentLines)) {
@@ -895,7 +905,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     return null; // v1 takes over (its own fallbacks)
   }
   // One emoji max is a CHAT rule (Patrick); a staff review needs its ✅/⚠️/❌ marks.
-  const picked = route.mode === 'roast' ? pickBestComeback(raw, said(prompt)) : raw;
+  const picked = route.mode === 'roast' ? (lastRoastPlan ? pickComeback(raw, said(prompt), lastRoastPlan.plan, lastRoastPlan.ammo) : pickBestComeback(raw, said(prompt))) : raw;
   let content = route.mode === 'chat' || route.mode === 'roast' || route.mode === 'support' ? dropBannedEmoji(finalize(picked)) : finalize(picked).replace(/💅\uFE0F?/gu, '');
   // A parts list keeps ONE part per line even when the model runs the intro into the first part.
   if (route.mode === 'helper' && isTranslateRequest(prompt)) content = cleanTranslation(content);
