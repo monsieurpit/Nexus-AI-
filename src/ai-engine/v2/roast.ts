@@ -19,7 +19,7 @@ export const MOVES: Record<RoastMove, { how: string; examples: string[] }> = {
     ],
   },
   twist: {
-    how: 'THE TWIST — start like you agree or concede, then stab at the end.',
+    how: 'THE TWIST — start like you agree ("ur right", "true"), then stab at the end — never with "at least".',
     examples: [
       '"you\'re unfunny" → "ur right, im not as funny as ur haircut"',
       '"nobody likes you" → "true, i only have ur mum 😭"',

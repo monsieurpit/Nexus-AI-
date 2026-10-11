@@ -151,7 +151,7 @@ export function rememberComeback(line: string): void {
   if (recentComebacks.length > 20) recentComebacks.shift();
 }
 const FILLER_RE = /\b(?:entire\s+(?:life|existence|being)|life\s+story|existence|search\s+history|browser\s+history|more\s+personality\s+than|is\s+that\s+the\s+best|nah\s+mate|that\s+sounds|im\s+sorry|wanna\s+talk|hope\s+(?:ur|your)\s+day)\b/i;
-const AT_LEAST_RE = /^\s*(?:well,?\s+)?at\s+least\b/i;
+const AT_LEAST_RE = /^\s*(?:well,?\s+|true,?\s+|ok,?\s+)?at\s+least\b/i;
 const STOP = new Set('the a an and or to of in on at is are was were be you your ur u youre im i me my it its this that so such just like with for from as but not no yes yeah nah bro bruh nexus she he her his they them their have has had do does did can could would should will what who how why when where'.split(' '));
 const words = (t: string) => (t.toLowerCase().match(/[a-z0-9']{3,}/g) || []).filter((w) => !STOP.has(w));
 
@@ -169,7 +169,7 @@ export function scoreComeback(line: string, theirs: string, plan: Pick<RoastPlan
   // filler, copied examples, the "at least my mum" crutch
   if (FILLER_RE.test(line)) score -= 5;
   if (copiesExample(line)) score -= 6;
-  if (AT_LEAST_RE.test(line)) score -= plan.kind === 'swear' || plan.kind === 'weak' ? 6 : 2;
+  if (AT_LEAST_RE.test(line) || /\bbut\s+at\s+least\b/i.test(line)) score -= 6; // Patrick hates the "at least my mum..." crutch
   // a swear gets a swear back — the same one thrown back ("fuck you" → "fuck you too...") is the best
   if (plan.kind === 'swear' && /\b(?:fuck\w*|bitch|motherfucker|dumbass|asshole|prick|cunt|twat|wanker)\b/i.test(line)) score += 3;
   if (plan.kind === 'swear') {
