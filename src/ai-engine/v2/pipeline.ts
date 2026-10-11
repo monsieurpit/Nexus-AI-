@@ -45,6 +45,8 @@ export interface V2Result {
 // and a short note in THEIR language at the end of the message — the strongest slot for a small model — sets the language.
 export type Lang = 'en' | 'fr' | 'pl' | 'de';
 export function langOf(text: string): Lang {
+  // Letters only Polish uses (2026-10-11: "tu się zgadzam w 100 procentach" was answered in French).
+  if (/[ąęłśźżćń]/i.test(text) && !/[äöüß]/i.test(text)) return 'pl';
   return localLlmClient.looksPolish(text) ? 'pl' : localLlmClient.looksGerman(text) ? 'de' : localLlmClient.looksFrench(text) ? 'fr' : 'en';
 }
 export const LANG_NOTE: Record<Lang, string> = {
@@ -270,8 +272,27 @@ export function serverContextBlock(ctx: AISettings['serverContext']): string {
 
 // "translate this application to french\n<long text>": the model translated only the request line. The text to
 // translate (everything after the request line, or after a colon/quote) is handed over separately and explicitly.
+const TARGET_LANG: Array<[RegExp, string]> = [
+  [/^(?:english|anglais|englisch|englische|angielski|ingl[eé]s)$/i, 'English'], [/^(?:french|fran[cç]ais|franz[oö]sisch|franz[oö]sische|francuski|franc[eé]s)$/i, 'French (Québécois if casual)'],
+  [/^(?:polish|polonais|polnisch|polnische|polski|polaco)$/i, 'Polish'], [/^(?:german|allemand|deutsch|deutsche|niemiecki|alem[aá]n)$/i, 'German'],
+  [/^(?:spanish|espagnol|spanisch|hiszpa[nń]ski|espa[nñ]ol)$/i, 'Spanish'], [/^(?:italian|italien|italienisch|w[łl]oski|italiano)$/i, 'Italian'],
+  [/^(?:portuguese|portugais|portugiesisch|portugalski|portugu[eê]s)$/i, 'Portuguese'], [/^(?:russian|russe|russisch|rosyjski|ruso)$/i, 'Russian'],
+  [/^(?:arabic|arabe|arabisch|arabski)$/i, 'Arabic'], [/^(?:chinese|chinois|chinesisch|chi[nń]ski|chino)$/i, 'Chinese'], [/^(?:japanese|japonais|japanisch|japo[nń]ski)$/i, 'Japanese'],
+];
+// "traduit Il y a une bosse sur mon pantalon en anglais" / "translate i love pizza to french" on ONE line
+// (2026-10-11: got "il y a un lump on my pants" — half translated).
+export function inlineTranslation(prompt: string): { text: string; target: string } | null {
+  if (prompt.trim().includes('\n') || looksLikeApplication(prompt)) return null;
+  const m = prompt.replace(/^\s*nexus[\s,:]*/i, '').match(/^(?:can\s+(?:you|u)\s+)?(?:translate|traduit|traduis(?:-moi)?|traduire|traduisez|übersetze?|uebersetze?|przetłumacz|tłumacz)\s+(?:this|that|ça|ca|cela|das|to)?\s*[:"“«]?\s*([\s\S]{2,}?)\s*["”»]?\s+(?:en|in|into|to|auf|na|ins)\s+([a-zàâçéèêëîïôûùüÿñæœäöß]+)\s*[.?!]*$/i);
+  if (!m) return null;
+  const target = TARGET_LANG.find(([re]) => re.test(m[2]))?.[1];
+  return target ? { text: m[1].trim(), target } : null;
+}
+
 function translationBlock(prompt: string): string {
   if (!isTranslateRequest(prompt)) return '';
+  const inline = inlineTranslation(prompt);
+  if (inline) return `TRANSLATION JOB: translate the text below into ${inline.target}. The WHOLE thing, naturally (keep the meaning and the tone, slang = slang). Output ONLY the translation — no intro, no comment.\nTEXT TO TRANSLATE:\n<<<\n${inline.text}\n>>>\n\n`;
   const nl = prompt.indexOf('\n');
   const body = nl > 0 ? prompt.slice(nl + 1).trim() : ((prompt.match(/[:"“]\s*([\s\S]{2,})$/) || [])[1] || '').replace(/["”]\s*$/, '').trim();
   if (!body || body.length < 2) return '';
@@ -612,9 +633,9 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       };
     }
     case 'writing': {
-      const formal = isFormalDraftRequest(prompt);
+      const formal = isFormalDraftRequest(prompt) && !casualServerDraft(prompt);
       return {
-        text: `${thread}Their request: "${prompt.slice(0, 3500)}"${formal ? '\nThis is a FORMAL draft: zero swearing and zero slang inside it.' : ''}\nYour answer:`,
+        text: `${thread}Their request: "${prompt.slice(0, 3500)}"${formal ? '\nThis is a FORMAL draft: zero swearing and zero slang inside it, and proper capital letters and punctuation inside the draft (Dear..., I am...).' : casualServerDraft(prompt) ? '\nThis message is for their Discord server: write it in YOUR casual voice — short, hype, a swear or two is fine ("Yo, congrats on the promotion [Name]! ... Don\'t fuck it up. Good luck." energy, in fresh words). If they gave a template with [slots], write the FINISHED message in that order with each slot replaced by your text — never explain the slots or show the template, only keep a placeholder like [Name] for a name you don\'t know. No "Dear team", no corporate words, no intro line.' : ''}\nYour answer:`,
         sources: [],
       };
     }
@@ -734,6 +755,26 @@ export function tidyList(text: string): string {
     .replace(/(\n\d{1,2}\.[^\n]*?)[.!]?[ \t]+((?:i reckon|honestly|fucking|wtf|tbh|ngl|thats|that's|lmao|bro|mate)\b[^\n]*)$/iu, '$1\n$2');
 }
 
+// Messages for the server (staff promotions, welcomes, announcements) are in Nexus's own casual voice unless they ask
+// for formal (2026-10-11, Patrick: "way too formal and professional! Must be like: Yo, congrats on promotion,
+// [Name]. Ig you have done some good work so you got promoted. Don't fuck it up. Good luck.").
+const SERVER_DRAFT_RE = /\b(?:staff|promot\w*|welcome|announce\w*|server|discord|members?|mods?|moderators?|helpers?|partner\w*|giveaway|event|channel|role)\b/i;
+const ASKED_FORMAL_RE = /\b(?:formal|professional|polite|official|serious|corporate|business|boss|teacher|school|job|work|employer|landlord|principal|cover\s+letter|resume|cv)\b/i;
+export function casualServerDraft(prompt: string): boolean {
+  return SERVER_DRAFT_RE.test(prompt) && !ASKED_FORMAL_RE.test(prompt);
+}
+
+// A formal draft gets real capitals even though Nexus himself texts in lowercase (the intro line stays his).
+export function capitalizeDraft(text: string): string {
+  const fix = (t: string) =>
+    t
+      .replace(/(^|[.!?]\s+|\n\s*)([a-zà-ÿ])/g, (_m, pre: string, c: string) => pre + c.toUpperCase())
+      .replace(/\bi\b(?=['’]?(?:m|ve|ll|d)?\b)/g, 'I')
+      .replace(/\b(dear|sincerely|regards|best regards|kind regards|thank you|hello|hi)\b(?=[ ,\n])/g, (w, _x, offset: number, all: string) => (offset === 0 || /[\n.!?]\s*$/.test(all.slice(0, offset)) ? w[0].toUpperCase() + w.slice(1) : w));
+  const intro = text.match(/^((?:here\s+(?:u|you)\s+go|here'?s?\s+(?:it|ur|your)[^:\n]{0,30}|alr[^:\n]{0,30})\s*:\s*)/i);
+  return intro ? intro[1] + fix(text.slice(intro[1].length)) : fix(text);
+}
+
 // Parrots (2026-10-11, Patrick: "he doesn't know when a user has been repeating what Nexus says for like 5 times,
 // he should detect and roast the guy"): their message is one of his own recent lines pasted back.
 const parrotCount = new Map<string, number>();
@@ -803,12 +844,12 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
       : `THE IMAGE THEY SENT (you looked at it yourself; this is what's in it): ${image}\n${text ? '' : 'They sent it with no text: react to it.\n'}\n`
     : '';
   // A translation's own text is in the TARGET language even when the asker writes German/French/Polish.
-  const langNote = route.mode === 'helper' && lang !== 'en' && isTranslateRequest(prompt)
+  const langNote = route.mode === 'helper' && inlineTranslation(prompt) ? '' : route.mode === 'helper' && lang !== 'en' && isTranslateRequest(prompt)
     ? `${LANG_NOTE[lang]}\n(EXCEPTION: the translation itself is written in the language they want it translated INTO, not in theirs.)`
     : LANG_NOTE[lang];
   const userTurn = `${parrotNote}${imageBlock}${built.text}${langNote}`;
   const sources = built.sources;
-  const formal = route.mode === 'writing' && isFormalDraftRequest(prompt);
+  const formal = route.mode === 'writing' && isFormalDraftRequest(prompt) && !casualServerDraft(prompt);
   const finalize = (t: string) => {
     const out = finalizeSpecialistReply(t, formal ? 'formal' : spec.finalize, said(prompt), lang);
     return route.mode === 'support' || SAD_RE.test(prompt) ? stripCrudeAside(out) : out;
@@ -877,6 +918,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (route.mode === 'search' || route.mode === 'question') content = tidyList(content);
   // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
   if (!formal) content = uncensorSwears(content);
+  else content = capitalizeDraft(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
   content = pingBoyfriend(content, Boolean(settings.serverContext));
   const timing = { route: tRouted - tStart, build: tBuilt - tRouted, generate: tGenerated - tBuilt, after: Date.now() - tGenerated };
