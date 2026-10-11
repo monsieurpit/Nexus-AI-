@@ -18,6 +18,7 @@ import { fxNote, fxNoteEur, getUsdToCad } from '../fx';
 import { isPartnershipMessage, partnershipTurn } from './partnership';
 import { formatNameList, nameIdeasBlock } from './names';
 import { nextRoastMove, pickBestComeback, roastMoveNote } from './roast';
+import { sportsFacts } from './sports';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
@@ -582,10 +583,22 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
         }
       }
       const factBlock = found.text || web ? `FACTS (correct and current, use them):\n${found.text}${web}\n\n` : '';
-      return { text: `${thread}${factBlock}${nowLine()}\n\nTheir question: "${s}"\nYour answer:`, sources };
+      // Looked it up and found nothing: say so plainly — never "dunno who that prick is" about a real person.
+      const nothingFound = !found.text && !web && reason ? 'You tried to look it up just now but found nothing solid. Say you couldn\'t find anything on it rn (and ask what it is, or say what you DO know) — never insult them or the person/thing they asked about.\n' : '';
+      // Their location: Discord never shares it.
+      const locationNote = /\b(?:my\s+(?:location|address|ip|city|country)|where\s+(?:am\s+i|do\s+i\s+live|i\s+live))\b/i.test(s) ? 'FACT: you do NOT know where they are — Discord never shares anyone\'s location with you. Say that (cheekily), never guess a place.\n' : '';
+      return { text: `${thread}${factBlock}${nothingFound}${locationNote}${nowLine()}\n\nTheir question: "${s}"\nYour answer:`, sources };
     }
     case 'search': {
+      // Football tables / scorers / assists / results / red cards come from ESPN's live data (2026-10-11); a web search
+      // only when the data doesn't fully answer it ("was the red card deserved?").
+      const sports = await sportsFacts(s);
+      if (sports) {
+        thoughtSteps.push({ id: 'step-v2-sports', type: 'web_search', title: '⚽ Live football data (ESPN)', description: sports.block.slice(0, 700) });
+        if (sports.covered) return { text: `${thread}LIVE DATA (ESPN, just fetched — correct and current, use it exactly):\n${sports.block}\n\n${nowLine()}\n\nThey asked: "${s}"\nYour answer (lead with the answer; a table = the top 5-10 one per line unless they asked for all of it):`, sources: sports.titles };
+      }
       const ctx = await buildSearchContext(prompt, lang);
+      if (sports) return { text: `${thread}LIVE DATA (ESPN, just fetched — correct and current):\n${sports.block}\n\n${ctx.block}\n\n${nowLine()}\n\nThey asked: "${s}"\nYour answer:`, sources: [...sports.titles, ...ctx.sources] };
       thoughtSteps.push({ id: 'step-live-search', type: 'web_search', title: `🌐 Live web search: "${ctx.searchedFor}"`, description: `${ctx.count} result(s).` });
       return { text: `${thread}${ctx.block}\n\n${nowLine()}\n\nThey asked: "${s}"\nYour answer:`, sources: ctx.sources };
     }
@@ -708,6 +721,17 @@ export function copiedChatExample(reply: string): string | null {
     if (CHAT_EXAMPLE_GRAMS.has(g)) return g;
   }
   return null;
+}
+
+// Lists stay lists (2026-10-11): each "N." item on its own line, a section label ("top assists:") on its own line,
+// and a closing remark glued onto the last item ("...GD +4) wtf are these French bastards") moved to its own line.
+export function tidyList(text: string): string {
+  if (!/(?:^|\s)\d{1,2}\.\s+\S/.test(text)) return text;
+  return text
+    .replace(/[ \t]+(?=\d{1,2}\.\s+[A-Za-zÀ-ÿ])/g, '\n')
+    .replace(/[ \t]+((?:top\s+(?:scorers|assists)|standings|table|results)\s*:)/gi, '\n$1')
+    .replace(/(\n\d{1,2}\.[^\n]*?\))[ \t]+([a-zA-Z][^\n]{6,})$/u, '$1\n$2')
+    .replace(/(\n\d{1,2}\.[^\n]*?)[.!]?[ \t]+((?:i reckon|honestly|fucking|wtf|tbh|ngl|thats|that's|lmao|bro|mate)\b[^\n]*)$/iu, '$1\n$2');
 }
 
 // Parrots (2026-10-11, Patrick: "he doesn't know when a user has been repeating what Nexus says for like 5 times,
@@ -850,6 +874,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     const retry = await generateWith(spec, `${userTurn}\n(Your first try was "${content.slice(0, 80)}" — that repeats an old line or their own words. Say something COMPLETELY different that reacts to what they mean.)`, lang);
     if (retry) content = dropBannedEmoji(finalize(retry));
   }
+  if (route.mode === 'search' || route.mode === 'question') content = tidyList(content);
   // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
   if (!formal) content = uncensorSwears(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
