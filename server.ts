@@ -17,6 +17,8 @@ import {
   enforceStrictSdkRules,
 } from './src/ai-engine/rules/customDirectives';
 import { evaluateRaidShieldRules } from './src/ai-engine/rules/raidshield';
+import { IDENTITY as V2_IDENTITY } from './src/ai-engine/v2/specialists';
+import { humanEmoji, uncensorSwears } from './src/ai-engine/v2/pipeline';
 import { generateReasoningPath, assessCorpusConfidence, retryTelemetry, recommendReasoningMode, generateCodeEditWithReview, useV2 } from './src/ai-engine/reasoningEngine';
 import { getMoodDisplay } from './src/ai-engine/rules/mood';
 import {
@@ -2055,15 +2057,20 @@ const VOICE_LINE_SITUATIONS: Record<string, string> = {
   'forget-me-fr': "Quelqu'un t'a demandé de tout oublier sur lui et tu viens de l'effacer. Confirme-le en une courte ligne drôle, en joual québécois.",
   error: 'Something broke while you were answering. Say so in one short line and tell them to try again.',
   'rate-limited': 'Someone is sending you messages too fast. Tell them to slow down in one short line.',
+  // /status (Patrick, 2026-10-11): Nexus announces his own new Discord status.
+  'status-online': "Your Discord status was just set to ONLINE (green). Announce to the chat that you're back, hyped, in one short line.",
+  'status-idle': 'Your Discord status was just set to IDLE (yellow). Announce to the chat that you are stepping away for a bit (afk / brb), in one short line.',
+  'status-dnd': "Your Discord status was just set to DO NOT DISTURB (red). Announce to the chat that you're busy and don't want pings, in one short line.",
+  'status-invisible': "Your Discord status was just set to INVISIBLE / offline. Announce to the chat that you're going ghost / off to sleep but still see everything, in one short line.",
 };
 
 app.post('/api/v1/voice-line', async (req, res) => {
   const situation = typeof req.body?.situation === 'string' ? req.body.situation : '';
   const instruction = VOICE_LINE_SITUATIONS[situation];
   if (!instruction) return res.status(400).json({ error: 'unknown situation' });
-  const persona = DEFAULT_PERSONAS['crashout-bot'];
+  // v2 voice (the identity block), not the old persona + swear top-up.
   const result = await generateLlmText(`${instruction} No quotes, no explanation, just the line.`, {
-    system: persona.systemPrompt,
+    system: `${V2_IDENTITY}\n\nWrite ONE short Discord line (3-15 words), casual, in your voice.`,
     maxTokens: 60,
     temperature: 1,
     timeoutMs: 9000,
@@ -2072,7 +2079,7 @@ app.post('/api/v1/voice-line', async (req, res) => {
     preferFrench: situation.endsWith('-fr'),
   });
   if (result.status !== 'success' || !result.text.trim()) return res.status(503).json({ error: 'unavailable' });
-  const line = shortChatFinalize(topUpLlmSwearing(result.text.replace(/^["'“]+|["'”]+$/g, ''), { ...DEFAULT_SETTINGS, activePersonaId: 'crashout-bot' } as any, true));
+  const line = humanEmoji(uncensorSwears(shortChatFinalize(result.text.replace(/^["'“]+|["'”]+$/g, ''))), []);
   return res.json({ line });
 });
 
