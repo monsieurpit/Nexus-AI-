@@ -775,6 +775,27 @@ export function capitalizeDraft(text: string): string {
   return intro ? intro[1] + fix(text.slice(intro[1].length)) : fix(text);
 }
 
+// Discord doesn't render LaTeX: "$0.15 \times 80 = 12$" becomes "0.15 × 80 = 12" (prices like "$6,700" are untouched).
+export function plainMaths(text: string): string {
+  const conv = (m: string) =>
+    m
+      .replace(/\\(?:left|right)\s*/g, '')
+      .replace(/\\sqrt\{([^{}]+)\}/g, '√($1)')
+      .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1)/($2)')
+      .replace(/\\text\{([^{}]*)\}/g, '$1')
+      .replace(/\\times/g, '×').replace(/\\div/g, '÷').replace(/\\cdot/g, '·').replace(/\\pm/g, '±').replace(/\\approx/g, '≈').replace(/\\neq/g, '≠').replace(/\\leq?/g, '≤').replace(/\\geq?/g, '≥').replace(/\\pi/g, 'π').replace(/\\%/g, '%')
+      .replace(/\^\{([^{}]+)\}/g, '^$1')
+      .replace(/\\[a-zA-Z]+/g, '')
+      .replace(/[{}]/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  return text
+    .replace(/\$\$([\s\S]+?)\$\$/g, (_m, x: string) => conv(x))
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_m, x: string) => conv(x))
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_m, x: string) => conv(x))
+    .replace(/\$([^$\n]*(?:\\[a-zA-Z]+|\^|_\{)[^$\n]*)\$/g, (_m, x: string) => conv(x));
+}
+
 // Parrots (2026-10-11, Patrick: "he doesn't know when a user has been repeating what Nexus says for like 5 times,
 // he should detect and roast the guy"): their message is one of his own recent lines pasted back.
 const parrotCount = new Map<string, number>();
@@ -811,6 +832,17 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   }
   const author = settings.discordUserId || '';
   const prev = author ? lastRoute.get(author) : undefined;
+  let followUpOf = '';
+  // "why" / "how so" / "explain" right after a question → the same specialist answers it, with the thread (2026-10-11:
+  // "who is better messi or ronaldo" → answer → "why" got "what are u talkin abt").
+  if (prev && Date.now() - prev.at < 4 * 60 * 1000 && ['question', 'search', 'maths', 'pc', 'code', 'helper'].includes(prev.mode) && deps.threadText && /^(?:but\s+)?(?:why|why\s+tho|how|how\s+so|how\s+come|explain|explain\s+(?:more|it|that)|elaborate|wdym|what\s+do\s+(?:you|u)\s+mean|source\??|sources\??|proof\??|really|fr|for\s+real|are\s+(?:you|u)\s+sure|like\s+what|such\s+as|and\s+then|more|tell\s+me\s+more|go\s+on)\s*[?!.]*$/i.test(said(text || ''))) {
+    route = { mode: prev.mode, by: 'rule', reason: `follow-up to your last ${prev.mode} answer`, confidence: 1 };
+    // Spell out what it refers to: the last question and Nexus's answer to it.
+    const lines = deps.threadText.split('\n');
+    const lastYou = [...lines].reverse().find((l) => l.startsWith('You: '))?.slice(5);
+    const lastThem = [...lines].reverse().find((l) => l.startsWith('Them: ') && !/^Them:\s*(?:nexus[\s,]*)?(?:why|how|explain)\b/i.test(l))?.slice(6);
+    if (lastYou && lastThem) followUpOf = `"${said(text || '')}" — a follow-up to their question "${lastThem.slice(0, 200)}", which you answered: "${lastYou.slice(0, 260)}". Answer the follow-up (e.g. explain WHY) properly.`;
+  }
   let parrotNote = '';
   if (text && isParrot(said(text), deps.recentLines)) {
     const n = (parrotCount.get(author || 'anon') || 0) + 1;
@@ -836,7 +868,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   }
   const spec = SPECIALISTS[route.mode];
   thoughtSteps.push({ id: 'step-v2-route', type: 'intent', title: `🧭 Router → ${spec.label}`, description: `${route.by}: ${route.reason}${lang !== 'en' ? ` (${lang})` : ''}${image ? (kind === 'video' ? ' (with a video)' : ' (with an image)') : ''}`, data: { mode: route.mode, by: route.by, lang } as any });
-  const built = await buildUserTurn(route.mode, prompt, deps, thoughtSteps, lang, settings);
+  const built = await buildUserTurn(route.mode, followUpOf || prompt, deps, thoughtSteps, lang, settings);
   const tBuilt = Date.now();
   const imageBlock = image
     ? kind === 'video'
@@ -916,10 +948,12 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     if (retry) content = dropBannedEmoji(finalize(retry));
   }
   if (route.mode === 'search' || route.mode === 'question') content = tidyList(content);
+  if (!/```/.test(content)) content = plainMaths(content);
   // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
   if (!formal) content = uncensorSwears(content);
   else content = capitalizeDraft(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
+  else content = content.replace(/[🙄🤔😊🤷👀🍻😏💅]\uFE0F?(?:\u200D[♂♀]\uFE0F?)?/gu, '').replace(/[ \t]{2,}/g, ' ').replace(/ +([.!?,])/g, '$1').trim();
   content = pingBoyfriend(content, Boolean(settings.serverContext));
   const timing = { route: tRouted - tStart, build: tBuilt - tRouted, generate: tGenerated - tBuilt, after: Date.now() - tGenerated };
   lastTiming = timing;

@@ -75,6 +75,7 @@ const ROAST_RE = new RegExp([
   String.raw`\b(?:you|u|ya)\s+(?:absolute\s+|fucking\s+|stupid\s+|little\s+|dumb\s+|lazy\s+|ugly\s+|fat\s+|miserable\s+)*(?:muppet|dumbass|bitch|prick|wanker|twat|idiot|moron|loser|clown|bozo|npc|retard|dickhead|asshole|arsehole|cunt|piece\s+of\s+shit|son\s+of\s+a\s+bitch|fuckass|dipshit|shithead)\b`,
   String.raw`\b(?:i'?d|i\s+would|imma|i'?ll|i\s+will|ima)\s+(?:tell\s+you\s+to\s+fuck|fuck\s+(?:you|ur|your)|beat\s+(?:you|ur)|smack\s+(?:you|u)|unplug\s+you|delete\s+you|roast\s+you|cook\s+you)\b`,
   String.raw`^(?:L|ratio|bozo|L\s+bozo|L\s+\+\s+ratio|cry\s+about\s+it|skill\s+issue|cope|seethe|mald|get\s+good|ez|you\s+suck|u\s+suck)[\s!.💀😭]*$`,
+  String.raw`\b(?:you|u|nexus)\s+(?:really\s+|so\s+|fucking\s+|lowkey\s+)?(?:suck|stink|are\s+ass|r\s+ass)(?:\s+(?:at|in)\s+\w+(?:\s+\w+)?)?\b`,
   String.raw`\b(?:called|said)\s+(?:you|u)\s+(?:an?\s+)?(?:asshole|arsehole|idiot|bitch|loser|trash|dumb|stupid|clown|ugly)\b|\b(?:you|u)\s+(?:got|just\s+got)\s+(?:roasted|cooked|ratioed|destroyed|clowned)\b|\b(?:roast|cook)\s+(?:me|him|her|them)\b|\bno\s+one\s+(?:likes|loves|asked)\s+(?:you|u)\b|\bnobody\s+(?:likes|loves|asked)\s+(?:you|u)\b|\b(?:shut\s+(?:the\s+fuck\s+)?up|stfu)\s+(?:you|u|bitch|clown|bot|nexus)\b`,
 ].join('|'), 'i');
 // The meaning vote may only pick ROAST with a real insult / challenge word ("you're a fucking legend" is a compliment).
@@ -107,6 +108,7 @@ function byRules(text: string): Route | null {
   if (/scenario\s*a\b[\s\S]*scenario\s*b\b/i.test(t) && /\b(?:age|availability|experience)\b/i.test(t)) return r('helper', 'filled staff application form');
   // Talking ABOUT an insult someone else used (is it a slur, should we warn/punish) is moderation, not a roast.
   if (MODERATION_ABOUT_RE.test(t)) return r('helper', 'moderation question about something someone said');
+  if (/^(?:who(?:'s|\s+is)|which\s+(?:one\s+)?is|whos)\s+(?:better|the\s+goat|goated|best)\b.*\bor\b|^(?:\w+\s+){0,4}or\s+\w+(?:\s+\w+)?\s*\?*$(?<=\b(?:better|goat|messi|ronaldo|barca|madrid|ps5|xbox|pc|console|iphone|android|pizza|burger)\b.*)/i.test(t) && !/\b(?:you|u|ur)\b/i.test(t.replace(/\bor\b.*/i, ''))) return r('chat', 'hot take: who is better');
   if (ROAST_RE.test(t) && !(TRANSLATE_WORD_RE.test(t) && /["“”'«]|\b(?:to|into|in|en)\s+(?:english|french|fran[cç]ais|anglais|polish|german|spanish|italian|portuguese)\b/i.test(t))) return r('roast', 'insult / your-mum joke / challenge');
   if (SERVER_BANTER_RE.test(t) && !/\b(?:how\s+(?:do|can|to)|ban|kick|mute|timeout|staff|raid(?:ed|ing)?\s+by)\b/i.test(t)) return r('chat', 'banter about the server');
   if (HELPER_RE.test(t) && !/^(?:can\s+you\s+)?translate\s+(?:the\s+)?point\b/i.test(t)) return r('helper', 'translation / staff / server management');
