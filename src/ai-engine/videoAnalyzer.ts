@@ -156,18 +156,34 @@ export async function analyzeVideo(source: string, question = ''): Promise<Video
     if (!meta.durationSec || !meta.width) return { ok: false, description: '', timings, error: 'not a readable video' };
     timings.metadata = Date.now() - t0;
 
-    // 2. 12 frames over the whole video, one 4x3 collage.
+    // 2. 12 frames over the whole video, as TWO 3x2 collages (frames 1-6, 7-12) of ~340 px tiles (2026-10-11): one
+    //    1920 px collage got shrunk to 1024 px for the vision model (imageNormalize.ts), leaving ~256 px per frame —
+    //    too small to understand what's happening.
     const frames = 12;
-    const grid = join(dir, 'grid.jpg');
-    await run(ff, ['-y', '-loglevel', 'error', '-i', file, '-vf', `fps=${frames}/${Math.max(1, meta.durationSec)},scale=480:-2,tile=4x3`, '-frames:v', '1', '-q:v', '4', grid], 30000);
-    timings.frames = Date.now() - t0;
-    const gridB64 = existsSync(grid) ? readFileSync(grid).toString('base64') : null;
-
-    // 3 + 4 at the same time: the speech and the pictures.
     const step = meta.durationSec / frames;
-    const visionPrompt = `These are ${frames} frames from ONE video, in time order: left to right, top row first (frame 1 at ${mmss(0)}, frame ${frames} at about ${mmss(step * (frames - 1))}). Describe what happens in the video: the setting, people/objects, what changes between frames, any text on screen (copy it exactly), and the overall topic. 4-8 sentences.${question ? ` The person asks: "${question.slice(0, 300)}" — answer that precisely from what you see.` : ''}`;
+    const halves = [0, 1].map((h) => join(dir, `grid${h}.jpg`));
+    await Promise.all(
+      halves.map((out, h) =>
+        run(ff, ['-y', '-loglevel', 'error', '-ss', String(h * step * 6), '-t', String(Math.max(0.5, step * 6)), '-i', file, '-vf', `fps=${6}/${Math.max(0.5, step * 6)},scale=340:-2,tile=3x2`, '-frames:v', '1', '-q:v', '3', out], 30000)
+      )
+    );
+    timings.frames = Date.now() - t0;
+    const gridB64s = halves.map((g) => (existsSync(g) ? readFileSync(g).toString('base64') : null));
+
+    // 3 + 4 at the same time: the speech and the pictures (the two collages one after the other — one vision model).
+    const halfPrompt = (h: number) =>
+      `These are 6 frames from ONE video, in time order: left to right, top row first (from ${mmss(h * step * 6)} to about ${mmss(h * step * 6 + step * 5)}${h === 1 ? ', the second half of the video' : ', the first half of the video'}). Describe what actually happens: the setting, who/what is there, what they DO and what changes from frame to frame, any text on screen (copy it exactly), and what kind of video it is (gameplay, sport, tutorial, meme, vlog, music...). 3-6 sentences, concrete.${question ? ` The person asks: "${question.slice(0, 300)}" — answer that from what you see.` : ''}`;
+    const visionBoth = (async () => {
+      const out: string[] = [];
+      for (const [h, b64] of gridB64s.entries()) {
+        if (!b64) continue;
+        const r: any = await generateVision(b64, halfPrompt(h), { timeoutMs: 60000 });
+        if (r?.status === 'success') out.push(`${h === 0 ? 'FIRST HALF' : 'SECOND HALF'}: ${String(r.text).trim()}`);
+      }
+      return out.length ? { status: 'success', text: out.join('\n') } : null;
+    })();
     const [vision, speech] = await Promise.all([
-      gridB64 ? generateVision(gridB64, visionPrompt, { timeoutMs: 60000 }) : Promise.resolve(null),
+      visionBoth,
       meta.hasAudio && existsSync(TRANSCRIBE_SCRIPT)
         ? run(MLX_PY, [TRANSCRIBE_SCRIPT, file, WHISPER_MODEL], 90000, { ...process.env, PATH: `${BIN_DIR}:${process.env.PATH ?? ''}` }).then((r) => {
             timings.transcript = Date.now() - t0;
@@ -193,10 +209,17 @@ export async function analyzeVideo(source: string, question = ''): Promise<Video
         : '(no speech, or only music/noise)';
     }
     const tagText = Object.entries(meta.tags).filter(([k]) => k !== 'encoder').map(([k, v]) => `${k}: ${v}`).join(', ');
+    // No sound / no speech: not mentioned as a problem (Patrick: "he always complains there are no sounds — just watch
+    // the frames"); the reply is about what's on screen.
+    const speechPart = !meta.hasAudio
+      ? '(This video is silent — say nothing about sound; react to what you see.)'
+      : /^\(no speech/.test(said)
+      ? '(Only music or background noise, no talking — don\'t dwell on it.)'
+      : `WHAT IS SAID (speech transcript with timestamps): ${said}`;
     const description =
-      `VIDEO ${mmss(meta.durationSec)} long, ${meta.width}x${meta.height}${meta.fps ? `, ${meta.fps} fps` : ''}, ${meta.hasAudio ? 'with sound' : 'no sound'}, ${meta.sizeMb} MB${tagText ? `, ${tagText}` : ''}. ` +
-      `WHAT YOU SEE (12 frames from start to end): ${seen} ` +
-      `WHAT IS SAID (speech transcript with timestamps): ${said}`;
+      `VIDEO ${mmss(meta.durationSec)} long, ${meta.width}x${meta.height}${tagText ? `, ${tagText}` : ''}. ` +
+      `WHAT YOU SEE (12 moments from start to end):\n${seen}\n` +
+      speechPart;
     timings.total = Date.now() - t0;
     return {
       ok: true,
