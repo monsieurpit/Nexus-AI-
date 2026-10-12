@@ -24,7 +24,6 @@ import { getMoodDisplay } from './src/ai-engine/rules/mood';
 import {
   checkAvailability as checkLocalLlmAvailability,
   warmChatModel,
-  warmVisionModel,
   startChatMemoryWatch,
   isModelBusy,
   setGamingMode,
@@ -546,10 +545,7 @@ class RequestQueue {
 
       this.queue.push(task);
       this.pumpQueue();
-      // Busy (2+ requests running or waiting): load the image model back if it unloaded after 10 idle minutes.
-      if (this.queue.length + this.activeTasks.size >= 2) {
-        void warmVisionModel().then((r) => r === 'loading' && console.log('[vision] queue busy — loading the image model back')).catch(() => {});
-      }
+
     });
   }
 
@@ -3152,12 +3148,7 @@ async function startServer() {
         const voices = loadLearnedVoiceExamples();
         startLearningWorker();
         startMemoryWorker();
-        // Warm the vision model a minute after start, so the first image someone sends doesn't pay the load (2026-10-11).
-        // It unloads after 10 minutes without an image and comes back when the queue gets busy (warmVisionModel).
-        setTimeout(() => {
-          const tinyPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-          generateVision(tinyPng, 'ok', { timeoutMs: 60000 }).then((r) => console.log(`[vision] warm-up ${r.status === 'success' ? 'done' : `failed (${(r as any).reason})`} — ${localLlmVisionModel()} loaded (unloads after 10 idle min)`)).catch(() => {});
-        }, 60_000).unref?.();
+        // The vision model is NOT warmed on start: it loads when the first image arrives (2026-10-12, RAM).
         console.log(`[learning] on — ${loaded} learned fact(s), ${voices} learned voice example(s) loaded, worker started`);
       } catch (err) {
         console.warn('[learning] failed to start, continuing without it:', err);
