@@ -1938,11 +1938,11 @@ app.post('/api/v1/nexus', async (req, res) => {
     );
 
     // Reply log (memory/replyLog.ts): every exchange, for the nightly quality report — not test runs, not people who
-    // turned saving off, not support conversations.
+    // turned saving off; support conversations only for 24 hours.
     {
       const reply = queuedExecution.data?.response;
       const mode = engineLabel.replace(/^v2:/, '');
-      if (memId && requestedEvalRun !== true && userText && typeof reply === 'string' && reply && mode !== 'support' && !isOptedOut(memPlatform, memId)) {
+      if (memId && requestedEvalRun !== true && userText && typeof reply === 'string' && reply && !isOptedOut(memPlatform, memId)) {
         const lang = String(queuedExecution.data?.telemetry?.language ?? routeStep?.data?.lang ?? 'en');
         setImmediate(() => logReply({ platform: memPlatform, userId: memId, userText, reply, mode, lang, ms: queuedExecution.processTimeMs }));
       }

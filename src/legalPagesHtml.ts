@@ -79,7 +79,8 @@ export const PRIVACY_POLICY_HTML = `<!doctype html>
     <li><strong>Quality log (since October 12, 2026):</strong> to find and fix Nexus's mistakes, each message
     you send to Nexus and his reply are kept in a log, with which part of Nexus answered, the language and how
     long it took. You're identified there only by a scrambled code, not your Discord ID or name. It's kept until
-    the owner resets it. Not logged: support conversations, test runs, and anyone who turned message saving off.
+    the owner resets it, except conversations where you're going through something (the support side of Nexus),
+    which are deleted after <strong>24 hours</strong>. Not logged: test runs and anyone who turned message saving off.
     <code>nexus forget me</code> and <code>nexus stop saving my messages</code> delete your entries.</li>
     <li><strong>Learning:</strong> to learn general facts (not facts about you), exchanges with Nexus may be
     kept for up to 14 days for an automated review, then deleted.</li>

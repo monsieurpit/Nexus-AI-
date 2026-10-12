@@ -43,6 +43,8 @@ if (has('stats')) {
   process.exit(0);
 }
 
+// Support conversations are only kept 24 hours (replyLog.ts); the report enforces it too, in case the engine was off.
+db.query("DELETE FROM replies WHERE mode = 'support' AND at < ?").run(Date.now() - 24 * 3600_000);
 const since = has('all') ? 0 : Date.now() - Number(arg('hours') || 24) * 3600_000;
 const rows = db.query('SELECT * FROM replies WHERE at >= ? ORDER BY at').all(since) as Array<{ at: number; userHash: string; userText: string; reply: string; mode: string; lang: string; ms: number; flags: string }>;
 const flagged = rows.map((r) => ({ ...r, f: JSON.parse(r.flags) as string[] })).filter((r) => r.f.length);

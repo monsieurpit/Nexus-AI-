@@ -50,8 +50,8 @@ Separate from personal memory, `src/ai-engine/memory/replyLog.ts` keeps **every 
 reply, specialist, language, time) in `~/.nexus-replylog/replies.db` so bugs in real conversations are found before
 people report them (Patrick, 2026-10-12: "store every message until you or I make something to reset").
 
-- People are a salted hash, never a Discord id. Not logged: test runs, people who turned saving off, support
-  conversations. `forget me` / `stop saving my messages` delete their rows.
+- People are a salted hash, never a Discord id. Not logged: test runs, people who turned saving off. Support
+  conversations are logged but deleted after 24 hours. `forget me` / `stop saving my messages` delete their rows.
 - Each reply is checked as it's stored (`v2/replyChecks.ts`: glued words, "im gng", "at least", copied examples, AI
   phrases, a dismissed question, wrong language, English slang in Polish/French/German, slow > 15 s).
 - No automatic deletion. `bun run scripts/replyReport.ts --reset --yes` empties it.
