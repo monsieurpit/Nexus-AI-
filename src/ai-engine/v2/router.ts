@@ -135,6 +135,9 @@ function byRules(text: string): Route | null {
   // specialist, 2026-10-05) — unless the message really contains code.
   const pcBuild = PC_BUILD_REQUEST_RE.test(t) || (/\b(?:pc|computer|rig)\b/i.test(t) && /\b(?:build|budget|parts?|components?)\b/i.test(t));
   if (task === 'code' && !(pcBuild && !/```|[{};]|\b(?:python|javascript|typescript|java|c\+\+|lua|html|css|sql|discord\.js)\b/i.test(t))) return r('code', 'code request');
+  // "convert 42 to binary" / "101010 in decimal": a number conversion (computed in pipeline.ts), not a program — unless they
+  // ask for code that does it ("write a function that converts...").
+  if (/(?:^|[^\w-])-?\d{1,15}\s+(?:in|into|to|as)\s+binary\b|\b(?:0b)?[01]{2,64}\s+(?:in|into|to|as)\s+(?:decimal|hex)/i.test(t) && !/\b(?:function|script|program|code|algorithm|in\s+(?:python|javascript|js|java|c\+\+|c#|rust|go|lua))\b/i.test(t)) return r('question', 'number conversion');
   // v2code: any of the 40 languages named + a coding intent ("svelte counter component", "hello world in x86 assembly").
   // Loose cues (Roblox, "website", git, JSON, "in c", "in r") need a clearly technical word.
   const codeLang = detectCodeLang(t);

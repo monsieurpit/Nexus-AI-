@@ -19,7 +19,7 @@ export type CodeLang =
   | 'javascript' | 'typescript' | 'node' | 'react' | 'html' | 'css' | 'python' | 'cpp' | 'c' | 'csharp' | 'java' | 'go'
   | 'rust' | 'lua' | 'sql' | 'bash' | 'php' | 'swift' | 'kotlin' | 'ruby' | 'discordjs' | 'discordpy' | 'git' | 'regex' | 'json'
   | 'dart' | 'vue' | 'svelte' | 'r' | 'powershell'
-  | 'scala' | 'haskell' | 'elixir' | 'assembly' | 'perl' | 'julia' | 'matlab' | 'objectivec' | 'clojure' | 'devops';
+  | 'scala' | 'haskell' | 'elixir' | 'assembly' | 'perl' | 'julia' | 'matlab' | 'objectivec' | 'clojure' | 'devops' | 'binary';
 
 export const LANG_LABEL: Record<CodeLang, string> = {
   javascript: 'JavaScript', typescript: 'TypeScript', node: 'Node.js', react: 'React (JSX/TSX)', html: 'HTML', css: 'CSS',
@@ -28,7 +28,7 @@ export const LANG_LABEL: Record<CodeLang, string> = {
   discordpy: 'discord.py', git: 'Git', regex: 'Regular expressions', json: 'JSON / YAML',
   dart: 'Dart / Flutter', vue: 'Vue', svelte: 'Svelte', r: 'R', powershell: 'PowerShell / Windows command line',
   scala: 'Scala', haskell: 'Haskell', elixir: 'Elixir', assembly: 'Assembly', perl: 'Perl', julia: 'Julia', matlab: 'MATLAB / Octave',
-  objectivec: 'Objective-C', clojure: 'Clojure', devops: 'DevOps (Docker, CI/CD, servers)',
+  objectivec: 'Objective-C', clojure: 'Clojure', devops: 'DevOps (Docker, CI/CD, servers)', binary: 'Binary (0s and 1s, machine code)',
 };
 
 // Order matters: the more specific first (discord.js before javascript, tsx before typescript, c++ before c).
@@ -72,6 +72,8 @@ const LANG_CUES: Array<[CodeLang, RegExp]> = [
   ['css', /\bcss\b|\bflexbox\b|\bgrid\s+layout\b|\btailwind\b|\bcenter\s+a\s+div\b|\bstylesheet\b/i],
   ['git', /\bgit\b|\bgithub\b|\bcommit\b|\bmerge\s+conflict\b|\brebase\b|\bpull\s+request\b/i],
   ['regex', /\bregex\b|\bregexp\b|\bregular\s+expression\b/i],
+  // Binary only when they say it (Patrick: "only when we ask him to").
+  ['binary', /\bbinary\b|\b0s\s+and\s+1s\b|\bzeros?\s+and\s+ones?\b|\bmachine\s+code\b|\bbitwise\b|\btwo'?s\s+complement\b|\bopcodes?\b|\bbits?\s+and\s+bytes\b/i],
   ['json', /\bjson\b|\byaml\b|\byml\b/i],
 ];
 

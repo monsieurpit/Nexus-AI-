@@ -20,7 +20,7 @@ import { formatNameList, nameIdeasBlock } from './names';
 import { pickBestComeback } from './roast';
 import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
-import { binaryNote, expectedBinary, fixBinary } from './binary';
+import { binaryNote, expectedBinary, fixBinary, numberConversionNote } from './binary';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
@@ -634,7 +634,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const ref = codeReference(lang, prompt);
       if (ref.titles.length) thoughtSteps.push({ id: 'step-v2code-ref', type: 'web_search', title: `📘 v2code: ${lang ? LANG_LABEL[lang] : 'algorithms & design'} reference`, description: ref.titles.join(' · ') });
       return {
-        text: `${thread}${lang ? `LANGUAGE: ${LANG_LABEL[lang]} (use its current, idiomatic style and real APIs).\n` : ''}${ref.text ? `REFERENCE (correct and current — follow it, but write fresh code for THEIR request):\n${ref.text}\n\n` : ''}Their request: "${prompt.slice(0, 3500)}"\nYour answer (attitude line, then the code block, then how to run it):`,
+        text: `${thread}${lang === 'binary' ? 'BINARY REQUEST: give the binary ITSELF (8-bit groups, in a ```text block) — never a program that prints it, unless they explicitly ask for code/a function/a script. If it\'s about making the computer DO something in binary, show real machine code from the REFERENCE (bytes in hex and binary) and say what each part does. Use only computed or reference digits — never invent binary.\n' : ''}${lang && lang !== 'binary' ? `LANGUAGE: ${LANG_LABEL[lang]} (use its current, idiomatic style and real APIs).\n` : ''}${ref.text ? `REFERENCE (correct and current — follow it, but write fresh code for THEIR request):\n${ref.text}\n\n` : ''}Their request: "${prompt.slice(0, 3500)}"\nYour answer (attitude line, then the code block, then how to run it):`,
         sources: ref.titles.map((t) => `Doc: ${t}`),
       };
     }
@@ -812,6 +812,16 @@ export function badGreetingReply(reply: string): boolean {
   return AI_GREETING_RE.test(reply) || reply.split(/\s+/).filter(Boolean).length > 9;
 }
 
+// Banned emojis out of every reply — but never inside ``` code blocks, and without touching spacing (2026-10-11: the
+// first version collapsed spaces everywhere and squashed Python indentation / "a !== b" in code answers).
+export function stripBannedEmojiOutsideCode(text: string): string {
+  return text
+    .split(/(```[\s\S]*?(?:```|$))/)
+    .map((part) => (part.startsWith('```') ? part : part.replace(/ ?[🙄🤔😊🤷👀🍻😏💅]\uFE0F?(?:\u200D[♂♀]\uFE0F?)?/gu, '')))
+    .join('')
+    .trim();
+}
+
 // Parrots (2026-10-11, Patrick: "he doesn't know when a user has been repeating what Nexus says for like 5 times,
 // he should detect and roast the guy"): their message is one of his own recent lines pasted back.
 const parrotCount = new Map<string, number>();
@@ -903,8 +913,10 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const langNote = route.mode === 'helper' && inlineTranslation(prompt) ? '' : route.mode === 'helper' && lang !== 'en' && isTranslateRequest(prompt)
     ? `${LANG_NOTE[lang]}\n(EXCEPTION: the translation itself is written in the language they want it translated INTO, not in theirs.)`
     : LANG_NOTE[lang];
-  const binary = route.mode === 'code' ? null : binaryNote(text || '');
-  const userTurn = `${parrotNote}${binary || ''}${imageBlock}${built.text}${langNote}`;
+  // In code mode the binary note only applies to binary itself ("write hello world in binary"), not to programs.
+  const binary = route.mode === 'code' && detectCodeLang(text || '') !== 'binary' ? null : binaryNote(text || '');
+  const numbers = numberConversionNote(text || '');
+  const userTurn = `${parrotNote}${binary || ''}${numbers || ''}${imageBlock}${built.text}${langNote}`;
   const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt) && !casualServerDraft(prompt);
   const finalize = (t: string) => {
@@ -974,20 +986,25 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
       if (retry && !copiedChatExample(retry)) content = dropBannedEmoji(finalize(retry));
     }
   }
+  // A binary question answered with a program nobody asked for ("how do i code in binary" → a Python script): redone once.
+  if (route.mode === 'code' && detectCodeLang(text || '') === 'binary' && !/\b(?:function|script|program\s+(?:in|that)|in\s+(?:python|javascript|js|java|c\+\+|c#|rust|go|lua)|code\s+that|write\s+(?:me\s+)?(?:a|some)\s+code)\b/i.test(text || '') && /```(?:python|py|js|javascript|ts|typescript|java|c\+\+|cpp|c|cs|csharp|rust|go|lua)\b/i.test(content)) {
+    const retry = await generateWith(spec, `${userTurn}\n(They did NOT ask for a program. Answer about binary itself: explain with real machine code from the REFERENCE — the bytes in hex and binary and what each instruction does — or give the binary they asked for. No Python/JS code.)`, lang);
+    if (retry && !/```(?:python|py|js|javascript|ts|java|cpp|c\+\+)\b/i.test(retry)) content = finalize(retry);
+  }
   // Repeat / echo guard for the short-reply specialists.
   if ((route.mode === 'chat' || route.mode === 'roast' || route.mode === 'support') && (isRepeat(content, deps.recentLines) || isEchoReply(content, prompt))) {
     const retry = await generateWith(spec, `${userTurn}\n(Your first try was "${content.slice(0, 80)}" — that repeats an old line or their own words. Say something COMPLETELY different that reacts to what they mean.)`, lang);
     if (retry) content = dropBannedEmoji(finalize(retry));
   }
   if (route.mode === 'search' || route.mode === 'question') content = tidyList(content);
-  const wantBinary = route.mode === 'code' ? null : expectedBinary(text || '');
+  const wantBinary = route.mode === 'code' && detectCodeLang(text || '') !== 'binary' ? null : expectedBinary(text || '');
   if (wantBinary) content = fixBinary(content, wantBinary);
   if (!/```/.test(content)) content = plainMaths(content);
   // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
   if (!formal) content = uncensorSwears(content);
   else content = capitalizeDraft(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
-  else content = content.replace(/[🙄🤔😊🤷👀🍻😏💅]\uFE0F?(?:\u200D[♂♀]\uFE0F?)?/gu, '').replace(/[ \t]{2,}/g, ' ').replace(/ +([.!?,])/g, '$1').trim();
+  else content = stripBannedEmojiOutsideCode(content);
   content = pingBoyfriend(content, Boolean(settings.serverContext));
   const timing = { route: tRouted - tStart, build: tBuilt - tRouted, generate: tGenerated - tBuilt, after: Date.now() - tGenerated };
   lastTiming = timing;

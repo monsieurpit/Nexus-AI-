@@ -27,6 +27,7 @@ import { CODE_JSON } from './json';
 import { CODE_DART, CODE_POWERSHELL, CODE_R, CODE_SVELTE, CODE_VUE } from './more';
 import { CODE_ALGORITHMS } from './algorithms';
 import { CODE_EXTRA } from './extra';
+import { CODE_BINARY } from './binary';
 
 // Every language category of the coding reference corpus (see _k.ts).
 export const CODE_REFERENCE: KnowledgeItem[] = [
@@ -62,4 +63,5 @@ export const CODE_REFERENCE: KnowledgeItem[] = [
   ...CODE_POWERSHELL,
   ...CODE_ALGORITHMS,
   ...CODE_EXTRA,
+  ...CODE_BINARY,
 ];
