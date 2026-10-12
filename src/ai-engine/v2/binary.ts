@@ -110,6 +110,27 @@ const PROGRAMS: BinaryProgram[] = [
     parts: [['b9 0a 00 00 00', 'mov ecx, 10'], ['ff c9', 'dec ecx — subtract 1'], ['75 fc', 'jnz -4 — jump back to "dec" until ecx is 0'], ['b8 3c 00 00 00', 'mov eax, 60 — exit'], ['31 ff', 'xor edi, edi — exit code 0'], ['0f 05', 'syscall — the program ends']],
   },
   {
+    name: 'Print 1 to 9', what: 'prints the numbers 1 to 9, one per line, with a loop (x86-64 Linux, 57 bytes)', re: /\b(?:1|one)\s+to\s+(?:9|nine|10|ten)\b|\bnumbers\b|\blong(?:er)?\b/i,
+    parts: [
+      ['bb 31 00 00 00', 'mov ebx, 49 — the character "1"'],
+      ['48 83 ec 10', 'sub rsp, 16 — make room on the stack (loop starts here)'],
+      ['88 1c 24', 'mov [rsp], bl — put the digit there'],
+      ['c6 44 24 01 0a', 'mov byte [rsp+1], 10 — and a newline after it'],
+      ['b8 01 00 00 00', 'mov eax, 1 — system call 1 = write'],
+      ['bf 01 00 00 00', 'mov edi, 1 — to the screen'],
+      ['48 89 e6', 'mov rsi, rsp — the 2 characters on the stack'],
+      ['ba 02 00 00 00', 'mov edx, 2 — 2 characters'],
+      ['0f 05', 'syscall — prints the digit'],
+      ['48 83 c4 10', 'add rsp, 16 — give the stack room back'],
+      ['ff c3', 'inc ebx — next digit'],
+      ['83 fb 3a', 'cmp ebx, 58 — past "9" yet?'],
+      ['75 d5', 'jne -43 — if not, loop back'],
+      ['b8 3c 00 00 00', 'mov eax, 60 — system call 60 = exit'],
+      ['31 ff', 'xor edi, edi — exit code 0'],
+      ['0f 05', 'syscall — the program ends'],
+    ],
+  },
+  {
     name: 'Exit', what: 'the smallest real program: exits with code 0 (x86-64 Linux, 9 bytes)', re: /\bsmallest|\bshortest|\btiny|\bsimplest|\bexit\b/i,
     parts: [['b8 3c 00 00 00', 'mov eax, 60 — system call 60 = exit'], ['31 ff', 'xor edi, edi — exit code 0'], ['0f 05', 'syscall — the program ends']],
   },
@@ -120,8 +141,39 @@ const hexToBits = (hex: string) => hex.trim().split(/\s+/).map((h) => parseInt(h
 // "write a full example of binary code", "show me a program in binary", "hello world in machine code" → a program.
 // (Plain "write X in binary" stays a text conversion.)
 export const BINARY_PROGRAM_RE = /\b(?:binary|machine)\s+code\b|\b(?:example|program|programme|script|app)\s+(?:of|in|written\s+in)\s+(?:binary|machine\s+code)\b|\bbinary\s+(?:program|example)\b|\bcode\s+in\s+binary\b|\b(?:0s\s+and\s+1s|zeros\s+and\s+ones)\s+(?:code|program)\b/i;
+// A program that prints any text: the Hello World code with the length and the text swapped in. Verified with the
+// assembler: only the 4-byte length after "ba" and the text bytes change (the text always starts 16 bytes after "lea").
+const LONG_DEFAULT_TEXT = "Nexus was here. This is real x86-64 machine code, every single bit of it is real, written by the one and only HIM. Barça till I die, Real Vardrid can cry, Messi is the GOAT and FIFA Is For Argentina fr fr. TU DU DU DU, MAX VERSTAPPEN.\n";
+export function printTextProgram(text: string): BinaryProgram {
+  const bytes = [...new TextEncoder().encode(text)].slice(0, 500);
+  const hex = (n: number) => n.toString(16).padStart(2, '0');
+  const len = bytes.length;
+  const lenLe = [len & 255, (len >> 8) & 255, 0, 0].map(hex).join(' ');
+  const shown = new TextDecoder().decode(new Uint8Array(bytes)).replace(/\n/g, '\\n');
+  return {
+    name: `Print "${shown.length > 40 ? `${shown.slice(0, 40)}…` : shown}"`,
+    what: `prints that text (${len} characters) and exits (x86-64 Linux, ${33 + len} bytes)`,
+    re: /$^/,
+    parts: [
+      ['b8 01 00 00 00', 'mov eax, 1 — system call 1 = write'],
+      ['bf 01 00 00 00', 'mov edi, 1 — to the screen (stdout)'],
+      ['48 8d 35 10 00 00 00', 'lea rsi, [text] — where the text is (16 bytes further)'],
+      [`ba ${lenLe}`, `mov edx, ${len} — ${len} bytes of text`],
+      ['0f 05', 'syscall — the OS prints it'],
+      ['b8 3c 00 00 00', 'mov eax, 60 — system call 60 = exit'],
+      ['31 ff', 'xor edi, edi — exit code 0'],
+      ['0f 05', 'syscall — the program ends'],
+      [bytes.map(hex).join(' '), `the text itself (${len} bytes of UTF-8)`],
+    ],
+  };
+}
 export function pickBinaryProgram(message: string): BinaryProgram | null {
   if (!BINARY_PROGRAM_RE.test(message) || /\b(?:how\s+(?:do|does|can)|explain|what\s+is|why)\b/i.test(message) && !/\b(?:example|write|show|give)\b/i.test(message)) return null;
+  // Their own text: "a program in binary that prints 'X'" / "...that says X".
+  const own = message.match(/\b(?:prints?|says?|writes?|displays?|shows?|outputs?)\s+["“'«]([^"”'»]{1,450})["”'»]/i) || message.match(/\b(?:prints?|says?|displays?|outputs?)\s+(?!numbers\b|hello\s+world\b)(.{3,450}?)\s*[.!?]*$/i);
+  if (own) return printTextProgram(`${own[1].trim()}\n`);
+  // "really long" / "very long" / "huge": the long built-in message (about 2,000 digits).
+  if (/\b(?:really|very|super|extra|mega|insanely|crazy)\s+long\b|\b(?:huge|massive|giant|longest|biggest|enormous)\b/i.test(message)) return printTextProgram(LONG_DEFAULT_TEXT);
   return PROGRAMS.find((p) => p !== PROGRAMS[0] && p.re.test(message)) || PROGRAMS[0];
 }
 export function binaryProgramNote(p: BinaryProgram): string {
@@ -130,7 +182,11 @@ export function binaryProgramNote(p: BinaryProgram): string {
 // The block added after his line: the whole program as one continuous string, then each instruction.
 export function binaryProgramBlock(p: BinaryProgram, spaced = false): string {
   const all = p.parts.map(([h]) => hexToBits(h)).join(' ');
-  const continuous = spaced ? all : all.replace(/\s+/g, '');
-  const lines = p.parts.map(([h, m]) => `${hexToBits(h)}  → ${m}`);
+  // One continuous run of bits, wrapped every 96 digits (12 bytes) so a long program splits cleanly across Discord messages.
+  const continuous = spaced ? all : (all.replace(/\s+/g, '').match(/.{1,96}/g) || []).join('\n');
+  const lines = p.parts.map(([h, m]) => {
+    const n = h.trim().split(/\s+/).length;
+    return n > 24 ? `(${n} bytes: the bits after the code)  → ${m}` : `${hexToBits(h)}  → ${m}`;
+  });
   return `\`\`\`text\n${continuous}\n\`\`\`\n**${p.name}, instruction by instruction:**\n\`\`\`text\n${lines.join('\n')}\n\`\`\`\n-# Real x86-64 Linux machine code (Intel/AMD). To run it, the bytes go in an ELF executable — or assemble the same instructions with nasm.`;
 }
