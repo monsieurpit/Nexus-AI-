@@ -56,7 +56,7 @@ export const PRIVACY_POLICY_HTML = `<!doctype html>
 <div class="wrap">
   <div class="nav"><a href="/">← Back to Nexus AI</a><a href="/terms">Terms of Service</a><a href="/disclaimer">Disclaimer →</a></div>
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: October 11, 2026</p>
+  <p class="updated">Last updated: October 12, 2026</p>
 
   <p>This page explains what happens to your data when you use Nexus AI (this website) and the
   related Nexus Discord bot family. It's written to be genuinely accurate to how this independently-run,
@@ -76,6 +76,11 @@ export const PRIVACY_POLICY_HTML = `<!doctype html>
     addressed to Nexus, not the rest of the channel; on this website: tied to a random ID stored in your
     browser), up to your last 2,000, plus a short summary of how you talk (for example your games, teams,
     running jokes and how you joke around). Details below.</li>
+    <li><strong>Quality log (since October 12, 2026):</strong> to find and fix Nexus's mistakes, each message
+    you send to Nexus and his reply are kept in a log, with which part of Nexus answered, the language and how
+    long it took. You're identified there only by a scrambled code, not your Discord ID or name. It's kept until
+    the owner resets it. Not logged: support conversations, test runs, and anyone who turned message saving off.
+    <code>nexus forget me</code> and <code>nexus stop saving my messages</code> delete your entries.</li>
     <li><strong>Learning:</strong> to learn general facts (not facts about you), exchanges with Nexus may be
     kept for up to 14 days for an automated review, then deleted.</li>
     <li><strong>The Discord bot:</strong> your Discord user ID and, if you've shared something worth

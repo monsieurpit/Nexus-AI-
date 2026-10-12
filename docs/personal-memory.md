@@ -43,3 +43,17 @@ No mass DMs: Discord's developer policy forbids unsolicited DMs to people who ne
 whose messages get stored talks to Nexus first, so the first-interaction DM reaches exactly them.
 
 The Privacy Policy and Terms (`src/legalPagesHtml.ts`) describe all of this.
+
+## Quality log (reply log)
+
+Separate from personal memory, `src/ai-engine/memory/replyLog.ts` keeps **every exchange** (their message + Nexus's
+reply, specialist, language, time) in `~/.nexus-replylog/replies.db` so bugs in real conversations are found before
+people report them (Patrick, 2026-10-12: "store every message until you or I make something to reset").
+
+- People are a salted hash, never a Discord id. Not logged: test runs, people who turned saving off, support
+  conversations. `forget me` / `stop saving my messages` delete their rows.
+- Each reply is checked as it's stored (`v2/replyChecks.ts`: glued words, "im gng", "at least", copied examples, AI
+  phrases, a dismissed question, wrong language, English slang in Polish/French/German, slow > 15 s).
+- No automatic deletion. `bun run scripts/replyReport.ts --reset --yes` empties it.
+- Every day at 7:00 (`~/Library/LaunchAgents/com.nexus.replyreport.plist`) `scripts/replyReport.ts` writes the last
+  24 h report to `~/.nexus-replylog/reports/<date>.md`. It detects and shows evidence; it never changes anything.

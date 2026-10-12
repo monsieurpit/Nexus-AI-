@@ -60,6 +60,7 @@ import { getSearchStatus } from './src/ai-engine/tavilySearch';
 import { captureExchange, captureQuestion, captureReaction, markFlaggedByRaidShield, registerNexusReply } from './src/ai-engine/learning/capture';
 import { loadLearnedIntoKnowledge } from './src/ai-engine/learning/promote';
 import { markForegroundActivity, startLearningWorker } from './src/ai-engine/learning/worker';
+import { forgetReplies, logReply } from './src/ai-engine/memory/replyLog';
 import { claimPrivacyNotice, forgetPerson, isOptedOut, personalContext, recordMessage, setOptedOut, type Platform as MemoryPlatform } from './src/ai-engine/memory/personalMemory';
 import { startMemoryWorker } from './src/ai-engine/memory/memoryWorker';
 import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
@@ -1496,6 +1497,7 @@ app.post('/api/v1/nexus', async (req, res) => {
     if (memCommand === 'stop') setOptedOut(memPlatform, memId, memName, true);
     else if (memCommand === 'start') setOptedOut(memPlatform, memId, memName, false);
     else forgetPerson(memPlatform, memId);
+    if (memCommand !== 'start') forgetReplies(memPlatform, memId);
     const said = await memoryCommandReply(memCommand, userText);
     const line = memPlatform === 'web' ? said.replace(/^-# /gm, '') : said;
     return res.json({ response: line, text: line, persona: persona.id, authorId: effectiveAuthorId || null, thoughtSteps: [{ type: 'reasoning', title: '🗂️ Personal memory', description: memCommand === 'stop' ? 'Message saving turned off — everything stored was deleted.' : memCommand === 'start' ? 'Message saving turned back on.' : 'Everything stored about them was deleted.' }], memoryCommand: memCommand });
@@ -1934,6 +1936,17 @@ app.post('/api/v1/nexus', async (req, res) => {
       'nexus',
       `"${userText.slice(0, 60)}" -> persona=${persona.id} engine=${engineLabel} mood=${queuedExecution.data.mood?.label ?? 'n/a'} lang=${queuedExecution.data.telemetry?.language ?? (routeStep?.data?.lang || 'n/a')} ${outcome} total=${queuedExecution.processTimeMs}ms${stages}`
     );
+
+    // Reply log (memory/replyLog.ts): every exchange, for the nightly quality report — not test runs, not people who
+    // turned saving off, not support conversations.
+    {
+      const reply = queuedExecution.data?.response;
+      const mode = engineLabel.replace(/^v2:/, '');
+      if (memId && requestedEvalRun !== true && userText && typeof reply === 'string' && reply && mode !== 'support' && !isOptedOut(memPlatform, memId)) {
+        const lang = String(queuedExecution.data?.telemetry?.language ?? routeStep?.data?.lang ?? 'en');
+        setImmediate(() => logReply({ platform: memPlatform, userId: memId, userText, reply, mode, lang, ms: queuedExecution.processTimeMs }));
+      }
+    }
 
     // Personal memory: what they said to Nexus is kept (not support / moderation / code conversations, not test runs,
     // nobody who opted out — recordMessage checks that), and on Discord the one-time privacy notice is attached for the
