@@ -118,3 +118,27 @@ export function withMorse(reply: string, task: MorseTask): string {
   const block = `\`\`\`\n${task.morse}\n\`\`\``;
   return task.kind === 'speak' ? `${line}\n${block}\n-# = "${task.text}"` : `${line || `"${task.text}" in Morse:`}\n${block}`;
 }
+
+// Talking in Morse (2026-10-12, Patrick: "I want to talk to nexus in Morse code but he just says what it means"): a
+// message that is ONLY Morse (the word "nexus" may be written out or in Morse too) is a real message — the pipeline
+// answers the decoded text like any other message and the reply goes back in Morse. "What does ... mean" / "translate
+// ..." keep the translation behaviour (morseTask). Lowercased so the decoded text doesn't look like shouting.
+export function morseConversation(message: string): string | null {
+  const rest = message.replace(/(?<![\p{L}])nexus(?![\p{L}])/giu, ' ').replace(/[,!?:]/g, ' ').trim();
+  if (!rest || /[\p{L}\p{N}]/u.test(rest)) return null;
+  const run = morseRun(` ${rest} `);
+  if (!run || normalizeSymbols(run).replace(/\s+/g, ' ').trim().length < normalizeSymbols(rest).replace(/\s+/g, ' ').trim().length - 2) return null;
+  const text = morseToText(rest);
+  return text ? text.toLowerCase() : null;
+}
+
+// His reply in Morse, with the plain text under it. Mentions and emoji stay in the plain line only; a reply too long for
+// Morse (code, long answers) stays plain.
+export function morseReply(reply: string, onDiscord: boolean): string {
+  if (/```/.test(reply)) return reply;
+  const plain = reply.trim();
+  const spoken = plain.replace(/<@!?\d+>/g, '').replace(/\p{Extended_Pictographic}\uFE0F?/gu, '').replace(/\s+/g, ' ').trim();
+  const morse = textToMorse(spoken);
+  if (!morse || spoken.length > 400) return plain;
+  return `\`\`\`\n${morse}\n\`\`\`\n${onDiscord ? '-# ' : ''}${plain}`;
+}

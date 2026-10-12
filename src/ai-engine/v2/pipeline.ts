@@ -21,7 +21,7 @@ import { pickBestComeback } from './roast';
 import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
 import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
-import { morseNote, morseTask, withMorse } from './morse';
+import { morseConversation, morseNote, morseReply, morseTask, withMorse } from './morse';
 import { AT_LEAST_CRUTCH_RE, INSIST_FR_RE, INSIST_PL_RE, INSIST_DE_RE, DENIAL_FR_PL_RE, DENIAL_DE_RE } from './roastLang';
 import { identifyProgram, binaryNote, binaryProgramBlock, binaryProgramNote, expectedBinary, fixBinary, numberConversionNote, pickBinaryProgram } from './binary';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
@@ -888,7 +888,15 @@ let lastRoastPlan: { plan: RoastPlan; ammo: string[] } | null = null;
 // The last request's stage timings, for the [nexus] log line (server.ts).
 export let lastTiming: { route: number; build: number; generate: number; after: number } | null = null;
 
-export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Deps, thoughtSteps: ThoughtStep[]): Promise<V2Result | null> {
+export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Deps, thoughtSteps: ThoughtStep[], fromMorse = false): Promise<V2Result | null> {
+  // A message written only in Morse: answered like the decoded message, and the reply goes back in Morse (morse.ts).
+  const spoken = fromMorse ? null : morseConversation(rawPrompt);
+  if (spoken) {
+    thoughtSteps.push({ id: 'step-v2-morse', type: 'reasoning', title: '📡 Message in Morse', description: `Decoded: "${spoken}" — answered like a normal message, reply sent back in Morse.` });
+    const res = await runV2(spoken, settings, deps, thoughtSteps, true);
+    if (res) res.content = morseReply(res.content, Boolean(settings.serverContext));
+    return res;
+  }
   const { text, image, kind } = splitImage(rawPrompt);
   const prompt = text || (image ? 'look at this' : rawPrompt);
   const lang = langOf(text || rawPrompt);
