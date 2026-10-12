@@ -25,6 +25,7 @@ import {
   checkAvailability as checkLocalLlmAvailability,
   warmChatModel,
   warmVisionModel,
+  startChatMemoryWatch,
   isModelBusy,
   setGamingMode,
   getGamingMode,
@@ -3141,6 +3142,7 @@ async function startServer() {
     // 10-30s cold load (the default is to keep it loaded forever). NEXUS_WARM_ON_START=off to skip.
     if ((process.env.NEXUS_WARM_ON_START || 'on').toLowerCase() !== 'off') {
       void warmChatModel().then((status) => console.log(`[model] warm-up on start: ${status}`));
+      startChatMemoryWatch();
     }
     if (isLearningEnabled()) {
       try {

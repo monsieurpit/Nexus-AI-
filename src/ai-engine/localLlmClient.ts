@@ -184,6 +184,34 @@ let visionWarmAt = 0;
 
 // Loads the image model in the background if it isn't loaded (called when the request queue reaches 2+). An empty
 // prompt only loads it — no image, no generation — and doesn't touch its 10-minute idle timer if it's already loaded.
+// The chat model's prompt cache grows with every different prompt it reads and Ollama has no cap for it: on
+// 2026-10-12 nexus2:4b had grown from 8.4 GB to 17 GB on a 16 GB Mac, swap hit 13 GB, and reading a 541-token prompt
+// took 18.6 s instead of ~2 s. Every 2 minutes: if it's over NEXUS_CHAT_MAX_GB (default 12) and nobody is waiting,
+// it's reloaded (~5 s, empty cache, back to its real size).
+let chatWatch: ReturnType<typeof setInterval> | null = null;
+export function startChatMemoryWatch(): void {
+  if (chatWatch || !OLLAMA_BASE_URL) return;
+  const maxBytes = (Number(process.env.NEXUS_CHAT_MAX_GB) || 12) * 1024 ** 3;
+  chatWatch = setInterval(async () => {
+    if (isModelBusy() || getGamingMode().active) return;
+    try {
+      const model = await resolveModel(OLLAMA_MODEL);
+      const ps = await fetch(`${OLLAMA_BASE_URL}/api/ps`, { signal: AbortSignal.timeout(3000) });
+      const loaded: any[] = ps.ok ? ((await ps.json()) as any)?.models || [] : [];
+      const base = (n: string) => String(n || '').replace(/:latest$/, '');
+      const chat = loaded.find((m) => base(m.name) === base(model) || base(m.model) === base(model));
+      if (!chat || Number(chat.size) <= maxBytes || isModelBusy()) return;
+      console.log(`[model] ${model} grew to ${(Number(chat.size) / 1024 ** 3).toFixed(1)} GB (prompt cache) — reloading it to free memory`);
+      await fetch(`${OLLAMA_BASE_URL}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(30_000), body: JSON.stringify({ model, keep_alive: 0 }) });
+      await new Promise((r) => setTimeout(r, 3000));
+      await warmChatModel();
+    } catch {
+      // next round
+    }
+  }, 2 * 60_000);
+  chatWatch.unref?.();
+}
+
 export async function warmVisionModel(): Promise<WarmResult> {
   if (!OLLAMA_BASE_URL) return 'unavailable';
   if (getGamingMode().active) return 'gaming-mode';
