@@ -20,7 +20,8 @@ import { formatNameList, nameIdeasBlock } from './names';
 import { pickBestComeback } from './roast';
 import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
-import { binaryNote, binaryProgramBlock, binaryProgramNote, expectedBinary, fixBinary, numberConversionNote, pickBinaryProgram } from './binary';
+import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
+import { identifyProgram, binaryNote, binaryProgramBlock, binaryProgramNote, expectedBinary, fixBinary, numberConversionNote, pickBinaryProgram } from './binary';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
@@ -630,6 +631,16 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       return { text: `${thread}${ctx.block}\n\n${nowLine()}\n\nThey asked: "${s}"\nYour answer:`, sources: ctx.sources };
     }
     case 'code': {
+      // Binary to translate into code: a real disassembler reads it first (disasm.ts).
+      if (TRANSLATE_BINARY_RE.test(prompt) && bitsToBytes(prompt)) {
+        const target = detectCodeLang(prompt.replace(/[01\s]{16,}/g, ' '));
+        const targetLabel = target && target !== 'binary' ? LANG_LABEL[target] : 'JavaScript';
+        const d = await disassembleBits(prompt);
+        if (d) {
+          thoughtSteps.push({ id: 'step-v2-disasm', type: 'reasoning', title: `🔬 Disassembled the binary (${d.kind === 'text' ? 'plain text' : `${d.arch}, ${d.bytes} bytes`})`, description: d.kind === 'text' ? `Text: ${d.text}` : `${d.asm!.join('\n')}${d.text ? `\nData: ${JSON.stringify(d.text)}` : ''}` });
+          return { text: `${thread}${disassemblyNote(d, targetLabel, identifyProgram(bitsToBytes(prompt) || []))}LANGUAGE: ${targetLabel}.\nTheir request: "${prompt.slice(0, 300).replace(/[01\s]{40,}/g, ' [the binary above] ')}"\nYour answer (attitude line, then the ${targetLabel} code block, then the short mapping):`, sources: [] };
+        }
+      }
       const lang = detectCodeLang(`${prompt}\n${deps.threadText}`);
       const ref = codeReference(lang, prompt);
       if (ref.titles.length) thoughtSteps.push({ id: 'step-v2code-ref', type: 'web_search', title: `📘 v2code: ${lang ? LANG_LABEL[lang] : 'algorithms & design'} reference`, description: ref.titles.join(' · ') });

@@ -1,3 +1,4 @@
+import { bitsToBytes, TRANSLATE_BINARY_RE } from './disasm';
 // Binary (2026-10-11, Patrick: "he can't code in binary, he can't speak in binary"). A 4B model can't turn text into
 // 0s and 1s reliably, so the conversion is computed here and the model only presents it:
 //   - "say hi in binary" / "translate pizza to binary" → the exact 8-bit binary of that text;
@@ -168,6 +169,8 @@ export function printTextProgram(text: string): BinaryProgram {
   };
 }
 export function pickBinaryProgram(message: string): BinaryProgram | null {
+  // "translate this binary code into python" is the disassembler's job (disasm.ts), not a new program.
+  if (TRANSLATE_BINARY_RE.test(message) && bitsToBytes(message)) return null;
   if (!BINARY_PROGRAM_RE.test(message) || /\b(?:how\s+(?:do|does|can)|explain|what\s+is|why)\b/i.test(message) && !/\b(?:example|write|show|give)\b/i.test(message)) return null;
   // Their own text: "a program in binary that prints 'X'" / "...that says X".
   const own = message.match(/\b(?:prints?|says?|writes?|displays?|shows?|outputs?)\s+["“'«]([^"”'»]{1,450})["”'»]/i) || message.match(/\b(?:prints?|says?|displays?|outputs?)\s+(?!numbers\b|hello\s+world\b)(.{3,450}?)\s*[.!?]*$/i);
@@ -189,4 +192,27 @@ export function binaryProgramBlock(p: BinaryProgram, spaced = false): string {
     return n > 24 ? `(${n} bytes: the bits after the code)  → ${m}` : `${hexToBits(h)}  → ${m}`;
   });
   return `\`\`\`text\n${continuous}\n\`\`\`\n**${p.name}, instruction by instruction:**\n\`\`\`text\n${lines.join('\n')}\n\`\`\`\n-# Real x86-64 Linux machine code (Intel/AMD). To run it, the bytes go in an ELF executable — or assemble the same instructions with nasm.`;
+}
+
+// Recognise one of the programs above (or a print-text program) from raw bytes: what it does, in plain words, so a
+// translation into JavaScript/Python can't drift (2026-10-11: the 1-to-9 loop came out as "2-9 with no newlines").
+const PROGRAM_BEHAVIOUR: Record<string, string> = {
+  'Hello World': 'prints "Hello, world" followed by a newline, then exits with code 0',
+  'Exit with 42': 'exits immediately with exit code 42 (prints nothing)',
+  'Add 2 + 3': 'computes 2 + 3 and exits with that result (5) as the exit code (prints nothing)',
+  'Count down from 10': 'counts a counter down from 10 to 0 in a loop (prints nothing), then exits with code 0',
+  'Print 1 to 9': 'prints the digits 1 to 9, EACH ON ITS OWN LINE (9 lines), then exits with code 0',
+  Exit: 'exits immediately with code 0 (prints nothing)',
+};
+export function identifyProgram(bytes: number[]): string | null {
+  const hex = bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ');
+  for (const p of PROGRAMS) if (p.parts.map(([h]) => h).join(' ') === hex) return PROGRAM_BEHAVIOUR[p.name] || null;
+  const head = 'b8 01 00 00 00 bf 01 00 00 00 48 8d 35 10 00 00 00 ba ';
+  const tail = ' 0f 05 b8 3c 00 00 00 31 ff 0f 05 ';
+  if (hex.startsWith(head) && hex.slice(head.length + 12).startsWith(tail.trim())) {
+    const len = bytes[18] | (bytes[19] << 8);
+    const text = new TextDecoder().decode(new Uint8Array(bytes.slice(33, 33 + len)));
+    return `prints ${JSON.stringify(text)} then exits with code 0`;
+  }
+  return null;
 }

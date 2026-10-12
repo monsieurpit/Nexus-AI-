@@ -21,6 +21,7 @@ import type { SpecialistId } from './specialists';
 import { detectCodeLang, type CodeLang } from './codeTools';
 import { classifyHit } from './roastEngine';
 import { BINARY_MESSAGE_RE, pickBinaryProgram } from './binary';
+import { bitsToBytes, TRANSLATE_BINARY_RE } from './disasm';
 
 export interface Route {
   mode: SpecialistId;
@@ -115,6 +116,8 @@ function byRules(text: string): Route | null {
   // "hello asshole", "gm bitch": a mate's friendly greeting with a joke insult — greet back, don't fight (Patrick, 2026-10-11).
   if (GREET_INSULT_RE.test(t)) return r('chat', 'friendly greeting with a joke insult');
   if (['swear', 'weak'].includes(classifyHit(t)) && t.length < 60) return r('roast', 'swore at you / lazy jab');
+  // Binary to translate into JavaScript/Python (disassembled in pipeline.ts) → the code specialist.
+  if (TRANSLATE_BINARY_RE.test(t) && bitsToBytes(t)) return r('code', 'translate binary into code');
   // A real program in binary (added by pipeline.ts from v2/binary.ts): he only writes one line, so the fast chat specialist.
   if (pickBinaryProgram(t)) return r('chat', 'real program in binary');
   // A message written in binary is chat (decoded in pipeline.ts), not maths.
