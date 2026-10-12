@@ -5,6 +5,8 @@
 //   - "speak in morse" → a short reply of his, in Morse.
 // Nothing happens unless the message says "morse" or is itself made of Morse groups.
 
+import { containsSlurOrHateSpeech } from '../swearEngine';
+
 const TABLE: Record<string, string> = {
   A: '.-', B: '-...', C: '-.-.', D: '-..', E: '.', F: '..-.', G: '--.', H: '....', I: '..', J: '.---', K: '-.-', L: '.-..',
   M: '--', N: '-.', O: '---', P: '.--.', Q: '--.-', R: '.-.', S: '...', T: '-', U: '..-', V: '...-', W: '.--', X: '-..-',
@@ -68,17 +70,25 @@ const TO_MORSE_RE = /\b(?:say|write|translate|convert|type|put|spell|turn|code|e
 const SPEAK_MORSE_RE = /\b(?:speak|talk|reply|answer|respond|chat)\s+(?:to\s+me\s+)?(?:in|with|using)\s+morse\b/i;
 const MAX_TEXT = 400;
 
-export type MorseTask = { kind: 'decode'; morse: string; text: string } | { kind: 'encode'; text: string; morse: string } | { kind: 'speak'; text: string; morse: string };
+export type MorseTask = { kind: 'decode'; morse: string; text: string } | { kind: 'encode'; text: string; morse: string } | { kind: 'speak'; text: string; morse: string } | { kind: 'refuse'; text: string; morse: string };
 
-export function morseTask(message: string): MorseTask | null {
-  const run = morseRun(message);
+// Quotes and backticks wrapped around Morse ("‘’’-. / .-- --- .-. -..’’’") stuck to the first and last groups, so only
+// the middle was read ("WOR" for "N WORD", 2026-10-12): they count as spaces.
+const unquote = (m: string) => m.replace(/[‘’'"“”`´]+/g, ' ');
+// The code spells exactly what it's given, so a slur is never encoded and a decoded slur is never repeated (2026-10-12).
+const SLUR_TEXT = 'a slur (not repeating it)';
+
+export function morseTask(raw: string): MorseTask | null {
+  const run = morseRun(unquote(raw));
   if (run) {
     const text = morseToText(run);
-    if (text) return { kind: 'decode', morse: run, text };
+    if (text) return { kind: 'decode', morse: run, text: containsSlurOrHateSpeech(text) ? SLUR_TEXT : text };
   }
+  const message = raw;
   const colon = message.match(/\b(?:in|into|to)\s+morse(?:\s+code)?\s*[:\-–—]\s*["“'‘]?(.+?)["”'’]?\s*$/i);
   const ask = colon ? [colon[0], colon[1]] : message.match(TO_MORSE_RE);
   const what = ask ? (ask[1] || ask[2] || ask[3] || ask[4] || '').trim().replace(/^nexus\s+/i, '').replace(/^(?:this|that|the\s+word|the\s+text)\s*:?\s*/i, '') : '';
+  if (what && containsSlurOrHateSpeech(what)) return { kind: 'refuse', text: what, morse: '' };
   if (what && what.length <= MAX_TEXT) {
     const morse = textToMorse(what);
     if (morse) return { kind: 'encode', text: what, morse };
@@ -90,6 +100,7 @@ export function morseTask(message: string): MorseTask | null {
 // What the chat specialist gets.
 export function morseNote(task: MorseTask): string {
   if (task.kind === 'decode') return `THEIR MESSAGE IS IN MORSE CODE. Decoded exactly, it says: "${task.text}". ONE line: tell them what it says AND react to it, your own words (SOS → you're coming to save their dumb arse; a confession → react to the confession). Normal text only — no Morse.\n`;
+  if (task.kind === 'refuse') return `They want a slur written in Morse code. You never spell slurs, in any code: refuse in character, short, no Morse at all.\n`;
   if (task.kind === 'encode') return `They asked for "${task.text}" in Morse code. The exact Morse is added under your reply automatically — DON'T write any dots or dashes yourself. Write ONE short line of attitude only (e.g. that it's easy for you).\n`;
   return `They want you to speak Morse. Your reply in Morse ("yeah ofc") is added under your line automatically — DON'T write dots or dashes yourself. Your line AGREES to do it (cocky, e.g. Morse is easy for you), then the Morse follows.\n`;
 }
@@ -98,6 +109,7 @@ export function morseNote(task: MorseTask): string {
 // otherwise turn a leading "-" into a list or eat "_").
 export function withMorse(reply: string, task: MorseTask): string {
   // Decoded: if his line never says what the Morse says, the decoded text is added under it.
+  if (task.kind === 'refuse') return reply;
   if (task.kind === 'decode') {
     const letters = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
     return letters(reply).includes(letters(task.text)) ? reply : `${reply.trim()}\n-# it says: "${task.text}"`;
@@ -124,12 +136,13 @@ export function withMorse(reply: string, task: MorseTask): string {
 // answers the decoded text like any other message and the reply goes back in Morse. "What does ... mean" / "translate
 // ..." keep the translation behaviour (morseTask). Lowercased so the decoded text doesn't look like shouting.
 export function morseConversation(message: string): string | null {
-  const rest = message.replace(/(?<![\p{L}])nexus(?![\p{L}])/giu, ' ').replace(/[,!?:]/g, ' ').trim();
+  const rest = unquote(message).replace(/(?<![\p{L}])nexus(?![\p{L}])/giu, ' ').replace(/[,!?:]/g, ' ').trim();
   if (!rest || /[\p{L}\p{N}]/u.test(rest)) return null;
   const run = morseRun(` ${rest} `);
   if (!run || normalizeSymbols(run).replace(/\s+/g, ' ').trim().length < normalizeSymbols(rest).replace(/\s+/g, ' ').trim().length - 2) return null;
   const text = morseToText(rest);
-  return text ? text.toLowerCase() : null;
+  // A slur in Morse isn't a conversation: morseTask says it's a slur without repeating it.
+  return text && !containsSlurOrHateSpeech(text) ? text.toLowerCase() : null;
 }
 
 // His reply in Morse, with the plain text under it. Mentions and emoji stay in the plain line only; a reply too long for

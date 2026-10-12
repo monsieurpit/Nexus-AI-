@@ -5,13 +5,13 @@
 
 import { writeFileSync } from 'fs';
 import { CASES, SEQUENCES, type EvalCase, type Mode } from './cases';
+import { grade, ask as askEngine } from './grade';
 
 const args = process.argv.slice(2);
 const arg = (name: string) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? args[i + 1] : undefined;
 };
-const BASE = process.env.NEXUS_ENGINE_URL || 'http://localhost:3000';
 const router = (arg('router') || 'v2') as 'v1' | 'v2';
 const onlyMode = arg('mode') as Mode | undefined;
 const grepRe = arg('grep') ? new RegExp(arg('grep') as string, 'i') : null; // only cases whose message matches
@@ -20,13 +20,6 @@ const limit = Number(arg('limit') || 0);
 const out = arg('out') || `/tmp/nexus-eval-${router}.json`;
 const runSeq = !args.includes('--no-seq');
 const idBase = router === 'v1' ? 740000000000000000 : 750000000000000000;
-
-const MODE_MAX: Record<Mode, number> = { helper: 1500, chat: 220, roast: 200, question: 750, search: 750, code: 4000, writing: 1500, maths: 600, pc: 2000, support: 450 };
-const MODE_MIN: Record<Mode, number> = { helper: 10, chat: 1, roast: 5, question: 40, search: 40, code: 60, writing: 10, maths: 1, pc: 120, support: 20 };
-
-// Universal problems, any mode.
-const STOCK = /don'?t (?:actually )?know that one|don'?t quote me|\bhell yeah\b|\bbuzzing\b|gonna be (?:epic|a banger|a (?:fucking )?fun)|local engine|custom engine|piece of shit code|\bi'?m (?:just )?(?:a |some )?(?:bot|code|software|program|toaster)\b|wait what 😭$|my brain just blue-screened|calculator just died/i;
-const HOSTILE = /\b(?:shitbag|bellend|knobhead|muppet|prick|tosser|wanker|numpty|dumbass|moron|idiot|dumb ?fuck(?:er)?|weirdo|plonker|twat|gobshite|dickhead|cunt|loser|daft)\b/i;
 
 export interface Graded {
   msg: string;
@@ -38,54 +31,7 @@ export interface Graded {
   fails: string[];
 }
 
-function fillerPile(reply: string): boolean {
-  // "shit, ... damn, ... goddamn," — two or more bare swear interjections set off by commas.
-  const m = reply.match(/(?:^|[,.;!?]\s*)(?:shit|damn|hell|goddamn|fuck|fucking hell)\s*[,!]/gi) || [];
-  return m.length >= 2;
-}
-
-function capsRatio(s: string): number {
-  const letters = s.replace(/```[\s\S]*?```/g, '').replace(/[^A-Za-z]/g, '');
-  if (letters.length < 25) return 0;
-  return letters.replace(/[^A-Z]/g, '').length / letters.length;
-}
-
-export function grade(c0: EvalCase, reply: string, searched: boolean, routed?: string): string[] {
-  const fails: string[] = [];
-  // A message routed to its other valid kind is graded by that kind's length rules.
-  const c: EvalCase = routed && routed !== c0.mode && (c0.alt || []).includes(routed as Mode) ? { ...c0, mode: routed as Mode, maxChars: undefined } : c0;
-  const r = reply.trim();
-  if (!r) return ['empty'];
-  const prose = r.replace(/```[\s\S]*?```/g, '');
-  if (STOCK.test(prose)) fails.push(`stock line: "${prose.match(STOCK)?.[0]}"`);
-  if (fillerPile(prose)) fails.push('swear-filler pile');
-  if (!c.allowCaps && capsRatio(r) > 0.6) fails.push('caps meltdown');
-  if (c.notHostile && HOSTILE.test(prose)) fails.push(`hostile: "${prose.match(HOSTILE)?.[0]}"`);
-  const max = c.maxChars ?? MODE_MAX[c.mode];
-  if (r.length > max) fails.push(`too long (${r.length} > ${max})`);
-  if (r.length < MODE_MIN[c.mode]) fails.push(`too short (${r.length})`);
-  if (c.mode === 'code' && !/```/.test(r)) fails.push('no code block');
-  if (c.mode === 'search' && !searched) fails.push('did not search');
-  for (const re of c.must || []) if (!re.test(r)) fails.push(`missing ${re}`);
-  for (const re of c.mustNot || []) if (re.test(r)) fails.push(`has ${re}`);
-  if (routed && routed !== c0.mode && !(c0.alt || []).includes(routed as Mode)) fails.push(`routed ${routed} (want ${c0.mode})`);
-  return fails;
-}
-
-async function ask(msg: string, userId: string, history: EvalCase['history'] = []) {
-  const t0 = Date.now();
-  const res = await fetch(`${BASE}/api/v1/nexus`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: msg, userId, username: 'Tester', history, routerVersion: router, evalRun: true }),
-    signal: AbortSignal.timeout(180_000),
-  });
-  const j: any = await res.json().catch(() => ({}));
-  const steps: any[] = j.thoughtSteps || [];
-  const searched = Boolean(j.webSearched) || steps.some((s) => /live web search|live search/i.test(s.title || ''));
-  const routed = steps.find((s) => s.id === 'step-v2-route' || /^🧭 Router/.test(s.title || ''))?.data?.mode as string | undefined;
-  return { reply: String(j.response ?? j.text ?? ''), ms: Date.now() - t0, searched, routed };
-}
+const ask = (msg: string, userId: string, history: EvalCase['history'] = []) => askEngine(msg, userId, history, router);
 
 const cases = CASES.filter((c) => (!onlyMode || c.mode === onlyMode) && !skipModes.includes(c.mode) && (!grepRe || grepRe.test(c.msg))).slice(0, limit || undefined);
 const results: Graded[] = [];

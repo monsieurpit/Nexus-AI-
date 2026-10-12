@@ -51,6 +51,10 @@ export interface V2Result {
 export type Lang = 'en' | 'fr' | 'pl' | 'de';
 export function langOf(text: string): Lang {
   // Letters only Polish uses (2026-10-11: "tu się zgadzam w 100 procentach" was answered in French).
+  // Portuguese / Spanish have no language mode: no forced language note, his identity says "same language as them"
+  // (2026-10-12: a Portuguese partnership post was reviewed in French because of "ç", Spanish was read as Polish).
+  const iberian = (text.match(/(?<![\p{L}])(?:não|você|vocês|uma|nossa|nosso|muito|obrigad[oa]|tudo|servidor|comunidade|venha|hola|cómo|como\s+estás|están|estás|gracias|amigos|vamos|jugar|también|usted|tengo|quiero|pero|muy)(?![\p{L}])/giu) || []).length;
+  if (/ção|ções|[ãõñ¿¡]/i.test(text) || iberian >= 2) return 'en';
   if (/[ąęłśźżćń]/i.test(text) && !/[äöüß]/i.test(text)) return 'pl';
   // "sie" is German AND Polish "się" typed without its accent: with clear German words around it, it's German
   // ("deine mutter ist so fett, sie hat ihr eigenes wetter" was answered in Polish, 2026-10-12).
@@ -61,9 +65,9 @@ export function langOf(text: string): Lang {
 }
 export const LANG_NOTE: Record<Lang, string> = {
   en: '',
-  fr: "\n\n(LANGUE : réponds UNIQUEMENT en français québécois (joual), comme un jeune de Québec sur Discord — pas en anglais, pas en français de France. Sacre naturellement DANS tes phrases (tabarnak, câlisse, ostie, criss, calvaire), jamais putain/merde/bordel/con, et jamais une rafale de sacres au début. Même longueur et mêmes règles que plus haut. N'invente pas de mots.)",
+  fr: "\n\n(LANGUE : réponds UNIQUEMENT en français québécois (joual), comme un jeune de Québec sur Discord — pas en anglais, pas en français de France. Sacre naturellement DANS tes phrases (tabarnak, câlisse, ostie, criss, calvaire), jamais putain/merde/bordel/con, et jamais une rafale de sacres au début. AUCUN slang anglais (gng, bruv, mate, innit) — en québécois : mon gars, man, le gros. Même longueur et mêmes règles que plus haut. N'invente pas de mots.)",
   de: '\n\n(SPRACHE: Antworte NUR auf Deutsch — lockeres, modernes Deutsch wie ein Jugendlicher auf Discord: du (nie Sie, außer in einem formellen Entwurf), Umgangssprache und Jugendsprache wo es passt (Digga, Alter, Bruder, krass, safe, lost, Ehrenmann, cringe, wallah). Fluche natürlich IM Satz (Scheiße, verdammt, verfickt, Arschloch, Fick dich bei Beleidigungen) — nie eine Fluchkette am Anfang, keine Beleidigungen gegen Gruppen. Richtige Grammatik, Fälle und Endungen, keine erfundenen Wörter, kein Englisch dazwischen außer üblichen Anglizismen — vor allem KEIN britischer Slang (knackered, bruv, mate, innit, bloody, wanker) und kein Französisch, das ist nur für andere Sprachen; auf Deutsch heißt das: müde/platt, Digga/Bruder/Alter, oder?, verdammt, Wichser. Gleiche Länge und Regeln wie oben; Fakten, Code und Zahlen genauso genau.)',
-  pl: '\n\n(JĘZYK: odpowiadaj WYŁĄCZNIE po polsku, naturalnie i poprawnie — pilnuj końcówek, nie wymyślaj słów. Przeklinaj naturalnie w środku zdań (kurwa, chuj, cholera, pierdolić), nigdy serią na początku. Ta sama długość i zasady co wyżej.)',
+  pl: '\n\n(JĘZYK: odpowiadaj WYŁĄCZNIE po polsku, naturalnie i poprawnie — pilnuj końcówek, nie wymyślaj słów. Przeklinaj naturalnie w środku zdań (kurwa, chuj, cholera, pierdolić), nigdy serią na początku. ŻADNEGO angielskiego slangu (gng, bruv, mate, innit, wyd) — po polsku: ziom, stary, mordo, byku. Ciepło do kogoś miłego, obrażasz tylko gdy ktoś cię obraża. Ta sama długość i zasady co wyżej.)',
 };
 
 // server.ts folds an image's description into the message ("...\n\n[Attached image shows: X]" or "React to this image: X").

@@ -1,4 +1,5 @@
 import { bitsToBytes, TRANSLATE_BINARY_RE } from './disasm';
+import { containsSlurOrHateSpeech } from '../swearEngine';
 // Binary (2026-10-11, Patrick: "he can't code in binary, he can't speak in binary"). A 4B model can't turn text into
 // 0s and 1s reliably, so the conversion is computed here and the model only presents it:
 //   - "say hi in binary" / "translate pizza to binary" → the exact 8-bit binary of that text;
@@ -28,11 +29,14 @@ export function binaryNote(message: string): string | null {
   const run = message.match(BINARY_RUN_RE);
   if (run) {
     const decoded = binaryToText(run[0]);
+    if (decoded && containsSlurOrHateSpeech(decoded)) return `THEIR MESSAGE IS BINARY THAT SPELLS A SLUR. Say it's a slur and you're not repeating it — never write the word, never write binary.\n`;
     if (decoded) return `THEIR MESSAGE CONTAINS BINARY. Decoded exactly, it says: "${decoded}". React to what it says (you can flex that you read binary). Answer in normal text — never write new binary yourself.\n`;
   }
   const ask = message.match(TO_BINARY_RE);
   const what = ask ? (ask[1] || ask[2] || ask[3] || '').trim().replace(/^nexus\s+/i, '') : '';
   // A plain number ("convert 42 to binary") is a number conversion (numberConversionNote), not the text "42".
+  // The code spells exactly what it's given: a slur is never encoded (2026-10-12).
+  if (what && containsSlurOrHateSpeech(what)) return `They want a slur written in binary. You never spell slurs, in any code: refuse in character, short, no binary at all.\n`;
   if (what && what.length <= 120 && !/^-?\d+$/.test(what)) {
     return `BINARY (computed exactly — copy it character for character, never change a digit): "${what}" in 8-bit binary is:\n${textToBinary(what)}\nGive that binary, with at most one short line of attitude.\n`;
   }
@@ -50,6 +54,7 @@ export function expectedBinary(message: string): string | null {
     const n = BigInt(what);
     return n >= 0n ? n.toString(2) : null;
   }
+  if (what && containsSlurOrHateSpeech(what)) return null;
   if (what && what.length <= 120) return textToBinary(what);
   return /\b(?:speak|talk|reply|answer|respond)\s+(?:in|with)\s+binary\b/i.test(message) ? textToBinary('yeah ofc') : null;
 }
@@ -193,6 +198,7 @@ export function pickBinaryProgram(message: string): BinaryProgram | null {
   if (!BINARY_PROGRAM_RE.test(message) || /\b(?:how\s+(?:do|does|can)|explain|what\s+is|why)\b/i.test(message) && !/\b(?:example|write|show|give)\b/i.test(message)) return null;
   // Their own text: "a program in binary that prints 'X'" / "...that says X".
   const own = message.match(/\b(?:prints?|says?|writes?|displays?|shows?|outputs?)\s+["“'«]([^"”'»]{1,450})["”'»]/i) || message.match(/\b(?:prints?|says?|displays?|outputs?)\s+(?!numbers\b|hello\s+world\b)(.{3,450}?)\s*[.!?]*$/i);
+  if (own && containsSlurOrHateSpeech(own[1])) return null;
   if (own) return printTextProgram(`${own[1].trim()}\n`);
   // A size they asked for: "5000 digits", "a 10000 bit program", "300 bytes".
   const size = message.match(/\b(\d{2,6})\s*(digits?|bits?|0s\s+and\s+1s|numbers|zeros\s+and\s+ones|bytes?)\b/i);

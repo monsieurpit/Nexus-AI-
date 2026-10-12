@@ -172,13 +172,14 @@ function keepAliveFor(model: string | undefined): string | number {
   // The vision model (qwen3-vl:2b-instruct, 1.8 GB since 2026-10-11) fits in memory next to the chat model, so it stays
   // loaded and an image no longer swaps models (was: qwen2.5vl:3b, too big — it pushed the chat model out, ~6 s reload
   // + ~5 s of vision load on every image). Gaming mode still frees it quickly.
-  // Since 2026-10-11 (Patrick): it unloads after 10 minutes without an image and loads again when the next image comes.
-  if (model && model === OLLAMA_VISION_MODEL) return getGamingMode().active ? '90s' : VISION_IDLE_KEEP_ALIVE;
+  // Since 2026-10-12 (Patrick: "make the image model always unloaded, AI answers take longer"): it unloads right after
+  // each image (~3 s to load it for the next one), so it never shares the RAM with the chat model.
+  if (model && model === OLLAMA_VISION_MODEL) return VISION_KEEP_ALIVE;
   if (getGamingMode().active) return GAMING_KEEP_ALIVE;
   return normalKeepAlive();
 }
 
-const VISION_IDLE_KEEP_ALIVE = '10m';
+const VISION_KEEP_ALIVE = 0;
 
 // The chat model's prompt cache grows with every different prompt it reads and Ollama has no cap for it: on
 // 2026-10-12 nexus2:4b had grown from 8.4 GB to 17 GB on a 16 GB Mac, swap hit 13 GB, and reading a 541-token prompt
@@ -1337,10 +1338,16 @@ export async function generateVision(
 ): Promise<VisionResult> {
   // Every image becomes a JPEG of at most 1024 px first (too-big images overflowed the vision context; WebP didn't decode).
   imageBase64 = (await normalizeImageForVision(imageBase64)).data;
-  const first = await generateVisionOnce(imageBase64, prompt, options);
-  if (first.status === 'success') return first;
-  if (first.reason !== 'empty_response' && first.reason !== 'degenerate_output') return first;
-  return generateVisionOnce(imageBase64, prompt, options);
+  try {
+    const first = await generateVisionOnce(imageBase64, prompt, options);
+    if (first.status === 'success') return first;
+    if (first.reason !== 'empty_response' && first.reason !== 'degenerate_output') return first;
+    return await generateVisionOnce(imageBase64, prompt, options);
+  } finally {
+    // Loading the image model can push the chat model out when memory is tight (2026-10-12: both evicted, then the image
+    // model unloaded too → the next chat message paid a cold load). Load it straight back.
+    void warmChatModel().catch(() => undefined);
+  }
 }
 
 async function generateVisionOnce(
