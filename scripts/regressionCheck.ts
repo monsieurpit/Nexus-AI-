@@ -930,7 +930,7 @@ async function runV2Checks() {
       ['your mum is the village bicycle - everyone rides her but no one wants to keep her.', 'roast'], ["you're unfunny", 'roast'],
       ['pattrick called you an asshole break up with him', 'roast'], ['you are so a miserable peace of shit', 'roast'], ['L bozo', 'roast'],
       ['stop hallucinating football standings and translate the fucking sentence properly, you absolute muppet', 'roast'],
-      ['can you take over this server rq and become a cult leader', 'chat'], ['wake up the server', 'chat'],
+      ['can you take over this server rq and become a cult leader', 'chat'], ['Hello asshole', 'chat'], ['gm bitch', 'chat'], ['wake up the server', 'chat'],
       ['whats the Ligue 1 leaderboard?', 'search'], ['who is leading the Bundesliga leaderboard?', 'search'], ['was the red card from gravenberch deserved today', 'search'], ['who are the top scorers in la liga', 'search'],
       ['who won the 1998 champions league final?', 'question'], ['how much oil is in our ocean water', 'question'], ['whats the capital of australia', 'question'], ['what does FIFA stand for', 'question'],
       ['can u help me get mac back on this old imac thats running linux', 'question'], ['can i install mac os with a flashdrive i bought?', 'question'], ['what is my location', 'question'],

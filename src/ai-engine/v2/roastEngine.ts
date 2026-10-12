@@ -185,6 +185,9 @@ export function scoreComeback(line: string, theirs: string, plan: Pick<RoastPlan
   if (plan.kind === 'swear') {
     const theirSwear = theirs.toLowerCase().match(/\b(?:fuck\s+(?:you|u|off|yourself)|stfu|shut\s+up|screw\s+you|piss\s+off|bitch|go\s+fuck)\b/);
     if (theirSwear && line.toLowerCase().includes(theirSwear[0].split(/\s+/)[0]) && line.toLowerCase().includes(theirSwear[0].split(/\s+/).slice(-1)[0])) score += 4;
+    // "hello asshole" → "hello dickhead": the same greeting back with an insult of their own is the mirror.
+    const greet = theirs.toLowerCase().match(/^(hello|hi|hey|heya|yo|sup|wsg|wsp|gm|good\s+morning|morning|evening|bye|gn|thanks|ty)\b/);
+    if (greet && line.toLowerCase().startsWith(greet[1]) && /\b(?:asshole|arsehole|dickhead|prick|bitch|dumbass|twat|wanker|muppet|bellend|loser|clown|motherfucker|shithead|idiot)\b/i.test(line)) score += 4;
   }
   if (plan.kind === 'thirdparty' && /\b(?:give\s+a\s+(?:single\s+)?(?:fuck|shit)|don'?t\s+care|couldn'?t\s+care|unbothered|cry)\b/i.test(line)) score += 3;
   // the same distinctive words as recent comebacks (to anyone) — the model leans on wifi / dial-up / hairline

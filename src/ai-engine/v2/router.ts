@@ -82,6 +82,7 @@ const ROAST_RE = new RegExp([
 // The meaning vote may only pick ROAST with a real insult / challenge word ("you're a fucking legend" is a compliment).
 const INSULT_CUE_RE = /\b(?:lazy|shit\w*|ass|arse|bitch\w*|waste|trash|garbage|dumb\w*|stupid|ugly|fat|mid|useless|annoying|cringe|unfunny|idiot|moron|loser|clown|bozo|npc|retard\w*|dickhead|prick|wanker|twat|bellend|muppet|cunt|fuck\s+(?:you|u|off)|stfu|shut\s+(?:up|ur|your)|roast|cook|own\s+me|ratio|L\b|rizz\s+is|smell|stink|disabled|wheelchair|lauch|opfer|hurensohn|spast|missgeburt|kys|hate\s+(?:you|u)|nobody|no\s+one|dry|boring|lame|slow|broken|worthless|pathetic|weak|dogwater|irrelevant|fell\s+off|(?:your|ur|yo)\s+(?:mom|mum|mother|mama|dad))\b/i;
 const MODERATION_ABOUT_RE = /\b(?:slurs?|is\s+(?:it|this|that)\s+(?:a\s+slur|allowed|against\s+(?:the\s+)?rules|bannable|punishable)|should\s+(?:we|i)\s+(?:warn|ban|mute|kick|punish|timeout|time\s+out|consider|count)|what\s+punishment|(?:warn|ban|mute|punish|timeout)\s+(?:him|her|them)\s+for)\b/i;
+const GREET_INSULT_RE = /^(?:hello|hi|hey|heya|hiya|yo|sup|wsg|wsp|gm|good\s+(?:morning|evening|night)|morning|evening|gn|bye|later)[\s,!]+(?:my\s+)?(?:asshole|arsehole|bitch|dickhead|prick|dumbass|twat|wanker|muppet|bellend|loser|clown|motherfucker|idiot|shithead|fucker|bozo|nerd|stinky|fatass)[\s!.💀😭]*$/i;
 // A translation of a quoted insult is a translation, not a roast.
 const TRANSLATE_WORD_RE = /\b(?:translat\w*|tradui[st]\w*|traduire|traduction|übersetz\w*|tłumacz\w*)\b/i;
 // Support only with a real emotion / loss word (the meaning vote sent "tired", "my bad gng", "i hate vardrid" there).
@@ -110,6 +111,8 @@ function byRules(text: string): Route | null {
   // Talking ABOUT an insult someone else used (is it a slur, should we warn/punish) is moderation, not a roast.
   if (MODERATION_ABOUT_RE.test(t)) return r('helper', 'moderation question about something someone said');
   if (/^(?:who(?:'s|\s+is)|which\s+(?:one\s+)?is|whos)\s+(?:better|the\s+goat|goated|best)\b.*\bor\b|^(?:\w+\s+){0,4}or\s+\w+(?:\s+\w+)?\s*\?*$(?<=\b(?:better|goat|messi|ronaldo|barca|madrid|ps5|xbox|pc|console|iphone|android|pizza|burger)\b.*)/i.test(t) && !/\b(?:you|u|ur)\b/i.test(t.replace(/\bor\b.*/i, ''))) return r('chat', 'hot take: who is better');
+  // "hello asshole", "gm bitch": a mate's friendly greeting with a joke insult — greet back, don't fight (Patrick, 2026-10-11).
+  if (GREET_INSULT_RE.test(t)) return r('chat', 'friendly greeting with a joke insult');
   if (['swear', 'weak'].includes(classifyHit(t)) && t.length < 60) return r('roast', 'swore at you / lazy jab');
   if (ROAST_RE.test(t) && !(TRANSLATE_WORD_RE.test(t) && /["“”'«]|\b(?:to|into|in|en)\s+(?:english|french|fran[cç]ais|anglais|polish|german|spanish|italian|portuguese)\b/i.test(t))) return r('roast', 'insult / your-mum joke / challenge');
   if (SERVER_BANTER_RE.test(t) && !/\b(?:how\s+(?:do|can|to)|ban|kick|mute|timeout|staff|raid(?:ed|ing)?\s+by)\b/i.test(t)) return r('chat', 'banter about the server');
