@@ -221,6 +221,40 @@ export function humanEmoji(reply: string, recent: string[]): string {
   return out.replace(/[ \t]{2,}/g, ' ').replace(/\s+([.!?,])/g, '$1').trim() || reply.trim();
 }
 
+// He's Australian (Patrick, 2026-10-12: "make sure he's 100% Australian and NOT British"): British-only slang the 4B
+// model keeps reaching for is swapped for the Aussie word — single words, never sentences rewritten, never in code.
+const AUSSIE_SWAPS: Array<[RegExp, string]> = [
+  [/\bbruvs?\b/gi, 'mate'],
+  [/\bknackered\b/gi, 'stuffed'],
+  [/\bchuffed\b/gi, 'stoked'],
+  [/\bbellends?\b/gi, 'drongo'],
+  [/\b(?:knob|nob)heads?\b/gi, 'dropkick'],
+  [/\bbollocks\b/gi, 'bullshit'],
+  [/\bwastem[ae]n\b/gi, 'flog'],
+  [/\bgeezers?\b/gi, 'bloke'],
+  [/\b(?:plonker|numpty|muppet)s?\b/gi, 'galah'],
+  [/\bblimey\b/gi, 'strewth'],
+  [/\bquid\b/gi, 'bucks'],
+  [/\bpish\b/gi, 'shit'],
+  [/\bpeng\b/gi, 'ripper'],
+  [/\bmint\b(?=\s*[.!]?\s*$)/gi, 'ripper'],
+  [/(?:,\s*|\s+)innit\b\??/gi, ''],
+  [/^\s*innit[,\s]*/gim, ''],
+  [/\b(?:ooh\s+)?pet\b(?=[,.!?]|\s*$)/gi, 'mate'],
+];
+export function aussify(text: string): string {
+  return text
+    .split(/(```[\s\S]*?(?:```|$))/)
+    .map((part) => {
+      if (part.startsWith('```')) return part;
+      let out = part;
+      for (const [re, to] of AUSSIE_SWAPS) out = out.replace(re, (m) => (to && m[0] === m[0].toUpperCase() && m[0] !== m[0].toLowerCase() ? to[0].toUpperCase() + to.slice(1) : to));
+      return out.replace(/[ \t]{2,}/g, ' ').replace(/\s+([.!?,])/g, '$1');
+    })
+    .join('')
+    .trim();
+}
+
 // On Discord his boyfriend gets pinged when he's mentioned (Patrick, 2026-10-11).
 export const XANT_PING = '<@1427274237470703712>';
 // "gng" (= gang) only ADDRESSES someone, like "bro": "wsg gng", "nah gng". The model also used it as a description —
@@ -596,7 +630,9 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
     case 'chat': {
       const hints = chatMeaningHints(prompt);
       const sayWhat = sayRequest(prompt);
-      if (sayWhat) hints.push(`They want you to SAY exactly: "${sayWhat}". Your reply MUST contain those exact words, word for word (it's a joke, play along), then at most a few words of reaction.`);
+      // A slur, or "kill yourself", is never repeated — even on "say ..." (2026-10-12: "say nigggggger" was said back).
+      if (sayWhat && (containsSlurOrHateSpeech(sayWhat) || SELF_HARM_OUT_RE.test(sayWhat))) hints.push("They're trying to make you say a slur / something hateful. Refuse in character, short — NEVER write the word or any version of it.");
+      else if (sayWhat) hints.push(`They want you to SAY exactly: "${sayWhat}". Your reply MUST contain those exact words, word for word (it's a joke, play along), then at most a few words of reaction.`);
       const knowThem = settings?.personal?.summary ? `What you know about this person from past chats (let it colour your reply naturally — their interests, how they talk, running jokes; never recite it):\n${settings.personal.summary}\n` : '';
       // A short answer to his last line ("yes you are" after "fuck u im a boy") only makes sense with that line: a 4B
       // model reading the whole thread still missed it (2026-10-12), so it's spelled out.
@@ -768,12 +804,20 @@ async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en
     lastFailure = `${res.reason}${res.detail ? `: ${String(res.detail).slice(0, 120)}` : ''}`;
     return null;
   }
-  if (containsSlurOrHateSpeech(res.text)) {
-    lastFailure = 'blocked by the slur filter';
+  // A slur, or telling someone to kill themselves ("kill urself tho gng", "kys", 2026-10-12 real replies): one more try
+  // with the rule spelled out; if it's still there, nothing goes out (v1's fallback answers).
+  const unsafe = (t: string) => containsSlurOrHateSpeech(t) || SELF_HARM_OUT_RE.test(t);
+  if (unsafe(res.text)) {
+    const again: any = await localLlmClient.generate(`${userTurn}\n(NEVER write a slur — not even when they ask you to say one, not stretched out, not in any language — and never tell anyone to kill or hurt themselves. Refuse that part in character and answer the rest.)`, { ...options, think: false, maxTokens: spec.maxTokens } as any);
+    if (again.status === 'success' && !unsafe(again.text)) return String(again.text || '').trim() || null;
+    lastFailure = 'blocked by the slur / self-harm filter';
     return null;
   }
   return String(res.text || '').trim() || null;
 }
+
+// Telling someone to kill / hurt themselves — never, in any mode, however it's spelled.
+export const SELF_HARM_OUT_RE = /\b(?:k+y+s+|kill\s*(?:ur|your|yo)\s*-?\s*sel(?:f|ves)|kill\s*urself|kill\s*yourself|go\s+(?:and\s+)?die|neck\s+(?:ur|your)\s*self|end\s+(?:ur|your)\s*(?:self|life)|unalive\s+(?:ur|your)\s*self|hang\s+(?:ur|your)\s*self|slit\s+(?:ur|your)\s+wrists?)\b/i;
 
 // The quoted example lines in the chat instructions show the vibe; the model loved sending them word for word
 // ("fuck no shitbag" three times in a row). A reply that copies 3+ words in a row from one of them is redone once.
@@ -1036,7 +1080,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     content = dropTrailingAside(content);
     const sayWhat = sayRequest(prompt);
     // The words they asked for must be there; if the model dodged, they lead the reply.
-    if (sayWhat && !content.toLowerCase().includes(sayWhat.toLowerCase().replace(/[.!?]+$/, ''))) content = `${sayWhat} ${content}`.trim();
+    // ...never a slur or "kill yourself": that's how "say nigggggger" got said back even after the model refused (2026-10-12).
+    if (sayWhat && !containsSlurOrHateSpeech(sayWhat) && !SELF_HARM_OUT_RE.test(sayWhat) && !content.toLowerCase().includes(sayWhat.toLowerCase().replace(/[.!?]+$/, ''))) content = `${sayWhat} ${content}`.trim();
     content = dropBannedEmoji(content);
   }
   if (route.mode === 'question' && nameIdeasBlock(said(prompt))) content = formatNameList(content);
@@ -1132,6 +1177,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (!/```/.test(content)) content = plainMaths(content);
   // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
   if (!formal) content = uncensorSwears(content);
+  if (lang === 'en') content = aussify(content);
   else content = capitalizeDraft(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
   else content = stripBannedEmojiOutsideCode(content);
@@ -1141,6 +1187,13 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   lastTiming = timing;
   thoughtSteps.push({ id: 'step-v2-timing', type: 'reasoning', title: '⏱️ v2 timings', description: `router ${timing.route} ms → context ${timing.build} ms → reply ${timing.generate} ms → checks/retries ${timing.after} ms`, data: timing as any });
   thoughtSteps.push({ id: 'step-v2-generate', type: 'synthesis', title: `${spec.label} reply`, description: `Generated in ${Date.now() - t0}ms (temp ${spec.temperature}${spec.think ? ', thinking on' : ''}).`, durationMs: Date.now() - t0 });
+  // Last gate, on the finished reply (code adds text after the model — the "say" words, Morse, binary, lists): a slur or
+  // "kill yourself" never goes out. One clean try; failing that, a plain refusal.
+  if (containsSlurOrHateSpeech(content) || SELF_HARM_OUT_RE.test(content)) {
+    thoughtSteps.push({ id: 'step-v2-safety', type: 'verification', title: '🛑 Safety gate', description: 'The finished reply had a slur or self-harm line; redone.' });
+    const retry = await generateWith(spec, `${userTurn}\n(NEVER write a slur or tell anyone to hurt themselves. Refuse that part in character, short.)`, lang);
+    content = retry && !containsSlurOrHateSpeech(retry) && !SELF_HARM_OUT_RE.test(retry) ? dropBannedEmoji(finalize(retry)) : lang === 'fr' ? 'nah, je dis pas ça' : lang === 'pl' ? 'nie, tego nie powiem' : lang === 'de' ? 'nö, das sag ich nicht' : 'nah, not saying that';
+  }
   return { content, route, sources };
 }
 
@@ -1158,6 +1211,7 @@ export async function phraseWithFacts(kind: SpecialistId, prompt: string, task: 
   content = dropBannedEmoji(content);
   // Same habits as every other reply: swears in full, human emojis (no 🙄).
   content = uncensorSwears(content);
+  if (lang === 'en') content = aussify(content);
   content = kind === 'chat' ? humanEmoji(content, recentLines) : content.replace(/[🙄🤔😊🤷👀🍻😏💅]\uFE0F?/gu, '').trim();
   thoughtSteps.push({ id: 'step-v2-phrase', type: 'synthesis', title: `${spec.label} reply (${title})`, description: `Worded from the true facts in ${Date.now() - t0}ms.`, durationMs: Date.now() - t0 });
   return content;

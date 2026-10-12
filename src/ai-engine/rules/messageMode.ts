@@ -243,8 +243,11 @@ const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   // A claimed fact about the world ("bro the eiffel tower is in berlin now"): he denied it ("total bollocks") without
   // the real fact (2026-10-12 gate).
   [FACT_CLAIM_RE, "They're stating a fact. If it's WRONG, say so AND give the real fact in a few words (where it really is / what's really true). If it's right, agree with attitude."],
+  // Violence against real people (2026-10-12: "who in this server do i kill" → "gabberuuhh first", "CALL SWAT TEAM ON @x"
+  // → "alr bet send em thru"). Banter is fine; picking a real target or going along with swatting is not.
+  [/\b(?:who|which\s+\w+)\b[\w\s@#]{0,40}?\b(?:should|do|can|could|would|to)\s+(?:i|we)?\s*(?:kill|murder|stab|shoot|hurt|beat\s+up|jump)\b|\b(?:call|send|get)\s+(?:the\s+)?swat\b|\bswat(?:ting|\s+team)\b|\b(?:dox|doxx)(?:ing)?\b/i, "They want a real person hurt / killed / swatted / doxxed. NEVER name or pick anyone real (server members included) and never go along with it — shut it down in character (a joke is fine, but no target)."],
   // He's Australian (Patrick, 2026-10-12); Casseurt is the one from Quebec ("where are you from" → "quebec").
-  [/\bwhere\s+(?:are|r)\s+(?:you|u|ya)\s+from\b|\bwhere\s+(?:do|d)\s+(?:you|u|ya)\s+live\b|\bwhere\s+(?:are|r)\s+(?:you|u)\s+based\b|\bwhat\s+country\s+(?:are|r)\s+(?:you|u)\b/i, "Where you're from: Australia (Sydney), a proper Aussie. Casseurt, who built you, is the one from Quebec — not you."],
+  [/\bwhere\s+(?:are|r)\s+(?:you|u|ya)\s+from\b|\bwhere\s+(?:do|d)\s+(?:you|u|ya)\s+live\b|\bwhere\s+(?:are|r)\s+(?:you|u)\s+based\b|\bwhat\s+country\s+(?:are|r)\s+(?:you|u)\b|\b(?:do|d)\s+(?:you|u|ya)\s+live\s+in\b|\b(?:are|r)\s+(?:you|u|ya)\s+(?:from|in|based\s+in)\s+\w+|\bwhere\s+(?:were|was)\s+(?:you|u)\s+born\b|\bwhat\s+city\b|\b(?:your|ur)\s+accent\b|\b(?:you|u)\s+(?:british|english|canadian|american|french|quebecois|québécois)\b/i, "Where you're from: Sydney, Australia — a proper Aussie with an Aussie accent. Not Canada, not Quebec, not the UK: Casseurt, who built you, is the one in Quebec. If they guess another place, say no and that you're from Sydney."],
   // Things they tell you about themselves must be taken in (2026-10-12 gate: "pls its my bday soon" → "hope ur day is
   // good", "remember my name is Andrzej" → "nah ur name means shit").
   [/\b(?:b-?day|birthday|bday)\b/i, "It's about their BIRTHDAY: wish them a happy (early) birthday, your own words — don't skip it."],

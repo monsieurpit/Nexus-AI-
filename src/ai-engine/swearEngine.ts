@@ -1204,10 +1204,16 @@ const MOCKERY_INSULT_WORDS =
  * Used as a hard gate on raw LLM output before it's ever shown to a user — profanity/aggression is
  * allowed by design elsewhere, but slurs are never acceptable regardless of persona/swearIntensity.
  */
+// Stretched spellings ("nigggggger", "NIGGAAAAAAAA", "retardddddd") slipped past the pattern and Nexus repeated them on
+// "say ..." (2026-10-12): letters repeated 3+ times are squeezed to two, and to one, before testing again.
+const squeezeLetters = (text: string, keep: 1 | 2) => text.replace(/([a-z])\1{2,}/gi, keep === 2 ? '$1$1' : '$1').replace(keep === 1 ? /([a-z])\1+/gi : /$^/, '$1');
 export function containsSlurOrHateSpeech(text: string): boolean {
   return (
     SLUR_PATTERN.test(text) ||
     SLUR_PATTERN.test(collapseSpelledOutLetters(text)) ||
+    SLUR_PATTERN.test(squeezeLetters(text, 2)) ||
+    SLUR_PATTERN.test(squeezeLetters(text, 1)) ||
+    /\bn+[i1]+g+[ae3]*\b|\bnga\b/i.test(squeezeLetters(text, 2)) ||
     (NATIONALITY_LANGUAGE_WORDS.test(text) && MOCKERY_INSULT_WORDS.test(text)) ||
     // detectChildExploitationTopic (full version, with the loose verb+proximity patterns tuned
     // for a deliberate user message) was only ever applied to the USER'S input — never checked
