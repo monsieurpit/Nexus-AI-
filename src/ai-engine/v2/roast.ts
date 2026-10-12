@@ -43,7 +43,7 @@ export const MOVES: Record<RoastMove, { how: string; examples: string[] }> = {
   dismiss: {
     how: 'DISMISS — their attempt was weak: humiliate the attempt itself, act like it barely registered.',
     examples: [
-      '"you\'re ugly" → "thats it? my nan roasts harder in her sleep"',
+      '"you\'re ugly" → "took u 3 business days and a group chat to come up with that"',
       '"L bozo" → "did ur mum write that for u"',
       '"ratio" → "u couldnt ratio a group chat of 2"',
       '"you suck" → "took u 10 minutes to type that 😭"',

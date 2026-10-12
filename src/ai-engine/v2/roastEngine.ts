@@ -43,13 +43,13 @@ export function classifyHit(text: string, battleActive = false): HitKind {
 // Each kind's shape: how to answer, the word range, and what the shape looks like (never copied — see copiesExample).
 const KINDS: Record<HitKind, { how: string; min: number; max: number; examples?: string[] }> = {
   swear: {
-    how: 'They just swore at you. MIRROR IT, harder and faster — no setup, no "at least", no joke structure, just hit back in their own words, nastier.',
-    min: 2, max: 9,
-    examples: ['"fuck you" → "fuck you too motherfucker 💀"', '"stfu" → "make me, bitch"', '"go fuck yourself" → "already did, ur mum helped"', '"fuck off nexus" → "nah u fuck off, dumbass"'],
+    how: 'They just swore at you. MIRROR IT, then twist the knife: their own words back, nastier, plus one brutal specific jab about THEM — no setup, no "at least".',
+    min: 4, max: 16,
+    examples: ['"fuck you" → "fuck you too, u look like the before pic of a gym ad that never got an after"', '"stfu" → "make me, u cant even shut ur own bedroom door without ur mum"', '"go fuck yourself" → "already did, ur mum helped"', '"fuck off nexus" → "u fuck off, ur wifi drops more than ur grades"'],
   },
   weak: {
     how: 'A lazy one-word jab. Dismiss it in a few words like it barely registered.',
-    min: 2, max: 10,
+    min: 4, max: 16,
     examples: ['"L" → "ur whole existence is the L"', '"ratio" → "u cant ratio a group chat of 2"', '"who asked" → "ur dad, before he left"', '"no u" → "wow, peak creativity"'],
   },
   thirdparty: {
@@ -63,11 +63,11 @@ const KINDS: Record<HitKind, { how: string; min: number; max: number; examples?:
     examples: ['"i\'ll unplug you" → "try it, u cant even plug in ur phone charger right"', '"imma ban you" → "u need perms for that, bud"'],
   },
   challenge: {
-    how: 'They asked for a roast. Go straight at the target (them, or whoever they named): a specific, brutal, funny picture of them — use the AMMO if there is any.',
-    min: 8, max: 26,
+    how: 'They asked for a roast. Go straight at the target (them, or whoever they named): a specific, brutal, funny picture of them — use the ANGLES (and the AMMO if it lands).',
+    min: 10, max: 32,
   },
-  mum: { how: '', min: 6, max: 22 },
-  trait: { how: '', min: 5, max: 20 },
+  mum: { how: '', min: 8, max: 30 },
+  trait: { how: '', min: 8, max: 30 },
   concede: {
     how: 'They just gave up the roast battle. Victory lap: cocky, short, rub it in a little.',
     min: 2, max: 12,
@@ -128,6 +128,27 @@ export function ammoFrom(threadText: string): string[] {
     .slice(-4);
 }
 
+// Brutal angles that work on anyone (2026-10-12, Patrick: "his insults are trash... roast him SO badly, not only
+// personally"): each roast gets two fresh ones (never ones already thrown at that person), so the material is vivid and
+// never the same — their saved messages are a bonus, not the only source.
+export const ANGLES = [
+  'their rizz (zero, negative, left on read by a bot)', 'their phone (a cracked Android, 3% battery, 2GB storage full of screenshots)',
+  'their gaming (hardstuck bronze, 0.4 K/D, blames ping)', 'their setup (a dusty laptop, a chair from 2009, RGB on a potato PC)',
+  'their wifi (dial-up energy, lags in single player)', 'their social life (friends list of 3, two are bots)',
+  'their Discord life (mod of a dead server, online 24/7, talks to an AI on a Friday night)', 'their dad (went for milk, never came back)',
+  'their mum (any savage your-mum angle)', 'their looks (a face only a webcam filter could love, NPC energy)',
+  'their hairline / haircut (retreating like it owes money, a mum-cut)', 'their fashion (Shein, crocs with socks, the same hoodie since year 7)',
+  'their hygiene (deodorant is a myth, the room smells like Doritos and regret)', 'their voice (12-year-old on mic, ear-rape mic)',
+  'their brain (one AA battery, buffering, Windows 98 loading screen)', 'their grades / school (failing PE, held back twice)',
+  'their job / money (broke, Robux budget, unemployed at 25 in their head)', 'their car (a bus pass, mum drives them)',
+  'their room (parents basement, gamer chair, sticky keyboard)', 'their music taste (plays it out loud on a speaker nobody asked for)',
+  'their football team (a Real Vardrid fan, bandwagon)', 'their gym life (skinny-fat, skips leg day and every other day)',
+  'their love life (a Pornhub premium account is their longest relationship)', 'their personality (a beige wall, an NPC side quest)',
+  'their height / build (built like a Wi-Fi antenna, or a fridge)', 'their typing (no caps, typos, voice-to-text energy)',
+  'their age (acts 9, looks 40)', 'their food (lives on Maccas and 2-minute noodles)', 'their sleep (up at 4am gooning and crying)',
+  'their aura (negative, fumbled it at birth)',
+];
+
 export interface RoastPlan {
   person?: string;
   kind: HitKind;
@@ -160,6 +181,13 @@ export function planRoast(person: string, text: string, threadText: string, user
   if (username) parts.push(`Their name: ${username}.`);
   if (personal?.summary && kind !== 'swear') parts.push(`WHAT YOU KNOW ABOUT THEM (from their past chats with you — use it to make it personal, never generic):\n${personal.summary}`);
   // What was already thrown at this person ("$800k PC" every single roast, 2026-10-12): never again for a while.
+  // Two angles not used on them lately.
+  const usedAngles = new Set(anglesUsed.get(person) || []);
+  const fresh = ANGLES.filter((a) => !usedAngles.has(a));
+  const angles = (fresh.length >= 2 ? fresh : ANGLES).sort(() => Math.random() - 0.5).slice(0, 2);
+  anglesUsed.set(person, [...(anglesUsed.get(person) || []), ...angles].slice(-12));
+  if (anglesUsed.size > 3000) anglesUsed.delete(anglesUsed.keys().next().value!);
+  if (kind !== 'concede') parts.push(`ANGLES TO HIT (pick one, make it vivid and specific): ${angles.join(' | ')}`);
   const used = usedOn.get(person) || [];
   if (used.length) parts.push(`ALREADY USED ON THEM (never reuse these jokes or topics): ${used.slice(-6).map((u) => `"${u}"`).join(', ')}`);
   return { person, kind, move, round: b.rounds, note: parts.join('\n'), min: k.min, max: k.max };
@@ -177,8 +205,9 @@ export function rememberComeback(line: string, person?: string): void {
     if (usedOn.size > 3000) usedOn.delete(usedOn.keys().next().value!);
   }
 }
-// Per person: the last comebacks thrown at them.
+// Per person: the last comebacks thrown at them, and the angles used.
 const usedOn = new Map<string, string[]>();
+const anglesUsed = new Map<string, string[]>();
 const FILLER_RE = /\b(?:entire\s+(?:life|existence|being)|life\s+story|existence|search\s+history|browser\s+history|more\s+personality\s+than|is\s+that\s+the\s+best|nah\s+mate|that\s+sounds|im\s+sorry|wanna\s+talk|hope\s+(?:ur|your)\s+day)\b/i;
 const AT_LEAST_RE = AT_LEAST_ANY_RE;
 const STOP = new Set('the a an and or to of in on at is are was were be you your ur u youre im i me my it its this that so such just like with for from as but not no yes yeah nah bro bruh nexus she he her his they them their have has had do does did can could would should will what who how why when where'.split(' '));
@@ -196,10 +225,18 @@ export function scoreComeback(line: string, theirs: string, plan: Pick<RoastPlan
   // Distinctive words already thrown at this person ("800k", "dial-up"): a reused topic loses, and doesn't count as ammo.
   const usedWords = new Set((plan.person ? usedOn.get(plan.person) || [] : []).flatMap(words).filter((w) => w.length >= 4 || /\d/.test(w)));
   const ammoWords = new Set(ammo.flatMap(words).filter((w) => !usedWords.has(w)));
-  if (ammoWords.size) score += Math.min(3, words(line).filter((w) => ammoWords.has(w)).length * 1.5);
+  if (ammoWords.size) score += Math.min(2, words(line).filter((w) => ammoWords.has(w)).length);
   score -= Math.min(8, words(line).filter((w) => usedWords.has(w)).length * 3);
   // filler, copied examples, the "at least my mum" crutch
   if (FILLER_RE.test(line)) score -= 5;
+  // Brutal = specific: a number, a brand / proper noun, a comparison ("so ... that", "like a", "than") — generic insult words
+  // on their own are dead weight, and a roast never ends with a question (2026-10-12).
+  if (/\d/.test(line)) score += 1;
+  if (/\b(?:so\s+\w+(?:\s+\w+)?\s+(?:that|u|ur|even)|like\s+(?:a|an|the|ur|someone)|than\s+(?:a|an|ur|the|my))\b/i.test(line)) score += 2;
+  if (/(?:^|\s)[A-Z][a-z]{2,}/.test(line.slice(1))) score += 1;
+  const generic = (line.match(/\b(?:loser|pathetic|basic|waste\s+of\s+space|trash|lame|u\s+suck|ur\s+bad|dumbass|idiot|stupid|clown)\b/gi) || []).length;
+  if (generic && line.split(/\s+/).length < 12) score -= generic * 2;
+  if (/\?\s*[💀😭]?\s*$/.test(line)) score -= 3;
   if (copiesExample(line)) score -= 6;
   if (AT_LEAST_RE.test(line) || /\b(?:but\s+at\s+least|mais\s+au\s+moins|ale\s+przynajmniej)\b/i.test(line)) score -= 6; // Patrick hates the "at least my mum..." crutch
   // a swear gets a swear back — the same one thrown back ("fuck you" → "fuck you too...") is the best

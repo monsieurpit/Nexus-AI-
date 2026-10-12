@@ -702,7 +702,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
       thoughtSteps.push({ id: 'step-v2-roast-plan', type: 'reasoning', title: `🔥 Roast engine: ${plan.kind}${plan.move ? ` / ${plan.move}` : ''}${plan.round > 1 ? ` · round ${plan.round}` : ''}`, description: plan.note.slice(0, 600) });
       return {
-        text: `${thread}${facts}${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 3 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 3 DIFFERENT comebacks of that type, one per line, no numbers, no intro (the best one gets sent):'}`,
+        text: `${thread}${facts}${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 5 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 5 DIFFERENT comebacks of that type, each one brutal and specific, one per line, no numbers, no intro (the best one gets sent):'}`,
         sources: [],
       };
     }
@@ -878,6 +878,16 @@ const CHAT_EXAMPLE_GRAMS: Set<string> = (() => {
   for (const g of ['i do gng', 'what do u', 'do u want', 'i wanna sleep', 'how are you', 'what u doing', 'technically yeah but', 'yeah but im']) set.delete(g);
   return set;
 })();
+// "top 10 ...", "list 5 ...", "3 reasons ...": the number they asked for.
+const LIST_REQUEST_RE = /\b(?:top|best|worst)\s+(\d{1,2})\b|\b(?:list|name|give\s+me|tell\s+me)\s+(\d{1,2})\b|\b(\d{1,2})\s+(?:people|reasons|things|names|players|drivers|songs|games|facts|ways)\b/i;
+// A real question answered with a deflection ("what do u want", "wtf are u on about", "are u dense") — no answer at all.
+const DEFLECT_RE = /^(?:\W*(?:yo|bruh|bro|nah|mate|oi|lol|lmao|ffs|jesus|bloody\s+hell)\W+)*(?:(?:what|wtf|wth|wat)\b[^.?!]{0,30}\b(?:want|wanna|mean|on\s+(?:about|abt)|talkin|talking|saying|is\s+(?:this|that))|(?:are|r)\s+(?:u|you|ya)\s+(?:fucking\s+|bloody\s+)?(?:dense|serious|mental|stupid|dumb|kidding|deaf|high|ok)|say\s+smth\s+else|speak\s+up)\b/i;
+export function dodgedQuestion(message: string, reply: string): boolean {
+  const realQuestion = message.split(/\s+/).length >= 3 && (/\?\s*$/.test(message) || /^(?:is|are|was|were|do|does|did|can|could|should|would|will|what|whats|what's|who|whos|who's|why|how|when|where|which)\b/i.test(message));
+  // A short reply that OPENS with a deflection never got to an answer.
+  return realQuestion && reply.trim().split(/\s+/).length <= 14 && DEFLECT_RE.test(reply.trim());
+}
+
 // What a reply must not skip (2026-10-12 gate): their birthday, the name they just gave, what's in the image they sent.
 // Returns the instruction for the retry, or null.
 const IMAGE_STOP = new Set('the and are was his her its one two has who not but for you all can out his him she they them with that this there their image picture photo photograph shows showing appears which from into some very have being been also small large dark light white black front back side left right top bottom background screenshot discord channel named called wearing sitting standing holding looking lying playing using wears sits stands holds looks lies plays uses'.split(' '));
@@ -1096,8 +1106,10 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const userTurn = `${parrotNote}${morse ? morseNote(morse) : ''}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${built.text}${langNote}`;
   const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt) && !casualServerDraft(prompt);
+  // A list they asked for keeps its lines (chat's one-line cleanup cut "top 10" down to "1.", 2026-10-12).
+  const wantsList = spec.finalize === 'chat' && LIST_REQUEST_RE.test(said(prompt));
   const finalize = (t: string) => {
-    const out = finalizeSpecialistReply(t, formal ? 'formal' : spec.finalize, said(prompt), lang);
+    const out = finalizeSpecialistReply(t, formal ? 'formal' : wantsList ? 'list' : spec.finalize, said(prompt), lang);
     return route.mode === 'support' || SAD_RE.test(prompt) ? stripCrudeAside(out) : out;
   };
   const t0 = Date.now();
@@ -1184,6 +1196,22 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
       }
     }
     content = best;
+  }
+  // A list they asked for, short of items ("top 10" → 2 names); a real question dodged ("is snow in winter normal?" →
+  // "are u fucking dense"): one targeted retry (2026-10-12).
+  if (route.mode === 'chat') {
+    const t = said(text || '');
+    const want = Number((t.match(LIST_REQUEST_RE) || []).slice(1).find(Boolean) || 0);
+    const items = (content.match(/^\s*\d{1,2}[.)]\s+\S/gm) || []).length;
+    const issue = want >= 2 && want <= 20 && items < want ? `They asked for ${want} items and you gave ${items}. Give EXACTLY ${want} short numbered items, one per line.` : dodgedQuestion(t, content) ? 'They asked you a real question and you dodged it. ANSWER it first (yes/no / the thing they asked), then your attitude.' : null;
+    if (issue) {
+      const retry = await generateWith(spec, `${userTurn}\n(${issue})`, lang);
+      if (retry) {
+        const r = dropBannedEmoji(finalize(retry));
+        const rItems = (r.match(/^\s*\d{1,2}[.)]\s+\S/gm) || []).length;
+        if (want >= 2 ? rItems > items : !dodgedQuestion(t, r)) content = want >= 2 ? tidyList(r) : r;
+      }
+    }
   }
   // The "at least ..." crutch in chat too ("nah im chuffed lmao at least i got xant", 2026-10-12 gate): one more try.
   if (route.mode === 'chat' && AT_LEAST_CRUTCH_RE.test(content)) {
