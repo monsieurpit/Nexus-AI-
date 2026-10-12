@@ -1,9 +1,9 @@
 // The nightly quality report on real replies (reliability plan, step 2). Reads the reply log
 // (src/ai-engine/memory/replyLog.ts): it only detects and shows evidence — it never changes prompts or code.
 //   bun run scripts/replyReport.ts                 last 24 h → printed + saved to ~/.nexus-replylog/reports/<date>.md
-//   bun run scripts/replyReport.ts --hours 72      another window      --all   everything
+//   bun run scripts/replyReport.ts --hours 12      a shorter window (nothing is older than 24 h)
 //   bun run scripts/replyReport.ts --stats         how much is stored
-//   bun run scripts/replyReport.ts --reset --yes   deletes every stored message and reply (no undo)
+//   bun run scripts/replyReport.ts --reset --yes   deletes every stored message and reply now (no undo)
 
 import { Database } from 'bun:sqlite';
 import { existsSync, mkdirSync, writeFileSync, statSync } from 'fs';
@@ -43,8 +43,8 @@ if (has('stats')) {
   process.exit(0);
 }
 
-// Support conversations are only kept 24 hours (replyLog.ts); the report enforces it too, in case the engine was off.
-db.query("DELETE FROM replies WHERE mode = 'support' AND at < ?").run(Date.now() - 24 * 3600_000);
+// Everything is kept only 24 hours (replyLog.ts); the report enforces it too, in case the engine was off.
+db.query('DELETE FROM replies WHERE at < ?').run(Date.now() - 24 * 3600_000);
 const since = has('all') ? 0 : Date.now() - Number(arg('hours') || 24) * 3600_000;
 const rows = db.query('SELECT * FROM replies WHERE at >= ? ORDER BY at').all(since) as Array<{ at: number; userHash: string; userText: string; reply: string; mode: string; lang: string; ms: number; flags: string }>;
 const flagged = rows.map((r) => ({ ...r, f: JSON.parse(r.flags) as string[] })).filter((r) => r.f.length);

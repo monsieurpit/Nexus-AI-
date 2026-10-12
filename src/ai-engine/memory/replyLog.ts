@@ -1,11 +1,11 @@
-// The reply log (2026-10-12, Patrick: "store every message until you or I make something to reset"): every message to
+// The reply log (2026-10-12, Patrick): every message to
 // Nexus and his reply, so the nightly report (scripts/replyReport.ts) can find bugs in real conversations before
 // people do. Before this, his replies weren't stored anywhere (only the last 40, and a learning sample).
 //
-//   ~/.nexus-replylog/replies.db (folder 700, file 600). Kept until a reset: `bun run scripts/replyReport.ts --reset`.
+//   ~/.nexus-replylog/replies.db (folder 700, file 600). Every exchange is deleted after 24 hours (Patrick: "every type
+//   of conversation stays for 24 hours") — the 7:00 report covers exactly that window. `--reset --yes` empties it now.
 //   People are a salted hash, never their Discord id. Not logged: test runs, anyone who turned message saving off.
-//   Support conversations (people going through something) are logged but deleted after 24 hours (Patrick), so the
-//   morning report can check them without keeping them. "nexus forget me" deletes their rows too.
+//   "nexus forget me" deletes their rows too.
 
 import { Database } from 'bun:sqlite';
 import { chmodSync, existsSync, mkdirSync } from 'fs';
@@ -47,13 +47,13 @@ function open(): Database {
 
 export const replyUserHash = (platform: string, id: string) => hashIdentity(`replylog:${platform}:${id}`);
 
-const SUPPORT_KEEP_MS = 24 * 3600_000;
+const KEEP_MS = 24 * 3600_000;
 let lastPurge = 0;
-// Support rows older than 24 h go (checked at most every 10 minutes, on the next log, and on every report).
-export function purgeSupport(now = Date.now()): number {
+// Everything older than 24 h goes (checked at most every 10 minutes, on the next log, and on every report).
+export function purgeOld(now = Date.now()): number {
   lastPurge = now;
   try {
-    return Number(open().query("DELETE FROM replies WHERE mode = 'support' AND at < ?").run(now - SUPPORT_KEEP_MS).changes);
+    return Number(open().query('DELETE FROM replies WHERE at < ?').run(now - KEEP_MS).changes);
   } catch {
     return 0;
   }
@@ -62,7 +62,7 @@ export function purgeSupport(now = Date.now()): number {
 export function logReply(e: { platform: string; userId: string; userText: string; reply: string; mode: string; lang: string; ms: number }): void {
   if (!e.userId || !e.userText || !e.reply) return;
   try {
-    if (Date.now() - lastPurge > 10 * 60_000) purgeSupport();
+    if (Date.now() - lastPurge > 10 * 60_000) purgeOld();
     const flags = checkReply(e.userText, e.reply, e.mode, e.ms);
     open()
       .query('INSERT INTO replies (at, platform, userHash, userText, reply, mode, lang, ms, flags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
