@@ -5,7 +5,8 @@
 
 import { writeFileSync } from 'fs';
 import { CASES, SEQUENCES, type EvalCase, type Mode } from './cases';
-import { grade, ask as askEngine } from './grade';
+import { grade as gradeAll, ask as askEngine, hardFails } from './grade';
+const grade = (...a: Parameters<typeof gradeAll>) => hardFails(gradeAll(...a));
 
 const args = process.argv.slice(2);
 const arg = (name: string) => {

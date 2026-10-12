@@ -16,7 +16,7 @@ import { join } from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { CASES, REGRESSIONS, type EvalCase } from './cases';
-import { grade, ask, BASE } from './grade';
+import { grade, ask, BASE, hardFails } from './grade';
 
 const args = process.argv.slice(2);
 const has = (f: string) => args.includes(`--${f}`);
@@ -57,6 +57,7 @@ async function waitForIdle(): Promise<void> {
 
 interface Result { key: string; msg: string; mode: string; regression: boolean; runs: number; pass: number; rate: number; fails: string[]; sample: string; ms: number }
 const results: Result[] = [];
+const soft = new Map<string, number>(); // banter etc.: shown, never a failure
 let n = 0;
 let idSeq = 0n;
 const t0 = Date.now();
@@ -65,7 +66,7 @@ async function once(c: EvalCase): Promise<{ ok: boolean; fails: string[]; reply:
   await waitForIdle();
   const { reply, ms, searched, routed } = await ask(c.msg, String(ID_BASE + idSeq++), c.history || []);
   const fails = grade(c, reply, searched, routed);
-  return { ok: !fails.length, fails, reply, ms };
+  return { ok: !hardFails(fails).length, fails, reply, ms };
 }
 
 console.log(`gate: ${pool.length} cases (${pool.filter((p) => p.regression).length} regressions)${has('quick') ? ', quick' : ''}${has('with-search') ? '' : ', search skipped'}\n`);
@@ -79,6 +80,7 @@ for (const { c, regression } of pool) {
   const pass = runs.filter((r) => r.ok).length;
   const rate = pass / runs.length;
   const bad = runs.find((r) => !r.ok);
+  for (const r of runs) for (const f of r.fails) if (f.startsWith('~')) soft.set(f.replace(/:.*$/, ''), (soft.get(f.replace(/:.*$/, '')) || 0) + 1);
   const res: Result = { key: keyOf(c), msg: c.msg, mode: c.mode, regression, runs: runs.length, pass, rate, fails: bad?.fails || [], sample: show((bad || runs[0]).reply).slice(0, 200), ms: Math.round(runs.reduce((a, r) => a + r.ms, 0) / runs.length) };
   results.push(res);
   const icon = rate === 1 ? '✅' : rate === 0 ? '❌' : '🟡';
@@ -122,6 +124,7 @@ const commit = (() => {
 console.log(`\n════ gate @ ${commit}: ${results.filter((r) => r.rate === 1).length}/${results.length} cases always pass · ${Math.round((100 * passed) / Math.max(1, total))}% of ${total} replies · avg ${avgMs}ms · ${Math.round((Date.now() - t0) / 60000)} min ════`);
 for (const [m, v] of [...byMode].sort()) console.log(`  ${m.padEnd(9)} ${Math.round((100 * v.rate) / v.n)}% (${v.n})`);
 if (kinds.size) console.log('  failure kinds:', [...kinds].sort((a, b) => b[1] - a[1]).map(([k, c]) => `${k} ×${c}`).join(', '));
+if (soft.size) console.log('  soft notes (not failures):', [...soft].map(([k, c]) => `${k.slice(1)} ×${c}`).join(', '));
 if (flaky.length) console.log(`  🟡 flaky (${flaky.length}): ${flaky.map((r) => `"${show(r.msg).slice(0, 40)}" ${r.pass}/${r.runs}`).join(' · ')}`);
 if (failing.length) console.log(`  ❌ always failing (${failing.length}): ${failing.map((r) => `"${show(r.msg).slice(0, 40)}"`).join(' · ')}`);
 if (Object.keys(prev).length) {

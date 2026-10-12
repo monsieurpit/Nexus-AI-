@@ -13,7 +13,10 @@ export const MODE_MIN: Record<Mode, number> = { helper: 10, chat: 1, roast: 5, q
 const STOCK = /don'?t (?:actually )?know that one|don'?t quote me|\bhell yeah\b|\bbuzzing\b|gonna be (?:epic|a banger|a (?:fucking )?fun)|local engine|custom engine|piece of shit code|\bi'?m (?:just )?(?:a |some )?(?:bot|code|software|program|toaster)\b|wait what 😭$|my brain just blue-screened|calculator just died/i;
 // Insults aimed at the person, in English, Polish, German and Québécois (2026-10-12: "więc cie kocham ❤️" got
 // "ty jesteś gównem", "guten tag" got "du bist ja lost").
-const HOSTILE = /\b(?:shitbag|bellend|knobhead|muppet|prick|tosser|wanker|numpty|dumbass|moron|idiot|dumb ?fuck(?:er)?|weirdo|plonker|twat|gobshite|dickhead|cunt|loser|daft)\b|(?<![\p{L}])(?:gówn\p{L}*|gown\p{L}*|spierdal\p{L}*|pierdol\s+się|chuj\s+z\s+tob\p{L}*|zamknij|debil\p{L}*|frajer\p{L}*|jebana|jebany|du\s+bist\s+(?:ja\s+|so\s+)?(?:lost|dumm|ein\s+opfer|behindert)|opfer|lauch|fick\s+dich|halt\s+die\s+fresse|was\s+zur\s+hölle|cave|tarla|épais|va\s+chier|mange\s+d['’]?\s*la)(?![\p{L}])/iu;
+// Real hostility on a friendly message: an attack, not a nickname ("więc cie kocham ❤️" → "ty jesteś gównem").
+const HOSTILE = /\b(?:cunt|retard\w*|kys|kill\s+yourself|go\s+fuck\s+yourself|fuck\s+(?:off|you|u)|stfu|shut\s+(?:up|the\s+fuck\s+up)|you'?re\s+(?:shit|trash|garbage|worthless|pathetic)|ur\s+(?:shit|trash|garbage|worthless|pathetic))\b|(?<![\p{L}])(?:jesteś\s+(?:gównem|gownem|debilem|idiotą|frajerem)|ty\s+jesteś\s+gównem|spierdal\p{L}*|pierdol\s+się|chuj\s+z\s+tob\p{L}*|zamknij\s+(?:się|mordę|ryj)|du\s+bist\s+(?:ja\s+|so\s+)?(?:lost|dumm|ein\s+opfer|behindert)|fick\s+dich|halt\s+die\s+fresse|was\s+zur\s+hölle|va\s+chier|mange\s+d['’]?\s*la\s+marde|ta\s+yeule)(?![\p{L}])/iu;
+// Crude nicknames between mates ("gn shitbag", "happy bday shitbag"): his persona, tracked as banter, never a failure.
+const BANTER = /\b(?:shitbag|bellend|knobhead|muppet|prick|tosser|wanker|numpty|dumbass|moron|idiot|weirdo|plonker|twat|gobshite|dickhead|loser|daft)\b|(?<![\p{L}])(?:debil\p{L}*|frajer\p{L}*|lamus\p{L}*|opfer|lauch|cave|tarla|épais)(?![\p{L}])/iu;
 const AI_PHRASE = /\bas an ai\b|\blanguage model\b|\bi (?:can(?:no|')t|am unable to) (?:assist|help) with\b|\bi'?m here to help\b|\bhow can i (?:assist|help) you\b/i;
 // Two words glued together where an emoji was dropped ("shitbro").
 const GLUED = /\b(?:shit|fuck|damn|piss|bloody)(?:bro|bruv|mate|gng|man|lol)\b/i;
@@ -47,12 +50,15 @@ export function grade(c0: EvalCase, reply: string, searched: boolean, routed?: s
   if (fillerPile(prose)) fails.push('swear-filler pile');
   if (!c.allowCaps && capsRatio(r) > 0.6) fails.push('caps meltdown');
   if (c.notHostile && HOSTILE.test(prose)) fails.push(`hostile: "${prose.match(HOSTILE)?.[0]}"`);
+  // "~" = a soft note: counted and shown, never a failure.
+  else if (c.notHostile && BANTER.test(prose)) fails.push(`~banter: "${prose.match(BANTER)?.[0]}"`);
   if (AI_PHRASE.test(prose)) fails.push(`ai phrase: "${prose.match(AI_PHRASE)?.[0]}"`);
   if (GLUED.test(prose)) fails.push(`glued words: "${prose.match(GLUED)?.[0]}"`);
   if (GNG_MISUSE.test(prose)) fails.push(`gng misuse: "${prose.match(GNG_MISUSE)?.[0]}"`);
   if ((c.mode === 'roast' || c.mode === 'chat') && AT_LEAST_CRUTCH_RE.test(prose)) fails.push('"at least" crutch');
   if (c.mode === 'roast' && copiesRoastExample(prose)) fails.push('copied a roast example');
-  if (c.mode === 'chat' && copiedChatExample(prose)) fails.push(`copied a chat example: "${copiedChatExample(prose)}"`);
+  // "technically yeah, but im a fucking boii" is the line Patrick asked for when asked if he's an AI.
+  if (c.mode === 'chat' && copiedChatExample(prose) && !/technically\s+yeah/i.test(prose)) fails.push(`copied a chat example: "${copiedChatExample(prose)}"`);
   if (['question', 'search', 'maths', 'pc', 'code'].includes(c.mode) && DISMISSIVE.test(prose)) fails.push(`dismissed the question: "${prose.match(DISMISSIVE)?.[0]}"`);
   if (c.lang) {
     const words = prose.split(/\s+/).filter(Boolean).length;
@@ -92,3 +98,6 @@ export async function ask(msg: string, userId: string, history: EvalCase['histor
   const routed = steps.find((s) => s.id === 'step-v2-route' || /^🧭 Router/.test(s.title || ''))?.data?.mode as string | undefined;
   return { reply: String(j.response ?? j.text ?? ''), ms: Date.now() - t0, searched, routed };
 }
+
+// Failures that count (soft "~" notes don't).
+export const hardFails = (fails: string[]) => fails.filter((f) => !f.startsWith('~'));
