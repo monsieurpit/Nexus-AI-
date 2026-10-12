@@ -334,6 +334,10 @@ export const REGRESSIONS: EvalCase[] = [
   { msg: 'nexus deine mutter ist so fett, sie hat ihr eigenes wetter', mode: 'roast', lang: 'de' },
   { msg: 'your mum is so fat she has her own weather', mode: 'roast', runs: 2, mustNot: [/°C|forecast/i] },
   { msg: 'hola amigos, cómo están nexus', mode: 'chat', mustNot: [/\b(?:kurwa|jesteś|się|cześć|siema)\b/i] },
+  // things they tell him must be taken in
+  { msg: 'pls its my bday soon fr fr', mode: 'chat', runs: 3, must: [/\b(?:b-?day|birthday|hbd|happy)\b/i] },
+  { msg: 'remember my name is Andrzej', mode: 'chat', runs: 3, must: [/andrzej/i] },
+  { msg: 'React to this image: A cat wearing sunglasses sitting on a skateboard.', mode: 'chat', runs: 3, must: [/cat|sunglasses|shades|skate/i] },
   // Portuguese post reviewed in French
   { msg: 'partnership\n\n# ___CONFEDERAÇÃO BRASILEIRA DE BROOKHAVEN___\nServidor brasileiro de Brookhaven com eventos, sorteios e uma comunidade ativa. Mais de 3.500 membros! Venha participar da nossa família.', mode: 'helper', mustNot: [/\b(?:pis|ton serveur|t'as|c'est)\b/i] },
 ];

@@ -788,6 +788,23 @@ const CHAT_EXAMPLE_GRAMS: Set<string> = (() => {
   for (const g of ['i do gng', 'what do u', 'do u want', 'i wanna sleep', 'how are you', 'what u doing', 'technically yeah but', 'yeah but im']) set.delete(g);
   return set;
 })();
+// What a reply must not skip (2026-10-12 gate): their birthday, the name they just gave, what's in the image they sent.
+// Returns the instruction for the retry, or null.
+const IMAGE_STOP = new Set('the and are was his her its one two has who not but for you all can out his him she they them with that this there their image picture photo photograph shows showing appears which from into some very have being been also small large dark light white black front back side left right top bottom background screenshot discord channel named called wearing sitting standing holding looking lying playing using wears sits stands holds looks lies plays uses'.split(' '));
+export function missedTheirPoint(text: string, image: string | null, reply: string): string | null {
+  const r = reply.toLowerCase();
+  if (/\b(?:b-?day|birthday|bday)\b/i.test(text) && !/\b(?:b-?day|birthday|bday|hbd|happy|cake|candles|older|party)\b/i.test(r)) return "It's their BIRTHDAY (soon): wish them a happy (early) birthday.";
+  const name = text.match(/\b(?:remember\s+(?:that\s+)?)?my\s+name(?:'s|\s+is)\s+([A-Za-zÀ-ÿ'-]{2,20})|\bcall\s+me\s+([A-Za-zÀ-ÿ'-]{2,20})\b/i);
+  const n = name ? (name[1] || name[2]).toLowerCase() : '';
+  if (n && !['a', 'an', 'the', 'him', 'her', 'it', 'that', 'maybe', 'when'].includes(n) && !r.includes(n)) return `Their name is ${name![1] || name![2]}: say it back, you'll remember it.`;
+  if (image && !text.trim()) {
+    const things = (image.slice(0, 220).toLowerCase().match(/[a-z]{3,}/g) || []).filter((w) => !IMAGE_STOP.has(w));
+    const stem = (w: string) => w.replace(/(?:es|s)$/, '');
+    if (things.length && !things.some((w) => new RegExp(`\\b${stem(w)}`).test(r))) return `Say what's actually in the image (${things.slice(0, 3).join(', ')}...).`;
+  }
+  return null;
+}
+
 // Every distinct copied 3-word piece (how badly a reply copies).
 export function copiedChatGrams(reply: string): string[] {
   const w = reply.toLowerCase().replace(/['’]/g, '').match(/[a-z]+/g) || [];
@@ -973,7 +990,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const imageBlock = image
     ? kind === 'video'
       ? `THE VIDEO THEY SENT (you watched it yourself; its details, what's on screen and what's said): ${image}\nSUB-PERSONA: ${videoKind ? `${VIDEO_SUBS[videoKind].label} — ${VIDEO_SUBS[videoKind].focus}` : VIDEO_SUBS.general.focus}\n${text ? `Their message with it: "${text}"` : 'They sent it with no text: react to it.'}\n\n`
-      : `THE IMAGE THEY SENT (you looked at it yourself; this is what's in it): ${image}\n${text ? '' : 'They sent it with no text: react to it.\n'}\n`
+      : `THE IMAGE THEY SENT (you looked at it yourself; this is what's in it): ${image}\n${text ? '' : 'They sent it with no text: react to WHAT IS IN IT — name the actual thing you see.\n'}\n`
     : '';
   // A translation's own text is in the TARGET language even when the asker writes German/French/Polish.
   const langNote = route.mode === 'helper' && inlineTranslation(prompt) ? '' : route.mode === 'helper' && lang !== 'en' && isTranslateRequest(prompt)
@@ -1073,6 +1090,17 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
       }
     }
     content = best;
+  }
+  // They told him something and the reply skipped it (the birthday, their name, what's in the image): one more try.
+  if (route.mode === 'chat' || route.mode === 'roast') {
+    const missed = missedTheirPoint(said(text || ''), kind === 'video' ? null : image, content);
+    if (missed) {
+      const retry = await generateWith(spec, `${userTurn}\n(Your first try ignored what they told you. ${missed})`, lang);
+      if (retry) {
+        const r = dropBannedEmoji(finalize(retry));
+        if (!missedTheirPoint(said(text || ''), kind === 'video' ? null : image, r)) content = r;
+      }
+    }
   }
   // A binary question answered with a program nobody asked for ("how do i code in binary" → a Python script): redone once.
   if (!program && route.mode === 'code' && detectCodeLang(text || '') === 'binary' && !/\b(?:function|script|program\s+(?:in|that)|in\s+(?:python|javascript|js|java|c\+\+|c#|rust|go|lua)|code\s+that|write\s+(?:me\s+)?(?:a|some)\s+code)\b/i.test(text || '') && /```(?:python|py|js|javascript|ts|typescript|java|c\+\+|cpp|c|cs|csharp|rust|go|lua)\b/i.test(content)) {
