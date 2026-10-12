@@ -21,6 +21,7 @@ import { pickBestComeback } from './roast';
 import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
 import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
+import { morseNote, morseTask, withMorse } from './morse';
 import { identifyProgram, binaryNote, binaryProgramBlock, binaryProgramNote, expectedBinary, fixBinary, numberConversionNote, pickBinaryProgram } from './binary';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
@@ -934,7 +935,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const binary = route.mode === 'code' && detectCodeLang(text || '') !== 'binary' ? null : binaryNote(text || '');
   const numbers = numberConversionNote(text || '');
   const program = pickBinaryProgram(text || '');
-  const userTurn = `${parrotNote}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${built.text}${langNote}`;
+  const morse = route.mode === 'chat' ? morseTask(text || '') : null;
+  const userTurn = `${parrotNote}${morse ? morseNote(morse) : ''}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${built.text}${langNote}`;
   const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt) && !casualServerDraft(prompt);
   const finalize = (t: string) => {
@@ -1019,6 +1021,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (wantBinary) content = fixBinary(content, wantBinary);
   // A real program in binary: his line(s) first, then the exact binary and the breakdown (any code he wrote anyway is dropped).
   if (program) content = `${(content.replace(/```[\s\S]*?(?:```|$)/g, '').replace(/\b[01]{8,}\b[\s01]*/g, '').trim().split('\n')[0] || '').trim()}\n${binaryProgramBlock(program, /\b(?:spaces?|spaced|bytes?|grouped|readable)\b/i.test(text || '')).replace(/^-# /gm, settings.serverContext ? '-# ' : '')}`;
+  // Morse: his line, then the exact Morse (computed, never typed by the model).
+  if (morse) content = withMorse(content, morse).replace(/^-# /gm, settings.serverContext ? '-# ' : '');
   if (!/```/.test(content)) content = plainMaths(content);
   // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
   if (!formal) content = uncensorSwears(content);

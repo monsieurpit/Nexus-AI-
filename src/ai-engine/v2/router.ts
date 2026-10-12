@@ -21,6 +21,7 @@ import type { SpecialistId } from './specialists';
 import { detectCodeLang, type CodeLang } from './codeTools';
 import { classifyHit } from './roastEngine';
 import { BINARY_MESSAGE_RE, pickBinaryProgram } from './binary';
+import { morseTask } from './morse';
 import { bitsToBytes, TRANSLATE_BINARY_RE } from './disasm';
 
 export interface Route {
@@ -122,6 +123,8 @@ function byRules(text: string): Route | null {
   if (pickBinaryProgram(t)) return r('chat', 'real program in binary');
   // A message written in binary is chat (decoded in pipeline.ts), not maths.
   if (BINARY_MESSAGE_RE.test(t)) return r('chat', 'message in binary');
+  // Morse to write or a message in Morse (computed in pipeline.ts from v2/morse.ts): he only adds a line, so chat.
+  if (morseTask(t)) return r('chat', 'morse code');
   if (ROAST_RE.test(t) && !(TRANSLATE_WORD_RE.test(t) && /["“”'«]|\b(?:to|into|in|en)\s+(?:english|french|fran[cç]ais|anglais|polish|german|spanish|italian|portuguese)\b/i.test(t))) return r('roast', 'insult / your-mum joke / challenge');
   if (SERVER_BANTER_RE.test(t) && !/\b(?:how\s+(?:do|can|to)|ban|kick|mute|timeout|staff|raid(?:ed|ing)?\s+by)\b/i.test(t)) return r('chat', 'banter about the server');
   if (HELPER_RE.test(t) && !/^(?:can\s+you\s+)?translate\s+(?:the\s+)?point\b/i.test(t)) return r('helper', 'translation / staff / server management');
