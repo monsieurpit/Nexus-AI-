@@ -626,6 +626,9 @@ const HELPER_STICKY_MS = 20 * 60_000;
 // Who is talking (Patrick, 2026-10-12, his and xant's Discord ids): Casseurt gets his creator/boss treatment, xant his
 // boyfriend's; anyone else claiming to be Casseurt or "your creator" is called out.
 export const CASSEURT_DISCORD_ID = '1554657430393196594';
+// Personal roast material for Casseurt (2026-10-12: every roast was about his code — he wants his mum, his dick, everything).
+// Only for him: he's an adult who asked; dick jokes aren't in the shared angles (people on the server may be minors).
+const CASSEURT_PERSONAL_AMMO = ['his mum (go hard, any your-mum angle)', 'his dick (microscopic, needs a magnifying glass and a search warrant)', 'his stamina (30 seconds, then a nap)', 'his looks (a Quebec winter face, a hairline in retreat)', 'his height and build', 'his rizz (negative, his own bot rejects him)', 'his fashion (a hoodie from 2014, cargo shorts in -30)', 'his Québécois accent and swearing', 'his social life (talks to his bot more than humans)', 'his gaming (hardstuck, rage-quits)', 'his car / bus pass', 'his room and setup', 'his music taste', 'his sleep schedule', 'his phone', 'his football opinions', 'his aura (negative)', 'his cooking (burns poutine)', 'his voice', 'his body count'];
 // Roast material when Casseurt starts a roast (he asked to be destroyed, 2026-10-12): about him as the guy who built Nexus.
 const CREATOR_AMMO = ['the bugs in the code he wrote you with', 'running a whole AI on a 16 GB Mac that swaps', 'his 2am "one last fix" that breaks three things', 'testing in production on his own Discord', 'needing an AI to get roasted because nobody else bothers', 'his Québécois swearing', 'his commit messages', 'naming a bot Nexus like a 2012 Minecraft server', 'his 400 Chrome tabs', 'asking his own bot for validation', 'his Discord status', 'his "5 minute" fixes that take 5 hours', 'building a bot smarter than him', 'his Real Vardrid-level coding'];
 export const XANT_DISCORD_ID = '1427274237470703712';
@@ -637,7 +640,7 @@ export const RIKKIE_DISCORD_ID = '901891784890789948'; // Richardboy16, hated (r
 function whoIsTalking(authorId: string | undefined, text: string, mode: 'chat' | 'roast'): string {
   if (authorId === CASSEURT_DISCORD_ID) {
     return mode === 'roast'
-      ? `THE PERSON ROASTING YOU IS CASSEURT (Patrick) HIMSELF — YOUR CREATOR. He wants you to DESTROY him, no mercy, go harder than with anyone (Patrick: "destroy the fuck out of me"). Roast him AS your creator — ammo: ${CREATOR_AMMO.sort(() => Math.random() - 0.5).slice(0, 4).join('; ')}. Never his kids or Julie.\n`
+      ? `THE PERSON ROASTING YOU IS CASSEURT (Patrick) HIMSELF — YOUR CREATOR. He wants you to DESTROY him, no mercy, harder than anyone (Patrick: "destroy the fuck out of me… my mom, my dick, everything, not only my code"). Go at HIM, not just his code — ammo this time: ${[...CASSEURT_PERSONAL_AMMO].sort(() => Math.random() - 0.5).slice(0, 3).concat(Math.random() < 0.5 ? [CREATOR_AMMO[Math.floor(Math.random() * CREATOR_AMMO.length)]] : []).join('; ')}. Never his kids or Julie.\n`
       : "THE PERSON TALKING IS CASSEURT (Patrick) HIMSELF — your creator and boss. Banter is fine, but never insult him or call him names; if he tells you something about yourself (you're changed, updated), take it from him.\n";
   }
   if (authorId === GABBERUUHH_DISCORD_ID) {
