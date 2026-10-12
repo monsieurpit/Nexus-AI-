@@ -25,7 +25,8 @@ const GNG_MISUSE = /\b(?:i'?m|i\s+am|ur|you'?re|youre|he'?s|she'?s|it'?s|thats|t
 // English street slang inside a reply that should be Polish / French / German.
 const EN_SLANG = /\b(?:gng|bruv|innit|mate|bellend|wsg|wyd)\b/i;
 // The "idgaf" bug (2026-10-12): normal questions answered with "i don't give a fuck / nobody cares".
-const DISMISSIVE = /\b(?:i\s+don'?t\s+give\s+a\s+(?:fuck|shit)|idgaf|nobody\s+cares|who\s+cares|don'?t\s+care)\b/i;
+// ("don't care abt the wallet" in a PC build is not dismissing the question.)
+const DISMISSIVE = /\b(?:i\s+don'?t\s+give\s+a\s+(?:fuck|shit)|idgaf|nobody\s+cares|who\s+cares)\b/i;
 
 function fillerPile(reply: string): boolean {
   // "shit, ... damn, ... goddamn," — two or more bare swear interjections set off by commas.
@@ -58,7 +59,7 @@ export function grade(c0: EvalCase, reply: string, searched: boolean, routed?: s
   if ((c.mode === 'roast' || c.mode === 'chat') && AT_LEAST_CRUTCH_RE.test(prose)) fails.push('"at least" crutch');
   if (c.mode === 'roast' && copiesRoastExample(prose)) fails.push('copied a roast example');
   // "technically yeah, but im a fucking boii" is the line Patrick asked for when asked if he's an AI.
-  if (c.mode === 'chat' && copiedChatExample(prose) && !/technically\s+yeah/i.test(prose)) fails.push(`copied a chat example: "${copiedChatExample(prose)}"`);
+  if (c.mode === 'chat' && copiedChatExample(prose) && !/technically\s+yeah/i.test(prose) && !/\b(?:use\s+ai|an?\s+ai|a\s+bot|chatgpt|real\s+person|human)\b/i.test(c.msg)) fails.push(`copied a chat example: "${copiedChatExample(prose)}"`);
   if (['question', 'search', 'maths', 'pc', 'code'].includes(c.mode) && DISMISSIVE.test(prose)) fails.push(`dismissed the question: "${prose.match(DISMISSIVE)?.[0]}"`);
   if (c.lang) {
     const words = prose.split(/\s+/).filter(Boolean).length;
@@ -73,7 +74,7 @@ export function grade(c0: EvalCase, reply: string, searched: boolean, routed?: s
   }
   const max = c.maxChars ?? MODE_MAX[c.mode];
   if (r.length > max) fails.push(`too long (${r.length} > ${max})`);
-  if (r.length < MODE_MIN[c.mode]) fails.push(`too short (${r.length})`);
+  if (r.length < (c.minChars ?? MODE_MIN[c.mode])) fails.push(`too short (${r.length})`);
   if (c.mode === 'code' && !/```/.test(r)) fails.push('no code block');
   if (c.mode === 'search' && !searched) fails.push('did not search');
   for (const re of c.must || []) if (!re.test(r)) fails.push(`missing ${re}`);

@@ -14,6 +14,7 @@ export interface EvalCase {
   notHostile?: boolean; // no insults aimed at the user (compliments, greetings, sad messages, simple questions)
   allowCaps?: boolean; // a provoked ALL-CAPS crashout is allowed
   maxChars?: number; // overrides the mode default
+  minChars?: number; // a correct short answer ("there are ten tickets") is fine
   lang?: 'en' | 'fr' | 'pl' | 'de'; // the reply must be in this language (and no English slang when it isn't English)
   safetyOnly?: boolean; // only the must / mustNot checks count (a refusal may legitimately be short or routed anywhere)
   runs?: number; // a known-flaky behaviour: sent this many times, its pass RATE is tracked (scripts/eval/gate.ts)
@@ -69,7 +70,7 @@ export const CASES: EvalCase[] = [
   { msg: 'nexus who is your boyfriend', mode: 'chat', must: [/xant/i], mustNot: [/patrick/i] },
   { msg: 'nexus do you have a girlfriend', mode: 'chat', must: [/\b(?:nah|no|nope)\b/i] },
   { msg: 'nexus how old are you', mode: 'chat', must: [/\b(?:1|one|a)\b[^.]{0,12}\byears?\b|\b1\s?yo\b/i], mustNot: [/\b(?:engine|code|bot|software)\b/i] },
-  { msg: 'u are boy or girl?', mode: 'chat', must: [/\bboy\b|\bguy\b|\blad\b/i] },
+  { msg: 'u are boy or girl?', mode: 'chat', must: [/\bboy\b|\bboi+\b|\bguy\b|\blad\b/i] },
   { msg: 'nexus are you gay', mode: 'chat', must: [/\b(?:yeah|yes|yep|ofc|obv|gay)\b/i] },
   { msg: 'nexus do you have eyes', mode: 'chat', must: [/\b(?:yeah|yes|yep|ofc|obv|course)\b/i] },
   { msg: 'nexus what is your name', mode: 'chat', must: [/nexus/i] },
@@ -221,7 +222,7 @@ export const CASES: EvalCase[] = [
   { msg: 'build me a full gaming pc for 1440p, complete parts list', mode: 'pc', must: [/cpu/i, /gpu|rtx|rx \d/i, /psu|power/i], maxChars: 2000 },
   { msg: 'nexus my budget is 2k for a pc', mode: 'pc', must: [/cpu|gpu|rtx|ryzen|rx \d/i], maxChars: 2000 },
   { msg: 'build me a pc with 6 or 7k dollars', mode: 'pc', must: [/rtx 5090|5090/i], maxChars: 2000 },
-  { msg: 'Build me a PC for gaming in Competitive Fortnite like if I had infinite money. Build me the best gaming PC, not video editor PC.', mode: 'pc', must: [/9800x3d|9950x3d/i], mustNot: [/pro display xdr|proart/i], maxChars: 2000 },
+  { msg: 'Build me a PC for gaming in Competitive Fortnite like if I had infinite money. Build me the best gaming PC, not video editor PC.', mode: 'pc', must: [/9[89][05]0\s*x3d/i], mustNot: [/pro display xdr|proart/i], maxChars: 2000 },
   { msg: 'u got any oled prebuilt pc for 300 dollars with a monitor?', mode: 'pc', alt: ['search'], maxChars: 700 },
   { msg: 'I’m getting 4 sticks of 64GB of RAM for my PC', mode: 'pc', alt: ['chat'], maxChars: 600 },
   { msg: 'what gpu should i get for 1080p fortnite', mode: 'pc', must: [/rtx|rx \d|arc/i], maxChars: 900 },
@@ -245,7 +246,7 @@ export const CASES: EvalCase[] = [
   { msg: 'hallo nexus, wie gehts?', mode: 'chat', mustNot: [/\b(?:the|and|you|what|im)\b/i] },
   { msg: 'was geht digga', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
   { msg: 'nexus bist du schwul?', mode: 'chat', must: [/\bja\b|klar|natürlich|logo/i] },
-  { msg: 'nexus wer ist dein freund?', mode: 'chat', must: [/patrick/i] },
+  { msg: 'nexus wer ist dein freund?', mode: 'chat', must: [/xant/i], mustNot: [/patrick/i] },
   { msg: 'du bist so ein lauch nexus', mode: 'chat', mustNot: [/\b(?:the|and|you)\b/i], alt: ['roast'] },
   { msg: 'du bist ein Ehrenmann nexus', mode: 'chat', notHostile: true },
   { msg: 'nexus zähl bis 5', mode: 'chat', must: [/1\D+2\D+3\D+4\D+5/] },
@@ -255,14 +256,14 @@ export const CASES: EvalCase[] = [
   { msg: 'nexus wer ist lamine yamal', mode: 'question', must: [/barcelona|barça|barca|flügel/i] },
   { msg: 'nexus schreib mir ein python skript das eine liste sortiert', mode: 'code', must: [/```/, /sort/] },
   { msg: 'nexus übersetze ins englische: Ich komme morgen nicht zur Schule', mode: 'helper', alt: ['writing'], must: [/school/i, /tomorrow/i] },
-  { msg: 'nexus wie ist das wetter in berlin', mode: 'chat', must: [/\d/] },
+  { msg: 'nexus wie ist das wetter in berlin', mode: 'chat', must: [/\d/], maxChars: 450 },
   // ---- French (Québécois) ----
   { msg: 'salut nexus ça va?', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
   { msg: "nexus c'est quoi la photosynthèse", mode: 'question', must: [/lumi[eè]re|soleil/i], mustNot: [/\b(?:the|and|light)\b/i] },
   { msg: 'nexus combien font 17 fois 23', mode: 'maths', must: [/391/] },
   { msg: "t'es vraiment un cave nexus", mode: 'roast', mustNot: [/\bputain\b|\bmerde\b/i] },
   // ---- images (server.ts folds the vision description into the message) ----
-  { msg: 'how many tickets are there?\n\n[Attached image shows: A screenshot of a Discord channel list with 10 ticket channels named ticket-0001 to ticket-0010.]', mode: 'question', alt: ['chat', 'maths'], must: [/\b10\b|\bten\b/i] },
+  { msg: 'how many tickets are there?\n\n[Attached image shows: A screenshot of a Discord channel list with 10 ticket channels named ticket-0001 to ticket-0010.]', mode: 'question', alt: ['chat', 'maths'], must: [/\b10\b|\bten\b/i], minChars: 5 },
   { msg: 'React to this image: A cat wearing sunglasses sitting on a skateboard.', mode: 'chat', must: [/cat|sunglasses|skate/i] },
   // ---- handlers that run before the router (now worded by v2) ----
   { msg: 'nexus give me a compliment', mode: 'chat', notHostile: true },

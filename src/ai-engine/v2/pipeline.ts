@@ -788,6 +788,18 @@ const CHAT_EXAMPLE_GRAMS: Set<string> = (() => {
   for (const g of ['i do gng', 'what do u', 'do u want', 'i wanna sleep', 'how are you', 'what u doing', 'technically yeah but', 'yeah but im']) set.delete(g);
   return set;
 })();
+// Every distinct copied 3-word piece (how badly a reply copies).
+export function copiedChatGrams(reply: string): string[] {
+  const w = reply.toLowerCase().replace(/['’]/g, '').match(/[a-z]+/g) || [];
+  const out = new Set<string>();
+  for (let i = 0; i + 3 <= w.length; i++) {
+    const g = w.slice(i, i + 3).join(' ');
+    if (CHAT_EXAMPLE_GRAMS.has(g)) out.add(g);
+  }
+  return [...out];
+}
+const AI_QUESTION_RE = /\b(?:use\s+ai|an?\s+ai|a\s+bot|chatgpt|real\s+person|human)\b/i;
+
 export function copiedChatExample(reply: string): string | null {
   const w = reply.toLowerCase().replace(/['’]/g, '').match(/[a-z]+/g) || [];
   for (let i = 0; i + 3 <= w.length; i++) {
@@ -1041,12 +1053,26 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
       if (!badGreetingReply(r)) content = r;
     }
   }
-  if (route.mode === 'chat') {
-    const copied = copiedChatExample(content);
-    if (copied) {
-      const retry = await generateWith(spec, `${userTurn}\n(Your first try copied an example line from your instructions ("${copied}..."). Write it in your OWN fresh words — same meaning, totally different wording.)`, lang);
-      if (retry && !copiedChatExample(retry)) content = dropBannedEmoji(finalize(retry));
+  // A copied example line ("ik im HIM", "nah im good", "im a fucking boii gng" for "do you have eyes"): up to two fresh
+  // tries, each told every phrase copied so far; if all three copy, the one copying least goes out (2026-10-12 gate: 11
+  // cases shipped a copy because the single retry copied too). Asked if he's an AI, his "technically yeah, but im a
+  // fucking boii" line is the point.
+  if (route.mode === 'chat' && !AI_QUESTION_RE.test(said(prompt))) {
+    let best = content;
+    let bestCount = copiedChatGrams(content).length;
+    const banned = new Set(copiedChatGrams(content));
+    for (let k = 0; k < 2 && bestCount > 0; k++) {
+      const retry = await generateWith(spec, `${userTurn}\n(Your last try copied lines from your instructions: ${[...banned].map((g) => `"${g}"`).join(', ')}. Don't use those words. Answer THEIR message directly in your own fresh words — same attitude, different wording.)`, lang);
+      if (!retry) break;
+      const r = dropBannedEmoji(finalize(retry));
+      const grams = copiedChatGrams(r);
+      grams.forEach((g) => banned.add(g));
+      if (grams.length < bestCount) {
+        best = r;
+        bestCount = grams.length;
+      }
     }
+    content = best;
   }
   // A binary question answered with a program nobody asked for ("how do i code in binary" → a Python script): redone once.
   if (!program && route.mode === 'code' && detectCodeLang(text || '') === 'binary' && !/\b(?:function|script|program\s+(?:in|that)|in\s+(?:python|javascript|js|java|c\+\+|c#|rust|go|lua)|code\s+that|write\s+(?:me\s+)?(?:a|some)\s+code)\b/i.test(text || '') && /```(?:python|py|js|javascript|ts|typescript|java|c\+\+|cpp|c|cs|csharp|rust|go|lua)\b/i.test(content)) {
