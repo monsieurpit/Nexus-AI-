@@ -1474,7 +1474,8 @@ export async function embed(text: string, options: { timeoutMs?: number } = {}):
       // On the CPU (num_gpu 0): ~0.07 s for a message, and it keeps the GPU budget (~11.5 GB on a 16 GB Mac) for the chat
       // model + the image model, which then both stay loaded (2026-10-11 — with bge-m3 on the GPU too, the chat model
       // got evicted whenever it grew a little).
-      body: JSON.stringify({ model: OLLAMA_EMBED_MODEL, input: text, options: { num_gpu: 0 } }),
+      // Stays loaded (it took 2-5 s to reload after 30 idle minutes, every first message — 2026-10-12).
+      body: JSON.stringify({ model: OLLAMA_EMBED_MODEL, input: text, keep_alive: -1, options: { num_gpu: 0 } }),
     });
 
     if (!res.ok) {

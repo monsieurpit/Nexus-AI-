@@ -243,6 +243,25 @@ const AUSSIE_SWAPS: Array<[RegExp, string]> = [
   [/^\s*innit[,\s]*/gim, ''],
   [/\b(?:ooh\s+)?pet\b(?=[,.!?]|\s*$)/gi, 'mate'],
 ];
+// The same insult every reply ("shitbag" in 6 of 7 replies to one person, 2026-10-12): one used in his last few replies
+// is swapped for another Aussie one.
+const INSULT_POOL = ['drongo', 'galah', 'flog', 'dropkick', 'muppet', 'knob', 'wanker', 'goose', 'clown', 'bogan', 'dickhead', 'shitbag', 'prick', 'numpty'];
+export function varyInsults(text: string, recent: string[]): string {
+  const lastFew = recent.slice(-4).join(' ').toLowerCase();
+  const usedNow = new Set<string>();
+  return text.replace(/\b(shitbag|dickhead|prick|drongo|galah|flog|dropkick|muppet|knob|wanker|goose|bogan|numpty)\b/gi, (m) => {
+    const w = m.toLowerCase();
+    if (!new RegExp(`\\b${w}\\b`).test(lastFew) && !usedNow.has(w)) {
+      usedNow.add(w);
+      return m;
+    }
+    const pick = INSULT_POOL.filter((x) => !new RegExp(`\\b${x}\\b`).test(lastFew) && !usedNow.has(x) && x !== w);
+    const to = pick.length ? pick[Math.floor(Math.random() * pick.length)] : m;
+    usedNow.add(to);
+    return to;
+  });
+}
+
 export function aussify(text: string): string {
   return text
     .split(/(```[\s\S]*?(?:```|$))/)
@@ -1261,7 +1280,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (!/```/.test(content)) content = plainMaths(content);
   // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
   if (!formal) content = uncensorSwears(content);
-  if (lang === 'en') content = aussify(content);
+  if (lang === 'en') content = varyInsults(aussify(content), deps.recentLines);
   else content = capitalizeDraft(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
   else content = stripBannedEmojiOutsideCode(content);

@@ -46,7 +46,7 @@ const FACTS: Fact[] = [
 ];
 
 // "tell me about yourself", "who are you", "introduce yourself": the short version.
-const ABOUT_YOU_RE = /\b(?:tell\s+(?:me|us)\s+about\s+(?:yourself|urself|you)|who\s+(?:are|r)\s+(?:you|u)|introduce\s+(?:yourself|urself)|describe\s+(?:yourself|urself)|ur\s+life\s+story|your\s+life\s+story)\b/i;
+const ABOUT_YOU_RE = /\b(?:(?:your|ur)\s+(?:full\s+)?(?:identity|bio|backstory|life\s+story|whole\s+story)|who\s+(?:are|r)\s+(?:you|u)\s+(?:exactly|really|actually)|tell\s+(?:me|us)\s+about\s+(?:yourself|urself|you)|who\s+(?:are|r)\s+(?:you|u)|introduce\s+(?:yourself|urself)|describe\s+(?:yourself|urself)|ur\s+life\s+story|your\s+life\s+story)\b/i;
 
 // Only about HIM: "your", "you", "nexus" — not "what's MY name" or "where are YOU from" about someone else.
 const ABOUT_HIM_RE = /\b(?:you|u|ur|your|yours|yourself|urself|nexus|nex)\b/i;

@@ -192,7 +192,11 @@ function stripFillers(city: string): string {
 // "weather rn?", "weather?", "weather now" (2026-10-11: missed, so the website's shared location was never used).
 const SHORT_WEATHER_RE = /^\s*(?:(?:hey\s+)?nexus[\s,]*)?(?:the\s+|what'?s\s+the\s+|how'?s\s+the\s+)?weather(?:\s+(?:rn|now|right\s+now|today|tonight|outside|here|like|looking|update))*\s*[?!.]*\s*$|\bweather\s+(?:rn|right\s+now|outside|here)\b/i;
 const ONLY_TIME_WORD_RE = /^(?:today|tonight|tomorrow|tmrw|tmr|now|rn|right\s+now|this\s+week(?:end)?|the\s+week(?:end)?|next\s+week|later|the\s+day|demain|aujourd'?hui|ce\s+soir|cette\s+semaine)$/i;
-export function detectWeatherIntent(prompt: string): { city: string | null } | null {
+// Typos ("what's the whether in Quebec City?" got a chat reply, 2026-10-12): "whether" only counts after "the"/"'s"
+// or before "in/for/today…", so "whether or not" stays a normal word.
+const WEATHER_TYPO_RE = /(?<=\b(?:the|s)\s+)(?:whether|wether|weathr|wheather|weahter|wheater|waether)\b|\b(?:whether|wether|weathr|wheather|weahter|wheater|waether)(?=\s+(?:in|for|at|today|tonight|tomorrow|tmrw|like|rn|now|this\s+week))/gi;
+export function detectWeatherIntent(rawPrompt: string): { city: string | null } | null {
+  const prompt = rawPrompt.replace(WEATHER_TYPO_RE, 'weather');
   if (!WEATHER_REGEX.test(prompt) && !SHORT_WEATHER_RE.test(prompt)) return null;
   // A your-mum joke that mentions weather ("ta mère est tellement grosse qu'elle a sa propre météo") is a roast (2026-10-12).
   if (/(?<![\p{L}])(?:(?:your|ur|yo)\s+(?:mom|mum|mother|mama|momma)|ta\s+(?:mère|mere|môman|moman)|twoja\s+(?:stara|matka|mama)|deine\s+(?:mutter|mudda|mama))(?![\p{L}])/iu.test(prompt)) return null;
