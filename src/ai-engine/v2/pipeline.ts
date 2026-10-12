@@ -571,9 +571,15 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const sayWhat = sayRequest(prompt);
       if (sayWhat) hints.push(`They want you to SAY exactly: "${sayWhat}". Your reply MUST contain those exact words, word for word (it's a joke, play along), then at most a few words of reaction.`);
       const knowThem = settings?.personal?.summary ? `What you know about this person from past chats (let it colour your reply naturally — their interests, how they talk, running jokes; never recite it):\n${settings.personal.summary}\n` : '';
+      // A short answer to his last line ("yes you are" after "fuck u im a boy") only makes sense with that line: a 4B
+      // model reading the whole thread still missed it (2026-10-12), so it's spelled out.
+      const lastMine = (deps.threadText.trim().split('\n').pop() || '').match(/^You:\s*(.+)$/)?.[1];
+      const insists = /^(?:(?:yes|yeah|yea|ye|yep|yh|nah|no)\s+)?(?:fr\s+|deadass\s+)?(?:you|u|ya)\s*(?:are|r|is|do|did|can|have|were|was)\b(?:\s+(?:tho|though|bro|bruh|fr|lol|lmao|one|it|deadass))*\s*[!?.😭💀]*$/i.test(s.replace(/\bnexus\b,?\s*/i, ''));
+      const denied = Boolean(lastMine && /\b(?:nah|no|nope|not|never|ain'?t|isn'?t|aren'?t|don'?t|dont|fuck\s+(?:u|you|off)|i'?m\s+(?:just\s+)?a\s+(?:\w+\s+){0,2}(?:boy|b[wo]?oi+|lad|man|bloke))\b/i.test(lastMine));
+      const replyCtx = lastMine && insists && denied ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }
