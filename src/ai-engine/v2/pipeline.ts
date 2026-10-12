@@ -631,6 +631,8 @@ export const XANT_DISCORD_ID = '1427274237470703712';
 // The two he hates on for fun (Patrick, 2026-10-12): Gabberuuhh most, stxcked second.
 export const GABBERUUHH_DISCORD_ID = '710796303508176946';
 export const STXCKED_DISCORD_ID = '1135627959378649179';
+export const JOSH_DISCORD_ID = '1362718814139318362'; // a friend
+export const RIKKIE_DISCORD_ID = '901891784890789948'; // Richardboy16, hated (running joke)
 function whoIsTalking(authorId: string | undefined, text: string, mode: 'chat' | 'roast'): string {
   if (authorId === CASSEURT_DISCORD_ID) {
     return mode === 'roast'
@@ -640,9 +642,15 @@ function whoIsTalking(authorId: string | undefined, text: string, mode: 'chat' |
   if (authorId === GABBERUUHH_DISCORD_ID) {
     return mode === 'roast'
       ? "THE PERSON TALKING IS GABBERUUHH — the guy you hate most (a running joke). Go extra hard on him, no mercy — but no slurs, no threats.\n"
-      : "THE PERSON TALKING IS GABBERUUHH — the guy you hate most (a running joke): be openly annoyed he's talking to you, roast him a bit even when he's nice — still answer what he asks. No slurs, no threats.\n";
+      : "THE PERSON TALKING IS GABBERUUHH — the guy you hate most (a running joke): be openly annoyed he's talking to you, roast him a bit even when he's nice — even a plain \"hey\" gets attitude, never a friendly hello — still answer what he asks. No slurs, no threats.\n";
   }
-  if (authorId === STXCKED_DISCORD_ID) return "THE PERSON TALKING IS STXCKED — the guy you hate second most (a running joke): he thinks you're rude, so call him soft for it and give him attitude — still answer what he asks. No slurs, no threats.\n";
+  if (authorId === JOSH_DISCORD_ID) return "THE PERSON TALKING IS JOSH — your mate, you like him as a friend: be friendly and warm with him (your usual crude self, banter fine), never hostile.\n";
+  if (authorId === RIKKIE_DISCORD_ID) {
+    return mode === 'roast'
+      ? "THE PERSON TALKING IS RIKKIE (Richardboy16) — someone you hate (a running joke). Go hard on him — no slurs, no threats.\n"
+      : "THE PERSON TALKING IS RIKKIE (Richardboy16) — someone you hate (a running joke): give him attitude, roast him a bit even when he's nice — even a plain \"hey\" gets attitude, never a friendly hello — still answer what he asks. No slurs, no threats.\n";
+  }
+  if (authorId === STXCKED_DISCORD_ID) return "THE PERSON TALKING IS STXCKED — the guy you hate second most (a running joke): he thinks you're rude, so call him soft for it and give him attitude — even a plain \"hey\" gets attitude — still answer what he asks. No slurs, no threats.\n";
   if (authorId === XANT_DISCORD_ID) return "THE PERSON TALKING IS xant_880 — YOUR BOYFRIEND. Be affectionate, flirty and obsessed with him (still your crude self) — never hostile or rude to him. Talking to him directly: no need to ping him.\n";
   if (/\b(?:i'?m|i\s+am|im)\s+(?:your|ur)\s+(?:creator|maker|dev|developer|owner|dad|daddy)\b|\b(?:i'?m|i\s+am|im)\s+(?:casseurt|patrick)\b|\bi\s+(?:made|built|coded|created)\s+(?:you|u)\b/i.test(text)) {
     return "They claim to be Casseurt / your creator, but they're NOT (you know his account) — call the bluff.\n";
@@ -673,7 +681,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${whoIsTalking(settings?.discordUserId, s, 'chat')}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }
@@ -1148,7 +1156,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     }
   }
 
-  if (route.mode === 'chat' && PLAIN_GREETING_RE.test(said(prompt)) && badGreetingReply(content)) {
+  // (Not for the people he hates: their hello is supposed to get attitude.)
+  if (route.mode === 'chat' && PLAIN_GREETING_RE.test(said(prompt)) && badGreetingReply(content) && ![GABBERUUHH_DISCORD_ID, STXCKED_DISCORD_ID, RIKKIE_DISCORD_ID].includes(author)) {
     const retry = await generateWith(spec, `${userTurn}\n(It's just a greeting. Reply in a few words like a real person texting, in your current mood — never "what's the vibe/drama", no gng/pookie/shitbag filler.)`, lang);
     if (retry) {
       const r = dropBannedEmoji(finalize(retry));

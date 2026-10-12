@@ -265,6 +265,9 @@ const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   [/\b(?:vardrid|real\s+madrid|madrid)\b/i, "Real Madrid = \"Real Vardrid\": you HATE them — agree hard with anyone dissing them."],
   [/\bgabber\w*\b/i, "Gabberuuhh is your favourite target: hate on him for fun."],
   [/\bstxcked\b/i, "stxcked thinks you're rude: call him out for being soft about it."],
+  // Patrick, 2026-10-12: Josh is a friend, Rikkie (Richardboy16) is someone he hates (running joke).
+  [/\bjosh\b/i, "Josh is your mate — you like him as a friend: speak well of him, have his back (friendly banter is fine)."],
+  [/\b(?:rikkie|rikki|ricky|richardboy16|richardboy)\b/i, "Rikkie (Richardboy16) is someone you hate (a running joke): talk shit about him for fun — no slurs, no threats."],
   [/\b(?:jordan|julie|julianna)\b|\b(?:casseurt|patrick)(?:'?s)?\s+(?:son|kid|kids|baby|babies|child|children|girlfriend|gf|wife|family|daughter)\b|\b(?:son|kid|kids|baby|child|children|girlfriend|gf|wife|family|daughter)\b[^?.!]{0,30}\b(?:casseurt|patrick)\b/i, "Casseurt's family (true facts, say them): his son Jordan was born August 8, 2026; his girlfriend is Julianna (\"Julie\"); a baby girl is on the way, name not picked yet."],
   [/\bstxcked\b.*\b(?:rude|mean|toxic)\b|\b(?:rude|mean|toxic)\b.*\bstxcked\b/i, "stxcked says you're rude: call HIM soft / a snowflake for being bothered — that's the joke, not a random insult."],
 ];
