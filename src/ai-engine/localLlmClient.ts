@@ -169,7 +169,10 @@ export function getGamingMode(): { active: boolean; until: number | null } {
 }
 
 function keepAliveFor(model: string | undefined): string | number {
-  if (model && model === OLLAMA_VISION_MODEL) return '90s';
+  // The vision model (qwen3-vl:2b-instruct, 1.8 GB since 2026-10-11) fits in memory next to the chat model, so it stays
+  // loaded and an image no longer swaps models (was: qwen2.5vl:3b, too big — it pushed the chat model out, ~6 s reload
+  // + ~5 s of vision load on every image). Gaming mode still frees it quickly.
+  if (model && model === OLLAMA_VISION_MODEL) return getGamingMode().active ? '90s' : normalKeepAlive();
   if (getGamingMode().active) return GAMING_KEEP_ALIVE;
   return normalKeepAlive();
 }
@@ -1262,7 +1265,7 @@ export async function generateStream(
 // roughly 1s per image once warm. Still small enough for this 16GB host (similar footprint to the
 // main chat model) — this isn't a "go bigger" tradeoff, it's a strictly better model at a similar
 // size.
-const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'qwen2.5vl:3b';
+const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'nexus-image:2b'; // = qwen3-vl:2b-instruct, renamed (ollama cp)
 
 // Exposed the same way chatModel() already exposes the text model — server.ts's vision endpoints
 // used to hardcode the literal string 'moondream' directly into their own API responses, which
@@ -1341,7 +1344,8 @@ async function generateVisionOnce(
         messages: [{ role: 'user', content: prompt, images: [imageBase64] }],
         stream: false,
         keep_alive: keepAliveFor(OLLAMA_VISION_MODEL),
-        options: { temperature: 0.3, num_predict: 300 },
+        // num_ctx fixed: a different context size makes Ollama reload the model (and evict something else).
+        options: { temperature: 0.3, num_predict: 300, num_ctx: 4096 },
       }),
     });
 
@@ -1412,7 +1416,10 @@ export async function embed(text: string, options: { timeoutMs?: number } = {}):
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
-      body: JSON.stringify({ model: OLLAMA_EMBED_MODEL, input: text }),
+      // On the CPU (num_gpu 0): ~0.07 s for a message, and it keeps the GPU budget (~11.5 GB on a 16 GB Mac) for the chat
+      // model + the image model, which then both stay loaded (2026-10-11 — with bge-m3 on the GPU too, the chat model
+      // got evicted whenever it grew a little).
+      body: JSON.stringify({ model: OLLAMA_EMBED_MODEL, input: text, options: { num_gpu: 0 } }),
     });
 
     if (!res.ok) {

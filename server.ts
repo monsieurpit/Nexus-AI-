@@ -1603,7 +1603,7 @@ app.post('/api/v1/nexus', async (req, res) => {
         const imgBytes = Math.round((imagePart.inlineData.data.length * 3) / 4);
         mediaSteps.push({
           type: 'verification',
-          title: '🖼️ Image read by the vision model (qwen2.5vl:3b)',
+          title: `🖼️ Image read by the vision model (${localLlmVisionModel()})`,
           description: visionResult.status === 'success'
             ? `Image: ${imagePart.inlineData.mimeType}, ${(imgBytes / 1024).toFixed(0)} KB.${userText ? ` Their question was sent with it: "${userText.slice(0, 160)}".` : ''}\n\nWhat the vision model saw:\n${visionResult.text}`
             : `The vision model could not read the image (${(visionResult as any).reason || 'error'}).`,
@@ -1623,7 +1623,7 @@ app.post('/api/v1/nexus', async (req, res) => {
           const m = analysis.meta;
           const tags = Object.entries(m.tags).map(([k, v]) => `${k}: ${v}`).join(', ');
           mediaSteps.push({ type: 'verification', title: '🎬 Video metadata (ffmpeg)', description: `Length ${Math.floor((m.durationSec || 0) / 60)}:${String(Math.floor((m.durationSec || 0) % 60)).padStart(2, '0')} · ${m.width}x${m.height}${m.fps ? ` · ${m.fps} fps` : ''} · codec ${m.videoCodec || '?'} · ${m.hasAudio ? 'with sound' : 'no sound'} · ${m.sizeMb} MB${tags ? `\nTags: ${tags}` : ''}`, data: m, durationMs: t.metadata });
-          mediaSteps.push({ type: 'verification', title: '🎞️ 12 frames read by the vision model (qwen2.5vl:3b)', description: `Frames taken at ${analysis.frameTimes?.join(', ')} in two 3x2 collages (first half, second half).\n\nWhat the vision model saw:\n${analysis.seen}`, durationMs: (t.vision ?? 0) - (t.frames ?? 0) });
+          mediaSteps.push({ type: 'verification', title: `🎞️ 12 frames read by the vision model (${localLlmVisionModel()})`, description: `Frames taken at ${analysis.frameTimes?.join(', ')} in two 3x2 collages (first half, second half).\n\nWhat the vision model saw:\n${analysis.seen}`, durationMs: (t.vision ?? 0) - (t.frames ?? 0) });
           mediaSteps.push({ type: 'verification', title: `🗣️ Speech transcript (Whisper small, MLX)${analysis.transcriptLanguage ? ` — ${analysis.transcriptLanguage}` : ''}`, description: analysis.transcript || '(no sound)', durationMs: t.transcript ? t.transcript - (t.frames ?? 0) : undefined });
           mediaSteps.push({ type: 'reasoning', title: '⏱️ Video analysis timings', description: `Download ${t.download} ms → metadata ${t.metadata} ms → frames ${t.frames} ms → transcript ${t.transcript ?? '—'} ms and vision ${t.vision} ms (in parallel) → total ${t.total} ms.`, data: t, durationMs: t.total });
         } else {
@@ -3145,6 +3145,12 @@ async function startServer() {
         const voices = loadLearnedVoiceExamples();
         startLearningWorker();
         startMemoryWorker();
+        // Warm the vision model a minute after start (it stays loaded next to the chat model), so the first image
+        // someone sends doesn't pay the load (2026-10-11).
+        setTimeout(() => {
+          const tinyPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+          generateVision(tinyPng, 'ok', { timeoutMs: 60000 }).then((r) => console.log(`[vision] warm-up ${r.status === 'success' ? 'done' : `failed (${(r as any).reason})`} — ${localLlmVisionModel()} stays loaded`)).catch(() => {});
+        }, 60_000).unref?.();
         console.log(`[learning] on — ${loaded} learned fact(s), ${voices} learned voice example(s) loaded, worker started`);
       } catch (err) {
         console.warn('[learning] failed to start, continuing without it:', err);
