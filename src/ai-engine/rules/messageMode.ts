@@ -197,6 +197,8 @@ export function __resetRepliesForTests(): void {
 // These hints tell it what the message MEANS; the model still writes every reply itself (no canned answers).
 export const SAD_RE = /\b(?:i'?m|im|i\s+am|i\s+feel|feeling|been)\s+(?:so\s+|really\s+|kinda\s+|very\s+)?(?:sad|depressed|lonely|down|upset|hurt|heartbroken|stressed|anxious|miserable|broken|empty|alone)\b|\b(?:bad|horrible|terrible|awful|shit)\s+day\b|\bi\s+(?:want\s+to|wanna)\s+cry\b|\b(?:my|our)\s+(?:dog|cat|grandma|grandpa|mom|mum|dad|friend)\s+(?:died|passed)\b/i;
 
+// A claimed fact about the world ("bro the eiffel tower is in berlin now"), not about themselves.
+export const FACT_CLAIM_RE = /^(?:(?:bro|yo|nah|ngl|fun\s+fact|did\s+(?:you|u)\s+know(?:\s+that)?)[\s,:]+)*(?:the\s+)?(?!(?:i|im|i'm|you|u|ur|my|your|he|she|we|they|it|this|that)\b)[a-zà-ÿ][\w\s'-]{1,30}?\s+(?:is|are|was|were)\s+(?:now\s+|actually\s+|apparently\s+)?(?:in|from|located\s+in|built\s+in|the\s+capital\s+of|bigger\s+than|older\s+than|taller\s+than)\s+[\w\s'-]{2,30}?(?:\s+now)?\s*[.!?😭💀]*$/i;
 const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   // German slang (2026-10-05, for a German member). The reply itself is in German (see the language note).
   [/\b(?:digga|diggi|alter|bruder|bro)\b.*\b(?:was\s+geht|wie\s+geht'?s)\b|^was\s+geht\b/i, "German \"was geht (ab)\" = what's up: answer like a mate in casual German (what you're doing, then bounce it back)."],
@@ -238,6 +240,9 @@ const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   [/^(?:yo\s+|bro\s+)?(?:nexus\s*,?\s*)?did\s+(?:you|u|ya)\s+know\s+(?:that\s+)?(?!(?:who|what|when|where|why|how|which)\b)\w|^(?:fun\s+fact|fact)\s*:/i, "They're TELLING you a fact (\"did you know that...\"), not asking: react to THAT fact in a few words (impressed, surprised, or a quick take) — never \"what do you want\"."],
   [/\bverity\b/i, "\"Verity\" = the Minecraft meme guy who is always right. \"Are you Verity?\" = are you always right: answer cocky (yeah, you're always right)."],
   [/\b(?:you['’]?re|your|ur|you\s+are|u\s+r|u\s+are|yo\s+u)\s+(?:a|an|such\s+a)\s+(?!legend|goat|king|queen|icon|god|w\b|real\s+one|good|great|cool|funny|genius|beast|menace|boy|lad|man)(?:\w+\s+){0,2}?(pickle|potato|tomato|banana|carrot|toaster|fridge|chair|table|rock|brick|cucumber|sandwich|burger|nugget|dog|cat|cow|pig|goat\s+herder|monkey|rat|fish|frog|robot|bot|npc|calculator|microwave|object|thing|it)\b/i, (m) => `They called you a ${m[1]}: tell them FUCK YOU and that you're a boy, not a ${m[1]} — both parts, short ("fuck you im a boy" energy, your own words).`],
+  // A claimed fact about the world ("bro the eiffel tower is in berlin now"): he denied it ("total bollocks") without
+  // the real fact (2026-10-12 gate).
+  [FACT_CLAIM_RE, "They're stating a fact. If it's WRONG, say so AND give the real fact in a few words (where it really is / what's really true). If it's right, agree with attitude."],
   // Things they tell you about themselves must be taken in (2026-10-12 gate: "pls its my bday soon" → "hope ur day is
   // good", "remember my name is Andrzej" → "nah ur name means shit").
   [/\b(?:b-?day|birthday|bday)\b/i, "It's about their BIRTHDAY: wish them a happy (early) birthday, your own words — don't skip it."],

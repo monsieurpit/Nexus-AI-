@@ -7,7 +7,7 @@ import * as localLlmClient from '../localLlmClient';
 import type { AISettings, ThoughtStep } from '../../types';
 import { routeMessage, type Route } from './router';
 import { SPECIALISTS, VIDEO_SUBS, type Specialist, type SpecialistId, type VideoKind } from './specialists';
-import { chatMeaningHints, isRepeat, isEchoReply, SAD_RE, overusedPhrases } from '../rules/messageMode';
+import { chatMeaningHints, isRepeat, isEchoReply, SAD_RE, overusedPhrases, FACT_CLAIM_RE } from '../rules/messageMode';
 import { finalizeSpecialistReply, hasContextLeak, stripCrudeAside } from '../rules/postProcess';
 import { isFormalDraftRequest, buildMoodUserPreamble } from '../rules/promptBuilder';
 import { containsSlurOrHateSpeech } from '../swearEngine';
@@ -1093,12 +1093,14 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   }
   // They told him something and the reply skipped it (the birthday, their name, what's in the image): one more try.
   if (route.mode === 'chat' || route.mode === 'roast') {
-    const missed = missedTheirPoint(said(text || ''), kind === 'video' ? null : image, content);
+    // A wrong "fact" only denied ("total bollocks mate") without the real one.
+    const bareDenial = route.mode === 'chat' && FACT_CLAIM_RE.test(said(text || '')) && /\b(?:nah|no|bollocks|cap|wrong|lie|bs|bullshit|fake|no\s+way)\b/i.test(content) && content.split(/\s+/).length <= 6;
+    const missed = bareDenial ? 'You said it\'s wrong — now also give the REAL fact in a few words (where it really is / what\'s true).' : missedTheirPoint(said(text || ''), kind === 'video' ? null : image, content);
     if (missed) {
       const retry = await generateWith(spec, `${userTurn}\n(Your first try ignored what they told you. ${missed})`, lang);
       if (retry) {
         const r = dropBannedEmoji(finalize(retry));
-        if (!missedTheirPoint(said(text || ''), kind === 'video' ? null : image, r)) content = r;
+        if (bareDenial ? r.split(/\s+/).length > content.split(/\s+/).length : !missedTheirPoint(said(text || ''), kind === 'video' ? null : image, r)) content = r;
       }
     }
   }

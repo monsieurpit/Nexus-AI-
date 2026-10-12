@@ -338,6 +338,10 @@ export const REGRESSIONS: EvalCase[] = [
   { msg: 'pls its my bday soon fr fr', mode: 'chat', runs: 3, must: [/\b(?:b-?day|birthday|hbd|happy)\b/i] },
   { msg: 'remember my name is Andrzej', mode: 'chat', runs: 3, must: [/andrzej/i] },
   { msg: 'React to this image: A cat wearing sunglasses sitting on a skateboard.', mode: 'chat', runs: 3, must: [/cat|sunglasses|shades|skate/i] },
+  // a wrong fact gets the real one, a right one isn't denied
+  { msg: 'bro the eiffel tower is in berlin now', mode: 'chat', runs: 3, must: [/paris/i] },
+  { msg: 'paris is the capital of germany', mode: 'chat', alt: ['question'], runs: 2, must: [/berlin|france/i] },
+  { msg: 'messi is from argentina', mode: 'chat', runs: 2, mustNot: [/\b(?:cap|bollocks|wrong|lie|fake)\b|\bnah\b(?![^.]*\bdoubt\b)/i] },
   // Portuguese post reviewed in French
   { msg: 'partnership\n\n# ___CONFEDERAÇÃO BRASILEIRA DE BROOKHAVEN___\nServidor brasileiro de Brookhaven com eventos, sorteios e uma comunidade ativa. Mais de 3.500 membros! Venha participar da nossa família.', mode: 'helper', mustNot: [/\b(?:pis|ton serveur|t'as|c'est)\b/i] },
 ];
