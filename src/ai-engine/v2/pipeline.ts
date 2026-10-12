@@ -688,9 +688,6 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
 // ---- generation -----------------------------------------------------------------------------------
 
 let lastFailure = '';
-// A bad mood is never taken out on someone being friendly (2026-10-11: angry mood after a day of roasts → "hello" got
-// "fuck off mate what do u even want"). Set per request in runV2.
-let friendlyMessage = false;
 export const FRIENDLY_RE = /^(?:(?:hello+|hi+|hey+|heya|hiya|yo+|sup|wsg|wsp|wassup|what'?s\s+up|gm|good\s+(?:morning|evening|night)|morning|evening|gn|night|bye|later|cya|thanks|thank\s+(?:you|u)|ty|thx)(?:[\s,!]+(?:my\s+)?(?:nexus|bro|bruh|man|mate|gng|dawg|pookie|asshole|arsehole|bitch|dickhead|prick|dumbass|twat|muppet|loser|idiot|fucker|bozo))?[\s!.?😭💀❤️🫶]*$|.*\b(?:ur|you'?re|you\s+are)\s+(?:a\s+|the\s+|so\s+)?(?:legend|goat|best|funny|king|cool|awesome|amazing|goated|him|the\s+man)\b.*|.*\bi\s+(?:love|luv)\s+(?:you|u|ya)\b.*|^w\s+nexus\b.*)$/i;
 async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en'): Promise<string | null> {
   lastFailure = '';
@@ -708,7 +705,7 @@ async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en
     maxTokens: spec.maxTokens + (spec.think ? (spec.id === 'maths' ? 1400 : 800) : 0),
     think: spec.think,
     model: localLlmClient.chatModel(),
-    userPreamble: spec.moodPreamble && !friendlyMessage ? buildMoodUserPreamble(false, lang === 'pl', lang === 'fr') : undefined,
+    userPreamble: spec.moodPreamble ? buildMoodUserPreamble(false, lang === 'pl', lang === 'fr') : undefined,
   };
   let res: any = await localLlmClient.generate(userTurn, options as any);
   // Thinking ran out of room / sampling fluke: once more without thinking.
@@ -810,7 +807,8 @@ export function plainMaths(text: string): string {
 export const PLAIN_GREETING_RE = /^(?:hello+|hi+|hey+|heya|hiya|yo+|sup|wsg|wsp|wassup|whats\s+up|what'?s\s+up|gm|good\s+(?:morning|evening)|morning|evening)[\s!.?]*$/i;
 const AI_GREETING_RE = /\bwhat'?s\s+the\s+(?:vibe|vibes|drama|word|move|tea)\b|\bwhat\s+u\s+at\b|\bhow'?s\s+the\s+shit\b|\bwhat'?s\s+good\s+in\s+the\s+hood\b|\bpookie\b|\bshitbag\b|\bgng\b|\bfam\b/i;
 export function badGreetingReply(reply: string): boolean {
-  return AI_GREETING_RE.test(reply) || reply.split(/\s+/).filter(Boolean).length > 5;
+  // Only the assistant-sounding greetings; a grumpy "fuck off mate what do u even want" in a bad mood is fine (Patrick).
+  return AI_GREETING_RE.test(reply) || reply.split(/\s+/).filter(Boolean).length > 9;
 }
 
 // Parrots (2026-10-11, Patrick: "he doesn't know when a user has been repeating what Nexus says for like 5 times,
@@ -842,7 +840,6 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const prompt = text || (image ? 'look at this' : rawPrompt);
   const lang = langOf(text || rawPrompt);
   const tStart = Date.now();
-  friendlyMessage = FRIENDLY_RE.test(said(text || ''));
   let route = await routeMessage(prompt);
   const tRouted = Date.now();
   // A video always goes to the video specialist, which picks its sub-persona from the video itself.
@@ -962,7 +959,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   }
 
   if (route.mode === 'chat' && PLAIN_GREETING_RE.test(said(prompt)) && badGreetingReply(content)) {
-    const retry = await generateWith(spec, `${userTurn}\n(It's just a greeting. Reply in 1-4 words like a real person texting: e.g. "hey", "hello hru", "yo wyd", "sup". Nothing else.)`, lang);
+    const retry = await generateWith(spec, `${userTurn}\n(It's just a greeting. Reply in a few words like a real person texting, in your current mood — never "what's the vibe/drama", no gng/pookie/shitbag filler.)`, lang);
     if (retry) {
       const r = dropBannedEmoji(finalize(retry));
       if (!badGreetingReply(r)) content = r;
