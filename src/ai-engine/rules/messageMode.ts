@@ -280,10 +280,19 @@ export function chatMeaningHints(raw: string): string[] {
 // "lazy?" / "a clone?" — replying with their own words as a question.
 export function isEchoReply(reply: string, prompt: string): boolean {
   const strip = (s: string) => s.toLowerCase().replace(/\b(?:shit|damn|goddamn|hell|fuck(?:ing)?|bro|fam|bruh|lol|lmao|nexus|ugh|meh|oh|ah|aw|wait|yep|yeah)\b/g, ' ').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
-  const r = strip(reply);
-  if (r.length === 0 || r.length > 4) return false;
-  const p = new Set(strip(prompt));
-  return r.every((w) => p.has(w) || ['a', 'an', 'the', 'u', 'you'].includes(w));
+  // Short slang is normalised ("gn" = goodnight) and "alr bet / ok sure" openers don't count, so "alr bet, i will gn this
+  // shitbag" back to "I will goodnight this shitbag" is caught (2026-10-12, live).
+  const SHORT: Record<string, string> = { gn: 'goodnight', gm: 'goodmorning', ur: 'your', im: 'i', ima: 'i', imma: 'i', gonna: 'will', wanna: 'want', u: 'you', ya: 'you' };
+  const OPENERS = new Set(['alr', 'alright', 'aight', 'ight', 'bet', 'ok', 'okay', 'kk', 'sure', 'fine', 'mate', 'bruv', 'fr', 'ngl', 'tbh', 'then', 'and', 'so']);
+  const norm = (s: string) => strip(s).map((w) => SHORT[w] || w);
+  const r = norm(reply).filter((w) => !OPENERS.has(w));
+  if (r.length === 0) return false;
+  const p = new Set(norm(prompt));
+  const fillers = ['a', 'an', 'the', 'you'];
+  if (r.length <= 4) return r.every((w) => p.has(w) || fillers.includes(w));
+  // Longer: nearly every word is theirs (their sentence handed back with a word or two changed).
+  if (r.length > 12) return false;
+  return r.filter((w) => p.has(w) || fillers.includes(w)).length / r.length >= 0.85;
 }
 
 // A chat-looking message that is really about a topic the corpus knows ("which engine do you start first on an a320")
