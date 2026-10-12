@@ -20,7 +20,7 @@ import { formatNameList, nameIdeasBlock } from './names';
 import { pickBestComeback } from './roast';
 import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
-import { binaryNote, expectedBinary, fixBinary, numberConversionNote } from './binary';
+import { binaryNote, binaryProgramBlock, binaryProgramNote, expectedBinary, fixBinary, numberConversionNote, pickBinaryProgram } from './binary';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
@@ -916,7 +916,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // In code mode the binary note only applies to binary itself ("write hello world in binary"), not to programs.
   const binary = route.mode === 'code' && detectCodeLang(text || '') !== 'binary' ? null : binaryNote(text || '');
   const numbers = numberConversionNote(text || '');
-  const userTurn = `${parrotNote}${binary || ''}${numbers || ''}${imageBlock}${built.text}${langNote}`;
+  const program = pickBinaryProgram(text || '');
+  const userTurn = `${parrotNote}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${built.text}${langNote}`;
   const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt) && !casualServerDraft(prompt);
   const finalize = (t: string) => {
@@ -987,7 +988,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     }
   }
   // A binary question answered with a program nobody asked for ("how do i code in binary" → a Python script): redone once.
-  if (route.mode === 'code' && detectCodeLang(text || '') === 'binary' && !/\b(?:function|script|program\s+(?:in|that)|in\s+(?:python|javascript|js|java|c\+\+|c#|rust|go|lua)|code\s+that|write\s+(?:me\s+)?(?:a|some)\s+code)\b/i.test(text || '') && /```(?:python|py|js|javascript|ts|typescript|java|c\+\+|cpp|c|cs|csharp|rust|go|lua)\b/i.test(content)) {
+  if (!program && route.mode === 'code' && detectCodeLang(text || '') === 'binary' && !/\b(?:function|script|program\s+(?:in|that)|in\s+(?:python|javascript|js|java|c\+\+|c#|rust|go|lua)|code\s+that|write\s+(?:me\s+)?(?:a|some)\s+code)\b/i.test(text || '') && /```(?:python|py|js|javascript|ts|typescript|java|c\+\+|cpp|c|cs|csharp|rust|go|lua)\b/i.test(content)) {
     const retry = await generateWith(spec, `${userTurn}\n(They did NOT ask for a program. Answer about binary itself: explain with real machine code from the REFERENCE — the bytes in hex and binary and what each instruction does — or give the binary they asked for. No Python/JS code.)`, lang);
     if (retry && !/```(?:python|py|js|javascript|ts|java|cpp|c\+\+)\b/i.test(retry)) content = finalize(retry);
   }
@@ -997,8 +998,10 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     if (retry) content = dropBannedEmoji(finalize(retry));
   }
   if (route.mode === 'search' || route.mode === 'question') content = tidyList(content);
-  const wantBinary = route.mode === 'code' && detectCodeLang(text || '') !== 'binary' ? null : expectedBinary(text || '');
+  const wantBinary = program || (route.mode === 'code' && detectCodeLang(text || '') !== 'binary') ? null : expectedBinary(text || '');
   if (wantBinary) content = fixBinary(content, wantBinary);
+  // A real program in binary: his line(s) first, then the exact binary and the breakdown (any code he wrote anyway is dropped).
+  if (program) content = `${(content.replace(/```[\s\S]*?(?:```|$)/g, '').replace(/\b[01]{8,}\b[\s01]*/g, '').trim().split('\n')[0] || '').trim()}\n${binaryProgramBlock(program, /\b(?:spaces?|spaced|bytes?|grouped|readable)\b/i.test(text || '')).replace(/^-# /gm, settings.serverContext ? '-# ' : '')}`;
   if (!/```/.test(content)) content = plainMaths(content);
   // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
   if (!formal) content = uncensorSwears(content);

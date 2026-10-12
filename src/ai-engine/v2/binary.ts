@@ -76,3 +76,61 @@ export function numberConversionNote(message: string): string | null {
   }
   return null;
 }
+
+// ── Real programs in binary (2026-10-11, Patrick: "can he write a full example of binary code, like 0100100001111100..."). ──
+// A 4B model can't invent valid machine code, so these are real x86-64 Linux programs whose bytes were produced by an
+// assembler (clang -target x86_64-linux-gnu, checked with objdump). Nexus writes a line or two; the exact binary and the
+// per-instruction breakdown are added by the code, never typed by the model.
+interface BinaryProgram { name: string; what: string; re: RegExp; parts: Array<[string, string]> } // [hex bytes, meaning]
+const PROGRAMS: BinaryProgram[] = [
+  {
+    name: 'Hello World', what: 'prints "Hello, world" and exits (x86-64 Linux, 46 bytes)', re: /\bhello\b|\bprint|\bdefault\b/i,
+    parts: [
+      ['b8 01 00 00 00', 'mov eax, 1 — system call 1 = write'],
+      ['bf 01 00 00 00', 'mov edi, 1 — to file 1 = the screen (stdout)'],
+      ['48 8d 35 10 00 00 00', 'lea rsi, [msg] — where the text is (16 bytes further)'],
+      ['ba 0d 00 00 00', 'mov edx, 13 — 13 characters'],
+      ['0f 05', 'syscall — the OS prints it'],
+      ['b8 3c 00 00 00', 'mov eax, 60 — system call 60 = exit'],
+      ['31 ff', 'xor edi, edi — exit code 0'],
+      ['0f 05', 'syscall — the program ends'],
+      ['48 65 6c 6c 6f 2c 20 77 6f 72 6c 64 0a', 'the text "Hello, world" + newline (ASCII)'],
+    ],
+  },
+  {
+    name: 'Exit with 42', what: 'ends right away with exit code 42 (x86-64 Linux, 12 bytes)', re: /\b42\b|\bexit\s+code\b/i,
+    parts: [['b8 3c 00 00 00', 'mov eax, 60 — system call 60 = exit'], ['bf 2a 00 00 00', 'mov edi, 42 — exit code 42'], ['0f 05', 'syscall — the program ends']],
+  },
+  {
+    name: 'Add 2 + 3', what: 'adds 2 + 3 and returns the result 5 as its exit code (x86-64 Linux, 15 bytes)', re: /\badd|\bsum|\bplus|\bmath|\bcalculat/i,
+    parts: [['bf 02 00 00 00', 'mov edi, 2'], ['83 c7 03', 'add edi, 3 — edi is now 5'], ['b8 3c 00 00 00', 'mov eax, 60 — system call 60 = exit'], ['0f 05', 'syscall — exits with code 5']],
+  },
+  {
+    name: 'Count down from 10', what: 'counts a register down from 10 to 0 in a loop, then exits (x86-64 Linux, 18 bytes)', re: /\bcount|\bloop|\bcountdown/i,
+    parts: [['b9 0a 00 00 00', 'mov ecx, 10'], ['ff c9', 'dec ecx — subtract 1'], ['75 fc', 'jnz -4 — jump back to "dec" until ecx is 0'], ['b8 3c 00 00 00', 'mov eax, 60 — exit'], ['31 ff', 'xor edi, edi — exit code 0'], ['0f 05', 'syscall — the program ends']],
+  },
+  {
+    name: 'Exit', what: 'the smallest real program: exits with code 0 (x86-64 Linux, 9 bytes)', re: /\bsmallest|\bshortest|\btiny|\bsimplest|\bexit\b/i,
+    parts: [['b8 3c 00 00 00', 'mov eax, 60 — system call 60 = exit'], ['31 ff', 'xor edi, edi — exit code 0'], ['0f 05', 'syscall — the program ends']],
+  },
+];
+
+const hexToBits = (hex: string) => hex.trim().split(/\s+/).map((h) => parseInt(h, 16).toString(2).padStart(8, '0')).join(' ');
+
+// "write a full example of binary code", "show me a program in binary", "hello world in machine code" → a program.
+// (Plain "write X in binary" stays a text conversion.)
+export const BINARY_PROGRAM_RE = /\b(?:binary|machine)\s+code\b|\b(?:example|program|programme|script|app)\s+(?:of|in|written\s+in)\s+(?:binary|machine\s+code)\b|\bbinary\s+(?:program|example)\b|\bcode\s+in\s+binary\b|\b(?:0s\s+and\s+1s|zeros\s+and\s+ones)\s+(?:code|program)\b/i;
+export function pickBinaryProgram(message: string): BinaryProgram | null {
+  if (!BINARY_PROGRAM_RE.test(message) || /\b(?:how\s+(?:do|does|can)|explain|what\s+is|why)\b/i.test(message) && !/\b(?:example|write|show|give)\b/i.test(message)) return null;
+  return PROGRAMS.find((p) => p !== PROGRAMS[0] && p.re.test(message)) || PROGRAMS[0];
+}
+export function binaryProgramNote(p: BinaryProgram): string {
+  return `THEY WANT A REAL PROGRAM IN BINARY. You're giving them "${p.name}": it ${p.what}. Write ONE short line of attitude in your voice (you can name the program). Do NOT describe the instructions, and do NOT write any binary, hex or code block — the exact binary and a correct breakdown are added automatically after your line.\n`;
+}
+// The block added after his line: the whole program as one continuous string, then each instruction.
+export function binaryProgramBlock(p: BinaryProgram, spaced = false): string {
+  const all = p.parts.map(([h]) => hexToBits(h)).join(' ');
+  const continuous = spaced ? all : all.replace(/\s+/g, '');
+  const lines = p.parts.map(([h, m]) => `${hexToBits(h)}  → ${m}`);
+  return `\`\`\`text\n${continuous}\n\`\`\`\n**${p.name}, instruction by instruction:**\n\`\`\`text\n${lines.join('\n')}\n\`\`\`\n-# Real x86-64 Linux machine code (Intel/AMD). To run it, the bytes go in an ELF executable — or assemble the same instructions with nasm.`;
+}

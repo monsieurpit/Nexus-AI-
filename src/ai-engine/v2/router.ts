@@ -20,7 +20,7 @@ import { isBodyCountQuestion } from '../rules/bodyCount';
 import type { SpecialistId } from './specialists';
 import { detectCodeLang, type CodeLang } from './codeTools';
 import { classifyHit } from './roastEngine';
-import { BINARY_MESSAGE_RE } from './binary';
+import { BINARY_MESSAGE_RE, pickBinaryProgram } from './binary';
 
 export interface Route {
   mode: SpecialistId;
@@ -115,6 +115,8 @@ function byRules(text: string): Route | null {
   // "hello asshole", "gm bitch": a mate's friendly greeting with a joke insult — greet back, don't fight (Patrick, 2026-10-11).
   if (GREET_INSULT_RE.test(t)) return r('chat', 'friendly greeting with a joke insult');
   if (['swear', 'weak'].includes(classifyHit(t)) && t.length < 60) return r('roast', 'swore at you / lazy jab');
+  // A real program in binary (added by pipeline.ts from v2/binary.ts): he only writes one line, so the fast chat specialist.
+  if (pickBinaryProgram(t)) return r('chat', 'real program in binary');
   // A message written in binary is chat (decoded in pipeline.ts), not maths.
   if (BINARY_MESSAGE_RE.test(t)) return r('chat', 'message in binary');
   if (ROAST_RE.test(t) && !(TRANSLATE_WORD_RE.test(t) && /["“”'«]|\b(?:to|into|in|en)\s+(?:english|french|fran[cç]ais|anglais|polish|german|spanish|italian|portuguese)\b/i.test(t))) return r('roast', 'insult / your-mum joke / challenge');
