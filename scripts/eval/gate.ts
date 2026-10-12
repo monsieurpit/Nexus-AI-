@@ -143,7 +143,12 @@ try {
   if (chat && Number(chat.size) > 10 * 1024 ** 3) {
     await waitForIdle();
     await fetch('http://localhost:11434/api/generate', { method: 'POST', body: JSON.stringify({ model: chat.name, keep_alive: 0 }) });
-    await new Promise((r) => setTimeout(r, 3000));
+    // Wait until it's really gone (loading it again too early cancels the unload).
+    for (let k = 0; k < 20; k++) {
+      const now: any = await fetch('http://localhost:11434/api/ps').then((r) => r.json());
+      if (!(now.models || []).some((m: any) => m.name === chat.name)) break;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
     await fetch('http://localhost:11434/api/generate', { method: 'POST', body: JSON.stringify({ model: chat.name, prompt: '', keep_alive: -1, options: { num_ctx: 8192 } }) });
     console.log(`  chat model was ${(Number(chat.size) / 1024 ** 3).toFixed(1)} GB after the tests — reloaded fresh`);
   }

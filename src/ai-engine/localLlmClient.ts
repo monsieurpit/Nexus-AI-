@@ -186,23 +186,40 @@ const VISION_KEEP_ALIVE = 0;
 // took 18.6 s instead of ~2 s. Every 2 minutes: if it's over NEXUS_CHAT_MAX_GB (default 12) and nobody is waiting,
 // it's reloaded (~5 s, empty cache, back to its real size).
 let chatWatch: ReturnType<typeof setInterval> | null = null;
+let chatReloading = false;
 export function startChatMemoryWatch(): void {
   if (chatWatch || !OLLAMA_BASE_URL) return;
-  const maxBytes = (Number(process.env.NEXUS_CHAT_MAX_GB) || 12) * 1024 ** 3;
+  const softBytes = (Number(process.env.NEXUS_CHAT_MAX_GB) || 12) * 1024 ** 3;
+  // Over this it's reloaded even while busy (2026-10-12: a long busy stretch never left a quiet moment, the model reached
+  // 17 GB and swap 13 GB): it takes its turn in the queue, so messages wait ~5 s once instead of crawling in swap.
+  const hardBytes = (Number(process.env.NEXUS_CHAT_HARD_MAX_GB) || 14) * 1024 ** 3;
   chatWatch = setInterval(async () => {
-    if (isModelBusy() || getGamingMode().active) return;
+    if (chatReloading || getGamingMode().active) return;
     try {
       const model = await resolveModel(OLLAMA_MODEL);
-      const ps = await fetch(`${OLLAMA_BASE_URL}/api/ps`, { signal: AbortSignal.timeout(3000) });
-      const loaded: any[] = ps.ok ? ((await ps.json()) as any)?.models || [] : [];
       const base = (n: string) => String(n || '').replace(/:latest$/, '');
-      const chat = loaded.find((m) => base(m.name) === base(model) || base(m.model) === base(model));
-      if (!chat || Number(chat.size) <= maxBytes || isModelBusy()) return;
-      console.log(`[model] ${model} grew to ${(Number(chat.size) / 1024 ** 3).toFixed(1)} GB (prompt cache) — reloading it to free memory`);
-      await fetch(`${OLLAMA_BASE_URL}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(30_000), body: JSON.stringify({ model, keep_alive: 0 }) });
-      await new Promise((r) => setTimeout(r, 3000));
-      await warmChatModel();
+      const loadedSize = async (): Promise<number> => {
+        const ps = await fetch(`${OLLAMA_BASE_URL}/api/ps`, { signal: AbortSignal.timeout(3000) });
+        const loaded: any[] = ps.ok ? ((await ps.json()) as any)?.models || [] : [];
+        const m = loaded.find((x) => base(x.name) === base(model) || base(x.model) === base(model));
+        return m ? Number(m.size) : 0;
+      };
+      const size = await loadedSize();
+      if (size <= softBytes || (isModelBusy() && size <= hardBytes)) return;
+      chatReloading = true;
+      const release = await acquireOllamaSlot();
+      try {
+        console.log(`[model] ${model} grew to ${(size / 1024 ** 3).toFixed(1)} GB (prompt cache) — reloading it to free memory`);
+        await fetch(`${OLLAMA_BASE_URL}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(30_000), body: JSON.stringify({ model, keep_alive: 0 }) });
+        // Wait until it's really gone: loading it again too early cancels the unload (it stayed at 16 GB).
+        for (let k = 0; k < 20 && (await loadedSize()) > 0; k++) await new Promise((r) => setTimeout(r, 1500));
+        await fetch(`${OLLAMA_BASE_URL}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(120_000), body: JSON.stringify({ model, prompt: '', stream: false, keep_alive: normalKeepAlive(), options: { num_ctx: OLLAMA_NUM_CTX } }) });
+      } finally {
+        release();
+        chatReloading = false;
+      }
     } catch {
+      chatReloading = false;
       // next round
     }
   }, 2 * 60_000);
