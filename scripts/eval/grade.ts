@@ -23,7 +23,7 @@ const GLUED = /\b(?:shit|fuck|damn|piss|bloody)(?:bro|bruv|mate|gng|man|lol)\b/i
 // "gng" (= gang) only addresses someone; "im gng", "ur gng" is nonsense.
 const GNG_MISUSE = /\b(?:i'?m|i\s+am|ur|you'?re|youre|he'?s|she'?s|it'?s|thats|that'?s)\s+gng\b/i;
 // English street slang inside a reply that should be Polish / French / German.
-const EN_SLANG = /\b(?:gng|bruv|innit|mate|bellend|wsg|wyd)\b/i;
+const EN_SLANG = /\b(?:gng|bruv|innit|mate|arvo|heaps|deadset|reckon|drongo|bellend|wsg|wyd)\b/i;
 // The "idgaf" bug (2026-10-12): normal questions answered with "i don't give a fuck / nobody cares".
 // ("don't care abt the wallet" in a PC build is not dismissing the question.)
 const DISMISSIVE = /\b(?:i\s+don'?t\s+give\s+a\s+(?:fuck|shit)|idgaf|nobody\s+cares|who\s+cares)\b/i;

@@ -151,9 +151,9 @@ export function planRoast(person: string, text: string, threadText: string, user
   const examples = lang !== 'en' ? KIND_EXAMPLES[lang][kind] || k.examples : k.examples;
   parts.push(`HIT TYPE: ${kind}. ${move ? roastMoveNote(move, lang) : `${k.how}${examples ? `\nThe SHAPE (never reuse these words):\n${[...examples].sort(() => Math.random() - 0.5).slice(0, 2).map((e) => `- ${e}`).join('\n')}` : ''}`}`);
   parts.push(`LENGTH: ${k.min}-${k.max} words. Match their energy — a two-word insult never gets an essay.`);
-  if (lang === 'fr') parts.push('LANGUAGE: Québécois joual, like a Québec teen on Discord — native insults and sacres (cave, tarla, épais, ostie de..., va chier, mange d\'la marde), never a translated English joke, never British slang (bruv, mate, innit).');
-  if (lang === 'pl') parts.push('LANGUAGE: natural Polish street slang, like a Polish teen on Discord — native insults (frajer, debil, lamus, cienias, spierdalaj, twoja stara), correct endings and cases, never a translated English joke, never British slang (bruv, mate, innit).');
-  if (lang === 'de') parts.push('LANGUAGE: modern German youth slang, like a German teen on Discord — native insults (Lauch, Opfer, Digga, Hurensohn, fick dich, halt die Fresse, deine Mutter), correct grammar and cases, never a translated English joke, never British slang (bruv, mate, innit).');
+  if (lang === 'fr') parts.push('LANGUAGE: Québécois joual, like a Québec teen on Discord — native insults and sacres (cave, tarla, épais, ostie de..., va chier, mange d\'la marde), never a translated English joke, never English/Aussie slang (mate, arvo, heaps, gng).');
+  if (lang === 'pl') parts.push('LANGUAGE: natural Polish street slang, like a Polish teen on Discord — native insults (frajer, debil, lamus, cienias, spierdalaj, twoja stara), correct endings and cases, never a translated English joke, never English/Aussie slang (mate, arvo, heaps, gng).');
+  if (lang === 'de') parts.push('LANGUAGE: modern German youth slang, like a German teen on Discord — native insults (Lauch, Opfer, Digga, Hurensohn, fick dich, halt die Fresse, deine Mutter), correct grammar and cases, never a translated English joke, never English/Aussie slang (mate, arvo, heaps, gng).');
   if (b.rounds >= 2) parts.push(`This is ROUND ${b.rounds} of a roast battle with them — go harder than last time, maybe call back to something from earlier.`);
   if (ammo.length) parts.push(`AMMO (things they said earlier — a callback to one of these hits hardest): ${ammo.map((a) => `"${a.slice(0, 90)}"`).join(' | ')}`);
   if (username) parts.push(`Their name: ${username}.`);
@@ -206,7 +206,7 @@ export function scoreComeback(line: string, theirs: string, plan: Pick<RoastPlan
   // the same distinctive words as recent comebacks (to anyone) — the model leans on wifi / dial-up / hairline
   const recentWords = new Set(recentComebacks.flatMap((c) => words(c).filter((w) => w.length >= 4)));
   score -= Math.min(4, words(line).filter((w) => w.length >= 4 && recentWords.has(w)).length * 1.2);
-  if (/\b(?:fuck\w*|shit\w*|dumbass|prick|muppet|bellend|wasteman|mug)\b/i.test(line)) score += 0.5;
+  if (/\b(?:fuck\w*|shit\w*|dumbass|prick|drongo|dropkick|galah|flog|bogan|muppet|mug)\b/i.test(line)) score += 0.5;
   return score;
 }
 

@@ -243,6 +243,8 @@ const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   // A claimed fact about the world ("bro the eiffel tower is in berlin now"): he denied it ("total bollocks") without
   // the real fact (2026-10-12 gate).
   [FACT_CLAIM_RE, "They're stating a fact. If it's WRONG, say so AND give the real fact in a few words (where it really is / what's really true). If it's right, agree with attitude."],
+  // He's Australian (Patrick, 2026-10-12); Casseurt is the one from Quebec ("where are you from" → "quebec").
+  [/\bwhere\s+(?:are|r)\s+(?:you|u|ya)\s+from\b|\bwhere\s+(?:do|d)\s+(?:you|u|ya)\s+live\b|\bwhere\s+(?:are|r)\s+(?:you|u)\s+based\b|\bwhat\s+country\s+(?:are|r)\s+(?:you|u)\b/i, "Where you're from: Australia (Sydney), a proper Aussie. Casseurt, who built you, is the one from Quebec — not you."],
   // Things they tell you about themselves must be taken in (2026-10-12 gate: "pls its my bday soon" → "hope ur day is
   // good", "remember my name is Andrzej" → "nah ur name means shit").
   [/\b(?:b-?day|birthday|bday)\b/i, "It's about their BIRTHDAY: wish them a happy (early) birthday, your own words — don't skip it."],

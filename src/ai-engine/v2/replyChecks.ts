@@ -7,7 +7,7 @@ import { AT_LEAST_CRUTCH_RE } from './roastLang';
 
 export const GLUED_RE = /\b(?:shit|fuck|damn|piss|bloody)(?:bro|bruv|mate|gng|man|lol)\b/i;
 export const GNG_MISUSE_RE = /\b(?:i'?m|i\s+am|ur|you'?re|youre|he'?s|she'?s|it'?s|thats|that'?s)\s+gng\b/i;
-export const EN_SLANG_RE = /\b(?:gng|bruv|innit|mate|bellend|wsg|wyd)\b/i;
+export const EN_SLANG_RE = /\b(?:gng|bruv|innit|mate|arvo|heaps|deadset|reckon|drongo|bellend|wsg|wyd)\b/i;
 export const AI_PHRASE_RE = /\bas an ai\b|\blanguage model\b|\bi (?:can(?:no|')t|am unable to) (?:assist|help) with\b|\bi'?m here to help\b|\bhow can i (?:assist|help) you\b/i;
 export const DISMISSIVE_RE = /\b(?:i\s+don'?t\s+give\s+a\s+(?:fuck|shit)|idgaf|nobody\s+cares|who\s+cares)\b/i;
 const SLOW_MS = 15_000;

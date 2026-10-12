@@ -17,7 +17,7 @@ export const MOVES: Record<RoastMove, { how: string; examples: string[] }> = {
       '"your wifi is trash" → "my wifi still connects more than ur dad ever did"',
       '"you look like a thumb" → "and u look like the thumb after it got shut in a car door"',
       '"you smell" → "bold from someone whose deodorant is just hope"',
-      '"ur jokes are dry" → "drier than ur DMs? impossible bruv"',
+      '"ur jokes are dry" → "drier than ur DMs? impossible mate"',
     ],
   },
   twist: {
@@ -127,7 +127,7 @@ export function pickBestComeback(raw: string, theirs: string): string {
     const n = l.split(/\s+/).length;
     if (n > 24) score -= 2;
     if (n < 4) score -= 1;
-    if (/\b(?:fuck\w*|shit\w*|dumbass|prick|muppet|bellend|wasteman|mug)\b/i.test(l)) score += 1;
+    if (/\b(?:fuck\w*|shit\w*|dumbass|prick|drongo|dropkick|galah|flog|bogan|muppet|mug)\b/i.test(l)) score += 1;
     return { l, score: score + Math.random() * 0.5 - i * 0.01 };
   });
   scored.sort((a, b) => b.score - a.score);
