@@ -1113,7 +1113,10 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     return route.mode === 'support' || SAD_RE.test(prompt) ? stripCrudeAside(out) : out;
   };
   const t0 = Date.now();
-  const raw = await generateWith(spec, userTurn, lang);
+  // A list needs room (chat's 90 tokens stopped "top 10" at item 9).
+  const listN = wantsList ? Number((said(prompt).match(LIST_REQUEST_RE) || []).slice(1).find(Boolean) || 0) : 0;
+  const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * 30) } : spec;
+  const raw = await generateWith(genSpec, userTurn, lang);
   const tGenerated = Date.now();
   if (!raw) {
     thoughtSteps.push({ id: 'step-v2-failed', type: 'verification', title: '⚠️ v2 generation failed, v1 takes over', description: lastFailure || 'empty reply' });
@@ -1205,7 +1208,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     const items = (content.match(/^\s*\d{1,2}[.)]\s+\S/gm) || []).length;
     const issue = want >= 2 && want <= 20 && items < want ? `They asked for ${want} items and you gave ${items}. Give EXACTLY ${want} short numbered items, one per line.` : dodgedQuestion(t, content) ? 'They asked you a real question and you dodged it. ANSWER it first (yes/no / the thing they asked), then your attitude.' : null;
     if (issue) {
-      const retry = await generateWith(spec, `${userTurn}\n(${issue})`, lang);
+      const retry = await generateWith(genSpec, `${userTurn}\n(${issue})`, lang);
       if (retry) {
         const r = dropBannedEmoji(finalize(retry));
         const rItems = (r.match(/^\s*\d{1,2}[.)]\s+\S/gm) || []).length;
