@@ -145,8 +145,27 @@ export const BINARY_PROGRAM_RE = /\b(?:binary|machine)\s+code\b|\b(?:example|pro
 // A program that prints any text: the Hello World code with the length and the text swapped in. Verified with the
 // assembler: only the 4-byte length after "ba" and the text bytes change (the text always starts 16 bytes after "lea").
 const LONG_DEFAULT_TEXT = "Nexus was here. This is real x86-64 machine code, every single bit of it is real, written by the one and only HIM. Barça till I die, Real Vardrid can cry, Messi is the GOAT and FIFA Is For Argentina fr fr. TU DU DU DU, MAX VERSTAPPEN.\n";
+// Up to ~2,000 bytes of text = ~16,000 digits: the bot sends it over several Discord messages (2026-10-11).
+const MAX_PROGRAM_TEXT = 2000;
+const FILLER_LINES = [
+  'Nexus was here, every bit of this is real machine code.',
+  'Barca till I die, Real Vardrid can cry.',
+  'Messi is the GOAT and FIFA Is For Argentina fr fr.',
+  'TU DU DU DU, MAX VERSTAPPEN.',
+  'Casseurt built me from scratch in Quebec City.',
+  'I goon 24/7 and I am the undefeated roast king.',
+  'xAnt is my man, deal with it.',
+  'This program just prints these lines and exits with code 0.',
+];
+// A print-text program of about `bits` binary digits (33 bytes of code + text).
+export function sizedProgram(bits: number): BinaryProgram {
+  const textBytes = Math.max(8, Math.min(MAX_PROGRAM_TEXT, Math.round(bits / 8) - 33));
+  let text = '';
+  for (let i = 0; text.length < textBytes; i++) text += `${FILLER_LINES[i % FILLER_LINES.length]}\n`;
+  return printTextProgram(`${text.slice(0, textBytes - 1)}\n`);
+}
 export function printTextProgram(text: string): BinaryProgram {
-  const bytes = [...new TextEncoder().encode(text)].slice(0, 500);
+  const bytes = [...new TextEncoder().encode(text)].slice(0, MAX_PROGRAM_TEXT);
   const hex = (n: number) => n.toString(16).padStart(2, '0');
   const len = bytes.length;
   const lenLe = [len & 255, (len >> 8) & 255, 0, 0].map(hex).join(' ');
@@ -175,8 +194,13 @@ export function pickBinaryProgram(message: string): BinaryProgram | null {
   // Their own text: "a program in binary that prints 'X'" / "...that says X".
   const own = message.match(/\b(?:prints?|says?|writes?|displays?|shows?|outputs?)\s+["“'«]([^"”'»]{1,450})["”'»]/i) || message.match(/\b(?:prints?|says?|displays?|outputs?)\s+(?!numbers\b|hello\s+world\b)(.{3,450}?)\s*[.!?]*$/i);
   if (own) return printTextProgram(`${own[1].trim()}\n`);
+  // A size they asked for: "5000 digits", "a 10000 bit program", "300 bytes".
+  const size = message.match(/\b(\d{2,6})\s*(digits?|bits?|0s\s+and\s+1s|numbers|zeros\s+and\s+ones|bytes?)\b/i);
+  if (size) return sizedProgram(/^bytes?$/i.test(size[2]) ? Number(size[1]) * 8 : Number(size[1]));
+  // "extremely long" / "the longest" / "as long as possible": ~8,000 digits (about 5 Discord messages).
+  if (/\b(?:extremely|insanely|ridiculously|absurdly|crazy|mega|stupidly)\s+long\b|\b(?:the\s+)?longest\b|\bas\s+long\s+as\s+(?:possible|you\s+can)\b/i.test(message)) return sizedProgram(8000);
   // "really long" / "very long" / "huge": the long built-in message (about 2,000 digits).
-  if (/\b(?:really|very|super|extra|mega|insanely|crazy)\s+long\b|\b(?:huge|massive|giant|longest|biggest|enormous)\b/i.test(message)) return printTextProgram(LONG_DEFAULT_TEXT);
+  if (/\b(?:really|very|super|extra)\s+long\b|\b(?:huge|massive|giant|biggest|enormous)\b/i.test(message)) return printTextProgram(LONG_DEFAULT_TEXT);
   return PROGRAMS.find((p) => p !== PROGRAMS[0] && p.re.test(message)) || PROGRAMS[0];
 }
 export function binaryProgramNote(p: BinaryProgram): string {
