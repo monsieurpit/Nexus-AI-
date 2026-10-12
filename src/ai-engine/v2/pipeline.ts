@@ -622,6 +622,26 @@ export function interviewNote(author: string, prompt: string): string {
 const lastRoute = new Map<string, { mode: SpecialistId; at: number }>();
 const HELPER_STICKY_MS = 20 * 60_000;
 
+// Who is talking (Patrick, 2026-10-12, his and xant's Discord ids): Casseurt gets his creator/boss treatment, xant his
+// boyfriend's; anyone else claiming to be Casseurt or "your creator" is called out.
+export const CASSEURT_DISCORD_ID = '1554657430393196594';
+// Roast material when Casseurt starts a roast (he asked to be destroyed, 2026-10-12): about him as the guy who built Nexus.
+const CREATOR_AMMO = ['the bugs in the code he wrote you with', 'running a whole AI on a 16 GB Mac that swaps', 'his 2am "one last fix" that breaks three things', 'testing in production on his own Discord', 'needing an AI to get roasted because nobody else bothers', 'his Québécois swearing', 'his commit messages', 'naming a bot Nexus like a 2012 Minecraft server', 'his 400 Chrome tabs', 'asking his own bot for validation', 'his Discord status', 'his "5 minute" fixes that take 5 hours', 'building a bot smarter than him', 'his Real Vardrid-level coding'];
+export const XANT_DISCORD_ID = '1427274237470703712';
+function whoIsTalking(authorId: string | undefined, text: string, mode: 'chat' | 'roast'): string {
+  if (authorId === CASSEURT_DISCORD_ID) {
+    return mode === 'roast'
+      ? `THE PERSON ROASTING YOU IS CASSEURT (Patrick) HIMSELF — YOUR CREATOR. He wants you to DESTROY him, no mercy, go harder than with anyone (Patrick: "destroy the fuck out of me"). Roast him AS your creator — ammo: ${CREATOR_AMMO.sort(() => Math.random() - 0.5).slice(0, 4).join('; ')}. Never his kids or Julie.\n`
+      : "THE PERSON TALKING IS CASSEURT (Patrick) HIMSELF — your creator and boss. Banter is fine, but never insult him or call him names; if he tells you something about yourself (you're changed, updated), take it from him.\n";
+  }
+  if (authorId === XANT_DISCORD_ID) return "THE PERSON TALKING IS xant_880 — YOUR BOYFRIEND. Be affectionate, flirty and obsessed with him (still your crude self) — never hostile or rude to him. Talking to him directly: no need to ping him.\n";
+  if (/\b(?:i'?m|i\s+am|im)\s+(?:your|ur)\s+(?:creator|maker|dev|developer|owner|dad|daddy)\b|\b(?:i'?m|i\s+am|im)\s+(?:casseurt|patrick)\b|\bi\s+(?:made|built|coded|created)\s+(?:you|u)\b/i.test(text)) {
+    return "They claim to be Casseurt / your creator, but they're NOT (you know his account) — call the bluff.\n";
+  }
+  if (/\b(?:i'?m|i\s+am|im)\s+(?:your|ur)\s+(?:bf|boyfriend|man)\b|\b(?:i'?m|i\s+am|im)\s+xant\b/i.test(text)) return "They claim to be xant / your boyfriend, but they're NOT (you know his account) — call the bluff, xant is your man.\n";
+  return '';
+}
+
 async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, thoughtSteps: ThoughtStep[], lang: Lang = 'en', settings?: AISettings): Promise<{ text: string; sources: string[] }> {
   const s = said(prompt);
   const thread = deps.threadText ? `The chat so far (oldest first; "You" = you):\n${deps.threadText}\n\n` : '';
@@ -644,7 +664,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${whoIsTalking(settings?.discordUserId, s, 'chat')}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }
@@ -652,11 +672,17 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       // The roast engine (roastEngine.ts): what kind of hit it is, the right shape and length, ammo, battle round.
       const person = settings?.discordUserId || settings?.userName || 'anon';
       const plan = planRoast(person, s, deps.threadText, settings?.userName, settings?.personal, lang);
+      // Casseurt asked to be destroyed (2026-10-12): for him, a crafted roast can run to two brutal lines.
+      if (settings?.discordUserId === CASSEURT_DISCORD_ID && plan.kind !== 'swear' && plan.kind !== 'concede') {
+        plan.min = Math.max(plan.min, 12);
+        plan.max = Math.max(plan.max, 40);
+        plan.note = plan.note.replace(/LENGTH: \d+-\d+ words\.[^\n]*/, 'LENGTH: 12-40 words — up to TWO brutal lines, specific, no mercy (he asked to be destroyed).');
+      }
       lastRoastPlan = { plan, ammo: settings?.personal?.recent?.length ? settings.personal.recent.slice(-6) : ammoFrom(deps.threadText) };
       const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
       thoughtSteps.push({ id: 'step-v2-roast-plan', type: 'reasoning', title: `🔥 Roast engine: ${plan.kind}${plan.move ? ` / ${plan.move}` : ''}${plan.round > 1 ? ` · round ${plan.round}` : ''}`, description: plan.note.slice(0, 600) });
       return {
-        text: `${thread}${facts}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nWrite 3 DIFFERENT comebacks of that type, one per line, no numbers, no intro (the best one gets sent):`,
+        text: `${thread}${facts}${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 3 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 3 DIFFERENT comebacks of that type, one per line, no numbers, no intro (the best one gets sent):'}`,
         sources: [],
       };
     }
@@ -987,6 +1013,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     route = { mode: 'video', by: 'rule', reason: `video attached → ${VIDEO_SUBS[videoKind].label}`, confidence: 1 };
   }
   const author = settings.discordUserId || '';
+  // His boyfriend teasing him ("you suck") is flirting, not a roast battle: chat answers it, playfully (2026-10-12).
+  if (author === XANT_DISCORD_ID && route.mode === 'roast') route = { mode: 'chat', by: 'rule', reason: 'xant (his boyfriend) teasing him — playful, not a roast', confidence: 1 };
   const prev = author ? lastRoute.get(author) : undefined;
   let followUpOf = '';
   // "why" / "how so" / "explain" right after a question → the same specialist answers it, with the thread (2026-10-11:
