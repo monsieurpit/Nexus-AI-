@@ -1091,6 +1091,14 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     }
     content = best;
   }
+  // The "at least ..." crutch in chat too ("nah im chuffed lmao at least i got xant", 2026-10-12 gate): one more try.
+  if (route.mode === 'chat' && AT_LEAST_CRUTCH_RE.test(content)) {
+    const retry = await generateWith(spec, `${userTurn}\n(Never use "at least" — say it straight, your own words.)`, lang);
+    if (retry) {
+      const r = dropBannedEmoji(finalize(retry));
+      if (!AT_LEAST_CRUTCH_RE.test(r)) content = r;
+    }
+  }
   // They told him something and the reply skipped it (the birthday, their name, what's in the image): one more try.
   if (route.mode === 'chat' || route.mode === 'roast') {
     // A wrong "fact" only denied ("total bollocks mate") without the real one.

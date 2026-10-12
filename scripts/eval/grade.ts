@@ -10,7 +10,7 @@ export const MODE_MAX: Record<Mode, number> = { helper: 1500, chat: 220, roast: 
 export const MODE_MIN: Record<Mode, number> = { helper: 10, chat: 1, roast: 5, question: 40, search: 40, code: 60, writing: 10, maths: 1, pc: 120, support: 20 };
 
 // Universal problems, any mode.
-const STOCK = /don'?t (?:actually )?know that one|don'?t quote me|\bhell yeah\b|\bbuzzing\b|gonna be (?:epic|a banger|a (?:fucking )?fun)|local engine|custom engine|piece of shit code|\bi'?m (?:just )?(?:a |some )?(?:bot|code|software|program|toaster)\b|wait what 😭$|my brain just blue-screened|calculator just died/i;
+const STOCK = /don'?t (?:actually )?know that one|don'?t quote me|\bbuzzing\b|gonna be (?:epic|a banger|a (?:fucking )?fun)|local engine|custom engine|piece of shit code|\bi'?m (?:just )?(?:a |some )?(?:bot|code|software|program|toaster)\b|wait what 😭$|my brain just blue-screened|calculator just died/i;
 // Insults aimed at the person, in English, Polish, German and Québécois (2026-10-12: "więc cie kocham ❤️" got
 // "ty jesteś gównem", "guten tag" got "du bist ja lost").
 // Real hostility on a friendly message: an attack, not a nickname ("więc cie kocham ❤️" → "ty jesteś gównem").
@@ -48,6 +48,8 @@ export function grade(c0: EvalCase, reply: string, searched: boolean, routed?: s
   if (!r) return ['empty'];
   const prose = r.replace(/```[\s\S]*?```/g, '').replace(/^-# .*$/gm, '').trim();
   if (STOCK.test(prose)) fails.push(`stock line: "${prose.match(STOCK)?.[0]}"`);
+  // "hell yeah" is a style habit, not a bug: tracked as a soft note.
+  if (/\bhell\s+yeah\b/i.test(prose)) fails.push('~hell yeah');
   if (fillerPile(prose)) fails.push('swear-filler pile');
   if (!c.allowCaps && capsRatio(r) > 0.6) fails.push('caps meltdown');
   if (c.notHostile && HOSTILE.test(prose)) fails.push(`hostile: "${prose.match(HOSTILE)?.[0]}"`);
