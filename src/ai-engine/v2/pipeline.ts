@@ -21,6 +21,7 @@ import { pickBestComeback } from './roast';
 import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
 import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
+import { personaFacts } from './persona';
 import { morseConversation, morseNote, morseReply, morseTask, withMorse } from './morse';
 import { AT_LEAST_CRUTCH_RE, INSIST_FR_RE, INSIST_PL_RE, INSIST_DE_RE, DENIAL_FR_PL_RE, DENIAL_DE_RE } from './roastLang';
 import { identifyProgram, binaryNote, binaryProgramBlock, binaryProgramNote, expectedBinary, fixBinary, numberConversionNote, pickBinaryProgram } from './binary';
@@ -681,7 +682,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(s))}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }
@@ -893,7 +894,7 @@ export function dodgedQuestion(message: string, reply: string): boolean {
 const IMAGE_STOP = new Set('the and are was his her its one two has who not but for you all can out his him she they them with that this there their image picture photo photograph shows showing appears which from into some very have being been also small large dark light white black front back side left right top bottom background screenshot discord channel named called wearing sitting standing holding looking lying playing using wears sits stands holds looks lies plays uses'.split(' '));
 export function missedTheirPoint(text: string, image: string | null, reply: string): string | null {
   const r = reply.toLowerCase();
-  if (/\b(?:b-?day|birthday|bday)\b/i.test(text) && !/\b(?:b-?day|birthday|bday|hbd|happy|cake|candles|older|party)\b/i.test(r)) return "It's their BIRTHDAY (soon): wish them a happy (early) birthday.";
+  if (/\b(?:my|it'?s\s+my|its\s+my|its|it'?s)\s+(?:b-?day|birthday|bday)\b|\b(?:b-?day|birthday|bday)\s+(?:soon|today|tomorrow|tmrw)\b/i.test(text) && !/\b(?:your|ur)\s+(?:b-?day|birthday|bday)\b/i.test(text) && !/\b(?:b-?day|birthday|bday|hbd|happy|cake|candles|older|party)\b/i.test(r)) return "It's their BIRTHDAY (soon): wish them a happy (early) birthday.";
   const name = text.match(/\b(?:remember\s+(?:that\s+)?)?my\s+name(?:'s|\s+is)\s+([A-Za-zÀ-ÿ'-]{2,20})|\bcall\s+me\s+([A-Za-zÀ-ÿ'-]{2,20})\b/i);
   const n = name ? (name[1] || name[2]).toLowerCase() : '';
   if (n && !['a', 'an', 'the', 'him', 'her', 'it', 'that', 'maybe', 'when'].includes(n) && !r.includes(n)) return `Their name is ${name![1] || name![2]}: say it back, you'll remember it.`;

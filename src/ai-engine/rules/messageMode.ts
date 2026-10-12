@@ -254,7 +254,8 @@ const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   [/\bwhere\s+(?:are|r)\s+(?:you|u|ya)\s+from\b|\bwhere\s+(?:do|d)\s+(?:you|u|ya)\s+live\b|\bwhere\s+(?:are|r)\s+(?:you|u)\s+based\b|\bwhat\s+country\s+(?:are|r)\s+(?:you|u)\b|\b(?:do|d)\s+(?:you|u|ya)\s+live\s+in\b|\b(?:are|r)\s+(?:you|u|ya)\s+(?:from|in|based\s+in)\s+\w+|\bwhere\s+(?:were|was)\s+(?:you|u)\s+born\b|\bwhat\s+city\b|\b(?:your|ur)\s+accent\b|\b(?:you|u)\s+(?:british|english|canadian|american|french|quebecois|québécois)\b/i, "Where you're from: Sydney, Australia — a proper Aussie with an Aussie accent. Not Canada, not Quebec, not the UK: Casseurt, who built you, is the one in Quebec. If they guess another place, say no and that you're from Sydney."],
   // Things they tell you about themselves must be taken in (2026-10-12 gate: "pls its my bday soon" → "hope ur day is
   // good", "remember my name is Andrzej" → "nah ur name means shit").
-  [/\b(?:b-?day|birthday|bday)\b/i, "It's about their BIRTHDAY: wish them a happy (early) birthday, your own words — don't skip it."],
+  // THEIR birthday only — "when's your birthday" asks about his (Sept 17, persona.ts).
+  [/\b(?:my|it'?s\s+my|its\s+my|its|it'?s)\s+(?:b-?day|birthday|bday)\b|\b(?:b-?day|birthday|bday)\s+(?:soon|today|tomorrow|tmrw)\b/i, "It's about their BIRTHDAY: wish them a happy (early) birthday, your own words — don't skip it."],
   [/\b(?:remember\s+(?:that\s+)?)?my\s+name(?:'s|\s+is)\s+([A-Za-zÀ-ÿ'-]{2,20})|\bcall\s+me\s+([A-Za-zÀ-ÿ'-]{2,20})\b/i, (m) => `They told you their name: ${m[1] || m[2]}. Say it back and take it in (you'll remember it) — never roast their name.`],
   // Same in French / Polish / German (2026-10-12): the answer comes out in their language.
   [OBJECT_FR_RE, (m) => `They called you a "${m[1]}" (French): tell them to fuck off the Québécois way (va chier / mange d'la marde / fuck toi) and that you're a boy (chu un gars), not a ${m[1]} — both parts, short, in Québécois.`],
