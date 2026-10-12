@@ -172,9 +172,37 @@ function keepAliveFor(model: string | undefined): string | number {
   // The vision model (qwen3-vl:2b-instruct, 1.8 GB since 2026-10-11) fits in memory next to the chat model, so it stays
   // loaded and an image no longer swaps models (was: qwen2.5vl:3b, too big — it pushed the chat model out, ~6 s reload
   // + ~5 s of vision load on every image). Gaming mode still frees it quickly.
-  if (model && model === OLLAMA_VISION_MODEL) return getGamingMode().active ? '90s' : normalKeepAlive();
+  // Since 2026-10-11 (Patrick): it unloads after 10 minutes without an image, and warmVisionModel() below loads it back
+  // as soon as the engine gets busy (2+ requests), so the RAM is free while it's quiet.
+  if (model && model === OLLAMA_VISION_MODEL) return getGamingMode().active ? '90s' : VISION_IDLE_KEEP_ALIVE;
   if (getGamingMode().active) return GAMING_KEEP_ALIVE;
   return normalKeepAlive();
+}
+
+const VISION_IDLE_KEEP_ALIVE = '10m';
+let visionWarmAt = 0;
+
+// Loads the image model in the background if it isn't loaded (called when the request queue reaches 2+). An empty
+// prompt only loads it — no image, no generation — and doesn't touch its 10-minute idle timer if it's already loaded.
+export async function warmVisionModel(): Promise<WarmResult> {
+  if (!OLLAMA_BASE_URL) return 'unavailable';
+  if (getGamingMode().active) return 'gaming-mode';
+  if (Date.now() - visionWarmAt < 60_000) return 'loading';
+  visionWarmAt = Date.now();
+  try {
+    const ps = await fetch(`${OLLAMA_BASE_URL}/api/ps`, { signal: AbortSignal.timeout(3000) });
+    const loaded: any[] = ps.ok ? ((await ps.json()) as any)?.models || [] : [];
+    if (loaded.some((m) => m.name === OLLAMA_VISION_MODEL || m.model === OLLAMA_VISION_MODEL)) return 'already-loaded';
+    void fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(120_000),
+      body: JSON.stringify({ model: OLLAMA_VISION_MODEL, prompt: '', stream: false, keep_alive: VISION_IDLE_KEEP_ALIVE, options: { num_ctx: 4096 } }),
+    }).catch(() => undefined);
+    return 'loading';
+  } catch {
+    return 'unavailable';
+  }
 }
 
 // ---- warm-up ------------------------------------------------------------------------------------
