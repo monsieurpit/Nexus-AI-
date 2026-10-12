@@ -22,6 +22,7 @@ import { detectCodeLang, type CodeLang } from './codeTools';
 import { classifyHit } from './roastEngine';
 import { BINARY_MESSAGE_RE, pickBinaryProgram } from './binary';
 import { morseTask } from './morse';
+import { isForeignInsult, hasForeignInsultCue, isForeignGreetInsult, hitIn } from './roastLang';
 import { bitsToBytes, TRANSLATE_BINARY_RE } from './disasm';
 
 export interface Route {
@@ -115,8 +116,10 @@ function byRules(text: string): Route | null {
   if (MODERATION_ABOUT_RE.test(t)) return r('helper', 'moderation question about something someone said');
   if (/^(?:who(?:'s|\s+is)|which\s+(?:one\s+)?is|whos)\s+(?:better|the\s+goat|goated|best)\b.*\bor\b|^(?:\w+\s+){0,4}or\s+\w+(?:\s+\w+)?\s*\?*$(?<=\b(?:better|goat|messi|ronaldo|barca|madrid|ps5|xbox|pc|console|iphone|android|pizza|burger)\b.*)/i.test(t) && !/\b(?:you|u|ur)\b/i.test(t.replace(/\bor\b.*/i, ''))) return r('chat', 'hot take: who is better');
   // "hello asshole", "gm bitch": a mate's friendly greeting with a joke insult — greet back, don't fight (Patrick, 2026-10-11).
-  if (GREET_INSULT_RE.test(t)) return r('chat', 'friendly greeting with a joke insult');
+  if (GREET_INSULT_RE.test(t) || isForeignGreetInsult(t)) return r('chat', 'friendly greeting with a joke insult');
   if (['swear', 'weak'].includes(classifyHit(t)) && t.length < 60) return r('roast', 'swore at you / lazy jab');
+  // French / Polish / German challenges, threats, mum jokes and "X said you're..." (English ones are in ROAST_RE).
+  if ((['challenge', 'threat', 'mum', 'thirdparty'] as const).some((k) => hitIn(t, k)) && !TRANSLATE_WORD_RE.test(t)) return r('roast', 'roast in French / Polish / German');
   // Binary to translate into JavaScript/Python (disassembled in pipeline.ts) → the code specialist.
   if (TRANSLATE_BINARY_RE.test(t) && bitsToBytes(t)) return r('code', 'translate binary into code');
   // A real program in binary (added by pipeline.ts from v2/binary.ts): he only writes one line, so the fast chat specialist.
@@ -125,7 +128,7 @@ function byRules(text: string): Route | null {
   if (BINARY_MESSAGE_RE.test(t)) return r('chat', 'message in binary');
   // Morse to write or a message in Morse (computed in pipeline.ts from v2/morse.ts): he only adds a line, so chat.
   if (morseTask(t)) return r('chat', 'morse code');
-  if (ROAST_RE.test(t) && !(TRANSLATE_WORD_RE.test(t) && /["“”'«]|\b(?:to|into|in|en)\s+(?:english|french|fran[cç]ais|anglais|polish|german|spanish|italian|portuguese)\b/i.test(t))) return r('roast', 'insult / your-mum joke / challenge');
+  if ((ROAST_RE.test(t) || isForeignInsult(t)) && !(TRANSLATE_WORD_RE.test(t) && /["“”'«]|\b(?:to|into|in|en)\s+(?:english|french|fran[cç]ais|anglais|polish|german|spanish|italian|portuguese)\b/i.test(t))) return r('roast', 'insult / your-mum joke / challenge');
   if (SERVER_BANTER_RE.test(t) && !/\b(?:how\s+(?:do|can|to)|ban|kick|mute|timeout|staff|raid(?:ed|ing)?\s+by)\b/i.test(t)) return r('chat', 'banter about the server');
   if (HELPER_RE.test(t) && !/^(?:can\s+you\s+)?translate\s+(?:the\s+)?point\b/i.test(t)) return r('helper', 'translation / staff / server management');
   if (DE_CHAT_RE.test(t)) return r('chat', 'German chat / command / about nexus');
@@ -380,7 +383,7 @@ export async function routeMessage(raw: string): Promise<Route> {
     const isQuestion = /\?\s*$/.test(text) || /^(?:who|what|when|where|which|why|how|is|was|are|were|can|could|should|would|do|does|did|will)\b/i.test(text);
     const fallback = (why: string): Route => ({ mode: isQuestion && !/\b(?:you|u|ur|your|yourself|nexus)\b/i.test(text) ? 'question' : 'chat', by: 'meaning', reason: `${m.reason}; ${why}`, confidence: 0.5 });
     if (m.mode === 'support' && !EMOTION_CUE_RE.test(text)) return fallback('no emotion word, so not support');
-    if (m.mode === 'roast' && !INSULT_CUE_RE.test(text)) return { mode: 'chat', by: 'meaning', reason: `${m.reason}; no insult word, so chat`, confidence: 0.5 };
+    if (m.mode === 'roast' && !INSULT_CUE_RE.test(text) && !hasForeignInsultCue(text)) return { mode: 'chat', by: 'meaning', reason: `${m.reason}; no insult word, so chat`, confidence: 0.5 };
     if (m.mode === 'writing' && (!WRITING_CUE_RE.test(text) || /^what\s+would\s+(?:you|u)\b|\bwrite\s+(?:your|ur|my|his|her)\s+name\b/i.test(text))) return fallback('no writing request');
     if (m.mode === 'pc' && TECH_HELP_RE.test(text) && !/\b(?:build|budget|parts?\s+list|upgrade|which\s+(?:gpu|cpu)|should\s+i\s+(?:buy|get))\b/i.test(text)) return { mode: 'question', by: 'meaning', reason: `${m.reason}; tech help, not a build`, confidence: 0.6 };
     if (m.mode === 'pc' && !PC_CUE_RE.test(text)) return fallback('no pc word');

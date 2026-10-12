@@ -194,6 +194,8 @@ const SHORT_WEATHER_RE = /^\s*(?:(?:hey\s+)?nexus[\s,]*)?(?:the\s+|what'?s\s+the
 const ONLY_TIME_WORD_RE = /^(?:today|tonight|tomorrow|tmrw|tmr|now|rn|right\s+now|this\s+week(?:end)?|the\s+week(?:end)?|next\s+week|later|the\s+day|demain|aujourd'?hui|ce\s+soir|cette\s+semaine)$/i;
 export function detectWeatherIntent(prompt: string): { city: string | null } | null {
   if (!WEATHER_REGEX.test(prompt) && !SHORT_WEATHER_RE.test(prompt)) return null;
+  // A your-mum joke that mentions weather ("ta mère est tellement grosse qu'elle a sa propre météo") is a roast (2026-10-12).
+  if (/(?<![\p{L}])(?:(?:your|ur|yo)\s+(?:mom|mum|mother|mama|momma)|ta\s+(?:mère|mere|môman|moman)|twoja\s+(?:stara|matka|mama)|deine\s+(?:mutter|mudda|mama))(?![\p{L}])/iu.test(prompt)) return null;
   // The LAST place mentioned wins ("do i need a jacket today in toronto"), and a bare "a" (French "à" typed without
   // its accent) only counts in French — otherwise "a jacket" became the city "jacket".
   const french = /\b(?:météo|meteo|quel\s+temps|fait[- ]il|il\s+va|demain|pleuvoir|neiger)\b/i.test(prompt);

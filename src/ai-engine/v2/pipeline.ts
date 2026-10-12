@@ -22,6 +22,7 @@ import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRo
 import { sportsFacts } from './sports';
 import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
 import { morseNote, morseTask, withMorse } from './morse';
+import { AT_LEAST_CRUTCH_RE, INSIST_FR_RE, INSIST_PL_RE, INSIST_DE_RE, DENIAL_FR_PL_RE, DENIAL_DE_RE } from './roastLang';
 import { identifyProgram, binaryNote, binaryProgramBlock, binaryProgramNote, expectedBinary, fixBinary, numberConversionNote, pickBinaryProgram } from './binary';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
@@ -51,6 +52,11 @@ export type Lang = 'en' | 'fr' | 'pl' | 'de';
 export function langOf(text: string): Lang {
   // Letters only Polish uses (2026-10-11: "tu się zgadzam w 100 procentach" was answered in French).
   if (/[ąęłśźżćń]/i.test(text) && !/[äöüß]/i.test(text)) return 'pl';
+  // "sie" is German AND Polish "się" typed without its accent: with clear German words around it, it's German
+  // ("deine mutter ist so fett, sie hat ihr eigenes wetter" was answered in Polish, 2026-10-12).
+  if (!/[ąęłśźżćń]/i.test(text) && (text.match(/(?<![\p{L}])(?:ist|deine?|du|ich|und|nicht|das|der|ein|eine|hat|bist|mich|dich|mein|so|auch|aber|wie|was)(?![\p{L}])/giu) || []).length >= 2 && localLlmClient.looksGerman(text)) return 'de';
+  // Québécois slang the word lists miss ("ta yeule", "mange d'la marde", "ferme ta gueule" were read as English).
+  if (/(?<![\p{L}])(?:ta\s+(?:yeule|gueule|mère)|ferme\s+ta|mange\s+d['’]?\s*la|va\s+chier|t['’]es|chu|chui|tabarna[kc]|câlisse|calisse|ostie|esti|crisse|marde|niaiseux|épais|tarla|décâlisse|toé|moé|pis\s+toi)(?![\p{L}])/iu.test(text)) return 'fr';
   return localLlmClient.looksPolish(text) ? 'pl' : localLlmClient.looksGerman(text) ? 'de' : localLlmClient.looksFrench(text) ? 'fr' : 'en';
 }
 export const LANG_NOTE: Record<Lang, string> = {
@@ -576,8 +582,10 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       // model reading the whole thread still missed it (2026-10-12), so it's spelled out.
       const lastMine = (deps.threadText.trim().split('\n').pop() || '').match(/^You:\s*(.+)$/)?.[1];
       const insists = /^(?:(?:yes|yeah|yea|ye|yep|yh|nah|no)\s+)?(?:fr\s+|deadass\s+)?(?:you|u|ya)\s*(?:are|r|is|do|did|can|have|were|was)\b(?:\s+(?:tho|though|bro|bruh|fr|lol|lmao|one|it|deadass))*\s*[!?.😭💀]*$/i.test(s.replace(/\bnexus\b,?\s*/i, ''));
+      const insistsAny = insists || [INSIST_FR_RE, INSIST_PL_RE, INSIST_DE_RE].some((r) => r.test(s.replace(/^\s*nexus\b[\s,]*/i, '')));
       const denied = Boolean(lastMine && /\b(?:nah|no|nope|not|never|ain'?t|isn'?t|aren'?t|don'?t|dont|fuck\s+(?:u|you|off)|i'?m\s+(?:just\s+)?a\s+(?:\w+\s+){0,2}(?:boy|b[wo]?oi+|lad|man|bloke))\b/i.test(lastMine));
-      const replyCtx = lastMine && insists && denied ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
+      const deniedAny = denied || Boolean(lastMine && (DENIAL_FR_PL_RE.test(lastMine) || DENIAL_DE_RE.test(lastMine)));
+      const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
         text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nYour one-line reply:`,
@@ -587,7 +595,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
     case 'roast': {
       // The roast engine (roastEngine.ts): what kind of hit it is, the right shape and length, ammo, battle round.
       const person = settings?.discordUserId || settings?.userName || 'anon';
-      const plan = planRoast(person, s, deps.threadText, settings?.userName, settings?.personal);
+      const plan = planRoast(person, s, deps.threadText, settings?.userName, settings?.personal, lang);
       lastRoastPlan = { plan, ammo: settings?.personal?.recent?.length ? settings.personal.recent.slice(-6) : ammoFrom(deps.threadText) };
       const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
       thoughtSteps.push({ id: 'step-v2-roast-plan', type: 'reasoning', title: `🔥 Roast engine: ${plan.kind}${plan.move ? ` / ${plan.move}` : ''}${plan.round > 1 ? ` · round ${plan.round}` : ''}`, description: plan.note.slice(0, 600) });
@@ -951,7 +959,13 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     return null; // v1 takes over (its own fallbacks)
   }
   // One emoji max is a CHAT rule (Patrick); a staff review needs its ✅/⚠️/❌ marks.
-  const picked = route.mode === 'roast' ? (lastRoastPlan ? pickComeback(raw, said(prompt), lastRoastPlan.plan, lastRoastPlan.ammo) : pickBestComeback(raw, said(prompt))) : raw;
+  let picked = route.mode === 'roast' ? (lastRoastPlan ? pickComeback(raw, said(prompt), lastRoastPlan.plan, lastRoastPlan.ammo) : pickBestComeback(raw, said(prompt))) : raw;
+  // All three leaned on the "at least my mum..." crutch Patrick hates: one more try without it.
+  if (route.mode === 'roast' && AT_LEAST_CRUTCH_RE.test(picked)) {
+    const again = await generateWith(spec, `${userTurn}\n(NEVER use "at least" / "au moins" / "przynajmniej" / "wenigstens" — every line of yours used it. Hit them directly.)`, lang);
+    const best = again ? (lastRoastPlan ? pickComeback(again, said(prompt), lastRoastPlan.plan, lastRoastPlan.ammo) : pickBestComeback(again, said(prompt))) : '';
+    if (best && !AT_LEAST_CRUTCH_RE.test(best)) picked = best;
+  }
   let content = route.mode === 'chat' || route.mode === 'roast' || route.mode === 'support' ? dropBannedEmoji(finalize(picked)) : finalize(picked).replace(/💅\uFE0F?/gu, '');
   // A parts list keeps ONE part per line even when the model runs the intro into the first part.
   if (route.mode === 'helper' && isTranslateRequest(prompt)) content = cleanTranslation(content);

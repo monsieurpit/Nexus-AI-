@@ -1,3 +1,4 @@
+import { OBJECT_FR_RE, OBJECT_PL_RE, OBJECT_DE_RE } from '../v2/roastLang';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
@@ -237,6 +238,10 @@ const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   [/^(?:yo\s+|bro\s+)?(?:nexus\s*,?\s*)?did\s+(?:you|u|ya)\s+know\s+(?:that\s+)?(?!(?:who|what|when|where|why|how|which)\b)\w|^(?:fun\s+fact|fact)\s*:/i, "They're TELLING you a fact (\"did you know that...\"), not asking: react to THAT fact in a few words (impressed, surprised, or a quick take) — never \"what do you want\"."],
   [/\bverity\b/i, "\"Verity\" = the Minecraft meme guy who is always right. \"Are you Verity?\" = are you always right: answer cocky (yeah, you're always right)."],
   [/\b(?:you['’]?re|your|ur|you\s+are|u\s+r|u\s+are|yo\s+u)\s+(?:a|an|such\s+a)\s+(?!legend|goat|king|queen|icon|god|w\b|real\s+one|good|great|cool|funny|genius|beast|menace|boy|lad|man)(?:\w+\s+){0,2}?(pickle|potato|tomato|banana|carrot|toaster|fridge|chair|table|rock|brick|cucumber|sandwich|burger|nugget|dog|cat|cow|pig|goat\s+herder|monkey|rat|fish|frog|robot|bot|npc|calculator|microwave|object|thing|it)\b/i, (m) => `They called you a ${m[1]}: tell them FUCK YOU and that you're a boy, not a ${m[1]} — both parts, short ("fuck you im a boy" energy, your own words).`],
+  // Same in French / Polish / German (2026-10-12): the answer comes out in their language.
+  [OBJECT_FR_RE, (m) => `They called you a "${m[1]}" (French): tell them to fuck off the Québécois way (va chier / mange d'la marde / fuck toi) and that you're a boy (chu un gars), not a ${m[1]} — both parts, short, in Québécois.`],
+  [OBJECT_PL_RE, (m) => `They called you a "${m[1]}" (Polish): tell them to fuck off in Polish (spierdalaj / pierdol się) and that you're a boy (jestem chłopakiem), not that — both parts, short, in Polish.`],
+  [OBJECT_DE_RE, (m) => `They called you a "${m[1]}" (German): tell them fick dich and that you're a boy (ich bin ein Junge), not a ${m[1]} — both parts, short, in German.`],
   [/\bare\s+(?:u|you)\s+naked\b/i, "\"Are u naked rn?\" = cheeky YES (naked, maybe cuddled up with xant) — a joke, nothing graphic."],
   [/\bdeath\s*note\b/i, "Death Note: flip it on them (e.g. tell them to write their own name in it)."],
   [/\bph\b/i, "\"PH\" = PornHub: answer cheekily (e.g. you watch it all day all night)."],

@@ -4,6 +4,8 @@
 // 4B model has a concrete shape to hit and the shape changes every time. The examples show the SHAPE only — the
 // specialist is told never to reuse them.
 
+import { MOVE_EXAMPLES, hitIn, type RoastLang } from './roastLang';
+
 export type RoastMove = 'flip' | 'twist' | 'escalate' | 'dismiss' | 'unbothered';
 
 export const MOVES: Record<RoastMove, { how: string; examples: string[] }> = {
@@ -66,9 +68,9 @@ function pick<T>(a: T[]): T {
 export function pickRoastMove(text: string, recentMoves: RoastMove[] = []): RoastMove {
   const t = text.toLowerCase();
   let pool: RoastMove[];
-  if (/\b(?:roast|cook|destroy|violate)\s+(?:me|him|her|them|this|that|my|@)/.test(t)) pool = ['escalate', 'flip'];
-  else if (/\b(?:called|said)\s+(?:you|u)\b|\bbreak\s+up\b|\bgot\s+(?:roasted|cooked|ratioed)\b|\bfell\s+off\b/.test(t)) pool = ['unbothered', 'unbothered', 'twist'];
-  else if (/\b(?:your|ur|yo)\s+(?:mom|mum|mother|mama|dad|family)\b/.test(t)) pool = ['flip', 'flip', 'twist', 'escalate'];
+  if (/\b(?:roast|cook|destroy|violate)\s+(?:me|him|her|them|this|that|my|@)/.test(t) || hitIn(t, 'challenge')) pool = ['escalate', 'flip'];
+  else if (/\b(?:called|said)\s+(?:you|u)\b|\bbreak\s+up\b|\bgot\s+(?:roasted|cooked|ratioed)\b|\bfell\s+off\b/.test(t) || hitIn(t, 'thirdparty')) pool = ['unbothered', 'unbothered', 'twist'];
+  else if (/\b(?:your|ur|yo)\s+(?:mom|mum|mother|mama|dad|family)\b/.test(t) || hitIn(t, 'mum')) pool = ['flip', 'flip', 'twist', 'escalate'];
   else if (t.split(/\s+/).filter(Boolean).length <= 4) pool = ['dismiss', 'twist', 'escalate', 'flip'];
   else pool = ['flip', 'twist', 'escalate', 'dismiss', 'escalate'];
   // Don't use the same move as the last one when there's a choice.
@@ -76,9 +78,9 @@ export function pickRoastMove(text: string, recentMoves: RoastMove[] = []): Roas
   return pick(fresh.length ? fresh : pool);
 }
 
-export function roastMoveNote(move: RoastMove): string {
+export function roastMoveNote(move: RoastMove, lang: RoastLang = 'en'): string {
   const m = MOVES[move];
-  const shown = [...m.examples].sort(() => Math.random() - 0.5).slice(0, 2);
+  const shown = [...(lang === 'en' ? m.examples : MOVE_EXAMPLES[lang][move])].sort(() => Math.random() - 0.5).slice(0, 2);
   return `YOUR MOVE THIS TIME: ${m.how}\nThe SHAPE of that move (never reuse these lines or their jokes — write a fresh one about THEIR message):\n${shown.map((e) => `- ${e}`).join('\n')}`;
 }
 
@@ -101,12 +103,12 @@ function words(t: string): string[] {
 }
 // A line that copies 4+ words in a row from one of the style examples (the model loves doing that).
 const EXAMPLE_GRAMS = new Set<string>();
-for (const m of Object.values(MOVES)) for (const e of m.examples) {
-  const back = (e.split('→')[1] || '').toLowerCase().match(/[a-z']+/g) || [];
+for (const [move, m] of Object.entries(MOVES)) for (const e of [...m.examples, ...MOVE_EXAMPLES.fr[move as RoastMove], ...MOVE_EXAMPLES.pl[move as RoastMove], ...MOVE_EXAMPLES.de[move as RoastMove]]) {
+  const back = (e.split('→')[1] || '').toLowerCase().match(/[\p{L}']+/gu) || [];
   for (let i = 0; i + 4 <= back.length; i++) EXAMPLE_GRAMS.add(back.slice(i, i + 4).join(' '));
 }
 export function copiesExample(line: string): boolean {
-  const w = line.toLowerCase().match(/[a-z']+/g) || [];
+  const w = line.toLowerCase().match(/[\p{L}']+/gu) || [];
   for (let i = 0; i + 4 <= w.length; i++) if (EXAMPLE_GRAMS.has(w.slice(i, i + 4).join(' '))) return true;
   return false;
 }

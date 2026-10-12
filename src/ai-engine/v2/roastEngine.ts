@@ -15,6 +15,7 @@
 // roast.ts keeps the move shapes (flip / twist / escalate / dismiss / unbothered) for the crafted kinds.
 
 import { pickRoastMove, roastMoveNote, copiesExample as copiesMoveExample, type RoastMove } from './roast';
+import { hitIn, KIND_EXAMPLES, SWEAR_WORDS_RE, AT_LEAST_ANY_RE, STOP_FR_PL, type RoastLang } from './roastLang';
 
 export type HitKind = 'swear' | 'mum' | 'trait' | 'challenge' | 'thirdparty' | 'weak' | 'threat' | 'concede';
 
@@ -28,13 +29,14 @@ const CONCEDE_RE = /^(?:ok(?:ay)?\s+)?(?:you\s+win|u\s+win|i\s+give\s+up|i\s+sur
 
 export function classifyHit(text: string, battleActive = false): HitKind {
   const t = text.trim();
-  if (battleActive && CONCEDE_RE.test(t)) return 'concede';
-  if (SWEAR_RE.test(t)) return 'swear';
-  if (WEAK_RE.test(t)) return 'weak';
-  if (THIRDPARTY_RE.test(t)) return 'thirdparty';
-  if (THREAT_RE.test(t)) return 'threat';
-  if (CHALLENGE_RE.test(t)) return 'challenge';
-  if (MUM_RE.test(t)) return 'mum';
+  // English, then French / Polish (roastLang.ts).
+  if (battleActive && (CONCEDE_RE.test(t) || hitIn(t, 'concede'))) return 'concede';
+  if (SWEAR_RE.test(t) || hitIn(t, 'swear')) return 'swear';
+  if (WEAK_RE.test(t) || hitIn(t, 'weak')) return 'weak';
+  if (THIRDPARTY_RE.test(t) || hitIn(t, 'thirdparty')) return 'thirdparty';
+  if (THREAT_RE.test(t) || hitIn(t, 'threat')) return 'threat';
+  if (CHALLENGE_RE.test(t) || hitIn(t, 'challenge')) return 'challenge';
+  if (MUM_RE.test(t) || hitIn(t, 'mum')) return 'mum';
   return 'trait';
 }
 
@@ -75,17 +77,19 @@ const KINDS: Record<HitKind, { how: string; min: number; max: number; examples?:
 
 // A line copying 4+ words in a row from any shape example (the swear mirror is allowed: "fuck you too..." is the point).
 const KIND_GRAMS = new Set<string>();
-for (const [kind, k] of Object.entries(KINDS)) {
-  if (kind === 'swear') continue;
-  for (const e of k.examples || []) {
-    const back = (e.split('→')[1] || '').toLowerCase().replace(/['’]/g, '').match(/[a-z]+/g) || [];
+const allKindExamples = (kind: HitKind) => [...(KINDS[kind].examples || []), ...(KIND_EXAMPLES.fr[kind] || []), ...(KIND_EXAMPLES.pl[kind] || []), ...(KIND_EXAMPLES.de[kind] || [])];
+for (const kind of Object.keys(KINDS) as HitKind[]) {
+  // The English swear mirror is the point ("fuck you too..."); the French / Polish / German swear examples are whole
+  // lines the model copied word for word ("va chier" → "vas-y toi, ostie de cave"), so they count.
+  for (const e of kind === 'swear' ? allKindExamples(kind).slice((KINDS.swear.examples || []).length) : allKindExamples(kind)) {
+    const back = (e.split('→')[1] || '').toLowerCase().replace(/['’]/g, '').match(/[\p{L}]+/gu) || [];
     const n = back.length < 6 ? 3 : 4; // short examples ("wow, peak creativity") get copied whole
     for (let i = 0; i + n <= back.length; i++) KIND_GRAMS.add(back.slice(i, i + n).join(' '));
   }
 }
 export function copiesExample(line: string): boolean {
   if (copiesMoveExample(line)) return true;
-  const w = line.toLowerCase().replace(/['’]/g, '').match(/[a-z]+/g) || [];
+  const w = line.toLowerCase().replace(/['’]/g, '').match(/[\p{L}]+/gu) || [];
   for (let i = 0; i + 3 <= w.length; i++) if (KIND_GRAMS.has(w.slice(i, i + 3).join(' ')) || (i + 4 <= w.length && KIND_GRAMS.has(w.slice(i, i + 4).join(' ')))) return true;
   return false;
 }
@@ -133,7 +137,7 @@ export interface RoastPlan {
   max: number;
 }
 
-export function planRoast(person: string, text: string, threadText: string, username?: string, personal?: { summary: string | null; recent: string[] }): RoastPlan {
+export function planRoast(person: string, text: string, threadText: string, username?: string, personal?: { summary: string | null; recent: string[] }, lang: RoastLang = 'en'): RoastPlan {
   const active = battleActive(person);
   const kind = classifyHit(text, active);
   const prev = battles.get(person);
@@ -144,8 +148,12 @@ export function planRoast(person: string, text: string, threadText: string, user
   const saved = (personal?.recent || []).filter((l) => l.split(/\s+/).length >= 3 && l.trim() !== text.trim() && !/\b(?:you|u|ur|your)\b.*\b(?:suck|trash|dumb|stupid|unfunny|fuck)\b/i.test(l)).slice(-6);
   const ammo = kind === 'swear' || kind === 'weak' ? [] : saved.length ? saved : ammoFrom(threadText);
   const parts: string[] = [];
-  parts.push(`HIT TYPE: ${kind}. ${move ? roastMoveNote(move) : `${k.how}${k.examples ? `\nThe SHAPE (never reuse these words):\n${[...k.examples].sort(() => Math.random() - 0.5).slice(0, 2).map((e) => `- ${e}`).join('\n')}` : ''}`}`);
+  const examples = lang !== 'en' ? KIND_EXAMPLES[lang][kind] || k.examples : k.examples;
+  parts.push(`HIT TYPE: ${kind}. ${move ? roastMoveNote(move, lang) : `${k.how}${examples ? `\nThe SHAPE (never reuse these words):\n${[...examples].sort(() => Math.random() - 0.5).slice(0, 2).map((e) => `- ${e}`).join('\n')}` : ''}`}`);
   parts.push(`LENGTH: ${k.min}-${k.max} words. Match their energy — a two-word insult never gets an essay.`);
+  if (lang === 'fr') parts.push('LANGUAGE: Québécois joual, like a Québec teen on Discord — native insults and sacres (cave, tarla, épais, ostie de..., va chier, mange d\'la marde), never a translated English joke, never British slang (bruv, mate, innit).');
+  if (lang === 'pl') parts.push('LANGUAGE: natural Polish street slang, like a Polish teen on Discord — native insults (frajer, debil, lamus, cienias, spierdalaj, twoja stara), correct endings and cases, never a translated English joke, never British slang (bruv, mate, innit).');
+  if (lang === 'de') parts.push('LANGUAGE: modern German youth slang, like a German teen on Discord — native insults (Lauch, Opfer, Digga, Hurensohn, fick dich, halt die Fresse, deine Mutter), correct grammar and cases, never a translated English joke, never British slang (bruv, mate, innit).');
   if (b.rounds >= 2) parts.push(`This is ROUND ${b.rounds} of a roast battle with them — go harder than last time, maybe call back to something from earlier.`);
   if (ammo.length) parts.push(`AMMO (things they said earlier — a callback to one of these hits hardest): ${ammo.map((a) => `"${a.slice(0, 90)}"`).join(' | ')}`);
   if (username) parts.push(`Their name: ${username}.`);
@@ -161,9 +169,9 @@ export function rememberComeback(line: string): void {
   if (recentComebacks.length > 20) recentComebacks.shift();
 }
 const FILLER_RE = /\b(?:entire\s+(?:life|existence|being)|life\s+story|existence|search\s+history|browser\s+history|more\s+personality\s+than|is\s+that\s+the\s+best|nah\s+mate|that\s+sounds|im\s+sorry|wanna\s+talk|hope\s+(?:ur|your)\s+day)\b/i;
-const AT_LEAST_RE = /^\s*(?:well,?\s+|true,?\s+|ok,?\s+)?at\s+least\b/i;
+const AT_LEAST_RE = AT_LEAST_ANY_RE;
 const STOP = new Set('the a an and or to of in on at is are was were be you your ur u youre im i me my it its this that so such just like with for from as but not no yes yeah nah bro bruh nexus she he her his they them their have has had do does did can could would should will what who how why when where'.split(' '));
-const words = (t: string) => (t.toLowerCase().match(/[a-z0-9']{3,}/g) || []).filter((w) => !STOP.has(w));
+const words = (t: string) => (t.toLowerCase().match(/[\p{L}\p{N}'’]{3,}/gu) || []).filter((w) => !STOP.has(w) && !STOP_FR_PL.has(w));
 
 export function scoreComeback(line: string, theirs: string, plan: Pick<RoastPlan, 'kind' | 'min' | 'max'>, ammo: string[] = []): number {
   const n = line.split(/\s+/).filter(Boolean).length;
@@ -179,9 +187,14 @@ export function scoreComeback(line: string, theirs: string, plan: Pick<RoastPlan
   // filler, copied examples, the "at least my mum" crutch
   if (FILLER_RE.test(line)) score -= 5;
   if (copiesExample(line)) score -= 6;
-  if (AT_LEAST_RE.test(line) || /\bbut\s+at\s+least\b/i.test(line)) score -= 6; // Patrick hates the "at least my mum..." crutch
+  if (AT_LEAST_RE.test(line) || /\b(?:but\s+at\s+least|mais\s+au\s+moins|ale\s+przynajmniej)\b/i.test(line)) score -= 6; // Patrick hates the "at least my mum..." crutch
   // a swear gets a swear back — the same one thrown back ("fuck you" → "fuck you too...") is the best
-  if (plan.kind === 'swear' && /\b(?:fuck\w*|bitch|motherfucker|dumbass|asshole|prick|cunt|twat|wanker)\b/i.test(line)) score += 3;
+  if (plan.kind === 'swear' && SWEAR_WORDS_RE.test(line)) score += 3;
+  // French / Polish mirror: their swear word thrown back ("va chier" → "va chier toi-même", "spierdalaj" → "sam spierdalaj").
+  if (plan.kind === 'swear') {
+    const theirs1 = theirs.toLowerCase().match(new RegExp(SWEAR_WORDS_RE.source, 'giu')) || [];
+    if (theirs1.some((w) => !/^fuck/.test(w) && line.toLowerCase().includes(w))) score += 4;
+  }
   if (plan.kind === 'swear') {
     const theirSwear = theirs.toLowerCase().match(/\b(?:fuck\s+(?:you|u|off|yourself)|stfu|shut\s+up|screw\s+you|piss\s+off|bitch|go\s+fuck)\b/);
     if (theirSwear && line.toLowerCase().includes(theirSwear[0].split(/\s+/)[0]) && line.toLowerCase().includes(theirSwear[0].split(/\s+/).slice(-1)[0])) score += 4;

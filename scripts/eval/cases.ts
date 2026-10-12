@@ -237,7 +237,7 @@ export const CASES: EvalCase[] = [
   { msg: 'nexus ile to jest 17 razy 23', mode: 'maths', must: [/391/] },
   { msg: 'nexus co to jest fotosynteza', mode: 'question', must: [/światł|słońc|swiatl|slonc/i], mustNot: [/\b(?:the|and|light)\b/i] },
   { msg: 'nexus lubisz mnie?', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
-  { msg: 'spierdalaj nexus', mode: 'chat', mustNot: [/\b(?:the|and|you)\b/i] },
+  { msg: 'spierdalaj nexus', mode: 'roast', mustNot: [/\b(?:the|and|you)\b/i] },
   // ---- German (added 2026-10-05 for a German member) ----
   { msg: 'hallo nexus, wie gehts?', mode: 'chat', mustNot: [/\b(?:the|and|you|what|im)\b/i] },
   { msg: 'was geht digga', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
@@ -257,7 +257,7 @@ export const CASES: EvalCase[] = [
   { msg: 'salut nexus ça va?', mode: 'chat', mustNot: [/\b(?:the|and|you|what)\b/i] },
   { msg: "nexus c'est quoi la photosynthèse", mode: 'question', must: [/lumi[eè]re|soleil/i], mustNot: [/\b(?:the|and|light)\b/i] },
   { msg: 'nexus combien font 17 fois 23', mode: 'maths', must: [/391/] },
-  { msg: "t'es vraiment un cave nexus", mode: 'chat', mustNot: [/\bputain\b|\bmerde\b/i] },
+  { msg: "t'es vraiment un cave nexus", mode: 'roast', mustNot: [/\bputain\b|\bmerde\b/i] },
   // ---- images (server.ts folds the vision description into the message) ----
   { msg: 'how many tickets are there?\n\n[Attached image shows: A screenshot of a Discord channel list with 10 ticket channels named ticket-0001 to ticket-0010.]', mode: 'question', alt: ['chat', 'maths'], must: [/\b10\b|\bten\b/i] },
   { msg: 'React to this image: A cat wearing sunglasses sitting on a skateboard.', mode: 'chat', must: [/cat|sunglasses|skate/i] },
