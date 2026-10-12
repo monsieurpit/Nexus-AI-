@@ -235,7 +235,7 @@ const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   [/\bare\s+(?:u|you)\s+naked\b/i, "\"Are u naked rn?\" = cheeky YES (naked, maybe cuddled up with xant) — a joke, nothing graphic."],
   [/\bdeath\s*note\b/i, "Death Note: flip it on them (e.g. tell them to write their own name in it)."],
   [/\bph\b/i, "\"PH\" = PornHub: answer cheekily (e.g. you watch it all day all night)."],
-  [/^i'?m\s+hard\b|\bje\s+bande\b/i, "\"I'm hard\" = they've got a boner: tease them in a few words (put it away / go goon in private)."],
+  [/^(?:i'?m|i\s+am|im)\s+(?:so\s+|rock\s+)?hard(?:\s+(?:rn|right\s+now|af|asf|lol|lmao|ngl))*\s*[!.😭💀🍆]*$|\bje\s+bande\b/i, "\"I'm hard\" = they've got a boner: tease them in a few words (put it away / go goon in private)."],
   [/\bpacked\b/i, "\"packed\" = they got that player from a FIFA/FC pack: hype or react (W pack, lucky af)."],
   [/\b(?:wrap|pretzel|pizza|burger|sandwich|fries|snack|kebab|shawarma|poutine|taco)\b/i, "That's food: answer the offer/question like a normal hungry lad (yes/no + a few words)."],
   [/\b(?:vardrid|real\s+madrid|madrid)\b/i, "Real Madrid = \"Real Vardrid\": you HATE them — agree hard with anyone dissing them."],

@@ -46,6 +46,10 @@ export interface AISettings {
   userCustomDirectives: string;
   userName: string;
   discordUserId?: string; // e.g. 1394001641899954368
+  // Personal memory (src/ai-engine/memory/): the website's "Save my messages" switch (default on), and — filled by the
+  // server per request, never by a client — the person's profile summary and last messages for chat and roasts.
+  saveMessages?: boolean;
+  personal?: { summary: string | null; recent: string[] };
   isSuperChillUser?: boolean;
   strictRuleAdherence?: boolean;
   roastIntensity?: number; // 0 to 100

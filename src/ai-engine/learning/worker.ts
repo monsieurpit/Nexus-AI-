@@ -78,6 +78,10 @@ let modelDownUntil = 0;
 function isIdle(): boolean {
   return Date.now() - lastForegroundAt >= IDLE_AFTER_MS && !localLlmClient.isModelBusy() && Date.now() >= modelDownUntil;
 }
+// Shared with the personal-memory worker (memory/memoryWorker.ts): background model work only while no one is chatting.
+export function engineIsIdle(): boolean {
+  return isIdle();
+}
 
 // ---- claim fidelity -----------------------------------------------------------------------------
 

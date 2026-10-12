@@ -91,16 +91,23 @@ export function copiesExample(line: string): boolean {
 }
 
 // Running battles per person: round count, last time, recent shapes.
-interface Battle { rounds: number; at: number; moves: RoastMove[] }
+interface Battle { rounds: number; at: number; moves: RoastMove[]; other: number }
 const battles = new Map<string, Battle>();
-const BATTLE_MS = 6 * 60 * 1000;
+// Patrick: a battle keeps going for 20 minutes after the last roast, and ends after 4 messages that weren't part of it.
+const BATTLE_MS = 20 * 60 * 1000;
+const BATTLE_END_AFTER_OTHER = 4;
 export function battleActive(person: string): boolean {
   const b = battles.get(person);
-  return Boolean(b && Date.now() - b.at < BATTLE_MS);
+  return Boolean(b && Date.now() - b.at < BATTLE_MS && (b.other || 0) < BATTLE_END_AFTER_OTHER);
+}
+// A message from them that wasn't part of the battle (a question, normal chat): 4 of those end it.
+export function noteNonRoast(person: string): void {
+  const b = battles.get(person);
+  if (b) b.other = (b.other || 0) + 1;
 }
 function bumpBattle(person: string, move?: RoastMove): Battle {
   const old = battles.get(person);
-  const b: Battle = old && Date.now() - old.at < BATTLE_MS ? { rounds: old.rounds + 1, at: Date.now(), moves: old.moves } : { rounds: 1, at: Date.now(), moves: [] };
+  const b: Battle = old && Date.now() - old.at < BATTLE_MS && (old.other || 0) < BATTLE_END_AFTER_OTHER ? { rounds: old.rounds + 1, at: Date.now(), moves: old.moves, other: 0 } : { rounds: 1, at: Date.now(), moves: [], other: 0 };
   if (move) b.moves = [...b.moves, move].slice(-3);
   battles.set(person, b);
   if (battles.size > 3000) battles.delete(battles.keys().next().value!);
@@ -126,20 +133,23 @@ export interface RoastPlan {
   max: number;
 }
 
-export function planRoast(person: string, text: string, threadText: string, username?: string): RoastPlan {
+export function planRoast(person: string, text: string, threadText: string, username?: string, personal?: { summary: string | null; recent: string[] }): RoastPlan {
   const active = battleActive(person);
   const kind = classifyHit(text, active);
   const prev = battles.get(person);
   const move = kind === 'mum' || kind === 'trait' ? pickRoastMove(text, prev?.moves || []) : null;
   const b = bumpBattle(person, move || undefined);
   const k = KINDS[kind];
-  const ammo = kind === 'swear' || kind === 'weak' ? [] : ammoFrom(threadText);
+  // Ammo: their last 20 saved messages (personal memory) when there are any, else this chat's thread.
+  const saved = (personal?.recent || []).filter((l) => l.split(/\s+/).length >= 3 && l.trim() !== text.trim() && !/\b(?:you|u|ur|your)\b.*\b(?:suck|trash|dumb|stupid|unfunny|fuck)\b/i.test(l)).slice(-6);
+  const ammo = kind === 'swear' || kind === 'weak' ? [] : saved.length ? saved : ammoFrom(threadText);
   const parts: string[] = [];
   parts.push(`HIT TYPE: ${kind}. ${move ? roastMoveNote(move) : `${k.how}${k.examples ? `\nThe SHAPE (never reuse these words):\n${[...k.examples].sort(() => Math.random() - 0.5).slice(0, 2).map((e) => `- ${e}`).join('\n')}` : ''}`}`);
   parts.push(`LENGTH: ${k.min}-${k.max} words. Match their energy — a two-word insult never gets an essay.`);
   if (b.rounds >= 2) parts.push(`This is ROUND ${b.rounds} of a roast battle with them — go harder than last time, maybe call back to something from earlier.`);
   if (ammo.length) parts.push(`AMMO (things they said earlier — a callback to one of these hits hardest): ${ammo.map((a) => `"${a.slice(0, 90)}"`).join(' | ')}`);
   if (username) parts.push(`Their name: ${username}.`);
+  if (personal?.summary && kind !== 'swear') parts.push(`WHAT YOU KNOW ABOUT THEM (from their past chats with you — use it to make it personal, never generic):\n${personal.summary}`);
   return { kind, move, round: b.rounds, note: parts.join('\n'), min: k.min, max: k.max };
 }
 

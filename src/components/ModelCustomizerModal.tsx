@@ -962,6 +962,28 @@ Tone guidelines:
                 </div>
               </div>
 
+              {/* Personal memory (2026-10-11): Nexus remembers what you send him to banter with you properly. */}
+              <div className="flex items-start justify-between gap-3 p-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-panel-elevated)]">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-bold text-[var(--glass-text)]">Save my messages</div>
+                  <p className="text-[11px] text-[var(--glass-text-faint)]">
+                    Nexus keeps your recent messages and a short summary of how you talk, privately, so he can banter with you
+                    instead of using generic jokes. Turning this off deletes everything saved for this browser (and for the
+                    Discord User ID below, if you entered yours) and stops saving. Deleted after 30 days of inactivity either way.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-0.5">
+                  <input
+                    type="checkbox"
+                    checked={localSettings.saveMessages ?? true}
+                    onChange={(e) => setLocalSettings((prev) => ({ ...prev, saveMessages: e.target.checked }))}
+                    className="sr-only peer"
+                    aria-label="Save my messages"
+                  />
+                  <div className="w-9 h-5 bg-[var(--glass-panel-elevated-hover)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[var(--glass-panel-elevated)] after:border-[var(--glass-border)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--glass-info)]"></div>
+                </label>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-[var(--glass-text)] block mb-1">

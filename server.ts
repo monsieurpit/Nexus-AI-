@@ -59,6 +59,8 @@ import { getSearchStatus } from './src/ai-engine/tavilySearch';
 import { captureExchange, captureQuestion, captureReaction, markFlaggedByRaidShield, registerNexusReply } from './src/ai-engine/learning/capture';
 import { loadLearnedIntoKnowledge } from './src/ai-engine/learning/promote';
 import { markForegroundActivity, startLearningWorker } from './src/ai-engine/learning/worker';
+import { claimPrivacyNotice, forgetPerson, isOptedOut, personalContext, recordMessage, setOptedOut, type Platform as MemoryPlatform } from './src/ai-engine/memory/personalMemory';
+import { startMemoryWorker } from './src/ai-engine/memory/memoryWorker';
 import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
 import { registerLearningAdminRoutes, loadAdminToken } from './src/ai-engine/learning/admin';
 import { timingSafeEqual } from 'crypto';
@@ -1473,6 +1475,29 @@ app.post('/api/v1/nexus', async (req, res) => {
   const isDeep = requestedDeepThink || requestedMode === 'deep' || requestedMode === 'deep-cot';
   const isCrash = requestedCrashout || requestedMode === 'crashout' || persona.id === 'crashout-bot';
   const hasClientSettings = Boolean(clientSettings && typeof clientSettings === 'object');
+
+  // Personal memory (src/ai-engine/memory/): Discord people by their Discord id, website visitors by their browser id.
+  const memPlatform: MemoryPlatform = hasClientSettings ? 'web' : 'discord';
+  const memId = hasClientSettings ? (typeof req.body?.webClientId === 'string' ? req.body.webClientId.slice(0, 64) : '') : effectiveAuthorId;
+  const memName = typeof username === 'string' && username ? username : hasClientSettings ? clientSettings?.userName || '' : '';
+  // The website's "Save my messages" switch (settings): off = everything stored is deleted and nothing more is kept, for
+  // this browser and for the Discord id typed in the settings (Patrick: people turn saving off from the website).
+  if (hasClientSettings && memId && typeof clientSettings.saveMessages === 'boolean' && requestedEvalRun !== true) {
+    const wantOff = clientSettings.saveMessages === false;
+    if (isOptedOut('web', memId) !== wantOff) setOptedOut('web', memId, memName, wantOff);
+    const linkedDiscord = typeof clientSettings.discordUserId === 'string' && /^\d{15,22}$/.test(clientSettings.discordUserId) ? clientSettings.discordUserId : '';
+    if (linkedDiscord && isOptedOut('discord', linkedDiscord) !== wantOff) setOptedOut('discord', linkedDiscord, memName, wantOff);
+  }
+  // Memory commands, on Discord and the website: stop / start saving, forget me.
+  const memCommand = memId && userText ? memoryCommand(userText) : null;
+  if (memCommand) {
+    if (memCommand === 'stop') setOptedOut(memPlatform, memId, memName, true);
+    else if (memCommand === 'start') setOptedOut(memPlatform, memId, memName, false);
+    else forgetPerson(memPlatform, memId);
+    const said = await memoryCommandReply(memCommand, userText);
+    const line = memPlatform === 'web' ? said.replace(/^-# /gm, '') : said;
+    return res.json({ response: line, text: line, persona: persona.id, authorId: effectiveAuthorId || null, thoughtSteps: [{ type: 'reasoning', title: '🗂️ Personal memory', description: memCommand === 'stop' ? 'Message saving turned off — everything stored was deleted.' : memCommand === 'start' ? 'Message saving turned back on.' : 'Everything stored about them was deleted.' }], memoryCommand: memCommand });
+  }
   // "Nexus Code" repo-editing feature — see the codeEditRequest destructure comment above. The
   // !hasClientSettings guard scopes this to the Discord-bot request path only, exactly like
   // isCrash/isDeep below; the website's own persona control is never touched by this flag.
@@ -1507,6 +1532,7 @@ app.post('/api/v1/nexus', async (req, res) => {
             activePersonaId: persona.id as ModelPersonaId,
             userName: username || clientSettings.userName || '',
             discordUserId: effectiveAuthorId,
+            personal: memId && !isCodeEdit && requestedEvalRun !== true ? personalContext(memPlatform, memId) : undefined,
             routerVersion,
             evalRun: requestedEvalRun === true,
             isSuperChillUser: isSuperChill || Boolean(clientSettings.isSuperChillUser),
@@ -1536,6 +1562,7 @@ app.post('/api/v1/nexus', async (req, res) => {
             reasoningMode: isCodeEdit || isDeep ? ('deep-cot' as ReasoningMode) : (recommendReasoningMode(userText) as ReasoningMode),
             userName: username || '',
             discordUserId: effectiveAuthorId,
+            personal: memId && !isCodeEdit && requestedEvalRun !== true ? personalContext(memPlatform, memId) : undefined,
             isSuperChillUser: isSuperChill,
             userCustomDirectives: typeof userRules === 'string' ? userRules : Array.isArray(userRules) ? userRules.join('\n') : '',
             // Discord never shows the thinking channel, and it was the measured root cause of
@@ -1906,6 +1933,17 @@ app.post('/api/v1/nexus', async (req, res) => {
       `"${userText.slice(0, 60)}" -> persona=${persona.id} engine=${engineLabel} mood=${queuedExecution.data.mood?.label ?? 'n/a'} lang=${queuedExecution.data.telemetry?.language ?? (routeStep?.data?.lang || 'n/a')} ${outcome} total=${queuedExecution.processTimeMs}ms${stages}`
     );
 
+    // Personal memory: what they said to Nexus is kept (not support / moderation / code conversations, not test runs,
+    // nobody who opted out — recordMessage checks that), and on Discord the one-time privacy notice is attached for the
+    // bot to DM them.
+    let privacyNotice: string | null = null;
+    if (memId && requestedEvalRun !== true && userText && !isCodeEdit) {
+      const routedMode = String(routeStep?.data?.mode || '');
+      if (!['support', 'helper', 'code'].includes(routedMode)) setImmediate(() => recordMessage(memPlatform, memId, memName, userText.replace(/^\s*(?:(?:hey+|yo+|ok(?:ay)?)[\s,]+)?nexus\b[\s,:!?-]*/i, '') || userText));
+      if (memPlatform === 'discord' && claimPrivacyNotice('discord', memId, memName)) privacyNotice = PRIVACY_NOTICE;
+    }
+    if (privacyNotice && queuedExecution.data && typeof queuedExecution.data === 'object') (queuedExecution.data as any).privacyNotice = privacyNotice;
+
     // Learning (docs/learning-system.md): queue this exchange for the idle worker. One SQLite insert
     // after the reply is built; triage drops most messages before anything is stored.
     const replyForLearning = queuedExecution.data?.response;
@@ -2044,6 +2082,48 @@ registerLearningAdminRoutes(app);
 
 // Emoji reactions on Nexus's Discord replies, forwarded by the bot. Only accepted for replies Nexus
 // really sent recently (see captureReaction) — no auth needed for that to be safe.
+// ── Personal memory commands and the one-time privacy notice (2026-10-11) ──
+const STOP_SAVING_RE = /^(?:(?:hey\s+)?nexus[\s,:]*)?(?:please\s+|pls\s+)?(?:stop|don'?t|dont|do\s+not|quit)\s+(?:saving|save|storing|store|keeping|keep|logging|recording|collecting)\s+(?:my\s+)?(?:messages|msgs|data|chats?|stuff|convos?|conversations?)\b|^(?:(?:hey\s+)?nexus[\s,:]*)?(?:turn\s+off|disable)\s+(?:my\s+)?(?:message\s+saving|memory|personal\s+memory)\b|^(?:(?:hey\s+)?nexus[\s,:]*)?(?:arr[eê]te|arrete)\s+de\s+(?:sauvegarder|garder|enregistrer)\s+mes\s+messages\b/i;
+const START_SAVING_RE = /^(?:(?:hey\s+)?nexus[\s,:]*)?(?:start|resume|turn\s+on|enable)\s+(?:saving|storing|keeping)?\s*(?:my\s+)?(?:messages|message\s+saving|memory|personal\s+memory)(?:\s+again)?\b|^(?:(?:hey\s+)?nexus[\s,:]*)?remember\s+me\s+again\b/i;
+const FORGET_RE = /^(?:(?:hey\s+)?nexus[\s,:]*)?(?:please\s+|pls\s+)?(?:forget\s+(?:everything\s+|all\s+)?(?:about\s+)?me|delete\s+(?:all\s+)?(?:my\s+(?:data|memories|messages|info|profile)|everything\s+(?:you\s+know\s+)?about\s+me)|oublie[- ]?(?:moi|tout\s+sur\s+moi))\b/i;
+function memoryCommand(text: string): 'stop' | 'start' | 'forget' | null {
+  const t = text.trim();
+  return STOP_SAVING_RE.test(t) ? 'stop' : START_SAVING_RE.test(t) ? 'start' : FORGET_RE.test(t) ? 'forget' : null;
+}
+async function memoryCommandReply(kind: 'stop' | 'start' | 'forget', said: string): Promise<string> {
+  const french = /\b(?:arr[eê]te|oublie|mes\s+messages)\b/i.test(said);
+  const what = kind === 'stop'
+    ? 'They just turned OFF message saving: you deleted everything you had stored about them and you will not keep their messages anymore (they can say "start saving my messages" to turn it back on). Confirm that in ONE short cheeky line, clearly.'
+    : kind === 'start'
+    ? 'They just turned message saving back ON: you will remember their messages again to banter with them better. Confirm in ONE short cheeky line.'
+    : 'They asked you to forget them: you just deleted everything you had stored about them. Confirm in ONE short funny line, clearly.';
+  const fallback = kind === 'stop' ? "done, i deleted what i had on u and i won't save ur messages anymore" : kind === 'start' ? "bet, i'll remember ur messages again" : 'done, wiped everything i had on u. who are u again?';
+  try {
+    const r = await generateLlmText(`${what}${french ? ' Write it in Québécois French.' : ''} No quotes, just the line.`, { system: `${V2_IDENTITY}\n\nWrite ONE short Discord line (5-20 words).`, maxTokens: 60, temperature: 0.8, timeoutMs: 9000, think: false, model: localLlmChatModel(), preferFrench: french });
+    if (r.status === 'success' && r.text.trim()) {
+      const line = humanEmoji(uncensorSwears(shortChatFinalize(r.text.replace(/^["'“]+|["'”]+$/g, ''))), []);
+      // A confirmation that sounds like it failed ("couldn't delete...") is worse than none: only a clear one is kept.
+      const clear = kind === 'start' ? /\b(?:remember|sav|back|on|again)\w*/i.test(line) : /\b(?:delet|wip|gone|forg|clear|erase|nuk|binn|trash|tabula)\w*/i.test(line) && !/\b(?:couldn'?t|can'?t|cannot|won'?t\s+delete|still\s+(?:have|remember))\b/i.test(line);
+      if (clear) return `${line}\n${MEMORY_FACT[kind]}`;
+    }
+  } catch {
+    /* fallback below */
+  }
+  return `${fallback}\n${MEMORY_FACT[kind]}`;
+}
+// The plain facts under each memory confirmation (small Discord text), so nobody has to guess what happened.
+const MEMORY_FACT: Record<'stop' | 'start' | 'forget', string> = {
+  stop: '-# 🗂️ Message saving is off: everything stored about you was deleted and nothing more will be saved. Say "nexus start saving my messages" to turn it back on.',
+  start: '-# 🗂️ Message saving is on again: Nexus keeps your messages to him (30 days max of inactivity). "nexus stop saving my messages" turns it off.',
+  forget: '-# 🗂️ Everything Nexus stored about you was deleted. (Saving continues for new messages — "nexus stop saving my messages" turns it off.)',
+};
+// DMed once to each Discord person, the first time they talk to Nexus after the memory update (the bot sends it).
+const PRIVACY_NOTICE = `Hey, quick heads-up from Nexus 👋
+I now remember what you send me (only messages addressed to me) so I can banter with you properly instead of using generic jokes. I keep your last messages and a short summary of how you talk, on a private computer — never sold or shared, and deleted after 30 days of inactivity.
+Never stored: anything you tell me when you're going through something, moderation conversations, or code.
+Don't want it? Say "nexus stop saving my messages" (deletes everything and stops), "nexus forget me" (deletes everything), or turn off "Save my messages" in the settings on the Nexus AI website.
+Full details: the Privacy Policy and Terms on the Nexus AI website.`;
+
 // Short in-character lines for the bot's own system moments (switching Nexus off/on, "forget me", errors...), so the
 // bot never answers with the same hardcoded sentence (Patrick, 2026-10-04: "make sure there are no hardcoded answers").
 // Only a fixed list of situations is accepted, so this can't be used as a free prompt. The bot keeps its old line
@@ -3064,6 +3144,7 @@ async function startServer() {
         const loaded = loadLearnedIntoKnowledge();
         const voices = loadLearnedVoiceExamples();
         startLearningWorker();
+        startMemoryWorker();
         console.log(`[learning] on — ${loaded} learned fact(s), ${voices} learned voice example(s) loaded, worker started`);
       } catch (err) {
         console.warn('[learning] failed to start, continuing without it:', err);

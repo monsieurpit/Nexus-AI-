@@ -45,6 +45,20 @@ export interface GenerationCallbacks {
 // crashout-bot (a deliberate operator choice for that surface) — the `clientSettings` field below
 // tells the endpoint to honor the website's own persona/settings selection instead, so the
 // sidebar/customizer picker keeps working.
+
+// One random id per browser, kept in localStorage (a private window gets a fresh one).
+function getWebClientId(): string {
+  try {
+    const existing = localStorage.getItem('nexus-web-client-id');
+    if (existing && /^[A-Za-z0-9_-]{8,64}$/.test(existing)) return existing;
+    const id = (crypto as any).randomUUID ? crypto.randomUUID().replace(/-/g, '') : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('nexus-web-client-id', id);
+    return id;
+  } catch {
+    return '';
+  }
+}
+
 export async function generateAIResponse(
   userPrompt: string,
   history: ChatMessage[],
@@ -136,6 +150,9 @@ export async function generateAIResponse(
           // See the module comment above — tells the endpoint to honor this exact persona/settings
           // selection instead of resolveRequestedPersona's Discord-bot-only crashout-bot forcing.
           clientSettings: settings,
+          // A random id for this browser (localStorage), so personal memory and the "Save my messages" switch apply to
+          // the right person. Not tied to any account.
+          webClientId: getWebClientId(),
           // Browser geolocation (opt-in, via the composer's location button) — only used server-side
           // when the user asks about weather/time/nearby places without naming a city. Undefined
           // when the user never granted it, which the server treats identically to "not shared".

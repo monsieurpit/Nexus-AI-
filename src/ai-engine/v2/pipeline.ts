@@ -18,7 +18,7 @@ import { fxNote, fxNoteEur, getUsdToCad } from '../fx';
 import { isPartnershipMessage, partnershipTurn } from './partnership';
 import { formatNameList, nameIdeasBlock } from './names';
 import { pickBestComeback } from './roast';
-import { ammoFrom, battleActive, classifyHit, pickComeback, planRoast, type RoastPlan } from './roastEngine';
+import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
@@ -568,17 +568,18 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const hints = chatMeaningHints(prompt);
       const sayWhat = sayRequest(prompt);
       if (sayWhat) hints.push(`They want you to SAY exactly: "${sayWhat}". Your reply MUST contain those exact words, word for word (it's a joke, play along), then at most a few words of reaction.`);
+      const knowThem = settings?.personal?.summary ? `What you know about this person from past chats (let it colour your reply naturally — their interests, how they talk, running jokes; never recite it):\n${settings.personal.summary}\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }
     case 'roast': {
       // The roast engine (roastEngine.ts): what kind of hit it is, the right shape and length, ammo, battle round.
       const person = settings?.discordUserId || settings?.userName || 'anon';
-      const plan = planRoast(person, s, deps.threadText, settings?.userName);
-      lastRoastPlan = { plan, ammo: ammoFrom(deps.threadText) };
+      const plan = planRoast(person, s, deps.threadText, settings?.userName, settings?.personal);
+      lastRoastPlan = { plan, ammo: settings?.personal?.recent?.length ? settings.personal.recent.slice(-6) : ammoFrom(deps.threadText) };
       const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
       thoughtSteps.push({ id: 'step-v2-roast-plan', type: 'reasoning', title: `🔥 Roast engine: ${plan.kind}${plan.move ? ` / ${plan.move}` : ''}${plan.round > 1 ? ` · round ${plan.round}` : ''}`, description: plan.note.slice(0, 600) });
       return {
@@ -873,6 +874,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   } else if (prev?.mode === 'helper' && Date.now() - prev.at < HELPER_STICKY_MS && deps.threadText && route.mode !== 'helper' && (route.by !== 'rule' || route.mode === 'chat' || route.mode === 'question' || route.mode === 'writing')) {
     route = { mode: 'helper', by: route.by, reason: `still in a helper conversation (was ${route.mode}: ${route.reason})`, confidence: route.confidence };
   }
+  if (author && route.mode !== 'roast') noteNonRoast(author);
   if (author) {
     lastRoute.set(author, { mode: route.mode, at: Date.now() });
     if (lastRoute.size > 5000) lastRoute.delete(lastRoute.keys().next().value!);

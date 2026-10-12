@@ -56,7 +56,7 @@ export const PRIVACY_POLICY_HTML = `<!doctype html>
 <div class="wrap">
   <div class="nav"><a href="/">← Back to Nexus AI</a><a href="/terms">Terms of Service</a><a href="/disclaimer">Disclaimer →</a></div>
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: September 2026</p>
+  <p class="updated">Last updated: October 11, 2026</p>
 
   <p>This page explains what happens to your data when you use Nexus AI (this website) and the
   related Nexus Discord bot family. It's written to be genuinely accurate to how this independently-run,
@@ -68,23 +68,50 @@ export const PRIVACY_POLICY_HTML = `<!doctype html>
     and settings are stored <strong>only in your own browser's local storage</strong>. Nothing about
     your chat history is saved on a server-side database that we control — clearing your browser data
     for this site deletes it completely and permanently, on your device only.</li>
-    <li><strong>Message processing:</strong> when you send a message, its content is transmitted to our
-    server to generate a response (via a locally-hosted AI model) and is not permanently logged or
-    retained server-side beyond what's needed to process that one request.</li>
-    <li><strong>The Discord bot:</strong> messages sent to the bot are processed to generate a reply.
-    A limited set of data — your Discord user ID and, if you've shared something worth remembering
-    across conversations, a short extracted fact — may be stored so the bot can maintain continuity.
-    You can ask the bot to forget what it knows about you at any time.</li>
+    <li><strong>Message processing:</strong> when you send a message, its content is transmitted to the
+    computer that runs Nexus to generate a response with a locally-hosted AI model (no outside AI company
+    receives it).</li>
+    <li><strong>Personal memory (since October 2026):</strong> to banter with you personally instead of
+    using generic jokes, Nexus keeps the messages <strong>you send to him</strong> (on Discord: only messages
+    addressed to Nexus, not the rest of the channel; on this website: tied to a random ID stored in your
+    browser), up to your last 2,000, plus a short summary of how you talk (for example your games, teams,
+    running jokes and how you joke around). Details below.</li>
+    <li><strong>Learning:</strong> to learn general facts (not facts about you), exchanges with Nexus may be
+    kept for up to 14 days for an automated review, then deleted.</li>
+    <li><strong>The Discord bot:</strong> your Discord user ID and, if you've shared something worth
+    remembering, a few short facts may also be stored so the bot keeps continuity.</li>
     <li><strong>"Nexus Code" (GitHub repo editing):</strong> your GitHub token is used only in memory,
     for the single request that needs it, and is never written to disk or any database. It is discarded
     immediately after that request completes.</li>
+  </ul>
+
+  <h2>Personal memory</h2>
+  <ul>
+    <li><strong>What:</strong> your messages to Nexus and a short summary built from them when you've been
+    quiet for a few minutes. The summary shapes how Nexus chats with and roasts you; it is not used for
+    code answers.</li>
+    <li><strong>Never stored:</strong> messages where you're going through something (the support side of
+    Nexus), moderation and server-management conversations, code requests, and test runs. The summary is
+    told to leave out health, mental health, sexuality, religion, ethnicity, family problems, school,
+    location and age, and lines about those are removed automatically.</li>
+    <li><strong>Where:</strong> in a private folder on the computer that runs Nexus, readable only by its
+    owner's account. Not in the cloud, not on Railway, never sold or shared.</li>
+    <li><strong>How long:</strong> deleted automatically after <strong>30 days</strong> without talking to
+    Nexus. Only your last 2,000 messages are ever kept.</li>
+    <li><strong>Notice:</strong> on Discord, Nexus DMs you this information once, the first time you talk to
+    him after this update (or adds a short note under his reply if your DMs are closed).</li>
+    <li><strong>Turning it off:</strong> say <code>nexus stop saving my messages</code> (everything stored is
+    deleted and nothing more is saved; <code>nexus start saving my messages</code> turns it back on), say
+    <code>nexus forget me</code> (everything stored is deleted), or turn off <strong>Save my messages</strong>
+    in this website's settings (applies to this browser and to the Discord user ID you entered there).</li>
   </ul>
 
   <h2>What we don't do</h2>
   <ul>
     <li>We do not sell, rent, or share your personal data with third parties.</li>
     <li>We do not run advertising trackers or third-party analytics/tracking pixels on this site.</li>
-    <li>We do not build advertising profiles from your conversations.</li>
+    <li>We do not build advertising profiles from your conversations. The personal-memory summary exists
+    only to make Nexus's replies to you more personal.</li>
   </ul>
 
   <h2>Third-party services</h2>
@@ -105,13 +132,17 @@ export const PRIVACY_POLICY_HTML = `<!doctype html>
   <ul>
     <li>Clear your browser's local storage for this site at any time to permanently delete your
     website conversation history, custom knowledge, and settings.</li>
-    <li>Ask the Discord bot to delete any data it has stored about you.</li>
+    <li>Say <code>nexus forget me</code> to delete everything Nexus stored about you, or
+    <code>nexus stop saving my messages</code> to delete it and stop saving.</li>
+    <li>Turn off <strong>Save my messages</strong> in this website's settings.</li>
     <li>Simply stop using the service — nothing further is retained beyond what's described above.</li>
   </ul>
 
   <h2>Changes to this policy</h2>
-  <p>This policy may be updated as the project changes. Continued use of the service after an update
-  means you accept the revised policy. Check back here periodically.</p>
+  <p>This policy may be updated as the project changes. Significant changes to what is stored are
+  announced (for the October 2026 personal-memory update: a one-time Discord DM to each person the first
+  time they talk to Nexus). Continued use of the service after an update means you accept the revised
+  policy.</p>
 
   <footer>Nexus AI is an independently operated personal project, not a registered company. This
   policy is provided on a good-faith, best-effort basis.</footer>
@@ -134,7 +165,7 @@ export const DISCLAIMER_HTML = `<!doctype html>
 <div class="wrap">
   <div class="nav"><a href="/">← Back to Nexus AI</a><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy →</a></div>
   <h1>Disclaimer</h1>
-  <p class="updated">Last updated: September 2026</p>
+  <p class="updated">Last updated: October 11, 2026</p>
 
   <p>By using Nexus AI (this website) or the related Nexus Discord bot, you acknowledge and agree
   to the following.</p>
@@ -205,7 +236,7 @@ export const TERMS_OF_SERVICE_HTML = `<!doctype html>
 <div class="wrap">
   <div class="nav"><a href="/">← Back to Nexus AI</a><a href="/privacy">Privacy Policy</a><a href="/disclaimer">Disclaimer →</a></div>
   <h1>Terms of Service</h1>
-  <p class="updated">Last updated: September 2026</p>
+  <p class="updated">Last updated: October 11, 2026</p>
 
   <p>These Terms of Service ("Terms") govern your use of Nexus AI (this website) and the related
   Nexus Discord bot family (together, the "Service"), operated as an independent personal project.
@@ -231,8 +262,10 @@ export const TERMS_OF_SERVICE_HTML = `<!doctype html>
 
   <h2>Your content</h2>
   <p>You retain ownership of whatever you type into the Service. By using it, you grant us the
-  minimum permission necessary to process your input and return a response (nothing more — see the
-  <a href="/privacy">Privacy Policy</a> for exactly what is and isn't stored). You're responsible
+  permission necessary to process your input, return a response, and — unless you turn it off — keep
+  your messages to Nexus and a short summary of them so he can reply to you more personally (see the
+  <a href="/privacy">Privacy Policy</a> for exactly what is and isn't stored, for how long, and how to
+  turn it off). You're responsible
   for what you send — don't submit anything you don't have the right to share.</p>
 
   <h2>"Nexus Code" (GitHub repository editing)</h2>

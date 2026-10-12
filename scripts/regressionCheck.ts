@@ -954,6 +954,29 @@ async function runV2Checks() {
     check('languages: Polish letters = Polish ("tu się zgadzam" was answered in French)', langOf('tu się zgadzam w 100 procentach') === 'pl' && langOf('allo nexus cv') === 'fr' && langOf('übersetze das bitte') === 'de');
     check('translation: one-line "traduit X en anglais" / "translate X to polish" is parsed with its target; a pasted form is not', inlineTranslation('Nexus traduit Il y a une bosse sur mon pantalon en anglais')?.target === 'English' && inlineTranslation('Nexus traduit Il y a une bosse sur mon pantalon en anglais')?.text === 'Il y a une bosse sur mon pantalon' && inlineTranslation('translate i love pizza to polish')?.target === 'Polish' && inlineTranslation('translate this application to french\nName: x') === null);
     check('drafts: a staff/server message is casual unless they ask formal; a formal draft gets real capitals', casualServerDraft('write a promotion message to Staff') && !casualServerDraft('write a formal announcement for the staff') && !casualServerDraft('write an email to my teacher') && capitalizeDraft('here u go: dear sir, i am sick. thank you.') === 'here u go: Dear sir, I am sick. Thank you.'); }
+  { // Personal memory, in a throwaway folder (never the real ~/.nexus-memory).
+    const { mkdtempSync, utimesSync, rmSync: rmTmp } = await import('fs');
+    const { tmpdir } = await import('os');
+    const { join: joinPath } = await import('path');
+    const dir = mkdtempSync(joinPath(tmpdir(), 'nexus-mem-test-'));
+    process.env.NEXUS_MEMORY_DIR = dir;
+    const pm = await import('../src/ai-engine/memory/personalMemory');
+    const mw = await import('../src/ai-engine/memory/memoryWorker');
+    pm.recordMessage('discord', '111', 'Tester', 'im hard stuck silver in valorant lol');
+    for (let i = 0; i < pm.MAX_MESSAGES + 5; i++) pm.recordMessage('discord', '222', 'Big', `message ${i}`);
+    const big = pm.loadPerson('discord', '222')!;
+    check('memory: messages are stored per person and capped at the last 2,000', pm.personalContext('discord', '111').recent[0] === 'im hard stuck silver in valorant lol' && big.messages.length === pm.MAX_MESSAGES && big.messages[0].text === 'message 5');
+    pm.setOptedOut('discord', '111', 'Tester', true);
+    pm.recordMessage('discord', '111', 'Tester', 'this must not be saved');
+    check('memory: "stop saving" deletes everything and nothing more is saved; "forget me" deletes the file', pm.personalContext('discord', '111').recent.length === 0 && pm.isOptedOut('discord', '111') && pm.forgetPerson('discord', '222') && pm.loadPerson('discord', '222') === null);
+    check('memory: the privacy notice is claimed only once per person', pm.claimPrivacyNotice('discord', '333', 'N') === true && pm.claimPrivacyNotice('discord', '333', 'N') === false);
+    pm.recordMessage('web', 'oldbrowser', 'Old', 'hello there');
+    const old = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000);
+    utimesSync(joinPath(dir, 'users', 'web-oldbrowser.json'), old, old);
+    check('memory: a profile untouched for 30 days is deleted by the cleanup', pm.cleanupMemory().deleted >= 1 && !require('fs').existsSync(joinPath(dir, 'users', 'web-oldbrowser.json')));
+    check('memory: sensitive lines never make it into a summary', mw.cleanSummary('How they talk: caps, lots of 💀\nThey have anxiety and depression\nInterests: valorant (silver), Barça\nLives in Quebec City') === 'How they talk: caps, lots of 💀\nInterests: valorant (silver), Barça');
+    rmTmp(dir, { recursive: true, force: true });
+    delete process.env.NEXUS_MEMORY_DIR; }
   { const { classifyHit, scoreComeback, copiesExample: copiesKind, ammoFrom } = await import('../src/ai-engine/v2/roastEngine');
     const kinds: Array<[string, string]> = [['fuck you', 'swear'], ['stfu', 'swear'], ['go fuck yourself bitch', 'swear'], ['L', 'weak'], ['who asked', 'weak'], ['patrick called you an asshole', 'thirdparty'], ['i will unplug you', 'threat'], ['roast me', 'challenge'], ['your mom so old she runs windows 98', 'mum'], ['you are a miserable piece of shit', 'trait']];
     const badKinds = kinds.filter(([t, k]) => classifyHit(t) !== k);
