@@ -680,14 +680,17 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
     case 'roast': {
       // The roast engine (roastEngine.ts): what kind of hit it is, the right shape and length, ammo, battle round.
       const person = settings?.discordUserId || settings?.userName || 'anon';
-      const plan = planRoast(person, s, deps.threadText, settings?.userName, settings?.personal, lang);
+      // Casseurt's saved messages are mostly his tests ("build me a PC with my $800k budget" became every roast, 2026-10-12):
+      // when he starts a roast, only the creator material is used, not his saved messages or summary.
+      const isCreator = settings?.discordUserId === CASSEURT_DISCORD_ID;
+      const plan = planRoast(person, s, isCreator ? '' : deps.threadText, settings?.userName, isCreator ? undefined : settings?.personal, lang);
       // Casseurt asked to be destroyed (2026-10-12): for him, a crafted roast can run to two brutal lines.
       if (settings?.discordUserId === CASSEURT_DISCORD_ID && plan.kind !== 'swear' && plan.kind !== 'concede') {
         plan.min = Math.max(plan.min, 12);
         plan.max = Math.max(plan.max, 40);
         plan.note = plan.note.replace(/LENGTH: \d+-\d+ words\.[^\n]*/, 'LENGTH: 12-40 words — up to TWO brutal lines, specific, no mercy (he asked to be destroyed).');
       }
-      lastRoastPlan = { plan, ammo: settings?.personal?.recent?.length ? settings.personal.recent.slice(-6) : ammoFrom(deps.threadText) };
+      lastRoastPlan = { plan, ammo: isCreator ? [] : settings?.personal?.recent?.length ? settings.personal.recent.slice(-6) : ammoFrom(deps.threadText) };
       const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
       thoughtSteps.push({ id: 'step-v2-roast-plan', type: 'reasoning', title: `🔥 Roast engine: ${plan.kind}${plan.move ? ` / ${plan.move}` : ''}${plan.round > 1 ? ` · round ${plan.round}` : ''}`, description: plan.note.slice(0, 600) });
       return {

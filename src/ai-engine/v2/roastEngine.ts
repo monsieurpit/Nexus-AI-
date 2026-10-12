@@ -129,6 +129,7 @@ export function ammoFrom(threadText: string): string[] {
 }
 
 export interface RoastPlan {
+  person?: string;
   kind: HitKind;
   move: RoastMove | null;
   round: number;
@@ -158,22 +159,32 @@ export function planRoast(person: string, text: string, threadText: string, user
   if (ammo.length) parts.push(`AMMO (things they said earlier — a callback to one of these hits hardest): ${ammo.map((a) => `"${a.slice(0, 90)}"`).join(' | ')}`);
   if (username) parts.push(`Their name: ${username}.`);
   if (personal?.summary && kind !== 'swear') parts.push(`WHAT YOU KNOW ABOUT THEM (from their past chats with you — use it to make it personal, never generic):\n${personal.summary}`);
-  return { kind, move, round: b.rounds, note: parts.join('\n'), min: k.min, max: k.max };
+  // What was already thrown at this person ("$800k PC" every single roast, 2026-10-12): never again for a while.
+  const used = usedOn.get(person) || [];
+  if (used.length) parts.push(`ALREADY USED ON THEM (never reuse these jokes or topics): ${used.slice(-6).map((u) => `"${u}"`).join(', ')}`);
+  return { person, kind, move, round: b.rounds, note: parts.join('\n'), min: k.min, max: k.max };
 }
 
 // ── scoring the 3 candidates ──
 // The last comebacks sent (to anyone), so the same jokes don't come back across the server.
 const recentComebacks: string[] = [];
-export function rememberComeback(line: string): void {
+export function rememberComeback(line: string, person?: string): void {
   recentComebacks.push(line);
   if (recentComebacks.length > 20) recentComebacks.shift();
+  if (person) {
+    const list = [...(usedOn.get(person) || []), line].slice(-8);
+    usedOn.set(person, list);
+    if (usedOn.size > 3000) usedOn.delete(usedOn.keys().next().value!);
+  }
 }
+// Per person: the last comebacks thrown at them.
+const usedOn = new Map<string, string[]>();
 const FILLER_RE = /\b(?:entire\s+(?:life|existence|being)|life\s+story|existence|search\s+history|browser\s+history|more\s+personality\s+than|is\s+that\s+the\s+best|nah\s+mate|that\s+sounds|im\s+sorry|wanna\s+talk|hope\s+(?:ur|your)\s+day)\b/i;
 const AT_LEAST_RE = AT_LEAST_ANY_RE;
 const STOP = new Set('the a an and or to of in on at is are was were be you your ur u youre im i me my it its this that so such just like with for from as but not no yes yeah nah bro bruh nexus she he her his they them their have has had do does did can could would should will what who how why when where'.split(' '));
 const words = (t: string) => (t.toLowerCase().match(/[\p{L}\p{N}'’]{3,}/gu) || []).filter((w) => !STOP.has(w) && !STOP_FR_PL.has(w));
 
-export function scoreComeback(line: string, theirs: string, plan: Pick<RoastPlan, 'kind' | 'min' | 'max'>, ammo: string[] = []): number {
+export function scoreComeback(line: string, theirs: string, plan: Pick<RoastPlan, 'kind' | 'min' | 'max' | 'person'>, ammo: string[] = []): number {
   const n = line.split(/\s+/).filter(Boolean).length;
   let score = 0;
   // length fits the kind
@@ -182,8 +193,11 @@ export function scoreComeback(line: string, theirs: string, plan: Pick<RoastPlan
   // uses their words (a real flip) or a callback to their earlier messages
   const topic = new Set(words(theirs));
   score += words(line).filter((w) => topic.has(w)).length * (plan.kind === 'swear' ? 1 : 2);
-  const ammoWords = new Set(ammo.flatMap(words));
+  // Distinctive words already thrown at this person ("800k", "dial-up"): a reused topic loses, and doesn't count as ammo.
+  const usedWords = new Set((plan.person ? usedOn.get(plan.person) || [] : []).flatMap(words).filter((w) => w.length >= 4 || /\d/.test(w)));
+  const ammoWords = new Set(ammo.flatMap(words).filter((w) => !usedWords.has(w)));
   if (ammoWords.size) score += Math.min(3, words(line).filter((w) => ammoWords.has(w)).length * 1.5);
+  score -= Math.min(8, words(line).filter((w) => usedWords.has(w)).length * 3);
   // filler, copied examples, the "at least my mum" crutch
   if (FILLER_RE.test(line)) score -= 5;
   if (copiesExample(line)) score -= 6;
@@ -210,18 +224,18 @@ export function scoreComeback(line: string, theirs: string, plan: Pick<RoastPlan
   return score;
 }
 
-export function pickComeback(raw: string, theirs: string, plan: Pick<RoastPlan, 'kind' | 'min' | 'max'>, ammo: string[] = []): string {
+export function pickComeback(raw: string, theirs: string, plan: Pick<RoastPlan, 'kind' | 'min' | 'max' | 'person'>, ammo: string[] = []): string {
   const lines = raw
     .split(/\n+/)
     .map((l) => l.replace(/^\s*(?:\d+[.)]|[-*•]|comeback\s*\d*:?)\s*/i, '').replace(/^["“]|["”]$/g, '').trim())
     .filter((l) => l.length >= 2 && !/^(?:here|okay|sure|comebacks?)\b/i.test(l));
   if (lines.length <= 1) {
-    rememberComeback(lines[0] || raw.trim());
+    rememberComeback(lines[0] || raw.trim(), plan.person);
     return lines[0] || raw.trim();
   }
   const best = lines
     .map((l, i) => ({ l, s: scoreComeback(l, theirs, plan, ammo) + Math.random() * 0.4 - i * 0.01 }))
     .sort((a, b) => b.s - a.s)[0].l;
-  rememberComeback(best);
+  rememberComeback(best, plan.person);
   return best;
 }
