@@ -219,6 +219,15 @@ export function humanEmoji(reply: string, recent: string[]): string {
 
 // On Discord his boyfriend gets pinged when he's mentioned (Patrick, 2026-10-11).
 export const XANT_PING = '<@1427274237470703712>';
+// "gng" (= gang) only ADDRESSES someone, like "bro": "wsg gng", "nah gng". The model also used it as a description —
+// "im gng more real rn", "ur gng" (2026-10-12, Patrick: "wtf, I'm gang?"). Those uses are dropped.
+export function fixGng(reply: string): string {
+  return reply
+    .replace(/\b(i'?m|i\s+am|ima|imma|ur|you'?re|youre|u\s+r|u\s+are|you\s+are|he'?s|she'?s|it'?s|its|we'?re|they'?re|that'?s|thats|is|are|was|be|so|more|less|real|proper|very)\s+gng\b/gi, '$1')
+    .replace(/\bgng\s+(?=(?:more|less|real|realer|better|worse|than|as)\b)/gi, '')
+    .replace(/[ \t]{2,}/g, ' ');
+}
+
 export function pingBoyfriend(reply: string, onDiscord: boolean): string {
   if (!onDiscord || reply.includes(XANT_PING)) return reply;
   return reply.replace(/@?\bxant(?:_880|2)?\b/i, XANT_PING);
@@ -1050,6 +1059,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   else content = capitalizeDraft(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
   else content = stripBannedEmojiOutsideCode(content);
+  if (route.mode === 'chat' || route.mode === 'roast') content = fixGng(content);
   content = pingBoyfriend(content, Boolean(settings.serverContext));
   const timing = { route: tRouted - tStart, build: tBuilt - tRouted, generate: tGenerated - tBuilt, after: Date.now() - tGenerated };
   lastTiming = timing;
