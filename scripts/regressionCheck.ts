@@ -984,6 +984,11 @@ async function runV2Checks() {
     const swearPlan = { kind: 'swear' as const, min: 2, max: 9 };
     check('roast engine: "fuck you" → the mirror ("fuck you too motherfucker") beats an "at least my mum" essay', scoreComeback('fuck you too motherfucker', 'fuck you', swearPlan) > scoreComeback('at least my mum has more personality than ur entire fucking existence mate', 'fuck you', swearPlan));
     check('roast engine: copied shape examples are caught (short ones too), ammo = their own earlier messages', copiesKind('wow peak creativity mate') && copiesKind('u need perms for that, bud') && !copiesKind('fuck you too motherfucker') && ammoFrom('Them: nexus im hard stuck silver in valorant\nYou: lol\nThem: ur trash').join() === 'im hard stuck silver in valorant'); }
+  { const { textToBinary, binaryToText, expectedBinary, fixBinary } = await import('../src/ai-engine/v2/binary');
+    const { chatMeaningHints: hints2 } = await import('../src/ai-engine/rules/messageMode');
+    const { __test: rt4 } = await import('../src/ai-engine/v2/router');
+    check('binary: exact text ⇄ binary, a request gets the computed binary, a flipped digit in the reply is corrected, a binary message is chat (not maths)', textToBinary('hi') === '01101000 01101001' && binaryToText('01101000 01101001') === 'hi' && expectedBinary('translate pizza to binary') === textToBinary('pizza') && fixBinary('here: 01101000 01101000', '01101000 01101001') === 'here: 01101000 01101001' && rt4.byRules('01101000 01101001 00100000 01101110')?.mode === 'chat');
+    check('persona: "are you verity" = the always-right Minecraft meme; "you are a pickle" = denied (he\'s a boy); "ur a legend" is still a compliment', hints2('are you verity').some((h) => /always right/.test(h)) && hints2('you are a pickle fr fr').some((h) => /boy/.test(h)) && !hints2('ur a legend').some((h) => /boy, not/.test(h))); }
   { const { badGreetingReply } = await import('../src/ai-engine/v2/pipeline');
     check('greetings: "wsg gng whats the vibe" is an AI-sounding greeting; "hello hru" and a grumpy "fuck off mate what do u even want" are fine', badGreetingReply('wsg gng whats the vibe?') && !badGreetingReply('hello hru') && !badGreetingReply('fuck off mate what do u even want')); }
   { const { plainMaths } = await import('../src/ai-engine/v2/pipeline');

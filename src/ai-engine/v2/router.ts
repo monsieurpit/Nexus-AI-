@@ -20,6 +20,7 @@ import { isBodyCountQuestion } from '../rules/bodyCount';
 import type { SpecialistId } from './specialists';
 import { detectCodeLang, type CodeLang } from './codeTools';
 import { classifyHit } from './roastEngine';
+import { BINARY_MESSAGE_RE } from './binary';
 
 export interface Route {
   mode: SpecialistId;
@@ -114,6 +115,8 @@ function byRules(text: string): Route | null {
   // "hello asshole", "gm bitch": a mate's friendly greeting with a joke insult — greet back, don't fight (Patrick, 2026-10-11).
   if (GREET_INSULT_RE.test(t)) return r('chat', 'friendly greeting with a joke insult');
   if (['swear', 'weak'].includes(classifyHit(t)) && t.length < 60) return r('roast', 'swore at you / lazy jab');
+  // A message written in binary is chat (decoded in pipeline.ts), not maths.
+  if (BINARY_MESSAGE_RE.test(t)) return r('chat', 'message in binary');
   if (ROAST_RE.test(t) && !(TRANSLATE_WORD_RE.test(t) && /["“”'«]|\b(?:to|into|in|en)\s+(?:english|french|fran[cç]ais|anglais|polish|german|spanish|italian|portuguese)\b/i.test(t))) return r('roast', 'insult / your-mum joke / challenge');
   if (SERVER_BANTER_RE.test(t) && !/\b(?:how\s+(?:do|can|to)|ban|kick|mute|timeout|staff|raid(?:ed|ing)?\s+by)\b/i.test(t)) return r('chat', 'banter about the server');
   if (HELPER_RE.test(t) && !/^(?:can\s+you\s+)?translate\s+(?:the\s+)?point\b/i.test(t)) return r('helper', 'translation / staff / server management');

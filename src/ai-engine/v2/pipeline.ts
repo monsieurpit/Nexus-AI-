@@ -20,6 +20,7 @@ import { formatNameList, nameIdeasBlock } from './names';
 import { pickBestComeback } from './roast';
 import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
+import { binaryNote, expectedBinary, fixBinary } from './binary';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL, type CodeLang } from './codeTools';
 import { countDistinctPartners, isBodyCountQuestion } from '../rules/bodyCount';
 
@@ -902,7 +903,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const langNote = route.mode === 'helper' && inlineTranslation(prompt) ? '' : route.mode === 'helper' && lang !== 'en' && isTranslateRequest(prompt)
     ? `${LANG_NOTE[lang]}\n(EXCEPTION: the translation itself is written in the language they want it translated INTO, not in theirs.)`
     : LANG_NOTE[lang];
-  const userTurn = `${parrotNote}${imageBlock}${built.text}${langNote}`;
+  const binary = route.mode === 'code' ? null : binaryNote(text || '');
+  const userTurn = `${parrotNote}${binary || ''}${imageBlock}${built.text}${langNote}`;
   const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt) && !casualServerDraft(prompt);
   const finalize = (t: string) => {
@@ -978,6 +980,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     if (retry) content = dropBannedEmoji(finalize(retry));
   }
   if (route.mode === 'search' || route.mode === 'question') content = tidyList(content);
+  const wantBinary = route.mode === 'code' ? null : expectedBinary(text || '');
+  if (wantBinary) content = fixBinary(content, wantBinary);
   if (!/```/.test(content)) content = plainMaths(content);
   // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
   if (!formal) content = uncensorSwears(content);
