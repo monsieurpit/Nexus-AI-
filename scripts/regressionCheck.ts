@@ -984,6 +984,8 @@ async function runV2Checks() {
     const swearPlan = { kind: 'swear' as const, min: 2, max: 9 };
     check('roast engine: "fuck you" → the mirror ("fuck you too motherfucker") beats an "at least my mum" essay', scoreComeback('fuck you too motherfucker', 'fuck you', swearPlan) > scoreComeback('at least my mum has more personality than ur entire fucking existence mate', 'fuck you', swearPlan));
     check('roast engine: copied shape examples are caught (short ones too), ammo = their own earlier messages', copiesKind('wow peak creativity mate') && copiesKind('u need perms for that, bud') && !copiesKind('fuck you too motherfucker') && ammoFrom('Them: nexus im hard stuck silver in valorant\nYou: lol\nThem: ur trash').join() === 'im hard stuck silver in valorant'); }
+  { const { FRIENDLY_RE, badGreetingReply } = await import('../src/ai-engine/v2/pipeline');
+    check('greetings: friendly messages skip the bad mood ("hello", "Hello asshole", "ur a legend"), insults don\'t; "wsg gng whats the vibe" is an AI-sounding greeting, "hello hru" is fine', FRIENDLY_RE.test('hello') && FRIENDLY_RE.test('Hello asshole') && FRIENDLY_RE.test('ur a legend') && !FRIENDLY_RE.test('fuck you') && badGreetingReply('wsg gng whats the vibe?') && !badGreetingReply('hello hru') && !badGreetingReply('yo wyd')); }
   { const { plainMaths } = await import('../src/ai-engine/v2/pipeline');
     const { __test: rt3 } = await import('../src/ai-engine/v2/router');
     check('maths: LaTeX becomes plain text on Discord, prices keep their $', plainMaths('$0.15 \\times 80 = 12$') === '0.15 × 80 = 12' && plainMaths('it costs $6,700 CAD and $1,730 CAD') === 'it costs $6,700 CAD and $1,730 CAD' && plainMaths('$$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$') === 'x = (-b ± √(b^2-4ac))/(2a)');
