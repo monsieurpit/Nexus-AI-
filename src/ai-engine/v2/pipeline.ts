@@ -149,7 +149,14 @@ export function dropTrailingAside(reply: string): string {
 // Patrick, later the same day: "he is using too much emojis, limit him to 1" -> at most ONE emoji per reply (the first
 // one is kept), outside code blocks.
 const EMOJI_RE = /\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/gu;
+// An emoji glued between two words ("shit💀bro") left them glued when it was dropped ("shitbro", 2026-10-12): spaces go
+// around it first, so removing it leaves "shit bro".
+// (A lookbehind on an emoji silently fails in Bun, so the emoji is captured instead.)
+export const unglueEmoji = (text: string) =>
+  text.replace(/([\p{L}\p{N}])(\p{Extended_Pictographic})/gu, '$1 $2').replace(/(\p{Extended_Pictographic}\uFE0F?)(?=[\p{L}\p{N}])/gu, '$1 ');
+
 export function dropBannedEmoji(reply: string): string {
+  reply = /```/.test(reply) ? reply : unglueEmoji(reply);
   const limit = (raw: string) => {
     let kept = false;
     // A leading emoji moves to the end of the first sentence (before an aside); [aside] becomes (aside); an aside that
@@ -203,7 +210,7 @@ export function uncensorSwears(text: string): string {
 const ANY_EMOJI_RE = /\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/gu;
 export function humanEmoji(reply: string, recent: string[]): string {
   if (/```/.test(reply)) return reply;
-  let out = reply.replace(/[😂🤣]/gu, '😭').replace(ANY_EMOJI_RE, (e) => (/^(?:💀|😭|🔥)/u.test(e) ? e : ''));
+  let out = unglueEmoji(reply).replace(/[😂🤣]/gu, '😭').replace(ANY_EMOJI_RE, (e) => (/^(?:💀|😭|🔥)/u.test(e) ? e : ''));
   // Never two in a row, and otherwise only about half the time — so most messages have none.
   const last = recent[recent.length - 1];
   if ((last && /\p{Extended_Pictographic}/u.test(last)) || Math.random() < 0.45) out = out.replace(ANY_EMOJI_RE, '');
@@ -843,7 +850,7 @@ export function badGreetingReply(reply: string): boolean {
 export function stripBannedEmojiOutsideCode(text: string): string {
   return text
     .split(/(```[\s\S]*?(?:```|$))/)
-    .map((part) => (part.startsWith('```') ? part : part.replace(/ ?[🙄🤔😊🤷👀🍻😏💅]\uFE0F?(?:\u200D[♂♀]\uFE0F?)?/gu, '')))
+    .map((part) => (part.startsWith('```') ? part : unglueEmoji(part).replace(/ ?[🙄🤔😊🤷👀🍻😏💅]\uFE0F?(?:\u200D[♂♀]\uFE0F?)?/gu, '').replace(/[ \t]{2,}/g, ' ')))
     .join('')
     .trim();
 }
