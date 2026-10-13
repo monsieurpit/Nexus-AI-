@@ -4,6 +4,7 @@
 //   {"cmd":"open","url":"..."}            → {ok,title,url}
 //   {"cmd":"list"}                        → {ok,elements:[{i,label}]}
 //   {"cmd":"click","i":3}                 → {ok}
+//   {"cmd":"type","i":2,"text":"..."}       → {ok}   (search / text boxes only, then Enter)
 //   {"cmd":"read"}                        → {ok,title,url,text,images:[...],video}
 //   {"cmd":"close"}                       → exits
 // The URL rules (no local network, no adult sites) are checked by the engine AND here on every request.
@@ -50,14 +51,19 @@ async function list() {
   const elements = await page.evaluate(() => {
     const out = [];
     let n = 0;
-    for (const el of document.querySelectorAll('a[href], button, [role="button"], input[type="submit"], input[type="button"], summary, [onclick]')) {
+    // Search / text boxes too (typing is allowed there only — never password, email, phone or card fields).
+    const SENSITIVE = /pass|email|e-mail|phone|tel|card|cc-|cvc|cvv|iban|ssn|otp|code|pin|user(?:name)?|login/i;
+    for (const el of document.querySelectorAll('input[type="search"], input[type="text"], input:not([type]), textarea, a[href], button, [role="button"], [role="searchbox"], input[type="submit"], input[type="button"], summary, [onclick]')) {
       const r = el.getBoundingClientRect();
       const st = getComputedStyle(el);
       if (r.width < 4 || r.height < 4 || st.visibility === 'hidden' || st.display === 'none') continue;
-      const label = (el.getAttribute('aria-label') || el.innerText || el.value || el.getAttribute('title') || el.getAttribute('alt') || '').replace(/\s+/g, ' ').trim().slice(0, 70);
-      if (!label) continue;
+      const isBox = el.matches('input[type="search"], input[type="text"], input:not([type]), textarea, [role="searchbox"]');
+      if (isBox && SENSITIVE.test([el.getAttribute('type'), el.getAttribute('name'), el.getAttribute('id'), el.getAttribute('autocomplete'), el.getAttribute('placeholder'), el.getAttribute('aria-label')].join(' '))) continue;
+      const raw = (el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.innerText || (isBox ? '' : el.value) || el.getAttribute('title') || el.getAttribute('alt') || (isBox ? 'search box' : '')).replace(/\s+/g, ' ').trim().slice(0, 70);
+      if (!raw) continue;
+      const label = isBox ? `[text box] ${raw}` : raw;
       el.setAttribute('data-nexus-id', String(n));
-      out.push({ i: n, label });
+      out.push({ i: n, label, box: isBox });
       if (++n >= 60) break;
     }
     return out;
@@ -69,6 +75,21 @@ async function click(i) {
   await page.locator(`[data-nexus-id="${i}"]`).first().click({ timeout: 5000 });
   await page.waitForLoadState('domcontentloaded', { timeout: 8000 }).catch(() => undefined);
   await page.waitForTimeout(1200);
+  return { ok: true, url: page.url() };
+}
+
+async function type(i, text) {
+  let el = page.locator(`[data-nexus-id="${i}"]`).first();
+  const isBox = await el.evaluate((e) => e.matches('input[type="search"], input[type="text"], input:not([type]), textarea, [role="searchbox"]')).catch(() => false);
+  // The picked box can vanish (a search box that only opens after clicking the icon): any visible search box will do.
+  if (!isBox || !(await el.isVisible().catch(() => false))) {
+    el = page.locator('input[type="search"]:visible, [role="searchbox"]:visible, input[name*="search" i]:visible, input[name="q"]:visible, input[placeholder*="search" i]:visible').first();
+    if (!(await el.count())) return { ok: false, error: 'no search box' };
+  }
+  await el.fill(String(text).slice(0, 120), { timeout: 5000 });
+  await el.press('Enter');
+  await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => undefined);
+  await page.waitForTimeout(2000);
   return { ok: true, url: page.url() };
 }
 
@@ -100,6 +121,7 @@ rl.on('line', async (line) => {
     if (c.cmd === 'open') send(blocked(c.url) ? { ok: false, error: 'blocked url' } : await open(c.url));
     else if (c.cmd === 'list') send(await list());
     else if (c.cmd === 'click') send(await click(c.i));
+    else if (c.cmd === 'type') send(await type(c.i, c.text));
     else if (c.cmd === 'read') send(await read());
     else if (c.cmd === 'close') {
       await browser?.close().catch(() => undefined);

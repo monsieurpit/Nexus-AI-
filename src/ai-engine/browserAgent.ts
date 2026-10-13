@@ -22,8 +22,18 @@ const TOTAL_MS = 60_000;
 
 export const browserAvailable = () => Boolean(TOKEN || LOCAL);
 
+// A page that IS a video (yt-dlp downloads it): YouTube watch / Shorts, youtu.be, Vimeo, TikTok.
+export const VIDEO_PAGE_RE = /^https?:\/\/(?:(?:www|m)\.)?(?:youtube\.com\/(?:watch|shorts\/)|youtu\.be\/|vimeo\.com\/\d|tiktok\.com\/@[^/]+\/video)/i;
+
+// "watch a youtube short (about cats)" with no link: where to go. A topic = a YouTube search filtered to Shorts.
+export function shortsUrl(message: string): string | null {
+  if (!/\b(?:yt|youtube)\s+shorts?\b|\bshorts?\s+on\s+(?:yt|youtube)\b/i.test(message) || !/\b(?:watch|show|find|play|listen|look\s+at|check\s+out|react\s+to)\b/i.test(message)) return null;
+  const topic = (message.match(/\b(?:about|of|on|with)\s+(?!(?:yt|youtube)\b)(.{2,60}?)\s*[?.!]*$/i) || [])[1];
+  return topic ? `https://www.youtube.com/results?search_query=${encodeURIComponent(`${topic} #shorts`)}&sp=EgIYAQ%253D%253D` : 'https://www.youtube.com/shorts';
+}
+
 // "go to X and click Y", "press the play button on X", "watch the video on X", "look at the pics on X".
-export const BROWSE_INTENT_RE = /\b(?:click|press|tap|hit|open\s+the|go\s+to|navigate|interact|scroll|play\s+the\s+video|watch\s+(?:the|this|that)\s+(?:video|vid|clip)|look\s+at\s+(?:the\s+)?(?:pics?|pictures?|photos?|images?)|check\s+(?:the\s+)?(?:pics?|pictures?|photos?|images?|video))\b/i;
+export const BROWSE_INTENT_RE = /\b(?:listen\s+to|click|press|tap|hit|open\s+the|go\s+(?:to|on)|navigate|search(?:\s+up|\s+for)?|type|look\s+up|find|read\s+(?:all|the|every|it)|summari[sz]e|interact|scroll|play\s+the\s+video|watch\s+(?:the|this|that)\s+(?:video|vid|clip)|look\s+at\s+(?:the\s+)?(?:pics?|pictures?|photos?|images?)|check\s+(?:the\s+)?(?:pics?|pictures?|photos?|images?|video))\b/i;
 
 const FORBIDDEN_CLICK_RE = /\b(?:buy|pay|payment|checkout|check\s*out|order|purchase|add\s+to\s+(?:cart|bag|basket)|subscribe|sign\s*up|register|log\s*in|login|sign\s*in|delete|remove\s+account|send|submit|donate|confirm\s+(?:order|payment)|place\s+order|bid|transfer|withdraw)\b/i;
 const ADULT_RE = /(?:porn|xvideos|xnxx|xhamster|onlyfans|redtube|youporn|chaturbate|stripchat|brazzers|spankbang|rule34|hentai|nsfw)/i;
@@ -104,15 +114,19 @@ function startDriver() {
   };
 }
 
-// The model picks the next click for the goal: "CLICK <n>" or "DONE".
-async function pickClick(goal: string, url: string, elements: Array<{ i: number; label: string }>, done: string[]): Promise<number | null> {
+// The model picks the next step for the goal: "CLICK <n>", "TYPE <n> <text>" (search boxes) or "DONE".
+type Step = { kind: 'click'; i: number } | { kind: 'type'; i: number; text: string } | null;
+async function pickStep(goal: string, url: string, elements: Array<{ i: number; label: string; box?: boolean }>, done: string[]): Promise<Step> {
   const list = elements.map((e) => `[${e.i}] ${e.label}`).join('\n');
   const res: any = await localLlmClient.generate(
-    `Goal from the user: "${goal}"\nYou are on: ${url}\nAlready clicked: ${done.length ? done.join(' → ') : 'nothing yet'}\nClickable things on the page:\n${list}\n\nReply with exactly "CLICK <number>" for the ONE thing to click next to reach the goal, or "DONE" if the goal is reached or nothing fits.`,
-    { system: 'You operate a web browser for someone. Pick precisely. Reply only "CLICK <number>" or "DONE".', temperature: 0, maxTokens: 12, think: false } as any
+    `Goal from the user: "${goal}"\nYou are on: ${url}\nDone so far: ${done.length ? done.join(' → ') : 'nothing yet'}\nThings on the page:\n${list}\n\nReply with exactly ONE of:\n"CLICK <number>" to click that thing\n"TYPE <number> <words>" to type words into a [text box] and press Enter (e.g. to search)\n"DONE" if the goal is reached or nothing fits.`,
+    { system: 'You operate a web browser for someone. Pick precisely, one step at a time. Reply only with the step.', temperature: 0, maxTokens: 30, think: false } as any
   );
-  const m = String(res?.text || '').match(/CLICK\s*\[?(\d{1,3})\]?/i);
-  return m ? Number(m[1]) : null;
+  const t = String(res?.text || '');
+  const ty = t.match(/TYPE\s*\[?(\d{1,3})\]?\s+["“]?(.+?)["”]?\s*$/im);
+  if (ty) return { kind: 'type', i: Number(ty[1]), text: ty[2].trim() };
+  const c = t.match(/CLICK\s*\[?(\d{1,3})\]?/i);
+  return c ? { kind: 'click', i: Number(c[1]) } : null;
 }
 
 async function describePhotos(srcs: string[]): Promise<string[]> {
@@ -146,35 +160,48 @@ export async function browseAndAct(rawUrl: string, goal: string): Promise<Browse
   try {
     const opened = await driver.ask({ cmd: 'open', url: rawUrl }, 40_000);
     if (!opened.ok) return { ok: false, error: `the page didn't load (${opened.error})`, steps, photos: [] };
-    const wantsClicks = /\b(?:click|press|tap|hit|open\s+the|navigate|go\s+to\s+the)\b/i.test(goal);
+    const wantsClicks = /\b(?:click|press|tap|hit|open\s+the|navigate|go\s+to\s+the|search|type|look\s+up|find|read\s+(?:all|every)|chapters?|\d+(?:st|nd|rd|th)|first|second|third)\b/i.test(goal);
     let url = opened.url;
     // As many clicks as they asked for ("click new, what's the first post" = 1), never more than 4 — it used to keep going
     // into the first post and a link inside it.
-    const asked = Math.max(1, (goal.match(/\b(?:click|press|tap|hit|open\s+the|then)\b/gi) || []).length);
-    const maxClicks = Math.min(MAX_CLICKS, asked);
+    // ("read all the chapters" / "every page": up to 4 pages, each one's text kept.)
+    const asked = Math.max(1, (goal.match(/\b(?:click|press|tap|hit|open\s+the|then|search|type|watch|\d+(?:st|nd|rd|th)|first|second|third)\b/gi) || []).length);
+    const maxClicks = /\b(?:all|every|each)\b/i.test(goal) ? MAX_CLICKS : Math.min(MAX_CLICKS, asked + 1);
+    const pagesRead: string[] = [];
     for (let k = 0; wantsClicks && k < maxClicks && Date.now() - started < TOTAL_MS - 20_000; k++) {
       const listed = await driver.ask({ cmd: 'list' });
       const elements: Array<{ i: number; label: string }> = listed.ok ? listed.elements : [];
       if (!elements.length) break;
-      const pick = await pickClick(goal, url, elements, steps);
-      const el = pick === null ? null : elements.find((e) => e.i === pick);
-      if (!el) break;
-      if (FORBIDDEN_CLICK_RE.test(el.label)) {
+      // On a video page and the goal is to watch / listen: stop clicking (it searched twice and re-clicked the video).
+      if (/\b(?:watch|listen|play|video|short)\b/i.test(goal) && VIDEO_PAGE_RE.test(url)) break;
+      const step = await pickStep(goal, url, elements, steps);
+      const el = step ? elements.find((e) => e.i === step.i) : null;
+      if (!step || !el) break;
+      const label = step.kind === 'type' ? `searched "${step.text}"` : `clicked "${el.label}"`;
+      if (steps.includes(label)) break; // the same step again = going in circles
+      if (step.kind === 'click' && FORBIDDEN_CLICK_RE.test(el.label)) {
         steps.push(`refused to click "${el.label}" (buying / signing up / sending is off limits)`);
         break;
       }
-      const clicked = await driver.ask({ cmd: 'click', i: el.i });
-      steps.push(clicked.ok ? `clicked "${el.label}"` : `couldn't click "${el.label}"`);
-      if (clicked.url) url = clicked.url;
+      const done = step.kind === 'type' ? await driver.ask({ cmd: 'type', i: el.i, text: step.text }, 30_000) : await driver.ask({ cmd: 'click', i: el.i });
+      steps.push(step.kind === 'type' ? (done.ok ? `searched "${step.text}"` : `couldn't type in "${el.label}"`) : done.ok ? `clicked "${el.label}"` : `couldn't click "${el.label}"`);
+      if (done.url) url = done.url;
+      // Several pages ("read all the chapters"): each visited page's text is kept.
+      if (/\b(?:all|every|each|read|summari[sz]e)\b/i.test(goal) && step.kind === 'click' && done.ok) {
+        const mid = await driver.ask({ cmd: 'read' }).catch(() => null);
+        if (mid?.ok) pagesRead.push(`--- ${mid.title} ---\n${String(mid.text).slice(0, 1500)}`);
+      }
     }
     const page = await driver.ask({ cmd: 'read' });
     if (!page.ok) return { ok: false, error: page.error, steps, photos: [] };
     const wantsPhotos = /\b(?:pics?|pictures?|photos?|images?|look\s+at|see|show)\b/i.test(goal);
-    const wantsVideo = /\b(?:video|vid|clip|watch|play)\b/i.test(goal);
+    const wantsVideo = /\b(?:video|vid|clip|watch|play|listen|hear|short|shorts|song|audio)\b/i.test(goal);
     driver.close();
     const photos = wantsPhotos ? await describePhotos(page.images || []) : [];
-    const video = wantsVideo ? await watchVideo(page.video || '', goal) : undefined;
-    return { ok: true, steps, title: page.title, finalUrl: page.url, text: page.text, photos, video };
+    // On YouTube / Vimeo the <video> plays a blob: — the page itself is the video (yt-dlp downloads it).
+    const pageIsVideo = VIDEO_PAGE_RE.test(page.url || '');
+    const video = wantsVideo ? await watchVideo(pageIsVideo ? page.url : page.video || '', goal) : undefined;
+    return { ok: true, steps, title: page.title, finalUrl: page.url, text: pagesRead.length ? `${pagesRead.join('\n')}\n--- last page ---\n${String(page.text).slice(0, 1500)}` : page.text, photos, video };
   } catch (err) {
     return { ok: false, error: `the page didn't load (${(err as Error).message.slice(0, 120)})`, steps, photos: [] };
   } finally {

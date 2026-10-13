@@ -1,4 +1,4 @@
-import { browseAndAct, browseFacts, browserAvailable, BROWSE_INTENT_RE } from './browserAgent';
+import { browseAndAct, browseFacts, browserAvailable, BROWSE_INTENT_RE, VIDEO_PAGE_RE, shortsUrl } from './browserAgent';
 import {
   AISettings,
   ChatMessage,
@@ -5078,6 +5078,24 @@ async function generateReasoningPathInner(
   // A partnership request is the helper's job (it reads the invite itself, with the real member count): the link
   // reader below used to grab it first and just say "that's a server invite" (2026-10-05).
   const linkInPrompt = useV2(settings, persona, isCrashout) && isPartnershipMessage(prompt) ? null : detectUrlInPrompt(prompt);
+  // A YouTube / Shorts / TikTok link + "watch" / "listen": the video analyzer directly (yt-dlp), no browser needed.
+  if (linkInPrompt && VIDEO_PAGE_RE.test(linkInPrompt) && /\b(?:watch|listen|hear|play|what\s+(?:happens|is\s+(?:this|it|in))|react|summari[sz]e|tell\s+me\s+about|what\s+do\s+(?:you|u)\s+think)\b/i.test(prompt)) {
+    const { analyzeVideo } = await import('./videoAnalyzer');
+    const a = await analyzeVideo(linkInPrompt, prompt).catch(() => null);
+    thoughtSteps.push({ id: 'step-watch-link', type: 'web_search', title: a?.ok ? '🎬 Watched the video' : '🎬 Could not watch the video', description: a?.ok ? a.description.slice(0, 200) : String(a?.error || 'failed') });
+    const task = a?.ok ? `You watched and listened to the video they linked (${linkInPrompt}). What it shows and says:\n${a.description.slice(0, 2500)}\n\nAnswer what they asked about it, in your voice — short. Never claim something not listed above.` : `You tried to watch the video they linked but couldn't (${a?.error || 'download failed'}). Say so plainly, in your voice.`;
+    const reply = await phraseWithFacts('question', prompt, task, recentRepliesFor(settings.discordUserId), thoughtSteps, 'video');
+    if (reply) return primeReturn(reply, [`Video: ${linkInPrompt}`]);
+  }
+  // "watch a youtube short (about cats)" with no link: open YouTube Shorts and watch one.
+  const shortsTarget = !linkInPrompt && browserAvailable() ? shortsUrl(prompt) : null;
+  if (shortsTarget) {
+    const goal = `${prompt.replace(/^\s*nexus[\s,:-]*/i, '').trim()} — click the first short and watch it`;
+    const browsed = await browseAndAct(shortsTarget, goal);
+    thoughtSteps.push({ id: 'step-browse', type: 'web_search', title: '🧭 Opened YouTube Shorts', description: browsed.ok ? [...browsed.steps, browsed.video ? 'watched the short' : 'no short watched'].join(' · ') : String(browsed.error) });
+    const reply = await phraseWithFacts('question', prompt, browseFacts(browsed, goal), recentRepliesFor(settings.discordUserId), thoughtSteps, 'shorts');
+    if (reply) return primeReturn(reply, browsed.finalUrl ? [`Short: ${browsed.finalUrl}`] : []);
+  }
   // "go to X and click Y", "watch the video on X", "look at the pics on X": the cloud browser does it (browserAgent.ts).
   if (linkInPrompt && BROWSE_INTENT_RE.test(prompt.replace(linkInPrompt, ' ')) && browserAvailable()) {
     const goal = prompt.replace(/^\s*nexus[\s,:-]*/i, '').trim();

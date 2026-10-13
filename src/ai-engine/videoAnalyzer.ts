@@ -71,7 +71,21 @@ function isPrivateHost(raw: string): boolean {
 }
 
 // A video URL (Discord attachment) or a data: URI / raw base64 (website upload) -> a temp file.
+// YouTube / Vimeo / TikTok pages (2026-10-12, the browser agent: "watch the video on youtube"): downloaded with yt-dlp
+// (~/.nexus-video/bin/yt-dlp) at 480p max, 10 minutes max, 100 MB max.
+const STREAM_PAGE_RE = /^https?:\/\/(?:(?:www|m)\.)?(?:youtube\.com\/(?:watch|shorts|embed)|youtu\.be\/|vimeo\.com\/|player\.vimeo\.com\/|tiktok\.com\/)/i;
+async function fetchStreamPage(source: string, dir: string): Promise<string | null> {
+  const ytdlp = join(BIN_DIR, 'yt-dlp');
+  if (!existsSync(ytdlp)) return null;
+  const ff = await ffmpeg();
+  const out = join(dir, 'stream.%(ext)s');
+  const r = await run(ytdlp, ['--no-playlist', '--quiet', '--no-warnings', '-f', 'b[height<=480][ext=mp4]/bv*[height<=480]+ba/b[height<=480]/b', '--merge-output-format', 'mp4', '--max-filesize', '100M', '--match-filter', 'duration <= 600', ...(ff ? ['--ffmpeg-location', ff] : []), '-o', out, source], 120000);
+  const file = ['mp4', 'webm', 'mkv'].map((e) => join(dir, `stream.${e}`)).find((f) => existsSync(f));
+  return file && r ? file : null;
+}
+
 async function fetchToFile(source: string, dir: string): Promise<string | null> {
+  if (STREAM_PAGE_RE.test(source)) return fetchStreamPage(source, dir);
   const file = join(dir, 'video');
   const dataUri = source.match(/^data:video\/[\w.+-]+;base64,(.+)$/s);
   if (dataUri || (!/^https?:\/\//.test(source) && source.length > 1000)) {
@@ -202,7 +216,12 @@ export async function analyzeVideo(source: string, question = ''): Promise<Video
     if (meta.hasAudio) {
       // Whisper invents "you" / "Thank you." over silence: those lone segments are dropped.
       const segs: Array<[number, string]> = (speech?.segments || []).filter(([, s]: [number, string]) => !/^(?:you|thank\s+you\.?|thanks\s+for\s+watching!?|\.+)$/i.test(s.trim()));
-      said = segs.length
+      // It also writes junk on music / noise ("i i i i i…", 2026-10-12): mostly one repeated word = no speech.
+      const words = `${segs.map(([, t]) => t).join(' ')} ${speech?.text || ''}`.toLowerCase().match(/[\p{L}\p{N}']+/gu) || [];
+      const junk = words.length >= 8 && new Set(words).size / words.length < 0.2;
+      said = junk
+        ? '(no speech, or only music/noise)'
+        : segs.length
         ? `${speech.language ? `(${speech.language}) ` : ''}${segs.map(([t, s]) => `[${mmss(t)}] ${s}`).join(' ').slice(0, 2500)}`
         : speech?.text
         ? String(speech.text).slice(0, 2500)
