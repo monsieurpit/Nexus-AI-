@@ -17,6 +17,7 @@
 
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
+import { forgetMatching, mergeFacts, pruneFacts, type MemoryFact } from './memoryFacts';
 import { join } from 'path';
 
 export const MAX_MESSAGES = 2000;
@@ -37,6 +38,7 @@ export interface PersonRecord {
   lastActive: number;
   noticeSentAt: number | null;
   sinceSummary: number; // messages added since the last summary
+  facts?: MemoryFact[]; // structured memories with source / confidence / expiry (memoryFacts.ts)
 }
 
 const ROOT = process.env.NEXUS_MEMORY_DIR || join(homedir(), '.nexus-memory');
@@ -144,6 +146,25 @@ export function saveSummary(platform: Platform, id: string, text: string, basedO
   save(rec);
 }
 
+// New observations from the memory worker, merged into the person's structured memories.
+export function saveFacts(platform: Platform, id: string, observed: Array<Pick<MemoryFact, 'text' | 'kind' | 'source'>>): number {
+  const rec = loadPerson(platform, id);
+  if (!rec || rec.optedOut) return 0;
+  rec.facts = mergeFacts(rec.facts || [], observed);
+  save(rec);
+  return rec.facts.length;
+}
+
+// "forget that I play valorant": only the matching memories go.
+export function forgetFacts(platform: Platform, id: string, what: string): number {
+  const rec = loadPerson(platform, id);
+  if (!rec?.facts?.length) return 0;
+  const { kept, removed } = forgetMatching(rec.facts, what);
+  rec.facts = kept;
+  save(rec);
+  return removed;
+}
+
 // The one-time privacy notice: true the first time it's asked for a person (the bot then DMs it), false after.
 export function claimPrivacyNotice(platform: Platform, id: string, username: string): boolean {
   try {
@@ -158,10 +179,10 @@ export function claimPrivacyNotice(platform: Platform, id: string, username: str
 }
 
 // What the specialists get: the personality summary and their last few messages (roast ammo / context).
-export function personalContext(platform: Platform, id: string, lastN = 20): { summary: string | null; recent: string[] } {
+export function personalContext(platform: Platform, id: string, lastN = 20): { summary: string | null; recent: string[]; facts: MemoryFact[] } {
   const rec = loadPerson(platform, id);
-  if (!rec || rec.optedOut) return { summary: null, recent: [] };
-  return { summary: rec.summary?.text || null, recent: rec.messages.slice(-lastN).map((m) => m.text) };
+  if (!rec || rec.optedOut) return { summary: null, recent: [], facts: [] };
+  return { summary: rec.summary?.text || null, recent: rec.messages.slice(-lastN).map((m) => m.text), facts: pruneFacts(rec.facts || []) };
 }
 
 // People who went quiet for 5+ minutes with enough new messages since their last summary.

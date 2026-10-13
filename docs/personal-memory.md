@@ -56,3 +56,25 @@ are found before people report them (Patrick, 2026-10-12).
 - Every exchange is deleted after 24 hours (on the next log and on every report). `--reset --yes` empties it now.
 - Every day at 7:00 (`~/Library/LaunchAgents/com.nexus.replyreport.plist`) `scripts/replyReport.ts` writes the last
   24 h report to `~/.nexus-replylog/reports/<date>.md`. It detects and shows evidence; it never changes anything.
+
+## Structured memories (2026-10-13)
+
+Besides the messages and the old free-text summary, each person has `facts` (`memory/memoryFacts.ts`), extracted by the
+memory worker in the same idle run, only from **their own messages** (never from Nexus's replies):
+
+| field | values |
+|---|---|
+| kind | interest · preference · fact · current (a rank, a project) · temporary (today's plans, mood) · running_joke · style |
+| source | stated (they said it, seriously) · inferred (a guess) |
+| confidence | tentative until seen again **on another day** → certain (a guess never becomes certain) |
+| lastConfirmed / expiresAt | temporary 3 days · current 60 days · running joke 30 days · tentative 14 days · certain: kept with the profile |
+| origin / replaced | their-messages (or unknown for old data) · the older memory a correction replaced |
+
+- Jokes, tests, boasts and wild claims are running jokes — never stated as facts ("$800k PC budget" now fades in 14 days).
+- A correction ("no longer plays Valorant", "supports Arsenal now") replaces the old memory; a guess never overwrites
+  something they said.
+- Each reply gets only the few memories relevant to the message (keyword stems + recency, no extra model call), labelled
+  "they told you" / "not sure — never state as fact" / "running joke, banter only". Roasts also get their running jokes
+  and interests.
+- `nexus forget that I …` deletes just those memories; `forget me` / `stop saving my messages` delete everything.
+- People with no structured memories yet: the old summary is used, labelled as guesses.

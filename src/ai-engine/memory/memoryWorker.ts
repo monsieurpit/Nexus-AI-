@@ -8,7 +8,7 @@
 
 import * as localLlmClient from '../localLlmClient';
 import { engineIsIdle } from '../learning/worker';
-import { cleanupMemory, peopleNeedingSummary, saveSummary, type PersonRecord } from './personalMemory';
+import { cleanupMemory, peopleNeedingSummary, saveFacts, saveSummary, type PersonRecord } from './personalMemory';
 
 const TICK_MS = 60_000;
 const CHAR_BUDGET = 9000; // ~2.5k tokens of their messages, leaves room for the instructions and the old summary
@@ -40,6 +40,30 @@ Safe roast material: (light, banter-level things they've mentioned about themsel
 Likely to: (how they usually react to Nexus)
 NEVER include: health, mental health, sexuality, religion, ethnicity, family problems, school name, address or location, age, or anything they said while upset — leave those out completely even if they appear above. Only facts the messages actually show; no guessing. Plain lines, no intro.`;
   return { prompt, basedOn: picked.length };
+}
+
+// Structured memories (memoryFacts.ts), extracted in the same idle run: one line per memory, "kind | source | text".
+export function factsPrompt(rec: PersonRecord): string {
+  const recent = rec.messages.slice(-60).map((m) => `- ${m.text.replace(/\s+/g, ' ').slice(0, 160)}`).join('\n');
+  return `From these messages a Discord member called "${rec.username}" sent to Nexus (a joking chat bot), list what is worth remembering about them.
+
+THEIR MESSAGES (oldest first):
+${recent}
+
+One memory per line, exactly: kind | source | short memory
+kind = interest (games, teams, music, hobbies) | preference (likes / dislikes) | fact (something real and lasting about them they stated) | current (true for now: a rank, an ongoing project) | temporary (today's plans, current mood) | running_joke (a bit, boast or exaggeration, NOT a real fact) | style (how they talk)
+source = stated (they clearly said it about themselves, seriously) | inferred (your guess from how they write)
+Rules: obvious jokes, trolling, tests, boasts ("I'm the best player alive") and wild claims are running_joke, never fact. A change ("I don't play X anymore", "I support Y now") keeps its words (no longer / now / switched to). Max 8 lines. Nothing about health, sexuality, religion, ethnicity, family problems, school, address or location, age. No intro.`;
+}
+
+export function parseFacts(text: string): Array<{ text: string; kind: 'interest' | 'preference' | 'fact' | 'current' | 'temporary' | 'running_joke' | 'style'; source: 'stated' | 'inferred' }> {
+  const out: Array<{ text: string; kind: any; source: any }> = [];
+  for (const line of text.split('\n')) {
+    const m = line.replace(/^\s*[-*\d.)]+\s*/, '').match(/^(interest|preference|fact|current|temporary|running[_ ]joke|style)\s*\|\s*(stated|inferred)\s*\|\s*(.{4,160})$/i);
+    if (!m || SENSITIVE_LINE_RE.test(m[3])) continue;
+    out.push({ kind: m[1].toLowerCase().replace(' ', '_'), source: m[2].toLowerCase(), text: m[3].trim() });
+  }
+  return out.slice(0, 8);
 }
 
 // Lines about sensitive topics are dropped even if the model wrote them anyway.
@@ -77,6 +101,12 @@ export async function runMemoryTick(): Promise<'busy' | 'idle' | 'worked'> {
         saveSummary(rec.platform, rec.id, text, basedOn);
         console.log(`[memory] profile updated for ${rec.platform}:${rec.username} (${basedOn} messages read)`);
       }
+    }
+    // The structured memories, in the same idle slot.
+    if (engineIsIdle()) {
+      const f = await localLlmClient.generate(factsPrompt(rec), { model: localLlmClient.chatModel(), temperature: 0.2, maxTokens: 260, think: false, skipLanguageCheck: true, timeoutMs: 60000 });
+      const observed = f.status === 'success' ? parseFacts(f.text) : [];
+      if (observed.length) console.log(`[memory] ${saveFacts(rec.platform, rec.id, observed)} memories kept for ${rec.platform}:${rec.username} (+${observed.length} seen)`);
     }
     return 'worked';
   } catch (e) {

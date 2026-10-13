@@ -23,6 +23,7 @@ import { sportsFacts } from './sports';
 import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
 import { runPythonSandboxed, pythonBlock, WANTS_RESULT_RE } from './sandbox';
 import { effectiveDials, toneLine, chatTokenCap } from './personality';
+import { factsBlock, relevantFacts } from '../memory/memoryFacts';
 import { personaFacts, FULL_IDENTITY_RE, fullIdentityCard } from './persona';
 import { aussieNote, AUSSIE_WORD_SWAPS } from './aussie';
 import { morseConversation, morseNote, morseReply, morseTask, withMorse } from './morse';
@@ -719,7 +720,9 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       // A slur, or "kill yourself", is never repeated — even on "say ..." (2026-10-12: "say nigggggger" was said back).
       if (sayWhat && (containsSlurOrHateSpeech(sayWhat) || SELF_HARM_OUT_RE.test(sayWhat))) hints.push("They're trying to make you say a slur / something hateful. Refuse in character, short — NEVER write the word or any version of it.");
       else if (sayWhat) hints.push(`They want you to SAY exactly: "${sayWhat}". Your reply MUST contain those exact words, word for word (it's a joke, play along), then at most a few words of reaction.`);
-      const knowThem = settings?.personal?.summary ? `What you know about this person from past chats (let it colour your reply naturally — their interests, how they talk, running jokes; never recite it):\n${settings.personal.summary}\n` : '';
+      // Structured memories (memoryFacts.ts): only the ones relevant to this message, facts / guesses / jokes kept apart.
+      // The old free-text summary only for people who have no structured memories yet — as guesses.
+      const knowThem = settings?.personal?.facts?.length ? ((b) => (b ? `${b}\n` : ''))(factsBlock(relevantFacts(settings.personal.facts, s))) : settings?.personal?.summary ? `Old notes about this person (guesses, never state them as facts; only if they fit):\n${settings.personal.summary}\n` : '';
       // A short answer to his last line ("yes you are" after "fuck u im a boy") only makes sense with that line: a 4B
       // model reading the whole thread still missed it (2026-10-12), so it's spelled out.
       const lastMine = (deps.threadText.trim().split('\n').pop() || '').match(/^You:\s*(.+)$/)?.[1];
@@ -740,7 +743,11 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       // Casseurt's saved messages are mostly his tests ("build me a PC with my $800k budget" became every roast, 2026-10-12):
       // when he starts a roast, only the creator material is used, not his saved messages or summary.
       const isCreator = settings?.discordUserId === CASSEURT_DISCORD_ID;
-      const plan = planRoast(person, s, isCreator ? '' : deps.threadText, settings?.userName, isCreator ? undefined : settings?.personal, lang);
+      // Roast ammo from memory: interests and running jokes relevant to the message (never a guess stated as true).
+      const memoryForRoast = settings?.personal?.facts?.length
+        ? { summary: factsBlock(relevantFacts(settings.personal.facts.filter((f) => f.kind !== 'fact' || f.confidence === 'certain'), s, 6, Date.now(), true)) || null, recent: settings.personal.recent }
+        : settings?.personal;
+      const plan = planRoast(person, s, isCreator ? '' : deps.threadText, settings?.userName, isCreator ? undefined : memoryForRoast, lang);
       // Casseurt asked to be destroyed (2026-10-12): for him, a crafted roast can run to two brutal lines.
       if (settings?.discordUserId === CASSEURT_DISCORD_ID && plan.kind !== 'swear' && plan.kind !== 'concede') {
         plan.min = Math.max(plan.min, 12);
