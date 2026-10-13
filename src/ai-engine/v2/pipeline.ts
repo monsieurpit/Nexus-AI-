@@ -21,6 +21,7 @@ import { pickBestComeback } from './roast';
 import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
 import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
+import { runPythonSandboxed, pythonBlock, WANTS_RESULT_RE } from './sandbox';
 import { personaFacts, FULL_IDENTITY_RE, fullIdentityCard } from './persona';
 import { aussieNote, AUSSIE_WORD_SWAPS } from './aussie';
 import { morseConversation, morseNote, morseReply, morseTask, withMorse } from './morse';
@@ -1014,6 +1015,7 @@ export function plainMaths(text: string): string {
       .replace(/\\sqrt\{([^{}]+)\}/g, '√($1)')
       .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1)/($2)')
       .replace(/\\text\{([^{}]*)\}/g, '$1')
+      .replace(/\\emptyset/g, '∅').replace(/\\sum/g, 'Σ').replace(/\\infty/g, '∞')
       .replace(/\\times/g, '×').replace(/\\div/g, '÷').replace(/\\cdot/g, '·').replace(/\\pm/g, '±').replace(/\\approx/g, '≈').replace(/\\neq/g, '≠').replace(/\\leq?/g, '≤').replace(/\\geq?/g, '≥').replace(/\\pi/g, 'π').replace(/\\%/g, '%')
       .replace(/\^\{([^{}]+)\}/g, '^$1')
       .replace(/\\[a-zA-Z]+/g, '')
@@ -1315,6 +1317,30 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
       }
     }
   }
+  // Python that computes a result they asked for: RUN it in the sandbox (sandbox.ts) and rewrite the answer from the
+  // real output — his written answer invented 2 solutions his own program proved don't exist (2026-10-12).
+  if (route.mode === 'code' && WANTS_RESULT_RE.test(text || '')) {
+    const py = pythonBlock(content);
+    if (py) {
+      const run = await runPythonSandboxed(py);
+      const output = (run.stdout || '').trim();
+      thoughtSteps.push({ id: 'step-v2-run', type: 'verification', title: run.ok ? `▶️ Ran the program (${(run.ms / 1000).toFixed(1)} s)` : run.timedOut ? '▶️ The program took too long (stopped at 20 s)' : '▶️ The program crashed', description: (run.ok ? output : run.stderr || output).slice(0, 400) });
+      if (run.ok && output) {
+        const rewrite = await generateWith(genSpec, `${userTurn}\n\n(Your program was ACTUALLY RUN in a sandbox. Its REAL output:\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\nRewrite your whole answer: keep the program exactly the same, and make EVERY result you state match this real output — if it found 0 solutions, say none exist. Never contradict the output.)\n\nYour program:\n\`\`\`python\n${py.slice(0, 6000)}\n\`\`\``, lang);
+        if (rewrite) content = finalize(rewrite);
+        content = `${content.trim()}\n\n**Real output** (ran it in a sandbox):\n\`\`\`\n${output.slice(0, 1500)}\n\`\`\``;
+      } else if (!run.ok && !run.timedOut && run.stderr) {
+        // It crashed: one fix with the real error.
+        const fix = await generateWith(genSpec, `${userTurn}\n\n(Your program crashed when it was run. The real error:\n\`\`\`\n${run.stderr.slice(-1200)}\n\`\`\`\nFix the program and give the whole answer again.)`, lang);
+        if (fix) {
+          const fixed = finalize(fix);
+          const py2 = pythonBlock(fixed);
+          const run2 = py2 ? await runPythonSandboxed(py2) : null;
+          content = run2?.ok && run2.stdout.trim() ? `${fixed.trim()}\n\n**Real output** (ran it in a sandbox):\n\`\`\`\n${run2.stdout.trim().slice(0, 1500)}\n\`\`\`` : fixed;
+        }
+      }
+    }
+  }
   // A binary question answered with a program nobody asked for ("how do i code in binary" → a Python script): redone once.
   if (!program && route.mode === 'code' && detectCodeLang(text || '') === 'binary' && !/\b(?:function|script|program\s+(?:in|that)|in\s+(?:python|javascript|js|java|c\+\+|c#|rust|go|lua)|code\s+that|write\s+(?:me\s+)?(?:a|some)\s+code)\b/i.test(text || '') && /```(?:python|py|js|javascript|ts|typescript|java|c\+\+|cpp|c|cs|csharp|rust|go|lua)\b/i.test(content)) {
     const retry = await generateWith(spec, `${userTurn}\n(They did NOT ask for a program. Answer about binary itself: explain with real machine code from the REFERENCE — the bytes in hex and binary and what each instruction does — or give the binary they asked for. No Python/JS code.)`, lang);
@@ -1332,7 +1358,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (program) content = `${(content.replace(/```[\s\S]*?(?:```|$)/g, '').replace(/\b[01]{8,}\b[\s01]*/g, '').trim().split('\n')[0] || '').trim()}\n${binaryProgramBlock(program, /\b(?:spaces?|spaced|bytes?|grouped|readable)\b/i.test(text || '')).replace(/^-# /gm, settings.serverContext ? '-# ' : '')}`;
   // Morse: his line, then the exact Morse (computed, never typed by the model).
   if (morse) content = withMorse(content, morse).replace(/^-# /gm, settings.serverContext ? '-# ' : '');
-  if (!/```/.test(content)) content = plainMaths(content);
+  // LaTeX ($\emptyset$, $8! = 40320$) is cleaned in the text around code too — never inside a code block.
+  content = content.split(/(```[\s\S]*?(?:```|$))/).map((part) => (part.startsWith('```') ? part : plainMaths(part))).join('');
   // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
   if (!formal) content = uncensorSwears(content);
   if (lang === 'en') content = varyInsults(aussify(dropBoiiTag(content, said(prompt))), deps.recentLines);

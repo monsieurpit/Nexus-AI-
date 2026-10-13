@@ -566,6 +566,12 @@ async function runDeterministicChecks() {
     { const { dropBoiiTag, fixGng, aussify, varyInsults } = await import('../src/ai-engine/v2/pipeline');
       const code = 'here mate\n```python\ndef f(n):\n    if n != 9:\n        return False\n```';
       check('cleanup never touches code blocks (indentation, "!=")', varyInsults(aussify(dropBoiiTag(code, 'write a python function')), []) === code && fixGng(code) === code); }
+    { const { runPythonSandboxed: run } = await import('../src/ai-engine/v2/sandbox');
+      const ok = await run('print(sum(range(10)))');
+      const home = await run('print(open("/Users/patrickhoule/Library/LaunchAgents/com.nexus.engine.plist").read()[:20])');
+      const net = await run('import socket\nsocket.create_connection(("1.1.1.1",80),timeout=3)');
+      const sh = await run('import subprocess\nprint(subprocess.run(["/bin/ls"],capture_output=True).stdout)');
+      check('the Python sandbox runs code but can\'t read your files, use the internet or start programs', ok.ok && ok.stdout.trim() === '45' && !home.ok && /not permitted/i.test(home.stderr) && !net.ok && !sh.ok); }
     check('morse: written and read exactly, only when asked', morseTask('say hi in morse')?.morse === '.... ..' && morseTask('morse code for SOS')?.morse === '... --- ...' && morseTask('translate this to morse: good night')?.morse === '--. --- --- -.. / -. .. --. .... -' && morseTask('.... . .-.. .-.. --- / -. . -..- ..- ...')?.text === 'HELLO NEXUS' && morseToText(textToMorse('Hello, World! 123')) === 'HELLO, WORLD! 123' && !morseTask('how does morse code work') && !morseTask('hmm... ok - fine') && !morseTask('lol ...') && !morseTask('nexus you are a pickle') && !morseTask("j'ai vu un morse au zoo") && !morseTask("c'est quoi un morse") && !morseTask('les morses sont gros en esti') && !morseTask('nexus t un morse') && !morseTask('un morse ça mange quoi?') && withMorse('easy .... ..', morseTask('say hi in morse')!) === 'easy\n```\n.... ..\n```');
     check('longer echoes with slang are detected ("alr bet, i will gn this shitbag")', isEchoReply('alr bet, i will gn this shitbag', 'Wdym I will goodnight this shitbag 😭😭') && !isEchoReply('alr bet', 'go to sleep nexus') && !isEchoReply('gn mate sleep tight', 'goodnight nexus') && !isEchoReply('messi is the goat obviously, not even close', 'who is the goat messi or ronaldo'));
     check('repeats are detected', isRepeat('a clone?', ['a clone?']) && !isRepeat('nah fam', ['a clone?']));
