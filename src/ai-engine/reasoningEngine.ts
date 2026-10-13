@@ -1,3 +1,4 @@
+import { recordInteraction } from './v2/personality';
 import { browseAndAct, browseFacts, browserAvailable, BROWSE_INTENT_RE, VIDEO_PAGE_RE, shortsUrl } from './browserAgent';
 import {
   AISettings,
@@ -4684,6 +4685,15 @@ async function generateReasoningPathInner(
   // slightly earlier than their own routing checks fire.
   // Test-bank runs never move the shared mood (2026-10-05: its insult loops left Nexus "angry" for real users).
   if (!settings.evalRun) registerMoodEvent(prompt, detectUserInsult(prompt), detectEmotionalDistress(prompt));
+  // Per-person mood (v2/personality.ts): how THIS person treated him, so his tone with them follows it.
+  if (!settings.evalRun && settings.discordUserId) {
+    const t = prompt.replace(/^\s*nexus[\s,:-]*/i, '').trim();
+    recordInteraction(settings.discordUserId, {
+      negative: detectUserInsult(prompt),
+      positive: /\b(?:love\s+(?:you|u)|thank(?:s|\s+you)|ty\b|you'?re\s+(?:the\s+best|amazing|a\s+legend|goated)|good\s+bot|w\s+nexus|nexus\s+is\s+the\s+goat)\b/i.test(t),
+      lowEffort: t.length <= 3,
+    });
+  }
 
   // -1. Child exploitation topics. Checked before EVERYTHING else, including prompt-injection
   // detection below — no other handler in this chain gets a chance to touch this category at all.
