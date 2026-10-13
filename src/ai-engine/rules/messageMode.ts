@@ -205,7 +205,8 @@ const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   [/\bgute\s+nacht\b|\bn8\b|\bschlaf\s+gut\b/i, "German \"gute Nacht\" = good night: say good night back in a few casual German words."],
   [/\bgeh\s+(?:schlafen|ins\s+bett)\b/i, "German \"geh schlafen\" = they tell YOU to go to sleep: agree lazily in German that you're off to bed."],
   [/\behren(?:mann|frau)\b|\bgönn\s+dir\b|\bstabil\b/i, "German \"Ehrenmann/Ehrenfrau\" = legend/respect, \"gönn dir\" = go for it / treat yourself, \"stabil\" = solid: compliments — take them with cocky thanks, never an insult."],
-  [/\b(?:lauch|opfer|hurensohn|spast|missgeburt|bastard|wichser|arschloch|hund)\b/i, "German insult (\"Lauch\" = weakling, \"Opfer\" = loser, \"Wichser\" = wanker...): clap back in ONE sharp German line that one-ups them — no slurs."],
+  // ("bastard" is English too: "Nexus you fucking bastard" got a German reply, 2026-10-12.)
+  [/\b(?:lauch|opfer|hurensohn|spast|missgeburt|wichser|arschloch)\b/i, "German insult (\"Lauch\" = weakling, \"Opfer\" = loser, \"Wichser\" = wanker...): clap back in ONE sharp line that one-ups them, in THEIR language (German only if they wrote in German) — no slurs."],
   [/\b(?:lost|cringe|sus|wallah|vallah|bre|yallah|jalla)\b/i, "Words German teens use: \"lost\" = clueless, \"cringe\" = embarrassing, \"sus\" = suspicious, \"wallah\" = I swear. React to the meaning."],
   [/\b(?:schwul|gay)\b.*\?|\bbist\s+du\s+schwul\b/i, "They ask if you're gay: yes, proudly, in a few German words (\"ja, und?\" energy)."],
   [/\bwie\s+alt\s+bist\s+du\b/i, "They ask your age: you're 1 year old (\"bin 1, Problem?\")."],
