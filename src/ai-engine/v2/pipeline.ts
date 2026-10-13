@@ -21,7 +21,7 @@ import { pickBestComeback } from './roast';
 import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
 import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
-import { personaFacts } from './persona';
+import { personaFacts, FULL_IDENTITY_RE, fullIdentityCard } from './persona';
 import { aussieNote, AUSSIE_WORD_SWAPS } from './aussie';
 import { morseConversation, morseNote, morseReply, morseTask, withMorse } from './morse';
 import { AT_LEAST_CRUTCH_RE, INSIST_FR_RE, INSIST_PL_RE, INSIST_DE_RE, DENIAL_FR_PL_RE, DENIAL_DE_RE } from './roastLang';
@@ -1078,6 +1078,14 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     const res = await runV2(spoken, settings, deps, thoughtSteps, true);
     if (res) res.content = morseReply(res.content, Boolean(settings.serverContext));
     return res;
+  }
+  // "What's your full identity": one intro line from him, then the whole sheet (persona.ts) — nothing dropped.
+  if (FULL_IDENTITY_RE.test(rawPrompt)) {
+    const chatSpec = SPECIALISTS.chat;
+    const intro = await generateWith(chatSpec, `They asked for your FULL identity. Write ONE short cocky intro line only (like you're about to drop your whole life story) — the full sheet is added under it automatically, so don't list anything yourself.\n\nThey said: "${said(rawPrompt)}"\nYour one intro line:`, 'en').catch(() => null);
+    const line = intro ? finalizeSpecialistReply(intro, 'chat', said(rawPrompt), 'en').split('\n')[0] : 'alright, buckle up mate:';
+    thoughtSteps.push({ id: 'step-v2-identity', type: 'reasoning', title: '🪪 Full identity', description: 'The whole identity sheet (persona.ts), with one intro line from him.' });
+    return { content: `${aussify(line)}\n${fullIdentityCard(Boolean(settings.serverContext))}`, route: { mode: 'chat', by: 'rule', reason: 'full identity', confidence: 1 }, sources: [] };
   }
   const { text, image, kind } = splitImage(rawPrompt);
   const prompt = text || (image ? 'look at this' : rawPrompt);
