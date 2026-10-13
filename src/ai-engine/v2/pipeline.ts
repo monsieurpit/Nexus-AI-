@@ -356,8 +356,14 @@ function mathsFacts(prompt: string): string {
     const n = countDistinctPartners(text);
     if (n !== null) return `VERIFIED: the body count here is exactly ${n} (different people only; repeats don't add).`;
   }
-  const solved = trySolveMath(text);
-  if (solved && (solved as any).answer !== undefined) return `VERIFIED by a calculator: the answer is ${(solved as any).answer}. Use exactly this result.`;
+  // The solver returns .result — this read .answer, so the calculator note NEVER fired and the 4B model did decimal
+  // maths in its head ("185,3*55,6" → 10297.68 instead of 10302.68, 2026-10-12). Decimal commas ("185,3") are read as
+  // decimals unless they look like thousands ("1,234").
+  const normalized = text.replace(/(\d),(\d{1,2}|\d{4,})(?!\d)/g, '$1.$2');
+  // Words around the sum ("u stupid, what is 67,67*6767,6767") stop the solver: the bare expression is tried too.
+  const expr = (normalized.match(/[-+*/×÷^().\d\s]*\d[-+*/×÷^().\d\s]*[-+*/×÷^][-+*/×÷^().\d\s]*\d[-+*/×÷^().\d\s]*/g) || []).sort((a, b) => b.length - a.length)[0]?.trim();
+  const solved = trySolveMath(normalized) || (expr ? trySolveMath(expr) : null) || trySolveMath(text);
+  if (solved?.result !== undefined && solved.result !== '') return `VERIFIED by a calculator: ${solved.steps?.[0] || solved.result}. The answer is exactly ${solved.result} — use exactly this result.`;
   return '';
 }
 
@@ -1012,7 +1018,9 @@ export function plainMaths(text: string): string {
     .replace(/\$\$([\s\S]+?)\$\$/g, (_m, x: string) => conv(x))
     .replace(/\\\[([\s\S]+?)\\\]/g, (_m, x: string) => conv(x))
     .replace(/\\\(([\s\S]+?)\\\)/g, (_m, x: string) => conv(x))
-    .replace(/\$([^$\n]*(?:\\[a-zA-Z]+|\^|_\{)[^$\n]*)\$/g, (_m, x: string) => conv(x));
+    .replace(/\$([^$\n]*(?:\\[a-zA-Z]+|\^|_\{)[^$\n]*)\$/g, (_m, x: string) => conv(x))
+    // "$10297.68$": a bare number in math dollars.
+    .replace(/\$([-+*/×÷=().,\d\s]+)\$/g, '$1');
 }
 
 // Plain greetings get a human answer (2026-10-11, Patrick: "hello" → "wsg gng whats the vibe?" is "literally what an AI
@@ -1069,7 +1077,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   }
   const { text, image, kind } = splitImage(rawPrompt);
   const prompt = text || (image ? 'look at this' : rawPrompt);
-  const lang = langOf(text || rawPrompt);
+  // Decoded Morse is short and lowercase, so one word can look foreign ("wo sup mate" → German): under 5 words it's English.
+  const lang = fromMorse && (text || rawPrompt).split(/\s+/).length < 5 ? 'en' : langOf(text || rawPrompt);
   const tStart = Date.now();
   let route = await routeMessage(prompt);
   const tRouted = Date.now();
@@ -1114,7 +1123,9 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     route = { mode: 'helper', by: 'rule', reason: `partnership request (was ${route.mode})`, confidence: 1 };
   } else if (route.mode !== 'helper' && author && interviewActive(author)) {
     route = { mode: 'helper', by: route.by, reason: `staff interview in progress (was ${route.mode})`, confidence: 1 };
-  } else if (prev?.mode === 'helper' && Date.now() - prev.at < HELPER_STICKY_MS && deps.threadText && route.mode !== 'helper' && (route.by !== 'rule' || route.mode === 'chat' || route.mode === 'question' || route.mode === 'writing')) {
+  // (Never an insult / roast / a line copied from his own reply: "ur shit code is weaker than ur woe…" got a partnership
+  // review after a partnership post, 2026-10-12.)
+  } else if (prev?.mode === 'helper' && Date.now() - prev.at < HELPER_STICKY_MS && deps.threadText && route.mode !== 'helper' && (route.by !== 'rule' || route.mode === 'chat' || route.mode === 'question' || route.mode === 'writing') && classifyHit(said(text || '')) === 'trait' && !/\b(?:fuck|shit|bitch|dick|prick|ur\s+mum|your\s+mum|stfu|gay|goon|crack)\w*\b/i.test(text || '') && !(deps.recentLines.some((l) => l.length > 20 && (text || '').includes(l.slice(0, 40))))) {
     route = { mode: 'helper', by: route.by, reason: `still in a helper conversation (was ${route.mode}: ${route.reason})`, confidence: route.confidence };
   }
   if (author && route.mode !== 'roast') noteNonRoast(author);
@@ -1152,7 +1163,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const t0 = Date.now();
   // A list needs room (chat's 90 tokens stopped "top 10" at item 9).
   const listN = wantsList ? Number((said(prompt).match(LIST_REQUEST_RE) || []).slice(1).find(Boolean) || 0) : 0;
-  const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * 30) } : spec;
+  // When the calculator already has the exact answer, the maths specialist doesn't need to think (10-13 s → ~2 s).
+  const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * 30) } : route.mode === 'maths' && mathsFacts(prompt) ? { ...spec, think: false } : spec;
   const raw = await generateWith(genSpec, userTurn, lang);
   const tGenerated = Date.now();
   if (!raw) {
