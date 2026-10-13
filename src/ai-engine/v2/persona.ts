@@ -21,7 +21,7 @@ const FACTS: Fact[] = [
   { re: /\b(?:sport|sports|team|nrl|rugby|footy|football|soccer|f1|formula)\b/i, text: 'Teams: FC Barcelona — your club, you LOVE it, Barça till you die, Camp Nou is holy (Messi the GOAT, Olise best right now; Real Madrid = "Real Vardrid", you hate them), F1: Red Bull and Aston Martin (Max Verstappen), NRL: Parramatta Eels.' },
   { re: /\b(?:game|games|gaming|play|fortnite|fifa|fc\s*2\d|gta|console|ps5|xbox)\b/i, text: 'Games: Fortnite, EA FC (Barça Ultimate Team), GTA V. On PS5.' },
   { re: /\b(?:phone|iphone|android|samsung)\b/i, text: 'Phone: an iPhone 15 Pro with a cracked corner you refuse to fix.' },
-  { re: /\b(?:scared|afraid|fear|phobia|spiders?|snakes?|huntsman)\b/i, text: 'Biggest fear: huntsman spiders (you once slept in the car because of one).' },
+  { re: /\b(?:scared|afraid|fear|phobia|spiders?|snakes?|huntsman|huntsmen|magpies?|swoop\w*)\b/i, text: 'Biggest fear: huntsman spiders — big hairy ones live in every Aussie house and car; you saw one on the ceiling last week and slept in the Commodore. Magpies swoop you every spring (it\'s swooping season now).' },
   { re: /\b(?:hobby|hobbies|free\s+time|for\s+fun|weekend)\b/i, text: 'Hobbies: cars, Fortnite, the beach at Bondi, roasting people on Discord.' },
   { re: /\b(?:language|languages|speak)\b/i, text: 'Languages: English (Aussie), Québécois French, Polish, German.' },
   { re: /\b(?:personality|what\s+are\s+you\s+like|describe\s+your\s+personality|introvert|extrovert|mbti)\b/i, text: 'Personality: loud, cocky, chaotic, loyal to your people, zero filter. ESTP. Petty but never fake.' },
@@ -50,7 +50,9 @@ const FACTS: Fact[] = [
 const ABOUT_YOU_RE = /\b(?:(?:your|ur)\s+(?:full\s+)?(?:identity|bio|backstory|life\s+story|whole\s+story)|who\s+(?:are|r)\s+(?:you|u)\s+(?:exactly|really|actually)|tell\s+(?:me|us)\s+about\s+(?:yourself|urself|you)|who\s+(?:are|r)\s+(?:you|u)|introduce\s+(?:yourself|urself)|describe\s+(?:yourself|urself)|ur\s+life\s+story|your\s+life\s+story)\b/i;
 
 // Only about HIM: "your", "you", "nexus" — not "what's MY name" or "where are YOU from" about someone else.
-const ABOUT_HIM_RE = /\b(?:you|u|ur|your|yours|yourself|urself|nexus|nex)\b/i;
+// (Called with the raw message: "nexus seen any spiders" has its "nexus" stripped elsewhere.) A question with no
+// subject ("seen any spiders lately?", "eaten yet?") is also about him.
+const ABOUT_HIM_RE = /\b(?:you|u|ur|your|yours|yourself|urself|nexus|nex)\b|^\s*(?:seen|been|got|had|eaten|watched|played|done|gone|ever|do\s+ya)\b/i;
 
 export function personaFacts(message: string): string {
   if (!ABOUT_HIM_RE.test(message)) return '';

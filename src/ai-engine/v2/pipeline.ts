@@ -22,6 +22,7 @@ import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRo
 import { sportsFacts } from './sports';
 import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
 import { personaFacts } from './persona';
+import { aussieNote, AUSSIE_WORD_SWAPS } from './aussie';
 import { morseConversation, morseNote, morseReply, morseTask, withMorse } from './morse';
 import { AT_LEAST_CRUTCH_RE, INSIST_FR_RE, INSIST_PL_RE, INSIST_DE_RE, DENIAL_FR_PL_RE, DENIAL_DE_RE } from './roastLang';
 import { identifyProgram, binaryNote, binaryProgramBlock, binaryProgramNote, expectedBinary, fixBinary, numberConversionNote, pickBinaryProgram } from './binary';
@@ -225,6 +226,7 @@ export function humanEmoji(reply: string, recent: string[]): string {
 // He's Australian (Patrick, 2026-10-12: "make sure he's 100% Australian and NOT British"): British-only slang the 4B
 // model keeps reaching for is swapped for the Aussie word — single words, never sentences rewritten, never in code.
 const AUSSIE_SWAPS: Array<[RegExp, string]> = [
+  ...AUSSIE_WORD_SWAPS,
   [/\bbruvs?\b/gi, 'mate'],
   [/\bknackered\b/gi, 'stuffed'],
   [/\bchuffed\b/gi, 'stoked'],
@@ -724,7 +726,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(s))}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }
@@ -745,7 +747,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
       thoughtSteps.push({ id: 'step-v2-roast-plan', type: 'reasoning', title: `🔥 Roast engine: ${plan.kind}${plan.move ? ` / ${plan.move}` : ''}${plan.round > 1 ? ` · round ${plan.round}` : ''}`, description: plan.note.slice(0, 600) });
       return {
-        text: `${thread}${facts}${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 5 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 5 DIFFERENT comebacks of that type, each one brutal and specific, one per line, no numbers, no intro (the best one gets sent):'}`,
+        text: `${thread}${facts}${lang === 'en' ? `${aussieNote(s)}\n` : ''}${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 5 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 5 DIFFERENT comebacks of that type, each one brutal and specific, one per line, no numbers, no intro (the best one gets sent):'}`,
         sources: [],
       };
     }

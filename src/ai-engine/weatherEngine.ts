@@ -196,7 +196,8 @@ const ONLY_TIME_WORD_RE = /^(?:today|tonight|tomorrow|tmrw|tmr|now|rn|right\s+no
 // or before "in/for/today…", so "whether or not" stays a normal word.
 const WEATHER_TYPO_RE = /(?<=\b(?:the|s)\s+)(?:whether|wether|weathr|wheather|weahter|wheater|waether)\b|\b(?:whether|wether|weathr|wheather|weahter|wheater|waether)(?=\s+(?:in|for|at|today|tonight|tomorrow|tmrw|like|rn|now|this\s+week))/gi;
 export function detectWeatherIntent(rawPrompt: string): { city: string | null } | null {
-  const prompt = rawPrompt.replace(WEATHER_TYPO_RE, 'weather');
+  // "what's the weather like there / where you are / in your city" = where HE lives: Sydney (his identity, 2026-10-12).
+  const prompt = rawPrompt.replace(WEATHER_TYPO_RE, 'weather').replace(/\b(?:(?:like\s+)?(?:over\s+)?there|where\s+(?:you|u)\s+(?:are|live|at)|(?:in|at)\s+(?:your|ur)\s+(?:city|place|end|area|side))\b(?=[\s?!.]*$)/i, 'in Sydney');
   if (!WEATHER_REGEX.test(prompt) && !SHORT_WEATHER_RE.test(prompt)) return null;
   // A your-mum joke that mentions weather ("ta mère est tellement grosse qu'elle a sa propre météo") is a roast (2026-10-12).
   if (/(?<![\p{L}])(?:(?:your|ur|yo)\s+(?:mom|mum|mother|mama|momma)|ta\s+(?:mère|mere|môman|moman)|twoja\s+(?:stara|matka|mama)|deine\s+(?:mutter|mudda|mama))(?![\p{L}])/iu.test(prompt)) return null;
