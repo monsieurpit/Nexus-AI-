@@ -1,3 +1,4 @@
+import { baseDials, setDials, DEFAULT_DIALS } from './src/ai-engine/v2/personality';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
@@ -719,6 +720,16 @@ app.get('/api/v1/queue/status', (req, res) => {
 // same as /api/v1/queue/status — this is read-only telemetry about the bot itself, not user data.
 app.get('/api/v1/mood', (req, res) => {
   res.json({ mood: getMoodDisplay(), timestamp: new Date().toISOString() });
+});
+
+// Personality settings (v2/personality.ts): anyone can read them; changing them is admin-only (local + admin token).
+app.get('/api/v1/personality', (req, res) => {
+  res.json({ settings: baseDials(), normal: DEFAULT_DIALS, mood: getMoodDisplay() });
+});
+app.post('/api/v1/personality', (req, res) => {
+  if (!isLocalAdminRequest(req)) return res.status(404).json({ error: 'Not found' });
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  res.json({ settings: body.reset ? setDials({ ...DEFAULT_DIALS }) : setDials(body) });
 });
 
 // 🌐 Dedicated Zero-API-Key Free Web Search Endpoint (Infinite Quota · Google + DuckDuckGo + Wikipedia)

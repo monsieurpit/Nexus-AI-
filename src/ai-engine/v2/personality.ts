@@ -102,7 +102,12 @@ export function toneLine(state: PersonalityState): string {
   const d = state.dials;
   const words = d.verbosity <= 2 ? '1-6 words' : d.verbosity <= 4 ? '3-12 words' : d.verbosity <= 7 ? 'one or two sentences' : 'a few sentences';
   const mood = state.reasons.length ? `${state.moodName} — ${state.reasons.join('; ')}` : state.moodName;
-  const feel = d.warmth >= 7 ? ' Be warm and friendly with them (still your usual self).' : d.warmth <= 3 ? " You're short and cold with them right now." : '';
+  const feel = [
+    d.warmth >= 7 ? 'Be warm and friendly with them (still your usual self).' : d.warmth <= 3 ? "You're short and cold with them right now." : '',
+    d.energy >= 8 ? 'Loud and hyped.' : d.energy <= 3 ? 'Low energy, calm, flat.' : '',
+    d.bite <= 2 ? 'No jabs at all.' : d.bite >= 8 ? 'Cheeky jabs welcome.' : '',
+    d.sarcasm >= 8 ? 'Deadpan sarcasm.' : d.sarcasm <= 2 ? 'Say it straight, no sarcasm.' : '',
+  ].filter(Boolean).map((x) => ` ${x}`).join('');
   return `YOUR TONE RIGHT NOW (mood: ${mood}; let it show from the first word):${feel} energy ${d.energy}/10, warmth ${d.warmth}/10, bite ${d.bite}/10, sarcasm ${d.sarcasm}/10, formality ${d.formality}/10. Length: about ${words}.`;
 }
 
