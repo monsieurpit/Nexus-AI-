@@ -14,6 +14,8 @@ import { detectLiveSportsIntent, resolveLiveSportsContext } from './liveSportsSe
 import { detectUrlInPrompt, fetchUrlContent } from './urlFetcher';
 import { hybridSearchKnowledgeGraph } from './vectorSearch';
 import { runV2, phraseWithFacts } from './v2/pipeline';
+import { fallbackFor } from './v2/orchestrator';
+import type { SpecialistId } from './v2/specialists';
 import { isPartnershipMessage } from './v2/partnership';
 import { checkCode, codeReference, detectCodeLang, extractCodeBlocks, LANG_LABEL } from './v2/codeTools';
 import { fxNote, toUsd } from './fx';
@@ -5153,11 +5155,17 @@ async function generateReasoningPathInner(
           .map((f) => `- ${f.title}: ${f.content.slice(0, wantsBuild ? 1100 : 900)}`)
           .join('\n'),
     };
-    const v2 = await runV2(prompt, settings, v2Deps, thoughtSteps);
+    const v2 = await runV2(prompt, settings, v2Deps, thoughtSteps).catch((e) => {
+      thoughtSteps.push({ id: 'step-v2-error', type: 'verification', title: '⚠️ v2 error', description: String((e as Error)?.message || e).slice(0, 300) });
+      return null;
+    });
     if (v2) return primeReturn(v2.content, v2.sources);
-    // v2 failed once (a timeout, an empty or blocked reply): one more try, then a short line in his voice. No v1.
-    thoughtSteps.push({ id: 'step-v2-retry', type: 'reasoning', title: '🔁 v2 retry', description: 'The first v2 reply failed; trying once more.' });
-    const again = await runV2(prompt, settings, v2Deps, thoughtSteps).catch(() => null);
+    // The specialist failed (a timeout, an empty or blocked reply, an error): the next best one takes the message
+    // (orchestrator.ts — search → question, code → question, … → chat); chat failing gets one more try. No v1.
+    const failed = [...thoughtSteps].reverse().find((t) => t.id === 'step-v2-route')?.data as { mode?: SpecialistId } | undefined;
+    const fb = failed?.mode ? fallbackFor(failed.mode) : null;
+    thoughtSteps.push({ id: 'step-v2-retry', type: 'reasoning', title: fb ? `🔁 ${failed!.mode} failed → ${fb}` : '🔁 v2 retry', description: fb ? `The ${failed!.mode} specialist failed; the ${fb} specialist answers instead.` : 'The first v2 reply failed; trying once more.' });
+    const again = await runV2(prompt, settings, v2Deps, thoughtSteps, false, fb ? { mode: fb, reason: `the ${failed!.mode} specialist failed` } : undefined).catch(() => null);
     if (again) return primeReturn(again.content, again.sources);
   }
   const lang = looksPolish(prompt) ? 'pl' : looksFrench(prompt) ? 'fr' : 'en';

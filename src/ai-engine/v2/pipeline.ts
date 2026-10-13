@@ -6,6 +6,7 @@
 import * as localLlmClient from '../localLlmClient';
 import type { AISettings, ThoughtStep } from '../../types';
 import { routeMessage, type Route } from './router';
+import { planTurn, clarifyTurn, fallbackFor } from './orchestrator';
 import { SPECIALISTS, VIDEO_SUBS, type Specialist, type SpecialistId, type VideoKind } from './specialists';
 import { chatMeaningHints, isRepeat, isEchoReply, SAD_RE, overusedPhrases, FACT_CLAIM_RE } from '../rules/messageMode';
 import { finalizeSpecialistReply, hasContextLeak, stripCrudeAside } from '../rules/postProcess';
@@ -351,7 +352,7 @@ async function buildSearchContext(prompt: string, lang: Lang = 'en'): Promise<{ 
   const priceNote = getPriceNote(prompt);
   const block =
     `You just searched the web for "${q}".\n` +
-    (results.length ? `LIVE RESULTS:\n${results.map((r, i) => `${i + 1}) ${r.title} — ${r.domain}: ${r.snippet.slice(0, 350)}`).join('\n')}` : 'The live search returned nothing right now.') +
+    (results.length ? `LIVE RESULTS:\n${results.map((r, i) => `${i + 1}) ${r.title} — ${r.domain}: ${r.snippet.slice(0, 350)}`).join('\n')}` : 'The live search returned nothing right now. Answer from what you know, say in a few words that you couldn\'t check it live just now, and never make up a price, score or date.') +
     (priceNote ? `\n${priceNote}` : '') +
     `\n${lang === 'de' ? fxNoteEur(await getUsdToCad()) : fxNote(await getUsdToCad())}`;
   return { block, sources: results.slice(0, 3).map((r) => `Web: ${r.title}`), searchedFor: q, count: results.length };
@@ -1093,7 +1094,8 @@ let lastRoastPlan: { plan: RoastPlan; ammo: string[] } | null = null;
 // The last request's stage timings, for the [nexus] log line (server.ts).
 export let lastTiming: { route: number; build: number; generate: number; after: number } | null = null;
 
-export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Deps, thoughtSteps: ThoughtStep[], fromMorse = false): Promise<V2Result | null> {
+// force: the orchestrator already knows the specialist (one part of a mixed message, or the fallback after a failure).
+export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Deps, thoughtSteps: ThoughtStep[], fromMorse = false, force?: { mode: SpecialistId; reason: string }): Promise<V2Result | null> {
   // A message written only in Morse: answered like the decoded message, and the reply goes back in Morse (morse.ts).
   const spoken = fromMorse ? null : morseConversation(rawPrompt);
   if (spoken) {
@@ -1115,7 +1117,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // Decoded Morse is short and lowercase, so one word can look foreign ("wo sup mate" → German): under 5 words it's English.
   const lang = fromMorse && (text || rawPrompt).split(/\s+/).length < 5 ? 'en' : langOf(text || rawPrompt);
   const tStart = Date.now();
-  let route = await routeMessage(prompt);
+  let route: Route = force ? { mode: force.mode, by: 'fallback', reason: force.reason, confidence: 0.5 } : await routeMessage(prompt);
+  const routed = route;
   const tRouted = Date.now();
   // A video always goes to the video specialist, which picks its sub-persona from the video itself.
   let videoKind: VideoKind | null = null;
@@ -1162,6 +1165,27 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // review after a partnership post, 2026-10-12.)
   } else if (prev?.mode === 'helper' && Date.now() - prev.at < HELPER_STICKY_MS && deps.threadText && route.mode !== 'helper' && (route.by !== 'rule' || route.mode === 'chat' || route.mode === 'question' || route.mode === 'writing') && classifyHit(said(text || '')) === 'trait' && !/\b(?:fuck|shit|bitch|dick|prick|ur\s+mum|your\s+mum|stfu|gay|goon|crack)\w*\b/i.test(text || '') && !(deps.recentLines.some((l) => l.length > 20 && (text || '').includes(l.slice(0, 40))))) {
     route = { mode: 'helper', by: route.by, reason: `still in a helper conversation (was ${route.mode}: ${route.reason})`, confidence: route.confidence };
+  }
+  // One specialist, several, or a quick question back (orchestrator.ts). Only when nothing above already decided.
+  if (!force && route === routed && !fromMorse) {
+    const plan = await planTurn(said(prompt), route, deps.threadText, Boolean(image), routeMessage);
+    if (plan.kind === 'clarify') {
+      const q = await generateWith(SPECIALISTS.chat, clarifyTurn(said(prompt)), lang).catch(() => null);
+      if (q) {
+        thoughtSteps.push({ id: 'step-v2-clarify', type: 'intent', title: '❓ Asked what they mean', description: `"${said(prompt)}" with nothing before it — one quick question instead of a guess.` });
+        return { content: aussify(finalizeSpecialistReply(q, 'chat', said(prompt), lang)), route: { mode: 'chat', by: 'rule', reason: 'asked what they mean', confidence: 1 }, sources: [] };
+      }
+    } else if (plan.kind === 'multi' && plan.parts) {
+      thoughtSteps.push({ id: 'step-v2-multi', type: 'intent', title: `🧩 Mixed message → ${plan.reason}`, description: plan.parts.map((p) => `${p.route.mode}: "${p.text}"`).join('\n') });
+      const answers: V2Result[] = [];
+      for (const part of plan.parts) {
+        let r = await runV2(part.text, settings, deps, thoughtSteps, false, { mode: part.route.mode, reason: `part of a mixed message (${part.route.reason})` }).catch(() => null);
+        const fb = r ? null : fallbackFor(part.route.mode);
+        if (fb) r = await runV2(part.text, settings, deps, thoughtSteps, false, { mode: fb, reason: `the ${part.route.mode} specialist failed on this part` }).catch(() => null);
+        if (r) answers.push(r);
+      }
+      if (answers.length) return { content: answers.map((a) => a.content).join('\n\n'), route: { ...route, reason: `mixed: ${plan.reason}` }, sources: [...new Set(answers.flatMap((a) => a.sources))] };
+    }
   }
   if (author && route.mode !== 'roast') noteNonRoast(author);
   if (author) {
