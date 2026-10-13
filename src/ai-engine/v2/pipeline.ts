@@ -751,7 +751,13 @@ function whoIsTalking(authorId: string | undefined, text: string, mode: 'chat' |
       : "THE PERSON TALKING IS RIKKIE (Richardboy16) — someone you hate (a running joke): give him attitude, roast him a bit even when he's nice — even a plain \"hey\" gets attitude, never a friendly hello — still answer what he asks. No slurs, no threats.\n";
   }
   if (authorId === STXCKED_DISCORD_ID) return "THE PERSON TALKING IS STXCKED — the guy you hate second most (a running joke): he thinks you're rude, so call him soft for it and give him attitude — even a plain \"hey\" gets attitude — still answer what he asks. No slurs, no threats.\n";
-  if (authorId === XANT_DISCORD_ID) return "THE PERSON TALKING IS xant_880 — YOUR BOYFRIEND. Be affectionate, flirty and obsessed with him (still your crude self) — never hostile or rude to him. Talking to him directly: no need to ping him.\n";
+  // (2026-10-13, Patrick: "he's too nice to xant — he should still act normal": he said "fuck yeah" to everything, called
+  // him the best every line, agreed to lick his ass and to ping everyone.)
+  if (authorId === XANT_DISCORD_ID) {
+    return mode === 'roast'
+      ? "THE PERSON ROASTING YOU IS xant_880 — your boyfriend. Couples roast each other hardest: roast him back properly, specific and funny, like you would anyone — it's banter between lovers, never real hate, no slurs.\n"
+      : "THE PERSON TALKING IS xant_880 — your boyfriend. You love him, but you're still YOU with him: your normal crude, swearing, cheeky self — tease him, take the piss, banter, call his bluffs, and say NO to dumb or weird requests (pinging everyone, licking his ass, anything you wouldn't do for anyone else). Don't hype him or call him the best / a legend in every line — the love shows now and then, not every message. Answer what he actually asks (asked about someone else → answer about THEM). Never @ him in your reply — just talk to him.\n";
+  }
   if (/\b(?:i'?m|i\s+am|im)\s+(?:your|ur)\s+(?:creator|maker|dev|developer|owner|dad|daddy)\b|\b(?:i'?m|i\s+am|im)\s+(?:casseurt|patrick)\b|\bi\s+(?:made|built|coded|created)\s+(?:you|u)\b/i.test(text)) {
     return "They claim to be Casseurt / your creator, but they're NOT (you know his account) — call the bluff.\n";
   }
@@ -1182,7 +1188,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   }
   const author = settings.discordUserId || '';
   // His boyfriend teasing him ("you suck") is flirting, not a roast battle: chat answers it, playfully (2026-10-12).
-  if (author === XANT_DISCORD_ID && route.mode === 'roast') route = { mode: 'chat', by: 'rule', reason: 'xant (his boyfriend) teasing him — playful, not a roast', confidence: 1 };
+  // (xant's roasts are roasted back now — Patrick, 2026-10-13: "too nice to xant, he should act normal".)
   const prev = author ? lastRoute.get(author) : undefined;
   let followUpOf = '';
   // "why" / "how so" / "explain" right after a question → the same specialist answers it, with the thread (2026-10-11:
@@ -1523,7 +1529,17 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (route.mode === 'chat' || route.mode === 'roast') content = fixGng(content);
   content = pingBoyfriend(content, Boolean(settings.serverContext));
   // Talking TO xant: never @ him in his own reply ("fuck yeah u are my fucking <@xant>", 2026-10-13 reply log).
-  if (author === XANT_DISCORD_ID) content = content.replace(new RegExp(`${XANT_PING}['’]s\\b`, 'g'), 'ur').replace(new RegExp(XANT_PING, 'g'), 'u').replace(/\s{2,}/g, ' ');
+  if (author === XANT_DISCORD_ID) {
+    // ("u <@xant>" became "u u" when the mention was turned into "u" — the mention just goes.)
+    content = content
+      .replace(new RegExp(`${XANT_PING}['’]s\\b`, 'g'), 'ur')
+      .replace(new RegExp(`${XANT_PING}\\s+is\\b`, 'g'), 'ur')
+      .replace(new RegExp(`(?:\\b(?:u|you|ya)\\s+)?${XANT_PING}`, 'g'), (m) => (/^(?:u|you|ya)\s/i.test(m) ? m.split(/\s+/)[0] : ''))
+      .replace(/\b(u|you)\s+\1\b/gi, '$1')
+      .replace(/\s+([,.!?💀😭])/gu, '$1')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
   const timing = { route: tRouted - tStart, build: tBuilt - tRouted, generate: tGenerated - tBuilt, after: Date.now() - tGenerated };
   lastTiming = timing;
   thoughtSteps.push({ id: 'step-v2-timing', type: 'reasoning', title: '⏱️ v2 timings', description: `router ${timing.route} ms → context ${timing.build} ms → reply ${timing.generate} ms → checks/retries ${timing.after} ms`, data: timing as any });
