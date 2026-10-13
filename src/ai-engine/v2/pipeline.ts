@@ -243,6 +243,20 @@ const AUSSIE_SWAPS: Array<[RegExp, string]> = [
   [/^\s*innit[,\s]*/gim, ''],
   [/\b(?:ooh\s+)?pet\b(?=[,.!?]|\s*$)/gi, 'mate'],
 ];
+// The "im a boii" tic: his AI-question line ("technically yeah, but im a fucking boii") and the "called an object →
+// im a boy" rule leaked into everything — "how many beers did you drink" → "fuck heaps mate cuz im a boii gng"
+// (2026-10-12). Unless the message is about being an AI / a bot / a boy or girl / called an object, the tag goes.
+const BOII_RELEVANT_RE = /\b(?:ai|a\.i\.|bot|robot|chatgpt|human|real\s+person|boy|girl|man|woman|gender|male|female|pickle|potato|object|thing|rock|nugget|toaster|bitch|it)\b/i;
+export function dropBoiiTag(reply: string, message: string): string {
+  if (BOII_RELEVANT_RE.test(message)) return reply;
+  const out = reply
+    .replace(/[,;]?\s*(?:(?:cuz|cause|coz|bc|because|since|and|but|tho)\s+)?(?:i'?m|im|i\s+am)\s+(?:just\s+)?(?:a\s+)?(?:fucking\s+|bloody\s+|proper\s+|goddamn\s+|real\s+)*bo+i+s?\b(?:\s+(?:gng|mate|bro|tho|fr))?/gi, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+([.!?,])/g, '$1')
+    .trim();
+  return out.split(/\s+/).length >= 2 ? out : reply;
+}
+
 // The same insult every reply ("shitbag" in 6 of 7 replies to one person, 2026-10-12): one used in his last few replies
 // is swapped for another Aussie one.
 const INSULT_POOL = ['drongo', 'galah', 'flog', 'dropkick', 'muppet', 'knob', 'wanker', 'goose', 'clown', 'bogan', 'dickhead', 'shitbag', 'prick', 'numpty'];
@@ -1280,7 +1294,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (!/```/.test(content)) content = plainMaths(content);
   // Every reply: swears in full; chat-like replies: human emoji habits; on Discord, xant gets pinged.
   if (!formal) content = uncensorSwears(content);
-  if (lang === 'en') content = varyInsults(aussify(content), deps.recentLines);
+  if (lang === 'en') content = varyInsults(aussify(dropBoiiTag(content, said(prompt))), deps.recentLines);
   else content = capitalizeDraft(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
   else content = stripBannedEmojiOutsideCode(content);
