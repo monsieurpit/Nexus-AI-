@@ -930,6 +930,15 @@ const CHAT_EXAMPLE_GRAMS: Set<string> = (() => {
 const LIST_REQUEST_RE = /\b(?:top|best|worst)\s+(\d{1,2})\b|\b(?:list|name|give\s+me|tell\s+me)\s+(\d{1,2})\b|\b(\d{1,2})\s+(?:people|reasons|things|names|players|drivers|songs|games|facts|ways)\b/i;
 // Dissing his own club ("fuck barca", "barra bastards", "barça is overrated / trash / mid").
 export const BARCA_DISS_RE = /\b(?:fuck|screw|hate|fk)\s+(?:barca|barça|barcelona|barra|fcb|culers?)\b|\b(?:barca|barça|barcelona|barra|fcb)\s+(?:bastards?|is\s+(?:shit|trash|mid|overrated|garbage|dogshit|washed)|are\s+(?:shit|trash|mid|overrated|garbage|washed)|sucks?)\b/i;
+// The per-constraint counts they asked for are really there: one numbered line per constraint (as many as the problem
+// lists, at least 4), and no estimates ("estimated survivors > 8064" was printed by a program, 2026-10-12).
+export function realStepCounts(output: string, problem: string): boolean {
+  if (/\b(?:estimat\w*|expected|approx\w*|roughly|about\s+\d|reduction\s+factor|massive|likely|probably)\b/i.test(output)) return false;
+  const constraints = new Set((problem.match(/(?:^|\n)\s*(\d{1,2})\.\s+\(?[a-z|]/gim) || []).map((m) => m.trim())).size;
+  const want = Math.max(4, Math.min(constraints || 0, 12));
+  const lines = output.split('\n').filter((l) => /\d/.test(l) && /\b(?:c\s*\d|constraint|step|after|filter|rule)/i.test(l)).length;
+  return lines >= want;
+}
 // A real question answered with a deflection ("what do u want", "wtf are u on about", "are u dense") — no answer at all.
 const DEFLECT_RE = /^(?:\W*(?:yo|bruh|bro|nah|mate|oi|lol|lmao|ffs|jesus|bloody\s+hell)\W+)*(?:(?:what|wtf|wth|wat)\b[^.?!]{0,30}\b(?:want|wanna|mean|on\s+(?:about|abt)|talkin|talking|saying|is\s+(?:this|that))|(?:are|r)\s+(?:u|you|ya)\s+(?:fucking\s+|bloody\s+)?(?:dense|serious|mental|stupid|dumb|kidding|deaf|high|ok)|say\s+smth\s+else|speak\s+up)\b/i;
 export function dodgedQuestion(message: string, reply: string): boolean {
@@ -1028,7 +1037,7 @@ export function plainMaths(text: string): string {
     .replace(/\\\(([\s\S]+?)\\\)/g, (_m, x: string) => conv(x))
     .replace(/\$([^$\n]*(?:\\[a-zA-Z]+|\^|_\{)[^$\n]*)\$/g, (_m, x: string) => conv(x))
     // "$10297.68$": a bare number in math dollars.
-    .replace(/\$([-+*/×÷=().,\d\s]+)\$/g, '$1');
+    .replace(/\$([-+*/×÷=().,!<>\d\s]+)\$/g, '$1');
 }
 
 // Plain greetings get a human answer (2026-10-11, Patrick: "hello" → "wsg gng whats the vibe?" is "literally what an AI
@@ -1168,9 +1177,13 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const program = pickBinaryProgram(text || '');
   const morse = route.mode === 'chat' ? morseTask(text || '') : null;
   const multiTaskNote = (route.mode === 'code' || route.mode === 'maths' || route.mode === 'question') && ((text || '').match(/(?:^|\n)\s*\d{1,2}[.)]\s+\S/g)?.length || 0) >= 3 && /\btasks?\b|\b(?:explain|prove|determine|find|provide)\b/i.test(text || '')
-    ? 'THEY GAVE SEVERAL NUMBERED TASKS: answer EVERY one, in order, with its number as a heading (1., 2., 3., …) — code only where a task asks for code, written answers/explanations for the others. Never skip a task, never invent a result you did not derive.\n'
+    ? 'THEY GAVE SEVERAL NUMBERED TASKS: answer EVERY one, in order, with its number as a heading (1., 2., 3., …) — code only where a task asks for code, written answers/explanations for the others. Never skip a task, never invent a result you did not derive. Your program will be RUN and its output shown: make it PRINT every number your written answers rely on (e.g. how many candidates survive after each constraint, counts per check), so every claim is backed by real output.\n'
     : '';
-  const userTurn = `${parrotNote}${multiTaskNote}${morse ? morseNote(morse) : ''}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${built.text}${langNote}`;
+  // Code that computes a result: first only the program (it runs in the sandbox), the written answer comes after, from the
+  // real output — writing everything twice didn't fit under Cloudflare's ~100 s (2026-10-12).
+  const programFirst = route.mode === 'code' && WANTS_RESULT_RE.test(text || '') && /\bpython\b|\bprogram\b|\bscript\b|\bcode\b/i.test(text || '');
+  const programFirstNote = programFirst ? 'STEP 1 OF 2: write ONLY the complete Python program now (one ```python block, no explanations) — it will be RUN, then you will write the answers from its real output. Make it PRINT every number the answers need (counts, results, per-step survivors).\n' : '';
+  const userTurn = `${parrotNote}${programFirst ? programFirstNote : multiTaskNote}${morse ? morseNote(morse) : ''}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${built.text}${langNote}`;
   const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt) && !casualServerDraft(prompt);
   // A list they asked for keeps its lines (chat's one-line cleanup cut "top 10" down to "1.", 2026-10-12).
@@ -1188,7 +1201,9 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const numberedTasks = (text || '').match(/(?:^|\n)\s*\d{1,2}[.)]\s+\S/g)?.length || 0;
   const multiTask = (route.mode === 'code' || route.mode === 'maths' || route.mode === 'question') && numberedTasks >= 3 && /\btasks?\b|\b(?:explain|prove|determine|find|provide)\b/i.test(text || '');
   const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * 30) } : multiTask ? { ...spec, maxTokens: Math.max(spec.maxTokens, 2600) } : route.mode === 'maths' && mathsFacts(prompt) ? { ...spec, think: false } : spec;
-  const raw = await generateWith(genSpec, userTurn, lang);
+  // (Step 1 is only the program: no thinking pass, the run is the check.)
+  const firstSpec = route.mode === 'code' && WANTS_RESULT_RE.test(text || '') && /\bpython\b|\bprogram\b|\bscript\b|\bcode\b/i.test(text || '') ? { ...genSpec, think: false, maxTokens: 2800 } : genSpec;
+  const raw = await generateWith(firstSpec, userTurn, lang);
   const tGenerated = Date.now();
   if (!raw) {
     thoughtSteps.push({ id: 'step-v2-failed', type: 'verification', title: '⚠️ v2 generation failed, v1 takes over', description: lastFailure || 'empty reply' });
@@ -1320,14 +1335,42 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // Python that computes a result they asked for: RUN it in the sandbox (sandbox.ts) and rewrite the answer from the
   // real output — his written answer invented 2 solutions his own program proved don't exist (2026-10-12).
   if (route.mode === 'code' && WANTS_RESULT_RE.test(text || '')) {
-    const py = pythonBlock(content);
+    let py = pythonBlock(content);
+    // Cut off before the closing fence (it ran out of room): one more try asking for a SHORTER complete program.
+    if (!py && /```(?:python|py)\s*\n/i.test(content) && Date.now() - tStart < 50_000) {
+      const shorter = await generateWith(firstSpec, `${userTurn}\n(Your program was cut off before the end. Write it again COMPLETE and SHORTER: no long comments or docstrings, same checks, same prints.)`, lang);
+      const retryPy = shorter ? pythonBlock(shorter) : null;
+      if (retryPy) {
+        py = retryPy;
+        content = finalize(shorter!);
+      }
+    }
     if (py) {
-      const run = await runPythonSandboxed(py);
+      let run = await runPythonSandboxed(py);
+      // They asked for counts after each constraint / step but the program only printed the start and the end (ChatGPT's
+      // test, 2026-10-12): one fix round with that exact complaint, then it runs again.
+      // Discord reaches the Mac through Cloudflare, which cuts a request at ~100 s: optional passes only while time is left.
+      const timeLeft = () => 88_000 - (Date.now() - tStart);
+      if (run.ok && timeLeft() > 45_000 && /\b(?:after\s+each|per\s+(?:constraint|filter|step|check)|surviv\w*|each\s+(?:constraint|filter|step|check)\s+(?:is\s+)?(?:applied|removes|eliminates))\b/i.test(text || '') && !realStepCounts(run.stdout, text || '')) {
+        const fix = await generateWith(genSpec, `${userTurn}\n\n(Your program ran but did NOT print what they asked: the REAL number of candidates still surviving after EACH constraint, one line per constraint, in order — computed by actually filtering the list after each constraint, never an estimate or a hard-coded number. Its output was:\n\`\`\`\n${run.stdout.slice(0, 800)}\n\`\`\`\nFix the program so it prints those counts, and give the whole answer again.)`, lang);
+        const py2 = fix ? pythonBlock(finalize(fix)) : null;
+        const run2 = py2 ? await runPythonSandboxed(py2) : null;
+        if (py2 && run2?.ok && realStepCounts(run2.stdout, text || '')) {
+          py = py2;
+          run = run2;
+        }
+      }
       const output = (run.stdout || '').trim();
       thoughtSteps.push({ id: 'step-v2-run', type: 'verification', title: run.ok ? `▶️ Ran the program (${(run.ms / 1000).toFixed(1)} s)` : run.timedOut ? '▶️ The program took too long (stopped at 20 s)' : '▶️ The program crashed', description: (run.ok ? output : run.stderr || output).slice(0, 400) });
       if (run.ok && output) {
-        const rewrite = await generateWith(genSpec, `${userTurn}\n\n(Your program was ACTUALLY RUN in a sandbox. Its REAL output:\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\nRewrite your whole answer: keep the program exactly the same, and make EVERY result you state match this real output — if it found 0 solutions, say none exist. Never contradict the output.)\n\nYour program:\n\`\`\`python\n${py.slice(0, 6000)}\n\`\`\``, lang);
-        if (rewrite) content = finalize(rewrite);
+        // Only the WRITTEN part is regenerated (much faster than re-typing the program); the program shown is the one
+        // that RAN, character for character (a re-typed copy had an indentation error, 2026-10-12).
+        const code = `\`\`\`python\n${py.replace(/\s+$/, '')}\n\`\`\``;
+        const rewrite = timeLeft() > 20_000
+          ? await generateWith({ ...genSpec, maxTokens: Math.min(genSpec.maxTokens, 1100) }, `${userTurn}\n\n(Your program was ACTUALLY RUN in a sandbox. Its REAL output:\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\nNow write ONLY the written part of your answer — NO code, the program is shown separately. Answer what they asked (every numbered task in order, where a task is the program just write "see the program below"), and make EVERY result you state match this real output — if it found 0 solutions, say none exist. Never contradict the output.)`, lang)
+          : null;
+        const written = rewrite ? finalize(rewrite).replace(/```[\s\S]*?(?:```|$)/g, '').trim() : content.replace(/```[\s\S]*?(?:```|$)/g, '').trim();
+        content = `${written}\n\n${code}`;
         content = `${content.trim()}\n\n**Real output** (ran it in a sandbox):\n\`\`\`\n${output.slice(0, 1500)}\n\`\`\``;
       } else if (!run.ok && !run.timedOut && run.stderr) {
         // It crashed: one fix with the real error.
