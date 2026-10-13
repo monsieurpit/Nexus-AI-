@@ -1508,7 +1508,7 @@ app.post('/api/v1/nexus', async (req, res) => {
   if (forgetThat && memId) {
     const removed = forgetFacts(memPlatform, memId, forgetThat[1].replace(/^(?:i|i'?m|im|my)\s+/i, ''));
     const r = await generateLlmText(removed ? `They asked you to forget that ${forgetThat[1]}. You deleted it from your memory. Confirm in ONE short cheeky line.` : `They asked you to forget that ${forgetThat[1]}, but you didn't have that saved. Say so in ONE short cheeky line.`, { system: `${V2_IDENTITY}\n\nWrite ONE short Discord line (5-20 words).`, maxTokens: 60, temperature: 0.8, timeoutMs: 9000, think: false, model: localLlmChatModel() }).catch(() => null);
-    const line = r && r.status === 'success' && r.text.trim() ? shortChatFinalize(r.text.replace(/^["'“]+|["'”]+$/g, '')) : removed ? 'done, forgot it' : "i didn't have that saved anyway";
+    const line = r && r.status === 'success' && r.text.trim() ? humanEmoji(uncensorSwears(shortChatFinalize(r.text.replace(/^["'“]+|["'”]+$/g, ''))), []) : removed ? 'done, forgot it' : "i didn't have that saved anyway";
     return res.json({ response: line, text: line, persona: persona.id, authorId: effectiveAuthorId || null, thoughtSteps: [{ type: 'reasoning', title: '🗂️ Personal memory', description: removed ? `${removed} memory(ies) about "${forgetThat[1]}" deleted.` : `Nothing saved about "${forgetThat[1]}".` }] });
   }
   // Memory commands, on Discord and the website: stop / start saving, forget me.
