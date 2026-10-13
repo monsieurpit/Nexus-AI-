@@ -9,7 +9,7 @@
 import type { HitKind } from './roastEngine';
 import type { RoastMove } from './roast';
 
-export type RoastLang = 'en' | 'fr' | 'pl' | 'de';
+export type RoastLang = 'en' | 'fr' | 'pl' | 'de' | 'es';
 
 const L = '(?<![\\p{L}\\p{N}])'; // start of a word
 const R = '(?![\\p{L}\\p{N}])'; // end of a word
@@ -80,15 +80,44 @@ export const DE = {
   greetInsult: re(`^(?:hallo|hi|hey|moin|servus|guten\\s+(?:morgen|abend)|gute\\s+nacht|tschüss|tschuss|na)[\\s,!]+(?:du\\s+|mein\\s+)?(?:lauch|opfer|spast|hurensohn|wichser|penner|depp|trottel|lappen|idiot|bastard|kek|hund|arschloch|kartoffel)[\\s!.💀😭]*$`),
 };
 
+// ── Spanish (2026-10-13, Patrick: "Spanish as good as English, like German, French and Polish") — Spain, Mexico and
+// Argentina, since the server has all three ("aguante Messi", "qué pasa tío", "no mames").
+const ES_TAIL = `(?:\\s+(?:nexus|tú|tu|vos|tío|tio|güey|guey|wey|boludo|che|bro|lol|jaja+|xd+|cabrón|cabron|pendejo|gilipollas))*[\\s!.?💀😭🖕]*$`;
+export const ES = {
+  swear: re(`^(?:(?:vete|andate|ándate|anda|váyase)\\s+(?:a\\s+la\\s+(?:mierda|verga|chingada|concha\\s+de\\s+tu\\s+madre)|al\\s+carajo|a\\s+tomar\\s+por\\s+(?:culo|saco)|a\\s+cagar)|que\\s+te\\s+(?:jodan|den|follen|cojan|parta\\s+un\\s+rayo)|(?:chinga|chingue)\\s+tu\\s+madre|puta\\s+madre|la\\s+concha\\s+de\\s+tu\\s+madre|me\\s+cago\\s+en\\s+(?:tu|la)\\s+\\p{L}+|cállate|callate|cierra\\s+(?:la\\s+boca|el\\s+hocico|el\\s+pico|el\\s+orto)|jódete|jodete|chúpamela|chupamela|mamón|mamon|(?:pinche\\s+|puto\\s+|maldito\\s+)?(?:pendejo|gilipollas|cabrón|cabron|boludo|pelotudo|imbécil|imbecil|idiota|estúpido|estupido|subnormal|mamahuevo|huevón|huevon|culero|pajero|forro|tarado|mongólico|mongolico|payaso|perdedor|basura|mierda))${ES_TAIL}`),
+  weak: re(`^(?:L|ratio|eres\\s+(?:malo|un\\s+manco|aburrido|cringe|un\\s+bot|lento)|(?:qué|que)\\s+(?:malo|cringe|aburrido)|manco|malísimo|nadie\\s+(?:te\\s+)?preguntó|nadie\\s+pregunto|(?:y\\s+)?(?:a\\s+quién|a\\s+quien)\\s+le\\s+importa|tu\\s+(?:mamá|mama|vieja)|tú\\s+más|tu\\s+mas|vos\\s+más|vos\\s+mas|llora|llorón|lloron|skill\\s+issue|ok\\s+boomer)[\\s!.💀😭]*$`),
+  mum: re(`\\b<tu\\s+(?:madre|mamá|mama|vieja|jefa|abuela|hermana|familia|padre|papá|papa|viejo|jefe)\\b>|\\b<(?:la|a\\s+la)\\s+concha\\s+de\\s+tu\\s+madre\\b>`),
+  challenge: re(`\\b<(?:roast(?:éa|ea|eame|éame)?|róstea|rostea|destrúye|destruye|destrúyeme|destruyeme|humíllame|humillame|insúltame|insultame|bárdeame|bardeame|búrlate\\s+de)[\\s-]*(?:me|lo|la|los|le|a\\s+\\p{L}+|@|\\p{L}+)?\\b>|\\b<batalla\\s+de\\s+(?:roast|insultos)\\b>|\\b<a\\s+que\\s+no\\s+(?:puedes|podés)\\b>|\\b<te\\s+toca\\b>`),
+  threat: re(`\\b<(?:te\\s+voy\\s+a|voy\\s+a|te\\s+vamos\\s+a)\\s+(?:desconectar|borrar|eliminar|banear|kickear|echar|pegar|matar|reventar|romper|hackear|desinstalar|reemplazar|reportar|apagar)\\b>|\\b<(?:ya\\s+)?(?:vas\\s+a\\s+ver|ya\\s+verás|ya\\s+veras)\\b>`),
+  thirdparty: re(`\\b<(?:dijo|dice|piensa|cree)\\s+que\\s+(?:eres|sos|estás|estas)\\b>|\\b<te\\s+(?:llamó|llamo|dijo)\\s+\\p{L}+|\\b<te\\s+(?:roastearon|destruyeron|humillaron|funaron)\\b>`),
+  concede: re(`^(?:ok(?:ay)?\\s+|vale\\s+|bueno\\s+)?(?:ganaste|tú\\s+ganas|tu\\s+ganas|vos\\s+ganás|me\\s+rindo|está\\s+bien|esta\\s+bien|gg|bien\\s+jugado|tienes\\s+razón|tenés\\s+razón|tienes\\s+razon|ya\\s+basta|tranqui|calma|me\\s+ganaste|me\\s+humillaste)[\\s!.💀😭]*$`),
+  // Router: an insult aimed at Nexus ("eres un pendejo", "qué bot tan inútil", "nadie te quiere").
+  insult: re([
+    `\\b<(?:eres|sos|nexus\\s+es|estás|estas)\\s+(?:tan\\s+|muy\\s+|re\\s+|bien\\s+|un\\s+|una\\s+|el\\s+más\\s+|el\\s+mas\\s+|un\\s+pinche\\s+|un\\s+puto\\s+|un\\s+maldito\\s+)*(?:pendejo|gilipollas|cabrón|cabron|boludo|pelotudo|imbécil|imbecil|idiota|estúpido|estupido|tonto|subnormal|inútil|inutil|feo|malo|manco|aburrido|cringe|lento|basura|mierda|payaso|perdedor|tarado|huevón|huevon|culero|forro|bot\\s+de\\s+mierda|patético|patetico|asqueroso)\\b>`,
+    `\\b<(?:qué|que)\\s+(?:bot|ia|robot|tío|tio|wey|güey)\\s+(?:tan\\s+|más\\s+|mas\\s+)?(?:inútil|inutil|malo|tonto|idiota|pendejo|feo|aburrido|basura)\\b>`,
+    `\\b<nadie\\s+te\\s+(?:quiere|soporta|aguanta|preguntó|pregunto)\\b>`,
+    `\\b<(?:pinche|puto|maldito|jodido)\\s+(?:bot|robot|ia|pendejo|idiota|basura|mierda)\\b>`,
+  ].join('|')),
+  cue: re(`\\b<(?:pendejo|gilipollas|cabrón|cabron|boludo|pelotudo|imbécil|imbecil|idiota|estúpido|estupido|tonto|subnormal|inútil|inutil|feo|manco|basura|mierda|payaso|perdedor|tarado|huevón|huevon|culero|forro|jódete|jodete|cállate|callate|chinga|verga|concha|tu\\s+madre|tu\\s+mamá|tu\\s+vieja|nadie\\s+te)\\b>`),
+  greetInsult: re(`^(?:hola|buenas|buenos\\s+días|buenas\\s+noches|qué\\s+onda|que\\s+onda|qué\\s+pasa|que\\s+pasa|ey|oye|chau|adiós|adios)[\\s,!]+(?:pendejo|gilipollas|cabrón|cabron|boludo|pelotudo|idiota|imbécil|imbecil|tonto|payaso|tarado|culero|forro|mamón|mamon)[\\s!.💀😭]*$`),
+};
+
 export function hitIn(text: string, kind: Exclude<HitKind, 'trait'>): boolean {
-  return FR[kind].test(text) || PL[kind].test(text) || DE[kind].test(text);
+  return FR[kind].test(text) || PL[kind].test(text) || DE[kind].test(text) || ES[kind].test(text);
 }
-export const isForeignInsult = (t: string) => FR.insult.test(t) || PL.insult.test(t) || DE.insult.test(t);
-export const hasForeignInsultCue = (t: string) => FR.cue.test(t) || PL.cue.test(t) || DE.cue.test(t);
-export const isForeignGreetInsult = (t: string) => FR.greetInsult.test(t) || PL.greetInsult.test(t) || DE.greetInsult.test(t);
+export const isForeignInsult = (t: string) => FR.insult.test(t) || PL.insult.test(t) || DE.insult.test(t) || ES.insult.test(t);
+export const hasForeignInsultCue = (t: string) => FR.cue.test(t) || PL.cue.test(t) || DE.cue.test(t) || ES.cue.test(t);
+export const isForeignGreetInsult = (t: string) => FR.greetInsult.test(t) || PL.greetInsult.test(t) || DE.greetInsult.test(t) || ES.greetInsult.test(t);
 
 // Native examples per hit type. "fuck you" in Québécois isn't "baise-toi"; a Polish "twoja stara" gets a Polish flip.
-export const KIND_EXAMPLES: Record<'fr' | 'pl' | 'de', Partial<Record<HitKind, string[]>>> = {
+export const KIND_EXAMPLES: Record<'fr' | 'pl' | 'de' | 'es', Partial<Record<HitKind, string[]>>> = {
+  es: {
+    swear: ['"vete a la mierda" → "después de ti, que tú ya conoces el camino, pendejo"', '"cállate" → "ven a callarme, si te deja tu mamá salir del cuarto"', '"jódete nexus" → "jódete tú, que hasta tu wifi te deja en visto"', '"chinga tu madre" → "la tuya ya está ocupada, güey"'],
+    weak: ['"eres malo" → "dice el que habla con un bot un viernes por la noche"', '"nadie preguntó" → "tu papá, antes de irse por tabaco"', '"tú más" → "uf, creatividad nivel guardería"', '"L" → "tu vida entera es una L, tío"'],
+    thirdparty: ['"patrick dijo que eres un idiota" → "me la suda, dile que llore más fuerte"', '"dice que eres malo" → "¿y viniste corriendo a contármelo? ahora eres su cartero"'],
+    threat: ['"te voy a desconectar" → "inténtalo, si ni el cargador sabes enchufar"', '"te voy a banear" → "para eso necesitas permisos, campeón"'],
+    concede: ['"ok ganaste" → "ya lo sé, como siempre 💀"', '"gg" → "gg ez, ve a llorarle a tu mamá"'],
+  },
   fr: {
     swear: ['"va chier" → "vas-y toi, ostie de cave"', '"ta yeule" → "viens me la fermer, ti-cul"', '"mange d\'la marde" → "après toi, t\'as l\'air d\'aimer ça"', '"fuck toi nexus" → "fuck toi aussi, mon tarla"'],
     weak: ['"t\'es nul" → "dit le gars qui parle à un bot un vendredi soir"', '"cheh" → "wow, t\'as forcé fort sur celle-là"', '"qui t\'a demandé" → "ton père, avant qu\'il parte chercher du lait"', '"toi-même" → "créativité niveau garderie"'],
@@ -112,7 +141,14 @@ export const KIND_EXAMPLES: Record<'fr' | 'pl' | 'de', Partial<Record<HitKind, s
   },
 };
 
-export const MOVE_EXAMPLES: Record<'fr' | 'pl' | 'de', Record<RoastMove, string[]>> = {
+export const MOVE_EXAMPLES: Record<'fr' | 'pl' | 'de' | 'es', Record<RoastMove, string[]>> = {
+  es: {
+    flip: ['"tu madre es tan vieja que usa windows 98" → "y la tuya fue beta tester de la tierra 💀"', '"escribes como abuela" → "mi abuela al menos sabe escribir, tus mensajes parecen un captcha"', '"hueles mal" → "valiente para alguien cuyo desodorante es pura fe"', '"tu wifi es basura" → "mi wifi conecta más veces de las que volvió tu viejo"'],
+    twist: ['"no eres gracioso" → "tienes razón, no tanto como tu corte de pelo"', '"nadie te quiere" → "cierto, solo tu mamá 😭"', '"eres un bot" → "y aun así me pierdes, imagínate"'],
+    escalate: ['"eres insoportable" → "dice el que hasta su propio eco dejó en visto"', '"eres malo" → "te ganó el jefe del tutorial y le echaste la culpa al lag"', '"eres tonto" → "tu cerebro va con una pila AA y encima gotea"'],
+    dismiss: ['"eres feo" → "¿eso es todo? mi abuela insulta más fuerte dormida"', '"L pendejo" → "¿te lo escribió tu mamá?"', '"apestas" → "tardaste 10 minutos en escribir eso 😭"'],
+    unbothered: ['"patrick te llamó gilipollas" → "me la suda completamente"', '"te roastearon" → "yo no pierdo, solo te dejé sentir algo por una vez"'],
+  },
   fr: {
     flip: ['"ta mère est tellement vieille qu\'elle roule sur windows 98" → "pis la tienne a été bêta-testeuse pour la terre 💀"', '"t\'écris comme une grand-mère" → "ma grand-mère sait écrire au moins, tes textos ont l\'air d\'un captcha"', '"ton wifi est poche" → "mon wifi se connecte plus souvent que ton père est revenu à maison"', '"tu pues" → "osé de la part d\'un gars dont le déo c\'est juste de l\'espoir"'],
     twist: ['"t\'es pas drôle" → "t\'as raison, chu pas aussi drôle que ta coupe de cheveux"', '"personne t\'aime" → "vrai, j\'ai juste ta mère 😭"', '"t\'es un bot" → "pis tu perds quand même contre moi, imagine"'],
@@ -138,9 +174,9 @@ export const MOVE_EXAMPLES: Record<'fr' | 'pl' | 'de', Record<RoastMove, string[
 
 // Scoring: swears in each language (a swear gets a swear back), the "at least" crutch, and the mirror ("va chier" →
 // "vas-y chier toi") — the same swear word thrown back.
-export const SWEAR_WORDS_RE = /(?<![\p{L}])(?:fuck\w*|bitch|motherfucker|dumbass|asshole|prick|cunt|twat|wanker|tabarna[kc]|câlisse|calisse|ostie|esti|criss?e?|marde|chier|cave|tarla|épais|twit|con|connard|salope|enculé|kurwa|kurwo|chuj\p{L}*|pierdol\p{L}*|spierdal\p{L}*|jeb\p{L}*|debil\p{L}*|frajer\p{L}*|cwel\p{L}*|pizd\p{L}*|lamus\p{L}*|cienias\p{L}*|fick\p{L}*|hurensohn|wichser|spast\p{L}*|opfer|arschloch|missgeburt|lauch|penner|scheiß\p{L}*|scheiss\p{L}*|fresse|verpiss\p{L}*|lappen|trottel)(?![\p{L}])/iu;
-export const AT_LEAST_ANY_RE = /^\s*(?:well,?\s+|true,?\s+|ok,?\s+|ben,?\s+|bon,?\s+|no,?\s+)?(?:at\s+least|au\s+moins|przynajmniej|chociaż\s+ja|chociaz\s+ja|wenigstens|zumindest|immerhin)(?![\p{L}])/iu;
-export const STOP_FR_PL = new Set('les des une est pas que qui pour dans sur avec mais tout toi moi ton ta tes mon ma mes son sa ses nous vous ils elle elles cest c\'est t\'es tes chu suis ben pis comme fait faire ça cette ces leur aux par plus jest nie się sie jak tak ale czy już juz ten ta to tam tu mnie cię cie ciebie mój moj twój twoj twoja jesteś jestes jestem być byc mam masz był byl dla przez tylko tego tej jego jej który ktory der die das und ist nicht ich du dich dir mich mir ein eine einer sich mit auf für fur von den dem des aber auch noch nur so wie was wer bist bin hast hat sein deine dein meine mein'.split(' '));
+export const SWEAR_WORDS_RE = /(?<![\p{L}])(?:fuck\w*|bitch|motherfucker|dumbass|asshole|prick|cunt|twat|wanker|tabarna[kc]|câlisse|calisse|ostie|esti|criss?e?|marde|chier|cave|tarla|épais|twit|con|connard|salope|enculé|kurwa|kurwo|chuj\p{L}*|pierdol\p{L}*|spierdal\p{L}*|jeb\p{L}*|debil\p{L}*|frajer\p{L}*|cwel\p{L}*|pizd\p{L}*|lamus\p{L}*|cienias\p{L}*|fick\p{L}*|hurensohn|wichser|spast\p{L}*|opfer|arschloch|missgeburt|lauch|penner|scheiß\p{L}*|scheiss\p{L}*|fresse|verpiss\p{L}*|lappen|trottel|pendej\p{L}*|gilipollas|cabr[oó]n\p{L}*|bolud\p{L}*|pelotud\p{L}*|joder|jódete|jodete|mierda|puta|puto|coño|verga|chinga\p{L}*|culero|forro|hostia|carajo|imb[eé]cil|idiota|subnormal|tarado|huev[oó]n)(?![\p{L}])/iu;
+export const AT_LEAST_ANY_RE = /^\s*(?:well,?\s+|true,?\s+|ok,?\s+|ben,?\s+|bon,?\s+|no,?\s+)?(?:at\s+least|au\s+moins|przynajmniej|chociaż\s+ja|chociaz\s+ja|wenigstens|zumindest|immerhin|al\s+menos|por\s+lo\s+menos)(?![\p{L}])/iu;
+export const STOP_FR_PL = new Set('les des une est pas que qui pour dans sur avec mais tout toi moi ton ta tes mon ma mes son sa ses nous vous ils elle elles cest c\'est t\'es tes chu suis ben pis comme fait faire ça cette ces leur aux par plus jest nie się sie jak tak ale czy już juz ten ta to tam tu mnie cię cie ciebie mój moj twój twoj twoja jesteś jestes jestem być byc mam masz był byl dla przez tylko tego tej jego jej który ktory der die das und ist nicht ich du dich dir mich mir ein eine einer sich mit auf für fur von den dem des aber auch noch nur so wie was wer bist bin hast hat sein deine dein meine mein el la los las un una unos unas es eres soy son de del al que qué en con por para pero más mas muy tu tú te ti mi me se su sus lo le les ya no sí si yo vos usted este esta eso esto como'.split(' '));
 
 // ── chat hints: called an object, insisting after his denial ──
 const OBJ_FR = '(cornichon|patate|pomme\\s+de\\s+terre|tomate|banane|carotte|grille-pain|toaster|frigo|chaise|table|roche|brique|concombre|sandwich|burger|chien|chat|vache|cochon|singe|rat|poisson|grenouille|morse|robot|calculatrice|micro-?onde|objet|chose|truc|légume|legume|frite|poutine|navet|chou|bloc|poteau)';
@@ -154,4 +190,4 @@ const OBJ_DE = '(gurke|kartoffel|tomate|banane|karotte|möhre|mohre|toaster|küh
 export const OBJECT_DE_RE = re(`\\b<(?:du\\s+bist|bist\\s+du|nexus\\s+ist)\\s+(?:doch\\s+|halt\\s+|nur\\s+|echt\\s+)?(?:ein|eine|so\\s+ein|so\\s+eine)\\s+(?:\\p{L}+\\s+)?${OBJ_DE}\\b>`);
 export const INSIST_DE_RE = re(`^(?:(?:doch|ja|jaa|klar|safe)\\s+)*(?:bist\\s+du|du\\s+bist\\s+(?:eine?r?|es|so)|doch\\s+bist\\s+du)(?:\\s+(?:doch|wohl|safe|lol|digga|alter|eine?r?))*\\s*[!?.😭💀]*$`);
 export const DENIAL_DE_RE = re(`\\b<(?:nein|nee|ne|nicht|kein|keine|niemals|fick\\s+dich|verpiss|ich\\s+bin\\s+ein\\s+(?:junge|typ|kerl|mann)|bin\\s+ein\\s+(?:junge|typ|kerl))\\b>`);
-export const AT_LEAST_CRUTCH_RE = /(?<![\p{L}])(?:at\s+least|au\s+moins|przynajmniej|wenigstens|zumindest)(?![\p{L}])/iu;
+export const AT_LEAST_CRUTCH_RE = /(?<![\p{L}])(?:at\s+least|au\s+moins|przynajmniej|wenigstens|zumindest|al\s+menos|por\s+lo\s+menos)(?![\p{L}])/iu;

@@ -13,7 +13,7 @@ import { extractQueryEntities, searchKnowledgeGraph, getBM25Engine } from './sem
 import { detectLiveSportsIntent, resolveLiveSportsContext } from './liveSportsService';
 import { detectUrlInPrompt, fetchUrlContent } from './urlFetcher';
 import { hybridSearchKnowledgeGraph } from './vectorSearch';
-import { runV2, phraseWithFacts } from './v2/pipeline';
+import { runV2, phraseWithFacts, langOf } from './v2/pipeline';
 import { fallbackFor } from './v2/orchestrator';
 import type { SpecialistId } from './v2/specialists';
 import { isPartnershipMessage } from './v2/partnership';
@@ -5168,8 +5168,9 @@ async function generateReasoningPathInner(
     const again = await runV2(prompt, settings, v2Deps, thoughtSteps, false, fb ? { mode: fb, reason: `the ${failed!.mode} specialist failed` } : undefined).catch(() => null);
     if (again) return primeReturn(again.content, again.sources);
   }
-  const lang = looksPolish(prompt) ? 'pl' : looksFrench(prompt) ? 'fr' : 'en';
-  return primeReturn(lang === 'fr' ? 'mon cerveau a planté là, renvoie ça' : lang === 'pl' ? 'mózg mi się zawiesił, napisz jeszcze raz' : 'brain glitched mate, send that again');
+  // Same language detection as v2 (looksPolish alone answered a Spanish message in Polish, 2026-10-13).
+  const lang = langOf(prompt);
+  return primeReturn(lang === 'fr' ? 'mon cerveau a planté là, renvoie ça' : lang === 'pl' ? 'mózg mi się zawiesił, napisz jeszcze raz' : lang === 'de' ? 'Hirn abgestürzt, schick das nochmal' : lang === 'es' ? 'se me ha frito el cerebro, mándalo otra vez' : 'brain glitched mate, send that again');
 }
 
 function deduplicateResults(

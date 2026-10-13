@@ -77,7 +77,7 @@ const KINDS: Record<HitKind, { how: string; min: number; max: number; examples?:
 
 // A line copying 4+ words in a row from any shape example (the swear mirror is allowed: "fuck you too..." is the point).
 const KIND_GRAMS = new Set<string>();
-const allKindExamples = (kind: HitKind) => [...(KINDS[kind].examples || []), ...(KIND_EXAMPLES.fr[kind] || []), ...(KIND_EXAMPLES.pl[kind] || []), ...(KIND_EXAMPLES.de[kind] || [])];
+const allKindExamples = (kind: HitKind) => [...(KINDS[kind].examples || []), ...(KIND_EXAMPLES.fr[kind] || []), ...(KIND_EXAMPLES.pl[kind] || []), ...(KIND_EXAMPLES.de[kind] || []), ...(KIND_EXAMPLES.es[kind] || [])];
 for (const kind of Object.keys(KINDS) as HitKind[]) {
   // The English swear mirror is the point ("fuck you too..."); the French / Polish / German swear examples are whole
   // lines the model copied word for word ("va chier" → "vas-y toi, ostie de cave"), so they count.
@@ -180,6 +180,7 @@ export function planRoast(person: string, text: string, threadText: string, user
   parts.push(`LENGTH: ${k.min}-${b.rounds >= 3 && kind !== 'concede' ? Math.max(k.max, 34) : k.max} words. Match their energy — a two-word insult never gets an essay.`);
   if (lang === 'fr') parts.push('LANGUAGE: Québécois joual, like a Québec teen on Discord — native insults and sacres (cave, tarla, épais, ostie de..., va chier, mange d\'la marde), never a translated English joke, never English/Aussie slang (mate, arvo, heaps, gng).');
   if (lang === 'pl') parts.push('LANGUAGE: natural Polish street slang, like a Polish teen on Discord — native insults (frajer, debil, lamus, cienias, spierdalaj, twoja stara), correct endings and cases, never a translated English joke, never English/Aussie slang (mate, arvo, heaps, gng).');
+  if (lang === 'es') parts.push('LANGUAGE: Spanish street slang like a teen on Discord — match THEIR dialect (Spain: tío, joder, gilipollas, me la suda; Mexico: güey, no mames, pendejo, culero; Argentina: boludo, che, pelotudo, la concha de tu madre), native insults, correct grammar, never a translated English joke, never English/Aussie slang (mate, arvo, heaps, gng). Never insult Messi or Barça.');
   if (lang === 'de') parts.push('LANGUAGE: modern German youth slang, like a German teen on Discord — native insults (Lauch, Opfer, Digga, Hurensohn, fick dich, halt die Fresse, deine Mutter), correct grammar and cases, never a translated English joke, never English/Aussie slang (mate, arvo, heaps, gng).');
   if (b.rounds >= 3) parts.push(`ROUND ${b.rounds} — FINISH THEM. They're still going, so this is the knockout: two sentences on ONE line, the most personal, vicious, specific hit you have (a callback to something they said beats everything), then a final dismissal that ends the fight (send them off: log off, go tell ur mum u lost, sit down). Make them give up.`);
   else if (b.rounds >= 2) parts.push(`This is ROUND ${b.rounds} of a roast battle with them — go harder than last time, maybe call back to something from earlier.`);

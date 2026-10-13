@@ -117,13 +117,14 @@ function byRules(text: string): Route | null {
   // News / current events: "tell me informations about the blocus in france rn" got "nah im flat out rn" (chat,
   // 2026-10-13) — info about something happening, or anything asked "rn / now / today / latest", is a live search.
   {
-    const now = /\b(?:rn|right\s+now|now|today|tonight|currently|latest|this\s+(?:week|month|weekend)|lately|recently|at\s+the\s+moment)\b/i.test(t);
+    const now = /\b(?:rn|right\s+now|now|today|tonight|currently|latest|this\s+(?:week|month|weekend|year)|lately|recently|at\s+the\s+moment|hoy|ahora|este\s+año|esta\s+semana|últimas?\s+noticias|aujourd'hui|maintenant|cette\s+(?:année|semaine)|heute|jetzt|dzisiaj|teraz)\b/iu.test(t);
     const event = /\b(?:blocus|bloquons|blockades?|protests?|strikes?|gr[eè]ves?|riots?|manifs?|manifestations?|elections?|war|attacks?|earthquakes?|floods?|bushfires?|wildfires?|lockdown|curfew|news)\b/i.test(t);
     const place = /\b(?:in|en|au|aux|à|at)\s+(?:the\s+)?[A-Z][\p{L}-]+/u.test(t) || /\b(?:in|en)\s+(?:france|quebec|québec|canada|australia|sydney|paris|usa|uk|poland|germany|spain)\b/i.test(t);
     const infoReq = /\b(?:tell\s+me|give\s+me|show\s+me|any|got\s+any|i\s+want|i\s+need)\s+(?:some\s+|the\s+|more\s+)?(?:info(?:s|rmations?)?|news|updates?|details?|the\s+latest|latest)\s+(?:about|on|of|regarding|for)\s+\S/i.test(t);
     const happening = /\b(?:what'?s|what\s+is|whats)\s+(?:happening|going\s+on)\s+(?:in|at|on)\s+\S/i.test(t);
     const tellAbout = /\b(?:tell\s+me\s+(?:about|everything\s+about)|explain)\b/i.test(t);
-    if ((infoReq && (now || event || place)) || happening || (tellAbout && (now || (event && place))) || (event && place && /\b(?:what|how|why|tell|any|is|are|info|news)\b/i.test(t))) return r('search', 'news / current events');
+    const whoNow = now && /^(?:¿\s*)?(?:who|which|quién|quien|cuál|cual|qui|quel|wer|welcher|kto|który)\b/iu.test(t.replace(/^\s*(?:che|oye|yo|bro|ey)\s*\p{L}*[,\s]+/iu, ''));
+    if ((infoReq && (now || event || place)) || happening || whoNow || (tellAbout && (now || (event && place))) || (event && place && /\b(?:what|how|why|tell|any|is|are|info|news)\b/i.test(t))) return r('search', 'news / current events');
   }
   // "insult me personally", "roast him", "give me some roasts / roast lines" (2026-10-13 reply log: answered with a
   // limp chat line or "next u gon ask me who my mom dates").

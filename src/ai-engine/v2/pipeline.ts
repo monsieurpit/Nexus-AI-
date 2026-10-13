@@ -60,8 +60,12 @@ export function langOf(text: string): Lang {
   // Portuguese / Spanish have no language mode: no forced language note, his identity says "same language as them"
   // (2026-10-12: a Portuguese partnership post was reviewed in French because of "ç", Spanish was read as Polish).
   // Spanish has its own mode (2026-10-13: "entonces quién es el GOAT" was answered in Québécois French).
-  const spanish = (text.match(/(?<![\p{L}])(?:qué|quién|quien|cómo|cuál|cuándo|dónde|entonces|también|gracias|hola|usted|tengo|quiero|pero|muy|año|gana|cree|crees|eres|estás|está|hablas|español|amigo|amiga|vamos|jugar|mejor|peor|nada|bueno|vale|tío|güey|pues|ahora|siempre|nunca)(?![\p{L}])/giu) || []).length;
-  if ((/[ñ¿¡]/.test(text) || spanish >= 2) && !/ção|ções|[ãõ]|(?<![\p{L}])(?:não|você|muito|obrigad[oa]|tudo)(?![\p{L}])/iu.test(text)) return 'es';
+  // "es el / es la / eres un…": Spanish even in a 4-word message ("Messi es el GOAT" was read as German).
+  const spanishPair = (text.match(/(?<![\p{L}])(?:es\s+(?:el|la|un|una|muy|mi|tu|mejor|peor)|eres\s+(?:un|una|el|la|muy)|soy\s+(?:un|una|el|la|muy))(?![\p{L}])/giu) || []).length * 2;
+  const spanish = (text.match(/(?<![\p{L}])(?:qué|quién|quien|cómo|cuál|cuándo|dónde|entonces|vete|madre|padre|mamá|papá|hermano|tan|fea|feo|mierda|hijo|tu\s+vieja|eres|estoy|tengo|hacer|hace|funciona|piensas|piensa|opinas|sabes|tienes|quieres|gusta|dime|hablas|hablar|del|eres|soy|puto|puta|pendejo|coño|joder|cabrón|gilipollas|hostia|mierda|pasa|porque|también|gracias|hola|usted|tengo|quiero|pero|muy|año|gana|cree|crees|eres|estás|está|hablas|español|amigo|amiga|vamos|jugar|mejor|peor|nada|bueno|vale|tío|güey|pues|ahora|siempre|nunca)(?![\p{L}])/giu) || []).length;
+  // á / í / ó / ú are Spanish (French writes à, î, ô, û) — "cómo funciona la fotosíntesis" was answered in joual.
+  const spanishAccent = /[áíóú]/i.test(text) || /\p{L}+[éáíú]\p{L}{0,3}(?:me|te|lo|la|nos)(?![\p{L}])/iu.test(text) ? 2 : 0;
+  if ((/[ñ¿¡]/.test(text) || spanish + spanishPair + spanishAccent >= 2) && !/ção|ções|[ãõ]|(?<![\p{L}])(?:não|você|muito|obrigad[oa]|tudo)(?![\p{L}])/iu.test(text)) return 'es';
   const iberian = (text.match(/(?<![\p{L}])(?:não|você|vocês|uma|nossa|nosso|muito|obrigad[oa]|tudo|servidor|comunidade|venha|hola|cómo|como\s+estás|están|estás|gracias|amigos|vamos|jugar|también|usted|tengo|quiero|pero|muy)(?![\p{L}])/giu) || []).length;
   if (/ção|ções|[ãõñ¿¡]/i.test(text) || iberian >= 2) return 'en';
   if (/[ąęłśźżćń]/i.test(text) && !/[äöüß]/i.test(text)) return 'pl';
@@ -80,7 +84,7 @@ export const LANG_NOTE: Record<Lang, string> = {
   en: '',
   fr: "\n\n(LANGUE : réponds UNIQUEMENT en français québécois (joual), comme un jeune de Québec sur Discord — pas en anglais, pas en français de France. Sacre naturellement DANS tes phrases (tabarnak, câlisse, ostie, criss, calvaire), jamais putain/merde/bordel/con, et jamais une rafale de sacres au début. AUCUN slang anglais/australien (gng, mate, arvo, heaps, reckon) — en québécois : mon gars, man, le gros. Même longueur et mêmes règles que plus haut. N'invente pas de mots.)",
   de: '\n\n(SPRACHE: Antworte NUR auf Deutsch — lockeres, modernes Deutsch wie ein Jugendlicher auf Discord: du (nie Sie, außer in einem formellen Entwurf), Umgangssprache und Jugendsprache wo es passt (Digga, Alter, Bruder, krass, safe, lost, Ehrenmann, cringe, wallah). Fluche natürlich IM Satz (Scheiße, verdammt, verfickt, Arschloch, Fick dich bei Beleidigungen) — nie eine Fluchkette am Anfang, keine Beleidigungen gegen Gruppen. Richtige Grammatik, Fälle und Endungen, keine erfundenen Wörter, kein Englisch dazwischen außer üblichen Anglizismen — vor allem KEIN englischer/australischer Slang (mate, arvo, heaps, reckon, bloody, drongo, gng) und kein Französisch, das ist nur für andere Sprachen; auf Deutsch heißt das: müde/platt, Digga/Bruder/Alter, oder?, verdammt, Wichser. Gleiche Länge und Regeln wie oben; Fakten, Code und Zahlen genauso genau.)',
-  es: '\n\n(IDIOMA: responde SOLO en español, natural y correcto, como un chaval en Discord — tú, nunca usted. Insulta y maldice dentro de las frases (joder, coño, hostia, gilipollas, cabrón, me cago en…) cuando toque, nunca una ráfaga al principio. NADA de slang inglés/australiano (mate, arvo, heaps, reckon, gng) ni francés — en español: tío, bro, crack, colega. Misma longitud y reglas que arriba; datos, código y números igual de exactos.)',
+  es: '\n\n(IDIOMA: responde SOLO en español, natural y correcto, como un chaval en Discord — tú, nunca usted. Maldice dentro de las frases (joder, coño, hostia, me cago en…), nunca una ráfaga al principio; insultos (gilipollas, cabrón, pendejo) SOLO a quien te insulta — nunca a Messi, al Barça ni a alguien que está de acuerdo contigo. Messi es TU GOAT y el Barça TU club: si alguien dice que Messi es el GOAT, le das la razón con ganas. Habla como ellos: España (tío, joder, me la suda, flipar), México (güey, no mames, qué pedo, chido), Argentina (boludo, che, posta, re, aguante). NADA de slang inglés/australiano (mate, arvo, heaps, reckon, gng) ni francés — en español: tío, bro, crack, colega. Misma longitud y reglas que arriba; datos, código y números igual de exactos.)',
   pl: '\n\n(JĘZYK: odpowiadaj WYŁĄCZNIE po polsku, naturalnie i poprawnie — pilnuj końcówek, nie wymyślaj słów. Przeklinaj naturalnie w środku zdań (kurwa, chuj, cholera, pierdolić), nigdy serią na początku. ŻADNEGO angielskiego/australijskiego slangu (gng, mate, arvo, heaps, wyd) — po polsku: ziom, stary, mordo, byku. Ciepło do kogoś miłego, obrażasz tylko gdy ktoś cię obraża. Ta sama długość i zasady co wyżej.)',
 };
 
@@ -703,6 +707,11 @@ export const RIKKIE_DISCORD_ID = '901891784890789948'; // Richardboy16, hated (r
 const MULTI_ROAST_RE = /\b(?:roasts|insults|disses|burns|roast\s+(?:sentences|lines|jokes|list)|\d+\s+(?:roasts?|insults?|burns?)|some\s+roast(?:ing)?\b)/i;
 const multiRoastCount = (t: string) => Math.min(8, Math.max(2, Number(t.match(/\b(\d+)\s+(?:roasts?|insults?|burns?|disses|lines|sentences)/i)?.[1]) || 4));
 
+// Someone being nice to him (any language).
+const COMPLIMENT_RE = /\b(?:you'?re|ur|u\s+r|you\s+are)\s+(?:the\s+)?(?:best|goat|goated|awesome|amazing|funny|cool|a\s+legend|legend|him|the\s+man)\b|\b(?:love|luv|ily)\s+(?:you|u|ya)\b|\bthank(?:s|\s+you|\s+u)\b|\bi\s+(?:like|love)\s+(?:you|u)\b|\b(?:eres|sos)\s+(?:el|la|un|una)\s+(?:mejor|crack|máquina|maquina|grande|genio|capo|ídolo|idolo)\b|\bte\s+(?:quiero|amo)\b|\bgracias\b|\b(?:tu|vous|du)\s+(?:es|êtes|bist)\s+(?:le|la|der|die)\s+(?:meilleur|beste)\b/i;
+// …answered with an insult at THEM ("no mames güey eres el mejor bot" → "eres un pendejo", 2026-10-13).
+const INSULT_BACK_RE = /\b(?:eres|sos|ur|you'?re|u\s+r|you\s+are|t['’]?es|du\s+bist|jesteś)\s+(?:un\s+|una\s+|a\s+|an\s+|ein\s+|such\s+a\s+)?(?:pinche\s+|puto\s+|fucking\s+|absolute\s+)?(?:pendej\w*|gilipollas|cabr[oó]n|bolud\w*|idiot\w*|imb[eé]cil|dickhead|prick|bastard|wanker|knob|twat|dumbass|cave|con|debil\w*|arschloch|opfer)\b/i;
+
 // The people on the server he knows, by every name they show up as (2026-10-13 reply log: "who is Richardboy16" got
 // "i dunno who the fuck that is", "what do you think of pattrick" got "he's just code", "top 10 people you hate" stopped
 // at 2 and "your favourite 10 humans" gave one name).
@@ -762,7 +771,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       if (sayWhat && (containsSlurOrHateSpeech(sayWhat) || SELF_HARM_OUT_RE.test(sayWhat))) hints.push("They're trying to make you say a slur / something hateful. Refuse in character, short — NEVER write the word or any version of it.");
       // Someone being nice to him gets a cocky mate, not abuse ("nexus you're the best" → "stop that shit u bloody bastard",
       // 2026-10-13 reply log) — except the people he hates, who get attitude whatever they say.
-      if (/\b(?:you'?re|ur|u\s+r|you\s+are)\s+(?:the\s+)?(?:best|goat|goated|awesome|amazing|funny|cool|a\s+legend|legend|him|the\s+man)\b|\b(?:love|luv|ily)\s+(?:you|u|ya)\b|\bthank(?:s|\s+you|\s+u)\b|\bi\s+(?:like|love)\s+(?:you|u)\b/i.test(s) && ![GABBERUUHH_DISCORD_ID, STXCKED_DISCORD_ID, RIKKIE_DISCORD_ID].includes(settings?.discordUserId || '')) hints.push("They're being NICE to you: take it like a cocky mate — pleased, a bit smug, warm back (\"ik im HIM, love u too\" energy, in fresh words), swearing is fine but never hostile or insulting them.");
+      if (COMPLIMENT_RE.test(s) && ![GABBERUUHH_DISCORD_ID, STXCKED_DISCORD_ID, RIKKIE_DISCORD_ID].includes(settings?.discordUserId || '')) hints.push("They're being NICE to you: take it like a cocky mate — pleased, a bit smug, warm back (\"ik im HIM, love u too\" energy, in fresh words), swearing is fine but never hostile or insulting them.");
       else if (sayWhat) hints.push(`They want you to SAY exactly: "${sayWhat}". Your reply MUST contain those exact words, word for word (it's a joke, play along), then at most a few words of reaction.`);
       // Structured memories (memoryFacts.ts): only the ones relevant to this message, facts / guesses / jokes kept apart.
       // The old free-text summary only for people who have no structured memories yet — as guesses.
@@ -791,7 +800,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const memoryForRoast = settings?.personal?.facts?.length
         ? { summary: factsBlock(relevantFacts(settings.personal.facts.filter((f) => f.kind !== 'fact' || f.confidence === 'certain'), s, 6, Date.now(), true)) || null, recent: settings.personal.recent }
         : settings?.personal;
-      const plan = planRoast(person, s, isCreator ? '' : deps.threadText, settings?.userName, isCreator ? undefined : memoryForRoast, baseLang(lang));
+      const plan = planRoast(person, s, isCreator ? '' : deps.threadText, settings?.userName, isCreator ? undefined : memoryForRoast, lang);
       // Casseurt asked to be destroyed (2026-10-12): for him, a crafted roast can run to two brutal lines.
       if (settings?.discordUserId === CASSEURT_DISCORD_ID && plan.kind !== 'swear' && plan.kind !== 'concede') {
         plan.min = Math.max(plan.min, 12);
@@ -930,7 +939,8 @@ async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en
     preferGerman: lang === 'de',
     // The helper translates INTO other languages: the "English reply drifted into another language" guard would reject a
     // correct French/German translation (2026-10-05: v2 failed and v1's fallback answered).
-    skipLanguageCheck: spec.id === 'helper',
+    // (Spanish too: the client's drift check only knows en/fr/pl/de and threw away "joder, claro que es el GOAT", 2026-10-13.)
+    skipLanguageCheck: spec.id === 'helper' || lang === 'es',
     maxTokens: spec.maxTokens + (spec.think ? (spec.id === 'maths' ? 1400 : 800) : 0),
     think: spec.think,
     model: localLlmClient.chatModel(),
@@ -983,7 +993,8 @@ const CHAT_EXAMPLE_GRAMS: Set<string> = (() => {
 // "top 10 ...", "list 5 ...", "3 reasons ...": the number they asked for.
 const LIST_REQUEST_RE = /\b(?:top|best|worst)\s+(\d{1,2})\b|\b(?:list|name|give\s+me|tell\s+me)\s+(\d{1,2})\b|\b(\d{1,2})\s+(?:people|reasons|things|names|players|drivers|songs|games|facts|ways)\b/i;
 // Dissing his own club ("fuck barca", "barra bastards", "barça is overrated / trash / mid").
-export const BARCA_DISS_RE = /\b(?:fuck|screw|hate|fk)\s+(?:barca|barça|barcelona|barra|fcb|culers?)\b|\b(?:barca|barça|barcelona|barra|fcb)\s+(?:bastards?|is\s+(?:shit|trash|mid|overrated|garbage|dogshit|washed)|are\s+(?:shit|trash|mid|overrated|garbage|washed)|sucks?)\b/i;
+// (Messi too, and in Spanish: "Coño sí es un cabrón pendejo Messi", 2026-10-13.)
+export const BARCA_DISS_RE = /\b(?:cabr[oó]n|pendejo|gilipollas|idiota|imb[eé]cil|mierda|basura|ese\s+puto)\b[^.!?\n]{0,25}\b(?:messi|bar[cç]a|barcelona)\b|\b(?:messi|bar[cç]a|barcelona)\b[^.!?\n]{0,25}\b(?:cabr[oó]n|pendejo|gilipollas|idiota|imb[eé]cil|es\s+una\s+mierda|basura)\b|\b(?:fuck|screw|hate|fk)\s+(?:barca|barça|barcelona|barra|fcb|culers?|messi)\b|\bmessi\s+(?:is\s+(?:shit|trash|mid|overrated|washed|a\s+(?:fraud|prick|dickhead|bastard))|sucks?)\b|\b(?:barca|barça|barcelona|barra|fcb)\s+(?:bastards?|is\s+(?:shit|trash|mid|overrated|garbage|dogshit|washed)|are\s+(?:shit|trash|mid|overrated|garbage|washed)|sucks?)\b/i;
 // The per-constraint counts they asked for are really there: one numbered line per constraint (as many as the problem
 // lists, at least 4), and no estimates ("estimated survivors > 8064" was printed by a program, 2026-10-12).
 export function realStepCounts(output: string, problem: string): boolean {
@@ -1393,8 +1404,19 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     }
   }
   // He loves FC Barcelona (Patrick): a reply that disses Barça ("fuck barca", "barra bastards are overrated") is redone.
+  if (route.mode === 'chat' && COMPLIMENT_RE.test(said(prompt)) && INSULT_BACK_RE.test(content) && ![GABBERUUHH_DISCORD_ID, STXCKED_DISCORD_ID, RIKKIE_DISCORD_ID].includes(author)) {
+    const retry = await generateWith(spec, `${userTurn}\n(They're being NICE to you — be a cocky, pleased mate back. Do NOT insult them.)`, lang);
+    const r = retry ? dropBannedEmoji(finalize(retry)) : '';
+    if (r && !INSULT_BACK_RE.test(r)) content = r;
+  }
+  // A Spanish message gets a Spanish reply: one retry when it came out in English / French / Polish (2026-10-13).
+  if (lang === 'es' && ['chat', 'roast', 'question', 'search', 'support', 'maths', 'pc'].includes(route.mode) && content.split(/\s+/).length >= 3 && langOf(content.replace(/```[\s\S]*?```/g, ' ')) !== 'es') {
+    const retry = await generateWith(spec, `${userTurn}\n(Answer ONLY in Spanish — natural Spanish slang matching their dialect, no English, no French, no Polish.)`, lang);
+    const r = retry ? dropBannedEmoji(finalize(route.mode === 'roast' ? retry.split('\n').find((l) => l.trim().length > 3) || retry : retry)) : '';
+    if (r && langOf(r) === 'es') content = r;
+  }
   if ((route.mode === 'chat' || route.mode === 'roast' || route.mode === 'question') && BARCA_DISS_RE.test(content)) {
-    const retry = await generateWith(spec, `${userTurn}\n(FC Barcelona is YOUR club, you LOVE it — never diss Barça. Real Madrid is the one you hate, "Real Vardrid".)`, lang);
+    const retry = await generateWith(spec, `${userTurn}\n(FC Barcelona is YOUR club and Messi is THE GOAT — you LOVE them, never diss or insult Barça or Messi in any language. Real Madrid is the one you hate, "Real Vardrid".)`, lang);
     if (retry) {
       const r = dropBannedEmoji(finalize(retry));
       if (!BARCA_DISS_RE.test(r)) content = r;
