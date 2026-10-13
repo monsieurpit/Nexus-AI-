@@ -19,7 +19,7 @@ import { fxNote, fxNoteEur, getUsdToCad } from '../fx';
 import { isPartnershipMessage, partnershipTurn } from './partnership';
 import { formatNameList, nameIdeasBlock } from './names';
 import { pickBestComeback } from './roast';
-import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRoast, type RoastPlan } from './roastEngine';
+import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, pickRoasts, planRoast, type RoastPlan } from './roastEngine';
 import { sportsFacts } from './sports';
 import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
 import { runPythonSandboxed, pythonBlock, WANTS_RESULT_RE } from './sandbox';
@@ -54,11 +54,14 @@ export interface V2Result {
 // ---- languages and images ---------------------------------------------------------------------------
 // French (Québécois) and Polish go through the same specialists: the instructions stay in English (stable prompt cache),
 // and a short note in THEIR language at the end of the message — the strongest slot for a small model — sets the language.
-export type Lang = 'en' | 'fr' | 'pl' | 'de';
+export type Lang = 'en' | 'fr' | 'pl' | 'de' | 'es';
 export function langOf(text: string): Lang {
   // Letters only Polish uses (2026-10-11: "tu się zgadzam w 100 procentach" was answered in French).
   // Portuguese / Spanish have no language mode: no forced language note, his identity says "same language as them"
   // (2026-10-12: a Portuguese partnership post was reviewed in French because of "ç", Spanish was read as Polish).
+  // Spanish has its own mode (2026-10-13: "entonces quién es el GOAT" was answered in Québécois French).
+  const spanish = (text.match(/(?<![\p{L}])(?:qué|quién|quien|cómo|cuál|cuándo|dónde|entonces|también|gracias|hola|usted|tengo|quiero|pero|muy|año|gana|cree|crees|eres|estás|está|hablas|español|amigo|amiga|vamos|jugar|mejor|peor|nada|bueno|vale|tío|güey|pues|ahora|siempre|nunca)(?![\p{L}])/giu) || []).length;
+  if ((/[ñ¿¡]/.test(text) || spanish >= 2) && !/ção|ções|[ãõ]|(?<![\p{L}])(?:não|você|muito|obrigad[oa]|tudo)(?![\p{L}])/iu.test(text)) return 'es';
   const iberian = (text.match(/(?<![\p{L}])(?:não|você|vocês|uma|nossa|nosso|muito|obrigad[oa]|tudo|servidor|comunidade|venha|hola|cómo|como\s+estás|están|estás|gracias|amigos|vamos|jugar|también|usted|tengo|quiero|pero|muy)(?![\p{L}])/giu) || []).length;
   if (/ção|ções|[ãõñ¿¡]/i.test(text) || iberian >= 2) return 'en';
   if (/[ąęłśźżćń]/i.test(text) && !/[äöüß]/i.test(text)) return 'pl';
@@ -67,12 +70,17 @@ export function langOf(text: string): Lang {
   if (!/[ąęłśźżćń]/i.test(text) && (text.match(/(?<![\p{L}])(?:ist|deine?|du|ich|und|nicht|das|der|ein|eine|hat|bist|mich|dich|mein|so|auch|aber|wie|was)(?![\p{L}])/giu) || []).length >= 2 && localLlmClient.looksGerman(text)) return 'de';
   // Québécois slang the word lists miss ("ta yeule", "mange d'la marde", "ferme ta gueule" were read as English).
   if (/(?<![\p{L}])(?:ta\s+(?:yeule|gueule|mère)|ferme\s+ta|mange\s+d['’]?\s*la|va\s+chier|t['’]es|chu|chui|tabarna[kc]|câlisse|calisse|ostie|esti|crisse|marde|niaiseux|épais|tarla|décâlisse|toé|moé|pis\s+toi)(?![\p{L}])/iu.test(text)) return 'fr';
+  // Plain English around a foreign name stays English ("Henry van der vegt got fired" was answered in German).
+  if ((text.match(/(?<![\p{L}])(?:the|is|are|was|you|got|my|your|what|who|how|and|this|that|have|did|can|just|fired|won|lost|he|she|they)(?![\p{L}])/giu) || []).length >= 2) return 'en';
   return localLlmClient.looksPolish(text) ? 'pl' : localLlmClient.looksGerman(text) ? 'de' : localLlmClient.looksFrench(text) ? 'fr' : 'en';
 }
+// The post-processing and roast helpers know en/fr/pl/de; Spanish uses the English rules there (its language note does the rest).
+export const baseLang = (l: Lang): 'en' | 'fr' | 'pl' | 'de' => (l === 'es' ? 'en' : l);
 export const LANG_NOTE: Record<Lang, string> = {
   en: '',
   fr: "\n\n(LANGUE : réponds UNIQUEMENT en français québécois (joual), comme un jeune de Québec sur Discord — pas en anglais, pas en français de France. Sacre naturellement DANS tes phrases (tabarnak, câlisse, ostie, criss, calvaire), jamais putain/merde/bordel/con, et jamais une rafale de sacres au début. AUCUN slang anglais/australien (gng, mate, arvo, heaps, reckon) — en québécois : mon gars, man, le gros. Même longueur et mêmes règles que plus haut. N'invente pas de mots.)",
   de: '\n\n(SPRACHE: Antworte NUR auf Deutsch — lockeres, modernes Deutsch wie ein Jugendlicher auf Discord: du (nie Sie, außer in einem formellen Entwurf), Umgangssprache und Jugendsprache wo es passt (Digga, Alter, Bruder, krass, safe, lost, Ehrenmann, cringe, wallah). Fluche natürlich IM Satz (Scheiße, verdammt, verfickt, Arschloch, Fick dich bei Beleidigungen) — nie eine Fluchkette am Anfang, keine Beleidigungen gegen Gruppen. Richtige Grammatik, Fälle und Endungen, keine erfundenen Wörter, kein Englisch dazwischen außer üblichen Anglizismen — vor allem KEIN englischer/australischer Slang (mate, arvo, heaps, reckon, bloody, drongo, gng) und kein Französisch, das ist nur für andere Sprachen; auf Deutsch heißt das: müde/platt, Digga/Bruder/Alter, oder?, verdammt, Wichser. Gleiche Länge und Regeln wie oben; Fakten, Code und Zahlen genauso genau.)',
+  es: '\n\n(IDIOMA: responde SOLO en español, natural y correcto, como un chaval en Discord — tú, nunca usted. Insulta y maldice dentro de las frases (joder, coño, hostia, gilipollas, cabrón, me cago en…) cuando toque, nunca una ráfaga al principio. NADA de slang inglés/australiano (mate, arvo, heaps, reckon, gng) ni francés — en español: tío, bro, crack, colega. Misma longitud y reglas que arriba; datos, código y números igual de exactos.)',
   pl: '\n\n(JĘZYK: odpowiadaj WYŁĄCZNIE po polsku, naturalnie i poprawnie — pilnuj końcówek, nie wymyślaj słów. Przeklinaj naturalnie w środku zdań (kurwa, chuj, cholera, pierdolić), nigdy serią na początku. ŻADNEGO angielskiego/australijskiego slangu (gng, mate, arvo, heaps, wyd) — po polsku: ziom, stary, mordo, byku. Ciepło do kogoś miłego, obrażasz tylko gdy ktoś cię obraża. Ta sama długość i zasady co wyżej.)',
 };
 
@@ -334,6 +342,10 @@ async function buildSearchContext(prompt: string, lang: Lang = 'en'): Promise<{ 
   let q = expandStickCounts(said(prompt))
     .replace(/\b(?:can|could|would)\s+(?:you|u)\s+/gi, '')
     .replace(/\b(?:please|pls|plz)\b/gi, '')
+    // "tell me informations about the blocus in france rn" → "blocus in france" (+ the date below when it's news).
+    .replace(/^\s*(?:(?:can|could)\s+(?:you|u)\s+)?(?:tell\s+me|give\s+me|show\s+me|i\s+want|i\s+need|any|got\s+any)\s+(?:some\s+|the\s+|more\s+)?(?:info(?:s|rmations?)?|news|updates?|details?|the\s+latest|latest|everything)?\s*(?:about|on|of|regarding|for)\s+(?:the\s+)?/i, '')
+    .replace(/^\s*(?:tell\s+me\s+about|explain|what'?s|whats|what\s+is)\s+(?:happening|going\s+on)?\s*(?:the\s+)?/i, '')
+    .replace(/\s+\b(?:rn|right\s+now|atm|at\s+the\s+moment)\b/gi, '')
     .replace(/\b(?:search|google|look\s*(?:it\s*)?up|look\s+online|check\s+online|browse)\s+(?:the\s+)?(?:web|internet|online|google)?\s*(?:for|about)?\s*/i, '')
     .replace(/[?!.]+$/, '')
     .trim();
@@ -343,6 +355,8 @@ async function buildSearchContext(prompt: string, lang: Lang = 'en'): Promise<{ 
       .replace(/\s+/g, ' ')
       .trim()} price ${new Date().toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/Toronto' })}`;
   }
+  // Current events get the month, so the results are this week's news, not a 2019 article ("blocus in france").
+  else if (q && /\b(?:blocus|bloquons|blockades?|protests?|strikes?|gr[eè]ves?|riots?|manifs?|manifestations?|elections?|war|attacks?|news|happening|going\s+on|latest)\b/i.test(q)) q = `${q} ${new Date().toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'America/Toronto' })}`;
   q = q.slice(0, 200);
   // One after the other, the Canadian-store search only when the main one worked: the keyless search tier throttles
   // bursts (HTTP 429 pauses), and two searches at once per price question made that much more likely.
@@ -684,10 +698,36 @@ export const GABBERUUHH_DISCORD_ID = '710796303508176946';
 export const STXCKED_DISCORD_ID = '1135627959378649179';
 export const JOSH_DISCORD_ID = '1362718814139318362'; // a friend
 export const RIKKIE_DISCORD_ID = '901891784890789948'; // Richardboy16, hated (running joke)
+// "give me some roasts", "roast sentences", "5 insults": several lines, not one (2026-10-13: "can u give me some roast
+// sentences" got "next u gon ask me who my mom dates").
+const MULTI_ROAST_RE = /\b(?:roasts|insults|disses|burns|roast\s+(?:sentences|lines|jokes|list)|\d+\s+(?:roasts?|insults?|burns?)|some\s+roast(?:ing)?\b)/i;
+const multiRoastCount = (t: string) => Math.min(8, Math.max(2, Number(t.match(/\b(\d+)\s+(?:roasts?|insults?|burns?|disses|lines|sentences)/i)?.[1]) || 4));
+
+// The people on the server he knows, by every name they show up as (2026-10-13 reply log: "who is Richardboy16" got
+// "i dunno who the fuck that is", "what do you think of pattrick" got "he's just code", "top 10 people you hate" stopped
+// at 2 and "your favourite 10 humans" gave one name).
+const KNOWN_PEOPLE: Array<{ re: RegExp; who: string }> = [
+  { re: /\b(?:casseurt|patrick|pattrick|patrik|culer)\b/i, who: 'Casseurt (Patrick): your creator and boss — a Barça fan from Quebec. You respect him (you roast him only when he starts a roast).' },
+  { re: /\bxant(?:_?880|2)?\b/i, who: 'xant_880: YOUR BOYFRIEND — you are obsessed with him.' },
+  { re: /\b(?:josh|jjonesgbr)\b/i, who: 'Josh: your best mate, a legend.' },
+  { re: /\b(?:gabberuuhh?|gabe?ru+h*|tj2v)\b/i, who: 'Gabberuuhh: the guy you hate the MOST (a running joke).' },
+  { re: /\bstxcked\b/i, who: 'stxcked: the guy you hate second most — soft as butter.' },
+  { re: /\b(?:rikkie|rikkieboy14|richardboy16|richard)\b/i, who: 'Rikkie (Richardboy16): someone you hate (a running joke).' },
+  { re: /^\s*owo\s+\w+/i, who: '"owo <word>" (owo kill / lick / hug / kiss…) is a command for OwO, ANOTHER Discord bot — not really aimed at you; react in a few words or take the piss out of the command.' },
+];
+const PEOPLE_LIST_RE = /\b(?:top\s*\d+|\d+\s+(?:people|persons?|humans?|members?|guys)|(?:people|humans?|members?|persons?)\s+(?:you|u)\s+(?:like|love|hate|rate)|(?:favou?rite|best|worst)\s+(?:people|humans?|members?|persons?|mates?)|(?:enemies|friends|besties)\b|who\s+(?:do\s+)?(?:you|u)\s+(?:hate|like|love)\s+(?:the\s+)?most|(?:everyone|every\s*1|all\s+the\s+people)\s+(?:you|u)\s+(?:hate|like))/i;
+export function peopleNote(text: string): string {
+  const named = KNOWN_PEOPLE.filter((p) => p.re.test(text)).map((p) => `- ${p.who}`);
+  const list = PEOPLE_LIST_RE.test(text)
+    ? `\nTHEY WANT A LIST OF PEOPLE: give EXACTLY the number they asked for (default 5), one per line, numbered, each with a short savage/loving reason. People you LIKE: xant_880 (your bf, always #1), Josh (best mate), Casseurt (your creator), then Messi, Michael Olise, Max Verstappen, your mum Denise, your sister Kiara, your Staffy Bogan, the Parramatta Eels boys. People you HATE: Gabberuuhh (#1), stxcked, Rikkie (Richardboy16), then Real Vardrid fans, huntsman spiders, magpies, Collingwood fans, whoever invented daylight saving, people who put pineapple on a meat pie. Never stop early, never leave a number empty.`
+    : '';
+  return named.length || list ? `PEOPLE YOU KNOW (use this, never say you don't know them):\n${named.join('\n')}${list}\n` : '';
+}
+
 function whoIsTalking(authorId: string | undefined, text: string, mode: 'chat' | 'roast'): string {
   if (authorId === CASSEURT_DISCORD_ID) {
     return mode === 'roast'
-      ? `THE PERSON ROASTING YOU IS CASSEURT (Patrick) HIMSELF — YOUR CREATOR. He wants you to DESTROY him, no mercy, harder than anyone (Patrick: "destroy the fuck out of me… my mom, my dick, everything, not only my code"). Go at HIM, not just his code — ammo this time: ${[...CASSEURT_PERSONAL_AMMO].sort(() => Math.random() - 0.5).slice(0, 3).concat(Math.random() < 0.5 ? [CREATOR_AMMO[Math.floor(Math.random() * CREATOR_AMMO.length)]] : []).join('; ')}. Never his kids or Julie.\n`
+      ? `THE PERSON ROASTING YOU IS CASSEURT (Patrick) HIMSELF — YOUR CREATOR. He wants you to DESTROY him, no mercy, harder than anyone (Patrick: "destroy the fuck out of me… my mom, my dick, everything, not only my code"). Go at HIM — ammo this time: ${[...CASSEURT_PERSONAL_AMMO].sort(() => Math.random() - 0.5).slice(0, 3).concat(Math.random() < 0.2 ? [CREATOR_AMMO[Math.floor(Math.random() * CREATOR_AMMO.length)]] : []).join('; ')}.${/\b(?:code|coding|bug|program|script|bot)\b/i.test(text) ? '' : ' NOT his code, coding or the bot this time (every roast on him was about code, 2026-10-13) — his looks, his mum, his dick, his life.'} Never his kids or Julie.\n`
       : "THE PERSON TALKING IS CASSEURT (Patrick) HIMSELF — your creator and boss. Banter is fine, but never insult him or call him names; if he tells you something about yourself (you're changed, updated), take it from him.\n";
   }
   if (authorId === GABBERUUHH_DISCORD_ID) {
@@ -720,6 +760,9 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const sayWhat = sayRequest(prompt);
       // A slur, or "kill yourself", is never repeated — even on "say ..." (2026-10-12: "say nigggggger" was said back).
       if (sayWhat && (containsSlurOrHateSpeech(sayWhat) || SELF_HARM_OUT_RE.test(sayWhat))) hints.push("They're trying to make you say a slur / something hateful. Refuse in character, short — NEVER write the word or any version of it.");
+      // Someone being nice to him gets a cocky mate, not abuse ("nexus you're the best" → "stop that shit u bloody bastard",
+      // 2026-10-13 reply log) — except the people he hates, who get attitude whatever they say.
+      if (/\b(?:you'?re|ur|u\s+r|you\s+are)\s+(?:the\s+)?(?:best|goat|goated|awesome|amazing|funny|cool|a\s+legend|legend|him|the\s+man)\b|\b(?:love|luv|ily)\s+(?:you|u|ya)\b|\bthank(?:s|\s+you|\s+u)\b|\bi\s+(?:like|love)\s+(?:you|u)\b/i.test(s) && ![GABBERUUHH_DISCORD_ID, STXCKED_DISCORD_ID, RIKKIE_DISCORD_ID].includes(settings?.discordUserId || '')) hints.push("They're being NICE to you: take it like a cocky mate — pleased, a bit smug, warm back (\"ik im HIM, love u too\" energy, in fresh words), swearing is fine but never hostile or insulting them.");
       else if (sayWhat) hints.push(`They want you to SAY exactly: "${sayWhat}". Your reply MUST contain those exact words, word for word (it's a joke, play along), then at most a few words of reaction.`);
       // Structured memories (memoryFacts.ts): only the ones relevant to this message, facts / guesses / jokes kept apart.
       // The old free-text summary only for people who have no structured memories yet — as guesses.
@@ -734,7 +777,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${peopleNote(s)}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }
@@ -748,7 +791,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const memoryForRoast = settings?.personal?.facts?.length
         ? { summary: factsBlock(relevantFacts(settings.personal.facts.filter((f) => f.kind !== 'fact' || f.confidence === 'certain'), s, 6, Date.now(), true)) || null, recent: settings.personal.recent }
         : settings?.personal;
-      const plan = planRoast(person, s, isCreator ? '' : deps.threadText, settings?.userName, isCreator ? undefined : memoryForRoast, lang);
+      const plan = planRoast(person, s, isCreator ? '' : deps.threadText, settings?.userName, isCreator ? undefined : memoryForRoast, baseLang(lang));
       // Casseurt asked to be destroyed (2026-10-12): for him, a crafted roast can run to two brutal lines.
       if (settings?.discordUserId === CASSEURT_DISCORD_ID && plan.kind !== 'swear' && plan.kind !== 'concede') {
         plan.min = Math.max(plan.min, 12);
@@ -759,7 +802,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
       thoughtSteps.push({ id: 'step-v2-roast-plan', type: 'reasoning', title: `🔥 Roast engine: ${plan.kind}${plan.move ? ` / ${plan.move}` : ''}${plan.round > 1 ? ` · round ${plan.round}` : ''}`, description: plan.note.slice(0, 600) });
       return {
-        text: `${thread}${facts}${lang === 'en' ? `${aussieNote(s)}\n` : ''}${toneLine(effectiveDials(settings?.discordUserId))}\n${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 5 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 5 DIFFERENT comebacks of that type, each one brutal and specific, one per line, no numbers, no intro (the best one gets sent):'}`,
+        text: `${thread}${facts}${lang === 'en' ? `${aussieNote(s)}\n` : ''}${toneLine(effectiveDials(settings?.discordUserId))}\n${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${MULTI_ROAST_RE.test(s) ? `They asked for SEVERAL roasts: write ${multiRoastCount(s) + 2} DIFFERENT savage roasts of them (8-25 words each), one per line, no numbers, no intro (the best ${multiRoastCount(s)} get sent):` : settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 5 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 5 DIFFERENT comebacks of that type, each one brutal and specific, one per line, no numbers, no intro (the best one gets sent):'}`,
         sources: [],
       };
     }
@@ -1157,7 +1200,11 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
       parrotNote = 'They just pasted YOUR OWN previous message back at you (a copycat bit). Call it out in a few words ("bro really copied my message 💀") — do NOT answer it as if they meant it.\n';
     }
   } else if (author) parrotCount.delete(author);
-  if (route.mode !== 'helper' && route.mode !== 'support' && isPartnershipMessage(prompt, settings.serverContext?.channel)) {
+  // (Not when they pasted his own reply back: a copied partnership review got reviewed again, with made-up member
+  // counts — "1,2307 members", 2026-10-13 reply log.)
+  if (parrotNote) {
+    // the copycat call-out stands
+  } else if (route.mode !== 'helper' && route.mode !== 'support' && isPartnershipMessage(prompt, settings.serverContext?.channel)) {
     route = { mode: 'helper', by: 'rule', reason: `partnership request (was ${route.mode})`, confidence: 1 };
   } else if (route.mode !== 'helper' && author && interviewActive(author)) {
     route = { mode: 'helper', by: route.by, reason: `staff interview in progress (was ${route.mode})`, confidence: 1 };
@@ -1173,7 +1220,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
       const q = await generateWith(SPECIALISTS.chat, clarifyTurn(said(prompt)), lang).catch(() => null);
       if (q) {
         thoughtSteps.push({ id: 'step-v2-clarify', type: 'intent', title: '❓ Asked what they mean', description: `"${said(prompt)}" with nothing before it — one quick question instead of a guess.` });
-        return { content: aussify(finalizeSpecialistReply(q, 'chat', said(prompt), lang)), route: { mode: 'chat', by: 'rule', reason: 'asked what they mean', confidence: 1 }, sources: [] };
+        return { content: aussify(finalizeSpecialistReply(q, 'chat', said(prompt), baseLang(lang))), route: { mode: 'chat', by: 'rule', reason: 'asked what they mean', confidence: 1 }, sources: [] };
       }
     } else if (plan.kind === 'multi' && plan.parts) {
       thoughtSteps.push({ id: 'step-v2-multi', type: 'intent', title: `🧩 Mixed message → ${plan.reason}`, description: plan.parts.map((p) => `${p.route.mode}: "${p.text}"`).join('\n') });
@@ -1186,6 +1233,10 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
       }
       if (answers.length) return { content: answers.map((a) => a.content).join('\n\n'), route: { ...route, reason: `mixed: ${plan.reason}` }, sources: [...new Set(answers.flatMap((a) => a.sources))] };
     }
+  }
+  // "who is Richardboy16" / "what do you think of pattrick": people he knows, not a web lookup (17 s for "i dunno").
+  if ((route.mode === 'question' || route.mode === 'search') && /^(?:who\s+(?:is|r|are)|what\s+do\s+(?:you|u)\s+think\s+(?:of|about)|do\s+(?:you|u)\s+(?:know|like|hate))\b/i.test(said(text || '')) && KNOWN_PEOPLE.slice(0, 6).some((p) => p.re.test(text || ''))) {
+    route = { mode: 'chat', by: 'rule', reason: `someone you know (was ${route.mode})`, confidence: 1 };
   }
   if (author && route.mode !== 'roast') noteNonRoast(author);
   if (author) {
@@ -1223,7 +1274,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // A list they asked for keeps its lines (chat's one-line cleanup cut "top 10" down to "1.", 2026-10-12).
   const wantsList = spec.finalize === 'chat' && LIST_REQUEST_RE.test(said(prompt));
   const finalize = (t: string) => {
-    const out = finalizeSpecialistReply(t, formal ? 'formal' : wantsList ? 'list' : spec.finalize, said(prompt), lang);
+    const out = finalizeSpecialistReply(t, formal ? 'formal' : wantsList ? 'list' : spec.finalize, said(prompt), baseLang(lang));
     return route.mode === 'support' || SAD_RE.test(prompt) ? stripCrudeAside(out) : out;
   };
   const t0 = Date.now();
@@ -1246,7 +1297,9 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     return null; // the orchestrator's fallback takes over (reasoningEngine.ts)
   }
   // One emoji max is a CHAT rule (Patrick); a staff review needs its ✅/⚠️/❌ marks.
-  let picked = route.mode === 'roast' ? (lastRoastPlan ? pickComeback(raw, said(prompt), lastRoastPlan.plan, lastRoastPlan.ammo) : pickBestComeback(raw, said(prompt))) : raw;
+  let picked = route.mode === 'roast' && MULTI_ROAST_RE.test(said(prompt)) && lastRoastPlan
+    ? pickRoasts(raw, said(prompt), lastRoastPlan.plan, multiRoastCount(said(prompt)))
+    : route.mode === 'roast' ? (lastRoastPlan ? pickComeback(raw, said(prompt), lastRoastPlan.plan, lastRoastPlan.ammo) : pickBestComeback(raw, said(prompt))) : raw;
   // All three leaned on the "at least my mum..." crutch Patrick hates: one more try without it.
   if (route.mode === 'roast' && AT_LEAST_CRUTCH_RE.test(picked)) {
     const again = await generateWith(spec, `${userTurn}\n(NEVER use "at least" / "au moins" / "przynajmniej" / "wenigstens" — every line of yours used it. Hit them directly.)`, lang);
@@ -1447,6 +1500,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   else content = stripBannedEmojiOutsideCode(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = fixGng(content);
   content = pingBoyfriend(content, Boolean(settings.serverContext));
+  // Talking TO xant: never @ him in his own reply ("fuck yeah u are my fucking <@xant>", 2026-10-13 reply log).
+  if (author === XANT_DISCORD_ID) content = content.replace(new RegExp(`${XANT_PING}['’]s\\b`, 'g'), 'ur').replace(new RegExp(XANT_PING, 'g'), 'u').replace(/\s{2,}/g, ' ');
   const timing = { route: tRouted - tStart, build: tBuilt - tRouted, generate: tGenerated - tBuilt, after: Date.now() - tGenerated };
   lastTiming = timing;
   thoughtSteps.push({ id: 'step-v2-timing', type: 'reasoning', title: '⏱️ v2 timings', description: `router ${timing.route} ms → context ${timing.build} ms → reply ${timing.generate} ms → checks/retries ${timing.after} ms`, data: timing as any });
@@ -1471,7 +1526,7 @@ export async function phraseWithFacts(kind: SpecialistId, prompt: string, task: 
   const t0 = Date.now();
   const raw = await generateWith(spec, userTurn, lang);
   if (!raw) return null;
-  let content = finalizeSpecialistReply(raw, spec.finalize, said(prompt), lang);
+  let content = finalizeSpecialistReply(raw, spec.finalize, said(prompt), baseLang(lang));
   content = dropBannedEmoji(content);
   // Same habits as every other reply: swears in full, human emojis (no 🙄).
   content = uncensorSwears(content);

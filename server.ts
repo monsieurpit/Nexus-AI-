@@ -1672,7 +1672,9 @@ app.post('/api/v1/nexus', async (req, res) => {
           ? userText
             ? `${userText}\n\n[Attached image shows: ${visionDescription}]`
             : `React to this image: ${visionDescription}`
-          : userText || 'Analyze this uploaded image attachment'
+          : userText
+            ? `${userText}\n\n[They attached an image but it couldn't be loaded — you did NOT see it. Say so in a few words if it matters; never pretend you saw it.]`
+            : "[They sent an image but it couldn't be loaded — you did NOT see it. Tell them in a few words it didn't load and to send it again.]"
         : userText;
       const strictEvaluation = evaluateStrictDirectives(
         promptToEvaluate,

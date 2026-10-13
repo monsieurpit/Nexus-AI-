@@ -132,22 +132,27 @@ export function ammoFrom(threadText: string): string[] {
 // personally"): each roast gets two fresh ones (never ones already thrown at that person), so the material is vivid and
 // never the same — their saved messages are a bonus, not the only source.
 export const ANGLES = [
-  'their rizz (zero, negative, left on read by a bot)', 'their phone (a cracked Android, 3% battery, 2GB storage full of screenshots)',
-  'their gaming (hardstuck bronze, 0.4 K/D, blames ping)', 'their setup (a dusty laptop, a chair from 2009, RGB on a potato PC)',
-  'their wifi (dial-up energy, lags in single player)', 'their social life (friends list of 3, two are bots)',
-  'their Discord life (mod of a dead server, online 24/7, talks to an AI on a Friday night)', 'their dad (went for milk, never came back)',
-  'their mum (any savage your-mum angle)', 'their looks (a face only a webcam filter could love, NPC energy)',
-  'their hairline / haircut (retreating like it owes money, a mum-cut)', 'their fashion (Shein, crocs with socks, the same hoodie since year 7)',
-  'their hygiene (deodorant is a myth, the room smells like Doritos and regret)', 'their voice (12-year-old on mic, ear-rape mic)',
-  'their brain (one AA battery, buffering, Windows 98 loading screen)', 'their grades / school (failing PE, held back twice)',
-  'their job / money (broke, Robux budget, unemployed at 25 in their head)', 'their car (a bus pass, mum drives them)',
-  'their room (parents basement, gamer chair, sticky keyboard)', 'their music taste (plays it out loud on a speaker nobody asked for)',
-  'their football team (a Real Vardrid fan, bandwagon)', 'their gym life (skinny-fat, skips leg day and every other day)',
-  'their love life (a Pornhub premium account is their longest relationship)', 'their personality (a beige wall, an NPC side quest)',
-  'their height / build (built like a Wi-Fi antenna, or a fridge)', 'their typing (no caps, typos, voice-to-text energy)',
-  'their age (acts 9, looks 40)', 'their food (lives on Maccas and 2-minute noodles)', 'their sleep (up at 4am gooning and crying)',
-  'their aura (negative, fumbled it at birth)',
+  'their rizz (left on delivered by a Hinge bot, their best chat-up line is "wyd")', 'their phone (a hand-me-down Oppo with a cracked screen and 2% battery)',
+  'their gaming (hardstuck Silver for 3 seasons, blames the controller)', 'their setup (a $40 Kmart chair, a laptop that sounds like a leaf blower)',
+  'their social life (the group chat goes quiet when they join)', 'their Discord life (mod of a server with 6 members, 4 are bots)',
+  'their dad (left to "grab smokes from the servo" in 2014)', 'their mum (any savage your-mum angle — her cooking, her driving, her Facebook posts)',
+  'their looks (a face that makes the Snapchat filter give up)', 'their hairline (retreating faster than the Poms at a cricket match)',
+  'their fashion (Lowes trackies, thongs with socks, the same Bonds hoodie since year 7)', 'their hygiene (Lynx Africa as a substitute for a shower)',
+  'their voice (sounds like a magpie going through puberty)', 'their brain (two brain cells fighting over third place)',
+  'their grades (failed PE, repeated year 9 twice)', 'their money (lives off Centrelink, buys skins on Afterpay)',
+  'their car (mum still drops them at Westfield)', 'their room (smells like Mi Goreng and bad decisions)',
+  'their music taste (blasting Kid Laroi on a Bluetooth speaker at the beach)', 'their footy team (a Real Vardrid fan, bandwagon of the year)',
+  'their gym life (skips leg day and every other day)', 'their love life (their longest relationship is with their right hand)',
+  'their personality (as exciting as a Tuesday in Dubbo)', 'their height / build (built like a stretched bin chicken, or a Bunnings sausage)',
+  'their typing (types like they are wearing oven mitts)', 'their age (acts 9, looks 40, goes to bed at 8)',
+  'their food (lives on servo pies and 2-minute noodles)', 'their sleep (up at 4am losing to bots and crying)',
+  'their aura (negative, fumbled it at birth)', 'their confidence (talks big, folds like a deck chair)',
 ];
+
+// Images the model leaned on until nobody laughed (2026-10-13 reply log: "dial-up modem" 8+ times, "beige", "dusty", the
+// $800k budget): a line with one of these loses, and the prompt names them as banned.
+export const ROAST_CLICHE_RE = /\b(?:dial[\s-]?up|modems?|windows\s*(?:98|95|xp|vista)|beige|dusty|dust[\s-]ridden|npc|loading\s+screen|wet\s+socks?|search\s+history|browser\s+history|800k|\$800|budget|joual|spondee|sacre|static\s+on|webcam\s+filter|potato\s+pc)\b/i;
+const CLICHE_NOTE = 'BANNED TIRED IMAGES (instant loss, never use): dial-up, modem, Windows 98, beige, dusty, NPC, loading screen, wet socks, search history, webcam filter, potato PC, any "budget".';
 
 export interface RoastPlan {
   person?: string;
@@ -172,11 +177,13 @@ export function planRoast(person: string, text: string, threadText: string, user
   const parts: string[] = [];
   const examples = lang !== 'en' ? KIND_EXAMPLES[lang][kind] || k.examples : k.examples;
   parts.push(`HIT TYPE: ${kind}. ${move ? roastMoveNote(move, lang) : `${k.how}${examples ? `\nThe SHAPE (never reuse these words):\n${[...examples].sort(() => Math.random() - 0.5).slice(0, 2).map((e) => `- ${e}`).join('\n')}` : ''}`}`);
-  parts.push(`LENGTH: ${k.min}-${k.max} words. Match their energy — a two-word insult never gets an essay.`);
+  parts.push(`LENGTH: ${k.min}-${b.rounds >= 3 && kind !== 'concede' ? Math.max(k.max, 34) : k.max} words. Match their energy — a two-word insult never gets an essay.`);
   if (lang === 'fr') parts.push('LANGUAGE: Québécois joual, like a Québec teen on Discord — native insults and sacres (cave, tarla, épais, ostie de..., va chier, mange d\'la marde), never a translated English joke, never English/Aussie slang (mate, arvo, heaps, gng).');
   if (lang === 'pl') parts.push('LANGUAGE: natural Polish street slang, like a Polish teen on Discord — native insults (frajer, debil, lamus, cienias, spierdalaj, twoja stara), correct endings and cases, never a translated English joke, never English/Aussie slang (mate, arvo, heaps, gng).');
   if (lang === 'de') parts.push('LANGUAGE: modern German youth slang, like a German teen on Discord — native insults (Lauch, Opfer, Digga, Hurensohn, fick dich, halt die Fresse, deine Mutter), correct grammar and cases, never a translated English joke, never English/Aussie slang (mate, arvo, heaps, gng).');
-  if (b.rounds >= 2) parts.push(`This is ROUND ${b.rounds} of a roast battle with them — go harder than last time, maybe call back to something from earlier.`);
+  if (b.rounds >= 3) parts.push(`ROUND ${b.rounds} — FINISH THEM. They're still going, so this is the knockout: two sentences on ONE line, the most personal, vicious, specific hit you have (a callback to something they said beats everything), then a final dismissal that ends the fight (send them off: log off, go tell ur mum u lost, sit down). Make them give up.`);
+  else if (b.rounds >= 2) parts.push(`This is ROUND ${b.rounds} of a roast battle with them — go harder than last time, maybe call back to something from earlier.`);
+  if (kind !== 'concede') parts.push(CLICHE_NOTE);
   if (ammo.length) parts.push(`AMMO (things they said earlier — a callback to one of these hits hardest): ${ammo.map((a) => `"${a.slice(0, 90)}"`).join(' | ')}`);
   if (username) parts.push(`Their name: ${username}.`);
   if (personal?.summary && kind !== 'swear') parts.push(`WHAT YOU KNOW ABOUT THEM (from their past chats with you — use it to make it personal, never generic):\n${personal.summary}`);
@@ -190,7 +197,7 @@ export function planRoast(person: string, text: string, threadText: string, user
   if (kind !== 'concede') parts.push(`ANGLES TO HIT (pick one, make it vivid and specific): ${angles.join(' | ')}`);
   const used = usedOn.get(person) || [];
   if (used.length) parts.push(`ALREADY USED ON THEM (never reuse these jokes or topics): ${used.slice(-6).map((u) => `"${u}"`).join(', ')}`);
-  return { person, kind, move, round: b.rounds, note: parts.join('\n'), min: k.min, max: k.max };
+  return { person, kind, move, round: b.rounds, note: parts.join('\n'), min: k.min, max: b.rounds >= 3 && kind !== 'concede' ? Math.max(k.max, 34) : k.max };
 }
 
 // ── scoring the 3 candidates ──
@@ -229,6 +236,7 @@ export function scoreComeback(line: string, theirs: string, plan: Pick<RoastPlan
   score -= Math.min(8, words(line).filter((w) => usedWords.has(w)).length * 3);
   // filler, copied examples, the "at least my mum" crutch
   if (FILLER_RE.test(line)) score -= 5;
+  if (ROAST_CLICHE_RE.test(line)) score -= 7;
   // Brutal = specific: a number, a brand / proper noun, a comparison ("so ... that", "like a", "than") — generic insult words
   // on their own are dead weight, and a roast never ends with a question (2026-10-12).
   if (/\d/.test(line)) score += 1;
@@ -275,4 +283,16 @@ export function pickComeback(raw: string, theirs: string, plan: Pick<RoastPlan, 
     .sort((a, b) => b.s - a.s)[0].l;
   rememberComeback(best, plan.person);
   return best;
+}
+
+// Several roasts asked for at once: the best N different lines (same scoring), in the order written.
+export function pickRoasts(raw: string, theirs: string, plan: Pick<RoastPlan, 'kind' | 'min' | 'max' | 'person'>, n: number): string {
+  const lines = raw
+    .split(/\n+/)
+    .map((l) => l.replace(/^\s*(?:\d+[.)]|[-*•]|roast\s*\d*:?)\s*/i, '').replace(/^["“]|["”]$/g, '').trim())
+    .filter((l) => l.split(/\s+/).length >= 4 && !/^(?:here|okay|sure|roasts?)\b/i.test(l));
+  const multi = { ...plan, min: 8, max: 25 };
+  const best = lines.map((l, i) => ({ l, i, s: scoreComeback(l, theirs, multi) })).sort((a, b) => b.s - a.s).slice(0, n).sort((a, b) => a.i - b.i).map((x) => x.l);
+  for (const l of best) rememberComeback(l, plan.person);
+  return best.length ? best.join('\n') : raw.trim();
 }
