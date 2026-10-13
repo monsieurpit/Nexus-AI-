@@ -592,6 +592,24 @@ async function runDeterministicChecks() {
       check('orchestrator: a vague request with nothing before it gets a question back; real requests and follow-ups don\'t', o.needsClarification('fix it', '', false) && o.needsClarification('can you help me', '', false) && !o.needsClarification('fix my code', '', false) && !o.needsClarification('fix it', 'Them: my loop never ends\nYou: show me', false) && !o.needsClarification('explain this', '', true) && !o.needsClarification('help me with my homework', '', false));
       check('orchestrator: mixed messages split into requests, banter and stories don\'t', o.splitParts("what's the bitcoin price right now and write me a python script that converts usd to btc").length === 2 && o.splitParts('explain recursion. also write a poem about barca').length === 2 && !o.splitParts("you're dumb and ugly and your mum is fat").length && !o.splitParts('i went to the shop and bought some milk then went home').length && !o.splitParts('who is better messi or ronaldo and why').length && !o.splitParts('```js\nlet a = 1; then b\n```').length);
       check('orchestrator: a failed specialist hands over to the next best one, ending at chat', o.fallbackFor('search') === 'question' && o.fallbackFor('code') === 'question' && o.fallbackFor('question') === 'chat' && o.fallbackFor('chat') === null); }
+    { const obs = await import('../src/ai-engine/observatory');
+      const { mkdtempSync: mk } = await import('fs');
+      const { tmpdir: td } = await import('os');
+      const { join: jp } = await import('path');
+      const d = obs.__useDbForTest(jp(mk(jp(td(), 'nexus-obs-test-')), 'obs.db'));
+      const now = Date.now(), H = 3600_000;
+      const ins = d.query('INSERT INTO traces (id, ts, mode, total_ms, outcome, fallback, guarded, eval) VALUES (?, ?, ?, ?, ?, ?, 0, ?)');
+      const tool = d.query('INSERT INTO tools (ts, tool, outcome, ms) VALUES (?, ?, ?, 100)');
+      // A normal week: chat ~3 s, nothing failing, web search fine.
+      for (let i = 0; i < 300; i++) { ins.run(`b${i}`, now - 3 * H - i * 30 * 60_000, 'chat', 2800 + (i % 7) * 100, 'ok', null, 0); tool.run(now - 3 * H - i * 30 * 60_000, 'web search', 'ok'); }
+      const quiet = obs.detectRegressions(now).length === 0;
+      // The last 2 hours: chat 3x slower, 4 failed replies, search failing — and a burst of slow TEST runs that must not count.
+      for (let i = 0; i < 20; i++) ins.run(`c${i}`, now - i * 5 * 60_000, 'chat', 9500 + i * 50, i < 4 ? 'failed' : 'ok', null, 0);
+      for (let i = 0; i < 30; i++) ins.run(`e${i}`, now - i * 60_000, 'code', 60000, 'error', null, 1);
+      for (let i = 0; i < 6; i++) tool.run(now - i * 60_000, 'web search', 'fail');
+      const keys = obs.detectRegressions(now).map((f) => f.key);
+      check('observatory: regressions are found automatically (slower, failing, a broken tool) and test runs never count', quiet && keys.includes('latency:p50') && keys.includes('failures') && keys.includes('tool:web search') && !keys.some((k) => k.includes('code')));
+      check('observatory: traces are redacted (no quotes, links, emails, IDs)', obs.redact('🌐 Live web search: "my address is 12 baker st" https://x.com/a me@x.com <@1554657430393196594>') === '🌐 Live web search: “…” ‹link› ‹email› ‹user›'); }
     check('morse: written and read exactly, only when asked', morseTask('say hi in morse')?.morse === '.... ..' && morseTask('morse code for SOS')?.morse === '... --- ...' && morseTask('translate this to morse: good night')?.morse === '--. --- --- -.. / -. .. --. .... -' && morseTask('.... . .-.. .-.. --- / -. . -..- ..- ...')?.text === 'HELLO NEXUS' && morseToText(textToMorse('Hello, World! 123')) === 'HELLO, WORLD! 123' && !morseTask('how does morse code work') && !morseTask('hmm... ok - fine') && !morseTask('lol ...') && !morseTask('nexus you are a pickle') && !morseTask("j'ai vu un morse au zoo") && !morseTask("c'est quoi un morse") && !morseTask('les morses sont gros en esti') && !morseTask('nexus t un morse') && !morseTask('un morse ça mange quoi?') && withMorse('easy .... ..', morseTask('say hi in morse')!) === 'easy\n```\n.... ..\n```');
     check('longer echoes with slang are detected ("alr bet, i will gn this shitbag")', isEchoReply('alr bet, i will gn this shitbag', 'Wdym I will goodnight this shitbag 😭😭') && !isEchoReply('alr bet', 'go to sleep nexus') && !isEchoReply('gn mate sleep tight', 'goodnight nexus') && !isEchoReply('messi is the goat obviously, not even close', 'who is the goat messi or ronaldo'));
     check('repeats are detected', isRepeat('a clone?', ['a clone?']) && !isRepeat('nah fam', ['a clone?']));

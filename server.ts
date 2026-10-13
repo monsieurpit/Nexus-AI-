@@ -66,7 +66,9 @@ import { forgetFacts } from './src/ai-engine/memory/personalMemory';
 import { claimPrivacyNotice, forgetPerson, isOptedOut, personalContext, recordMessage, setOptedOut, type Platform as MemoryPlatform } from './src/ai-engine/memory/personalMemory';
 import { startMemoryWorker } from './src/ai-engine/memory/memoryWorker';
 import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
-import { registerLearningAdminRoutes, loadAdminToken } from './src/ai-engine/learning/admin';
+import { registerLearningAdminRoutes, loadAdminToken, isLearningAdminRequest } from './src/ai-engine/learning/admin';
+import { newTraceId, recordTrace, startObservatory } from './src/ai-engine/observatory';
+import { registerObservatoryRoutes } from './src/ai-engine/observatoryRoutes';
 import { timingSafeEqual } from 'crypto';
 import { startPriceTracker, refreshPrices, loadPrices } from './src/ai-engine/priceTracker';
 import { warmRouter } from './src/ai-engine/v2/router';
@@ -1310,6 +1312,9 @@ app.post('/api/v1/speak', aiComputeLimiter, async (req, res) => {
 // (GET /api/v1/queue/status -> aheadOfNewRequest).
 app.post('/api/v1/nexus', async (req, res) => {
   markForegroundActivity();
+  // Trace ID (observatory.ts): follows this request from the router to the final answer; returned to the caller.
+  const traceId = newTraceId();
+  res.setHeader('X-Nexus-Trace', traceId);
   authenticateApiKey(req);
   const {
     prompt,
@@ -1868,6 +1873,7 @@ app.post('/api/v1/nexus', async (req, res) => {
         })),
         followUpQuestions,
         thoughtSteps: [...mediaSteps, ...thoughtStepsResult].map((t: any) => ({
+          ...(t.id ? { id: t.id } : {}),
           type: t.type,
           title: t.title,
           description: t.description,
@@ -1956,6 +1962,8 @@ app.post('/api/v1/nexus', async (req, res) => {
       'nexus',
       `"${userText.slice(0, 60)}" -> persona=${persona.id} engine=${engineLabel} mood=${queuedExecution.data.mood?.label ?? 'n/a'} lang=${queuedExecution.data.telemetry?.language ?? (routeStep?.data?.lang || 'n/a')} ${outcome} total=${queuedExecution.processTimeMs}ms${stages}`
     );
+    recordTrace({ traceId, steps, totalMs: queuedExecution.processTimeMs, waitMs: queuedExecution.waitTimeMs, response: queuedExecution.data?.response, eval: requestedEvalRun === true, platform: memPlatform });
+    if (queuedExecution.data && typeof queuedExecution.data === 'object') (queuedExecution.data as any).traceId = traceId;
 
     // Reply log (memory/replyLog.ts): every exchange, for the nightly quality report — not test runs, not people who
     // turned saving off; support conversations only for 24 hours.
@@ -2062,6 +2070,7 @@ app.post('/api/v1/nexus', async (req, res) => {
       return res.end();
     }
     console.error('[api/v1/nexus] unhandled error:', err?.stack || err);
+    recordTrace({ traceId, steps: [], totalMs: 0, error: String(err?.message || err), eval: req.body?.evalRun === true });
     return res.status(500).json({ error: 'Internal AI processing error', message: err?.message || String(err) });
   }
 });
@@ -2114,6 +2123,8 @@ app.post('/api/v1/prices/refresh', async (req, res) => {
 
 // Learning system admin API (own token — see src/ai-engine/learning/admin.ts for why not requireApiKey).
 registerLearningAdminRoutes(app);
+// Nexus Observatory: the developer dashboard (GET /api/v1/observatory) and its token-protected data.
+registerObservatoryRoutes(app, isLearningAdminRequest);
 
 // Emoji reactions on Nexus's Discord replies, forwarded by the bot. Only accepted for replies Nexus
 // really sent recently (see captureReaction) — no auth needed for that to be safe.
@@ -3167,6 +3178,8 @@ async function startServer() {
     startPriceTracker(() => isModelBusy());
     warmRouter();
     startKeepHot();
+    // Regressions found automatically also go to the engine's Discord log channel (when DISCORD_LOG_WEBHOOK_URL is set).
+    startObservatory({ onAlert: (f) => void postToDiscordLog(`📉 Nexus regression (${f.severity}): ${f.message}`, f.severity === 'high' ? 'error' : 'warn') });
     // Load the model now so the first message after a Mac/engine restart isn't the one that pays the
     // 10-30s cold load (the default is to keep it loaded forever). NEXUS_WARM_ON_START=off to skip.
     if ((process.env.NEXUS_WARM_ON_START || 'on').toLowerCase() !== 'off') {

@@ -42,6 +42,10 @@ export function loadAdminToken(): string | null {
   return adminToken;
 }
 
+export function isLearningAdminRequest(req: Request): boolean {
+  return isAdminRequest(req);
+}
+
 function isAdminRequest(req: Request): boolean {
   const expected = loadAdminToken();
   const header = req.headers['authorization'];

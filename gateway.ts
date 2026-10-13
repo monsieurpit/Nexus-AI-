@@ -81,6 +81,10 @@ app.get('/disclaimer', (_req, res) => {
 app.get('/terms', (_req, res) => {
   res.type('html').send(TERMS_OF_SERVICE_HTML);
 });
+// Nexus Observatory (the developer dashboard): served by the engine like the rest of /api/*; this is just the short URL.
+app.get('/observatory', (_req, res) => {
+  res.redirect(302, '/api/v1/observatory');
+});
 
 // Transparent reverse proxy for every API call — no re-parsing of the request body (raw bytes
 // stream straight through, which matters for the base64-image-in-JSON payloads /api/v1/nexus and

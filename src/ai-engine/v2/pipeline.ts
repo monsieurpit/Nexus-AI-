@@ -1095,7 +1095,7 @@ let lastRoastPlan: { plan: RoastPlan; ammo: string[] } | null = null;
 export let lastTiming: { route: number; build: number; generate: number; after: number } | null = null;
 
 // force: the orchestrator already knows the specialist (one part of a mixed message, or the fallback after a failure).
-export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Deps, thoughtSteps: ThoughtStep[], fromMorse = false, force?: { mode: SpecialistId; reason: string }): Promise<V2Result | null> {
+export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Deps, thoughtSteps: ThoughtStep[], fromMorse = false, force?: { mode: SpecialistId; reason: string; by?: Route['by'] }): Promise<V2Result | null> {
   // A message written only in Morse: answered like the decoded message, and the reply goes back in Morse (morse.ts).
   const spoken = fromMorse ? null : morseConversation(rawPrompt);
   if (spoken) {
@@ -1117,7 +1117,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // Decoded Morse is short and lowercase, so one word can look foreign ("wo sup mate" → German): under 5 words it's English.
   const lang = fromMorse && (text || rawPrompt).split(/\s+/).length < 5 ? 'en' : langOf(text || rawPrompt);
   const tStart = Date.now();
-  let route: Route = force ? { mode: force.mode, by: 'fallback', reason: force.reason, confidence: 0.5 } : await routeMessage(prompt);
+  let route: Route = force ? { mode: force.mode, by: force.by || 'fallback', reason: force.reason, confidence: 0.5 } : await routeMessage(prompt);
   const routed = route;
   const tRouted = Date.now();
   // A video always goes to the video specialist, which picks its sub-persona from the video itself.
@@ -1179,7 +1179,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
       thoughtSteps.push({ id: 'step-v2-multi', type: 'intent', title: `🧩 Mixed message → ${plan.reason}`, description: plan.parts.map((p) => `${p.route.mode}: "${p.text}"`).join('\n') });
       const answers: V2Result[] = [];
       for (const part of plan.parts) {
-        let r = await runV2(part.text, settings, deps, thoughtSteps, false, { mode: part.route.mode, reason: `part of a mixed message (${part.route.reason})` }).catch(() => null);
+        let r = await runV2(part.text, settings, deps, thoughtSteps, false, { mode: part.route.mode, reason: `part of a mixed message (${part.route.reason})`, by: 'orchestrator' }).catch(() => null);
         const fb = r ? null : fallbackFor(part.route.mode);
         if (fb) r = await runV2(part.text, settings, deps, thoughtSteps, false, { mode: fb, reason: `the ${part.route.mode} specialist failed on this part` }).catch(() => null);
         if (r) answers.push(r);
@@ -1193,7 +1193,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     if (lastRoute.size > 5000) lastRoute.delete(lastRoute.keys().next().value!);
   }
   const spec = SPECIALISTS[route.mode];
-  thoughtSteps.push({ id: 'step-v2-route', type: 'intent', title: `🧭 Router → ${spec.label}`, description: `${route.by}: ${route.reason}${lang !== 'en' ? ` (${lang})` : ''}${image ? (kind === 'video' ? ' (with a video)' : ' (with an image)') : ''}`, data: { mode: route.mode, by: route.by, lang } as any });
+  thoughtSteps.push({ id: 'step-v2-route', type: 'intent', title: `🧭 Router → ${spec.label}`, description: `${route.by}: ${route.reason}${lang !== 'en' ? ` (${lang})` : ''}${image ? (kind === 'video' ? ' (with a video)' : ' (with an image)') : ''}`, data: { mode: route.mode, by: route.by, lang, confidence: route.confidence } as any });
   const built = await buildUserTurn(route.mode, followUpOf || prompt, deps, thoughtSteps, lang, settings);
   const tBuilt = Date.now();
   const imageBlock = image
@@ -1242,8 +1242,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const raw = await generateWith(firstSpec, userTurn, lang);
   const tGenerated = Date.now();
   if (!raw) {
-    thoughtSteps.push({ id: 'step-v2-failed', type: 'verification', title: '⚠️ v2 generation failed, v1 takes over', description: lastFailure || 'empty reply' });
-    return null; // v1 takes over (its own fallbacks)
+    thoughtSteps.push({ id: 'step-v2-failed', type: 'verification', title: `⚠️ ${spec.label} generation failed`, description: lastFailure || 'empty reply' });
+    return null; // the orchestrator's fallback takes over (reasoningEngine.ts)
   }
   // One emoji max is a CHAT rule (Patrick); a staff review needs its ✅/⚠️/❌ marks.
   let picked = route.mode === 'roast' ? (lastRoastPlan ? pickComeback(raw, said(prompt), lastRoastPlan.plan, lastRoastPlan.ammo) : pickBestComeback(raw, said(prompt))) : raw;

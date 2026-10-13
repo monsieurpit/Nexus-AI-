@@ -1,3 +1,4 @@
+import { recordLlm, recordEvent, observeTool } from './observatory';
 import { normalizeImageForVision } from './imageNormalize';
 import {
   computeInvalidPolishWordRatio,
@@ -210,6 +211,7 @@ export function startChatMemoryWatch(): void {
       const release = await acquireOllamaSlot();
       try {
         console.log(`[model] ${model} grew to ${(size / 1024 ** 3).toFixed(1)} GB (prompt cache) — reloading it to free memory`);
+        recordEvent('model_reload', `${model} grew to ${(size / 1024 ** 3).toFixed(1)} GB — reloaded by the memory watchdog`);
         await fetch(`${OLLAMA_BASE_URL}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(30_000), body: JSON.stringify({ model, keep_alive: 0 }) });
         // Wait until it's really gone: loading it again too early cancels the unload (it stayed at 16 GB).
         for (let k = 0; k < 20 && (await loadedSize()) > 0; k++) await new Promise((r) => setTimeout(r, 1500));
@@ -964,21 +966,32 @@ export async function generate(prompt: string, options: OllamaGenerateOptions = 
 
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
+      recordLlm({ model: options.model || OLLAMA_MODEL, ok: false, reason: `http_error ${res.status}` });
       return { status: 'unavailable', reason: 'http_error', detail: detail.slice(0, 300) };
     }
 
     const data: any = await res.json();
     logLatencyDebug(data, options, prompt);
-    return processRawGenerateOutput(data, options, startedAt);
+    const out = await processRawGenerateOutput(data, options, startedAt);
+    noteLlmCall(model, data, out);
+    return out;
   } catch (err: any) {
     if (err?.name === 'AbortError') {
+      recordLlm({ model: options.model || OLLAMA_MODEL, ok: false, reason: 'timeout' });
       return { status: 'unavailable', reason: 'timeout' };
     }
+    recordLlm({ model: options.model || OLLAMA_MODEL, ok: false, reason: 'connection_error' });
     return { status: 'unavailable', reason: 'connection_error', detail: String(err?.message || err) };
   } finally {
     clearTimeout(timer);
     release();
   }
+}
+
+// Observatory (observatory.ts): tokens read and written, time, and load time (> 1.5 s = the model had to load) of every
+// call; a reply the quality gates threw away counts as a failed call with their reason.
+function noteLlmCall(model: string, data: any, out: any): void {
+  recordLlm({ model: String(data?.model || model), promptTokens: data?.prompt_eval_count, evalTokens: data?.eval_count, ms: Math.round((data?.total_duration || 0) / 1e6), loadMs: Math.round((data?.load_duration || 0) / 1e6), ok: out?.status === 'success', reason: out?.status === 'success' ? undefined : String(out?.reason || 'rejected') });
 }
 
 // Opt-in diagnostic (off by default, zero cost when unset) — added while chasing a real user
@@ -1233,6 +1246,7 @@ export async function generateStream(
 
     if (!res.ok || !res.body) {
       const detail = await res.text().catch(() => '');
+      recordLlm({ model: options.model || OLLAMA_MODEL, ok: false, reason: `http_error ${res.status}` });
       return { status: 'unavailable', reason: 'http_error', detail: detail.slice(0, 300) };
     }
 
@@ -1290,11 +1304,15 @@ export async function generateStream(
     // fragment, not the full text, so it's overwritten here with what was actually accumulated.
     finalData.message = { content: assembledContent, thinking: assembledThinking || undefined };
     logLatencyDebug(finalData, options, prompt);
-    return processRawGenerateOutput(finalData, options, startedAt);
+    const out = await processRawGenerateOutput(finalData, options, startedAt);
+    noteLlmCall(model, finalData, out);
+    return out;
   } catch (err: any) {
     if (err?.name === 'AbortError') {
+      recordLlm({ model: options.model || OLLAMA_MODEL, ok: false, reason: 'timeout' });
       return { status: 'unavailable', reason: 'timeout' };
     }
+    recordLlm({ model: options.model || OLLAMA_MODEL, ok: false, reason: 'connection_error' });
     return { status: 'unavailable', reason: 'connection_error', detail: String(err?.message || err) };
   } finally {
     clearTimeout(timer);
@@ -1348,7 +1366,12 @@ export type VisionResult =
 // after one unlucky sample. Only retries the failure modes retrying can plausibly fix
 // (empty_response, degenerate_output — both are model-sampling flukes); a real connection/timeout/
 // config problem won't be fixed by asking the same broken thing again, so those return immediately.
-export async function generateVision(
+// Observatory: every image the vision model reads.
+export function generateVision(imageBase64: string, prompt: string, options: { timeoutMs?: number } = {}): Promise<VisionResult> {
+  return observeTool('vision', () => generateVisionImpl(imageBase64, prompt, options), (r: any) => (r.status === 'success' ? 'ok' : { outcome: 'fail', err: String(r.reason || '') }));
+}
+
+async function generateVisionImpl(
   imageBase64: string,
   prompt: string,
   options: { timeoutMs?: number } = {}
@@ -1432,8 +1455,10 @@ async function generateVisionOnce(
     return { status: 'success', text, latencyMs: Date.now() - startedAt };
   } catch (err: any) {
     if (err?.name === 'AbortError') {
+      recordLlm({ model: OLLAMA_VISION_MODEL, ok: false, reason: 'timeout' });
       return { status: 'unavailable', reason: 'timeout' };
     }
+    recordLlm({ model: OLLAMA_VISION_MODEL, ok: false, reason: 'connection_error' });
     return { status: 'unavailable', reason: 'connection_error', detail: String(err?.message || err) };
   } finally {
     clearTimeout(timer);
@@ -1480,6 +1505,7 @@ export async function embed(text: string, options: { timeoutMs?: number } = {}):
 
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
+      recordLlm({ model: 'embeddings', ok: false, reason: `http_error ${res.status}` });
       return { status: 'unavailable', reason: 'http_error', detail: detail.slice(0, 300) };
     }
 
@@ -1493,8 +1519,10 @@ export async function embed(text: string, options: { timeoutMs?: number } = {}):
     return { status: 'success', vector, latencyMs: Date.now() - startedAt };
   } catch (err: any) {
     if (err?.name === 'AbortError') {
+      recordLlm({ model: 'embeddings', ok: false, reason: 'timeout' });
       return { status: 'unavailable', reason: 'timeout' };
     }
+    recordLlm({ model: 'embeddings', ok: false, reason: 'connection_error' });
     return { status: 'unavailable', reason: 'connection_error', detail: String(err?.message || err) };
   } finally {
     clearTimeout(timer);

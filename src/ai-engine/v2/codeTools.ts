@@ -7,6 +7,7 @@
 //       Ruby (ruby -c), Bash (bash -n), JSON (parser). Errors go back to the model for a fix (pipeline.ts).
 // Languages without a checker on this Mac (Go, Rust, Lua, PHP, Java — no JDK) are reviewed by the model only.
 
+import { observeTool } from '../observatory';
 import { execFile } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
@@ -123,7 +124,7 @@ export interface CheckResult {
 const BUN = process.env.BUN_PATH || 'bun';
 
 // A syntax/compile check only — the code is never executed.
-export async function checkCode(lang: CodeLang | null, tag: string, code: string): Promise<CheckResult> {
+async function checkCodeImpl(lang: CodeLang | null, tag: string, code: string): Promise<CheckResult> {
   const kind = FENCE_LANG[tag] || lang;
   if (!kind || !code.trim()) return { checked: false, ok: true, checker: '', errors: '' };
   const dir = mkdtempSync(join(tmpdir(), 'nexus-code-'));
@@ -259,4 +260,10 @@ export function codeReference(lang: CodeLang | null, query: string): { text: str
     text: docs.map((d) => `### ${d.title}\n${refExcerpt(d.content, query, 1800)}`).join('\n\n'),
     titles: docs.map((d) => d.title),
   };
+}
+
+// Observatory: the compiler run itself (a crashed/missing checker is a tool failure; code that doesn't compile is a
+// verification result, recorded from the thought steps).
+export function checkCode(...args: Parameters<typeof checkCodeImpl>): ReturnType<typeof checkCodeImpl> {
+  return observeTool(`compiler ${args[0] || '?'}`, () => checkCodeImpl(...args), (r) => (r.checked ? 'ok' : 'empty'));
 }

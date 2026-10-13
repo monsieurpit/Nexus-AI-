@@ -12,6 +12,7 @@
 // and TAVILY_DAILY_LIMIT (default 100) cap what the engine will send, and the learning system may use
 // at most 30% — a user's question matters more than background verification.
 
+import { observeTool } from './observatory';
 import type { WebSearchResult } from '../types';
 
 const ENDPOINT = 'https://api.tavily.com/search';
@@ -248,7 +249,7 @@ export function __resetSearchForTests(): void {
   lane = Promise.resolve();
 }
 
-export async function searchTavilyDirect(
+async function searchTavilyDirectImpl(
   query: string,
   limit = 5,
   opts: { purpose?: 'chat' | 'learning'; recent?: boolean; includeDomains?: string[] } = {}
@@ -302,4 +303,9 @@ export async function searchTavilyDirect(
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Observatory: every web search — ok, empty (nothing found / quota / throttled) or failed.
+export function searchTavilyDirect(...args: Parameters<typeof searchTavilyDirectImpl>): ReturnType<typeof searchTavilyDirectImpl> {
+  return observeTool('web search', () => searchTavilyDirectImpl(...args), (r) => (r.length ? 'ok' : 'empty'));
 }

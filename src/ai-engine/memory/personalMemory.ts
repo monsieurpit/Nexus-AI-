@@ -15,6 +15,7 @@
 // A file untouched for 30 days is deleted. "nexus forget me" deletes it at once.
 // Size: ~120 bytes a message → 2,000 messages ≈ 250 KB a person; a hard total cap protects the disk anyway.
 
+import { recordMemory } from '../observatory';
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { forgetMatching, mergeFacts, pruneFacts, type MemoryFact } from './memoryFacts';
@@ -116,6 +117,8 @@ export function recordMessage(platform: Platform, id: string, username: string, 
 export function setOptedOut(platform: Platform, id: string, username: string, optedOut: boolean): void {
   const rec = loadPerson(platform, id) || blank(platform, id, username);
   if (optedOut) {
+    if (rec.messages.length || rec.facts?.length) recordMemory('deleted', 'stopped saving (everything)');
+    rec.facts = [];
     rec.messages = [];
     rec.summary = null;
     rec.sinceSummary = 0;
@@ -131,6 +134,7 @@ export function forgetPerson(platform: Platform, id: string): boolean {
   const f = fileFor(platform, id);
   if (!existsSync(f)) return false;
   unlinkSync(f);
+  recordMemory('deleted', '"forget me" (whole profile)');
   return true;
 }
 
@@ -150,7 +154,12 @@ export function saveSummary(platform: Platform, id: string, text: string, basedO
 export function saveFacts(platform: Platform, id: string, observed: Array<Pick<MemoryFact, 'text' | 'kind' | 'source'>>): number {
   const rec = loadPerson(platform, id);
   if (!rec || rec.optedOut) return 0;
-  rec.facts = mergeFacts(rec.facts || [], observed);
+  const before = rec.facts || [];
+  const live = pruneFacts(before);
+  rec.facts = mergeFacts(before, observed);
+  // Observatory: memories that ran out (expiry) and corrections that replaced an older memory.
+  recordMemory('expired', 'lifetime ran out', before.length - live.length);
+  recordMemory('corrected', 'replaced an older memory', rec.facts.filter((f) => f.replaced && !before.some((b) => b.text === f.text)).length);
   save(rec);
   return rec.facts.length;
 }
@@ -162,6 +171,7 @@ export function forgetFacts(platform: Platform, id: string, what: string): numbe
   const { kept, removed } = forgetMatching(rec.facts, what);
   rec.facts = kept;
   save(rec);
+  recordMemory('deleted', '"forget that…"', removed);
   return removed;
 }
 
@@ -215,6 +225,7 @@ export function cleanupMemory(now = Date.now()): { deleted: number; bytes: numbe
         unlinkSync(f);
         cache.delete(name.replace(/\.json$/, ''));
         deleted++;
+        recordMemory('deleted', 'inactive 30 days (whole profile)');
       } else files.push({ f, size: st.size });
     } catch {
       /* ignore */

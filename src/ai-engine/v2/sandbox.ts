@@ -7,6 +7,7 @@
 // itself), 25 s of CPU, a process cap, 20 s wall clock, output capped. A fresh temp folder per run, deleted after.
 
 import { execFile } from 'child_process';
+import { observeTool } from '../observatory';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -32,7 +33,13 @@ function profile(dir: string): string {
 `;
 }
 
+// Observatory: a run that hit the time limit counts as a failed tool call (a Python error is the program's fault, not the
+// sandbox's).
 export function runPythonSandboxed(code: string, timeoutMs = 20_000): Promise<RunResult> {
+  return observeTool('python sandbox', () => runPythonSandboxedImpl(code, timeoutMs), (r) => (r.timedOut ? { outcome: 'fail', err: 'timed out' } : 'ok'));
+}
+
+function runPythonSandboxedImpl(code: string, timeoutMs: number): Promise<RunResult> {
   const dir = mkdtempSync(join(tmpdir(), 'nexus-run-'));
   const t0 = Date.now();
   writeFileSync(join(dir, 'main.py'), code);

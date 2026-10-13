@@ -11,6 +11,7 @@
 // Never: buy / pay / checkout / sign up / log in / delete / send / submit / subscribe clicks, typing into password or
 // card fields, local-network addresses, adult sites. Fresh browser every time (no cookies), 60 s max.
 
+import { observeTool } from './observatory';
 import { spawn } from 'child_process';
 import * as localLlmClient from './localLlmClient';
 
@@ -148,7 +149,7 @@ async function watchVideo(src: string, goal: string): Promise<string | undefined
   return a?.ok ? a.description.slice(0, 1500) : undefined;
 }
 
-export async function browseAndAct(rawUrl: string, goal: string): Promise<BrowseResult> {
+async function browseAndActImpl(rawUrl: string, goal: string): Promise<BrowseResult> {
   const blocked = urlAllowed(rawUrl);
   if (blocked) return { ok: false, error: blocked, steps: [], photos: [] };
   if (!browserAvailable()) return { ok: false, error: 'the cloud browser is not set up yet (BROWSERLESS_TOKEN)', steps: [], photos: [] };
@@ -222,4 +223,9 @@ export function browseFacts(r: BrowseResult, goal: string): string {
     `Text on the page:\n${r.text}`,
     '\nTell them what you did and what you found, answering what they asked — short, in your voice. Never claim a click or something you saw that is not listed above.',
   ].filter(Boolean).join('\n');
+}
+
+// Observatory: every browser run (Browserless).
+export function browseAndAct(...args: Parameters<typeof browseAndActImpl>): ReturnType<typeof browseAndActImpl> {
+  return observeTool('browser', () => browseAndActImpl(...args), (r) => (r.ok ? 'ok' : { outcome: 'fail', err: r.error }));
 }

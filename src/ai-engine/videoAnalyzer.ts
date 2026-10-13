@@ -10,6 +10,7 @@
 // No admin rights needed: ffmpeg comes from the imageio-ffmpeg package and Whisper from mlx-whisper, both in the
 // MLX venv. The result is a plain-text description the specialists answer from, like an image description.
 
+import { observeTool } from './observatory';
 import { execFile } from 'child_process';
 import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync, createWriteStream, readFileSync, statSync } from 'fs';
 import { homedir, tmpdir } from 'os';
@@ -151,7 +152,7 @@ export interface VideoAnalysis {
   transcriptLanguage?: string | null;
 }
 
-export async function analyzeVideo(source: string, question = ''): Promise<VideoAnalysis> {
+async function analyzeVideoImpl(source: string, question = ''): Promise<VideoAnalysis> {
   const timings: Record<string, number> = {};
   const t0 = Date.now();
   if (!videoAnalysisAvailable()) return { ok: false, description: '', timings, error: 'video tools not installed (MLX venv missing)' };
@@ -255,4 +256,9 @@ export async function analyzeVideo(source: string, question = ''): Promise<Video
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+// Observatory: every video analysis.
+export function analyzeVideo(...args: Parameters<typeof analyzeVideoImpl>): ReturnType<typeof analyzeVideoImpl> {
+  return observeTool('video', () => analyzeVideoImpl(...args), (r) => (r.ok ? 'ok' : { outcome: 'fail', err: r.error }));
 }

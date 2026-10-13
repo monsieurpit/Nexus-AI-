@@ -27,7 +27,7 @@ import { bitsToBytes, TRANSLATE_BINARY_RE } from './disasm';
 
 export interface Route {
   mode: SpecialistId;
-  by: 'rule' | 'meaning' | 'model' | 'fallback';
+  by: 'rule' | 'meaning' | 'model' | 'fallback' | 'orchestrator';
   reason: string;
   confidence: number;
 }

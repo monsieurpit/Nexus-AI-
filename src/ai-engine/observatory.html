@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Nexus Observatory</title>
+<style>
+  :root {
+    --bg: #0d1016; --card: #151a22; --card2: #1b212b; --text: #e6e8ec; --muted: #8b93a1; --line: #262d39;
+    --accent: #5aa9ff; --ok: #3fb950; --warn: #d6a33a; --bad: #f2564d; --bar: #2f6fb3;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --bg: #f5f6f8; --card: #fff; --card2: #f0f2f5; --text: #151820; --muted: #5d6573; --line: #dfe3e9; --bar: #7fb2ea; }
+  }
+  * { box-sizing: border-box; }
+  html, body { max-width: 100%; overflow-x: hidden; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); padding: 12px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 17px; margin: 0; letter-spacing: .01em; }
+  h1 span { color: var(--muted); font-weight: 400; }
+  main { padding: 16px; max-width: 1280px; margin: 0 auto; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 6px 11px; }
+  .seg button.on { background: var(--accent); color: #fff; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; padding: 6px 11px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  input { font: inherit; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); min-width: 0; }
+  label.chk { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+  .spacer { flex: 1; }
+  #status { color: var(--muted); font-size: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px; }
+  .wide { grid-column: 1 / -1; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; overflow-x: auto; }
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); gap: 12px; margin-bottom: 12px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .kpi .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .kpi .l { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  td.num, th.num { text-align: right; }
+  .scroll { overflow-x: auto; }
+  .muted { color: var(--muted); }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; border: 1px solid var(--line); }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  .pill.ok { border-color: var(--ok); } .pill.warn { border-color: var(--warn); } .pill.bad { border-color: var(--bad); }
+  .alert { border-left: 3px solid var(--warn); padding: 8px 10px; background: var(--card2); border-radius: 6px; margin-bottom: 6px; }
+  .alert.high { border-left-color: var(--bad); }
+  .stack { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--card2); min-width: 120px; }
+  .stack i { display: block; height: 100%; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .legend b { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .barrow { display: grid; grid-template-columns: 110px 1fr 48px; gap: 8px; align-items: center; margin: 4px 0; }
+  .barrow .b { height: 8px; background: var(--bar); border-radius: 4px; }
+  svg.chart { width: 100%; height: 120px; display: block; }
+  svg.chart text { fill: var(--muted); font-size: 10px; }
+  tr.click { cursor: pointer; } tr.click:hover td { background: var(--card2); }
+  code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #login { max-width: 460px; margin: 60px auto; }
+  #trace { position: fixed; inset: 0 0 0 auto; width: min(560px, 100%); background: var(--card); border-left: 1px solid var(--line); padding: 16px; overflow-y: auto; z-index: 5; box-shadow: -8px 0 30px rgba(0,0,0,.3); }
+  .step { padding: 6px 0; border-bottom: 1px dashed var(--line); display: grid; grid-template-columns: 90px 1fr 60px; gap: 8px; }
+  .empty { color: var(--muted); font-size: 13px; }
+  @media (max-width: 600px) { main { padding: 12px 16px; } header { padding: 10px 16px; } header #traceq { flex: 1 1 140px; } #status { width: 100%; } .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .kpi .v { font-size: 20px; } .barrow { grid-template-columns: 90px 1fr 40px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Nexus Observatory <span>· private</span></h1>
+  <div class="seg" id="win">
+    <button data-w="1h">1h</button><button data-w="6h">6h</button><button data-w="24h" class="on">24h</button><button data-w="7d">7d</button>
+  </div>
+  <label class="chk"><input type="checkbox" id="eval"> include test runs</label>
+  <input id="traceq" placeholder="trace ID (nx-…)" size="16">
+  <button id="check">Check for regressions</button>
+  <span class="spacer"></span>
+  <span id="status"></span>
+</header>
+
+<div id="login" class="card" hidden>
+  <h2>Admin token</h2>
+  <p class="muted">On the Mac: <code>cat ~/.nexus-learning/admin-token</code> (same token as the learning page). It stays in this browser only.</p>
+  <div style="display:flex;gap:8px"><input id="token" type="password" autocomplete="off" style="flex:1"><button id="save">Open</button></div>
+</div>
+
+<main id="app" hidden>
+  <div id="alerts"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div class="card wide"><h2>Latency by specialist and pipeline stage</h2><div class="scroll" id="latency"></div>
+      <div class="legend"><span><b style="background:#8b7cf6"></b>before router</span><span><b style="background:#5aa9ff"></b>router</span><span><b style="background:#3fb9a5"></b>context</span><span><b style="background:#d6a33a"></b>reply</span><span><b style="background:#f2564d"></b>checks/retries</span></div>
+    </div>
+    <div class="card"><h2>Median reply time</h2><div id="latchart"></div></div>
+    <div class="card"><h2>Routing</h2><div id="routing"></div></div>
+    <div class="card"><h2>Outcomes &amp; fallbacks</h2><div id="outcomes"></div></div>
+    <div class="card"><h2>Memory</h2><div id="memory"></div></div>
+    <div class="card"><h2>Models &amp; tokens</h2><div id="llm"></div></div>
+    <div class="card"><h2>RAM / VRAM</h2><div id="system"></div></div>
+    <div class="card"><h2>Tools</h2><div class="scroll" id="tools"></div></div>
+    <div class="card"><h2>Verification checks</h2><div class="scroll" id="verify"></div></div>
+    <div class="card"><h2>Reply quality &amp; eval gate</h2><div id="quality"></div></div>
+    <div class="card wide"><h2>Recent failures</h2><div class="scroll" id="failures"></div></div>
+    <div class="card wide"><h2>Recent traces</h2><div class="scroll" id="traces"></div></div>
+  </div>
+</main>
+
+<aside id="trace" hidden></aside>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let token = '';
+try { token = localStorage.getItem('nexus-learning-token') || ''; } catch {}
+let win = '24h';
+try { win = localStorage.getItem('obs-window') || '24h'; } catch {}
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const sec = (ms) => ms == null ? '—' : ms >= 10000 ? (ms / 1000).toFixed(0) + 's' : (ms / 1000).toFixed(1) + 's';
+const num = (n) => n == null ? '—' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(0) + 'k' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(Math.round(n));
+const pctTxt = (a, b) => b ? Math.round((a / b) * 100) + '%' : '—';
+const ago = (t) => { const s = (Date.now() - t) / 1000; return s < 60 ? Math.round(s) + 's ago' : s < 3600 ? Math.round(s / 60) + 'm ago' : s < 86400 ? Math.round(s / 3600) + 'h ago' : Math.round(s / 86400) + 'd ago'; };
+const clock = (t) => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const outcomeCls = (o) => o === 'ok' ? 'ok' : o === 'failed' || o === 'error' ? 'bad' : o === 'fallback' ? 'warn' : '';
+const table = (head, rows, empty = 'Nothing yet in this window.') => rows.length
+  ? '<table><thead><tr>' + head.map((h) => '<th' + (h.startsWith('#') ? ' class="num"' : '') + '>' + esc(h.replace(/^#/, '')) + '</th>').join('') + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>'
+  : '<div class="empty">' + empty + '</div>';
+const bars = (items, label, value, fmt = (v) => v) => {
+  const max = Math.max(1, ...items.map(value));
+  return items.length ? items.map((i) => '<div class="barrow"><span>' + esc(label(i)) + '</span><div class="b" style="width:' + Math.max(2, (value(i) / max) * 100) + '%"></div><span class="muted" style="text-align:right">' + fmt(value(i)) + '</span></div>').join('') : '<div class="empty">Nothing yet.</div>';
+};
+
+function lineChart(points, key, fmt, color = 'var(--accent)') {
+  const pts = points.filter((p) => typeof p[key] === 'number');
+  if (pts.length < 2) return '<div class="empty">Not enough data yet.</div>';
+  const W = 600, H = 120, P = 22;
+  const xs = pts.map((p) => p.t), ys = pts.map((p) => p[key]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y1 = Math.max(...ys) * 1.1 || 1;
+  const X = (x) => P + ((x - x0) / (x1 - x0 || 1)) * (W - P - 6), Y = (y) => H - 16 - (y / y1) * (H - 26);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + X(p.t).toFixed(1) + ' ' + Y(p[key]).toFixed(1)).join(' ');
+  return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + esc(key) + ' over time">'
+    + '<line x1="' + P + '" x2="' + W + '" y1="' + (H - 16) + '" y2="' + (H - 16) + '" stroke="var(--line)"/>'
+    + '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2" vector-effect="non-scaling-stroke"/>'
+    + '<text x="2" y="12">' + esc(fmt(y1 / 1.1)) + '</text><text x="' + P + '" y="' + (H - 3) + '">' + esc(clock(x0)) + '</text><text x="' + (W - 4) + '" y="' + (H - 3) + '" text-anchor="end">' + esc(clock(x1)) + '</text></svg>';
+}
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { Authorization: 'Bearer ' + token, ...(opts.headers || {}) } });
+  if (r.status === 401) { showLogin(); throw new Error('token'); }
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  return r.json();
+}
+function showLogin() { $('login').hidden = false; $('app').hidden = true; }
+
+async function load() {
+  if (!token) return showLogin();
+  $('status').textContent = 'loading…';
+  const d = await api('/api/v1/observatory/data?window=' + win + ($('eval').checked ? '&eval=1' : ''));
+  $('login').hidden = true; $('app').hidden = false;
+  render(d);
+  $('status').textContent = 'updated ' + new Date(d.generatedAt).toLocaleTimeString() + ' · auto-refresh 30s';
+}
+
+function render(d) {
+  // Alerts
+  const open = d.alerts.open;
+  $('alerts').innerHTML = open.length
+    ? open.map((a) => '<div class="alert ' + esc(a.severity) + '"><b class="' + (a.severity === 'high' ? 'bad' : 'warn') + '">Regression</b> ' + esc(a.message) + ' <span class="muted">· since ' + esc(ago(a.first_seen)) + '</span></div>').join('')
+    : '<div class="alert" style="border-left-color:var(--ok)"><b class="ok">No regressions detected</b> <span class="muted">— the last 2 h of real traffic look like the 7 days before.' + (d.alerts.resolved[0] ? ' Last one closed ' + esc(ago(d.alerts.resolved[0].resolved_at)) + ': ' + esc(d.alerts.resolved[0].message) : '') + '</span></div>';
+
+  // KPIs
+  const o = d.latency.overall, outs = Object.fromEntries(d.routing.outcomes.map((x) => [x.outcome, x.n]));
+  const fails = (outs.failed || 0) + (outs.error || 0);
+  const toolCalls = d.tools.reduce((a, t) => a + t.calls, 0), toolFails = d.tools.reduce((a, t) => a + t.fail, 0);
+  const ram = d.system.latest;
+  const kpi = (v, l, cls = '') => '<div class="kpi"><div class="v ' + cls + '">' + v + '</div><div class="l">' + l + '</div></div>';
+  $('kpis').innerHTML = [
+    kpi(num(d.traffic.requests), 'requests' + (d.traffic.evalRequests && !d.includeEval ? ' (+' + d.traffic.evalRequests + ' test)' : '')),
+    kpi(sec(o.p50), 'median reply'),
+    kpi(sec(o.p95), 'p95 reply', o.p95 > 20000 ? 'warn' : ''),
+    kpi(pctTxt(fails, d.traffic.requests), 'failed replies', fails ? 'bad' : 'ok'),
+    kpi(String(outs.fallback || 0), 'specialist fallbacks', outs.fallback ? 'warn' : ''),
+    kpi(pctTxt(toolFails, toolCalls), 'tool failures', toolFails ? 'warn' : ''),
+    kpi(ram ? Math.round(ram.freePct) + '%' : '—', 'RAM free', ram && ram.freePct < 15 ? 'bad' : ''),
+  ].join('');
+
+  // Latency table with stage bars
+  const colors = ['#8b7cf6', '#5aa9ff', '#3fb9a5', '#d6a33a', '#f2564d'];
+  $('latency').innerHTML = table(['specialist', '#replies', '#p50', '#p95', 'stages (average)', '#fails', '#fallbacks'], d.latency.byMode.map((m) => {
+    const parts = [m.pre, m.route, m.context, m.generate, m.checks].map((x) => x || 0);
+    const tot = parts.reduce((a, b) => a + b, 0) || 1;
+    const stack = '<div class="stack" title="before router ' + sec(m.pre) + ' · router ' + sec(m.route) + ' · context ' + sec(m.context) + ' · reply ' + sec(m.generate) + ' · checks ' + sec(m.checks) + '">' + parts.map((p, i) => '<i style="width:' + (p / tot) * 100 + '%;background:' + colors[i] + '"></i>').join('') + '</div>';
+    return '<tr><td>' + esc(m.mode) + '</td><td class="num">' + m.n + '</td><td class="num">' + sec(m.p50) + '</td><td class="num">' + sec(m.p95) + '</td><td style="min-width:180px">' + stack + '</td><td class="num ' + (m.failures ? 'bad' : '') + '">' + m.failures + '</td><td class="num ' + (m.fallbacks ? 'warn' : '') + '">' + m.fallbacks + '</td></tr>';
+  }));
+  $('latchart').innerHTML = lineChart(d.latency.series, 'p50', sec);
+
+  // Routing
+  const r = d.routing;
+  $('routing').innerHTML = bars(r.mix, (x) => x.mode, (x) => x.n)
+    + '<div class="legend" style="margin-top:10px"><span>by rule / meaning / model: ' + r.by.map((b) => esc(b.by) + ' ' + b.n).join(' · ') + '</span></div>'
+    + '<div class="legend"><span>low confidence: <b class="' + (r.lowConfidence ? 'warn' : '') + '" style="width:auto;height:auto;background:none">' + r.lowConfidence + '</b></span><span>first guess overruled: ' + r.guarded + '</span><span>retries: ' + r.retries + '</span></div>';
+  $('outcomes').innerHTML = bars(r.outcomes, (x) => x.outcome, (x) => x.n)
+    + '<div style="margin-top:10px">' + table(['fallback', '#times'], r.fallbacks.map((f) => '<tr><td>' + esc(f.fallback) + '</td><td class="num">' + f.n + '</td></tr>'), 'No specialist fell back.') + '</div>';
+
+  // Memory
+  const m = d.memory, mt = m.accepted + m.rejected;
+  const reasons = m.byReason.filter((x) => x.kind !== 'accepted');
+  $('memory').innerHTML = '<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(90px,1fr));margin:0 0 8px">'
+    + [['accepted', m.accepted, 'ok'], ['rejected', m.rejected, ''], ['corrected', m.corrected, ''], ['deleted', m.deleted, ''], ['expired', m.expired, '']].map(([l, v, c]) => '<div class="kpi" style="padding:8px"><div class="v ' + c + '" style="font-size:18px">' + v + '</div><div class="l">' + l + '</div></div>').join('') + '</div>'
+    + '<div class="muted" style="margin-bottom:6px">acceptance rate: ' + (m.acceptanceRate == null ? '—' : Math.round(m.acceptanceRate * 100) + '%') + ' of ' + mt + ' extracted</div>'
+    + table(['event', 'reason', '#n'], reasons.slice(0, 10).map((x) => '<tr><td>' + esc(x.kind) + '</td><td>' + esc(x.reason || '—') + '</td><td class="num">' + x.n + '</td></tr>'), 'No memory events in this window.');
+
+  // LLM
+  const l = d.llm;
+  const totP = l.byModel.reduce((a, x) => a + (x.prompt || 0), 0), totO = l.byModel.reduce((a, x) => a + (x.output || 0), 0);
+  $('llm').innerHTML = '<div class="muted" style="margin-bottom:6px">' + num(totP) + ' prompt tokens read · ' + num(totO) + ' tokens written</div>'
+    + table(['model', '#calls', '#avg', '#loads', '#errors'], l.byModel.map((x) => '<tr><td>' + esc(x.model) + '</td><td class="num">' + x.calls + '</td><td class="num">' + sec(x.ms) + '</td><td class="num ' + (x.loads > 3 ? 'warn' : '') + '">' + x.loads + '</td><td class="num ' + (x.errors ? 'bad' : '') + '">' + x.errors + '</td></tr>'))
+    + (l.errors.length ? '<div class="legend">errors: ' + l.errors.map((e) => esc(e.reason || '?') + ' ×' + e.n).join(' · ') + '</div>' : '')
+    + lineChart(l.tokenSeries, 'prompt', num, '#3fb9a5');
+
+  // System
+  const s = d.system;
+  $('system').innerHTML = (s.latest
+    ? '<div style="margin-bottom:6px"><b>' + Math.round(s.latest.freePct) + '%</b> RAM free · swap ' + num(s.latest.swapMb) + ' MB · engine ' + num(s.latest.rssMb) + ' MB</div>'
+      + table(['loaded model', '#RAM', '#VRAM'], s.latest.models.map((x) => '<tr><td>' + esc(x.name) + '</td><td class="num">' + x.gb.toFixed(1) + ' GB</td><td class="num">' + x.vramGb.toFixed(1) + ' GB</td></tr>'), 'No model loaded.')
+    : '<div class="empty">No samples yet (one per minute).</div>')
+    + lineChart(s.series, 'freePct', (v) => Math.round(v) + '%', '#3fb950')
+    + (s.events.length ? '<div class="legend" style="display:block">' + s.events.slice(0, 8).map((e) => esc(ago(e.ts)) + ' · ' + esc(e.kind.replace('_', ' ')) + ' ' + esc(e.detail)).join('<br>') + '</div>' : '');
+
+  // Tools
+  $('tools').innerHTML = table(['tool', '#calls', '#ok', '#empty', '#fail', '#p50', 'last error'], d.tools.map((t) => '<tr><td>' + esc(t.tool) + '</td><td class="num">' + t.calls + '</td><td class="num ok">' + t.ok + '</td><td class="num">' + t.empty + '</td><td class="num ' + (t.fail ? 'bad' : '') + '">' + t.fail + '</td><td class="num">' + sec(t.p50) + '</td><td class="muted" style="white-space:normal;min-width:140px">' + esc(t.lastError || '') + '</td></tr>'), 'No tool calls in this window.');
+
+  // Verification
+  $('verify').innerHTML = table(['check', '#passed', '#failed', '#fail rate'], d.verification.map((v) => '<tr><td style="white-space:normal">' + esc(v.name) + '</td><td class="num ok">' + v.pass + '</td><td class="num ' + (v.fail ? 'bad' : '') + '">' + v.fail + '</td><td class="num">' + pctTxt(v.fail, v.pass + v.fail) + '</td></tr>'), 'No checks ran in this window.');
+
+  // Quality + gate
+  const qy = d.quality;
+  $('quality').innerHTML = '<div style="margin-bottom:6px">Live reply checks (last 24 h max): <b>' + qy.flagged + '</b> of ' + qy.logged + ' replies flagged</div>'
+    + bars(qy.flags.slice(0, 6), (x) => x.flag, (x) => x.n)
+    + '<h2 style="margin-top:14px">Eval gate runs</h2>'
+    + table(['when', 'commit', '#pass', '#regressed'], d.gate.slice().reverse().slice(0, 6).map((g) => '<tr><td>' + esc(ago(g.at)) + ' <span class="muted">' + esc(g.scope) + '</span></td><td><code>' + esc(g.sha) + '</code></td><td class="num">' + (g.passPct == null ? '—' : g.passPct + '%') + '</td><td class="num ' + (g.regressed ? 'bad' : 'ok') + '">' + g.regressed + '</td></tr>'), 'No gate runs found.');
+
+  // Failures + traces
+  const traceRow = (t) => '<tr class="click" data-id="' + esc(t.id) + '"><td><code>' + esc(t.id) + '</code></td><td>' + esc(ago(t.ts)) + '</td><td>' + esc(t.mode) + '</td><td><span class="pill ' + outcomeCls(t.outcome) + '">' + esc(t.outcome) + '</span>' + (t.fallback ? ' <span class="muted">' + esc(t.fallback) + '</span>' : '') + (t.eval ? ' <span class="muted">test</span>' : '') + '</td><td class="num">' + sec(t.totalMs) + '</td></tr>';
+  $('failures').innerHTML = table(['trace', 'when', 'specialist', 'outcome', '#time'], d.failures.map(traceRow), 'No failed or fallen-back replies in this window. 🎉');
+  $('traces').innerHTML = table(['trace', 'when', 'specialist', 'outcome', '#time'], d.traces.map(traceRow));
+  document.querySelectorAll('tr.click').forEach((tr) => tr.onclick = () => openTrace(tr.dataset.id));
+}
+
+async function openTrace(id) {
+  const box = $('trace');
+  box.hidden = false;
+  box.innerHTML = '<div class="muted">loading ' + esc(id) + '…</div>';
+  try {
+    const t = await api('/api/v1/observatory/trace/' + encodeURIComponent(id));
+    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0"><code>' + esc(t.id) + '</code></h2><button id="closeTrace">Close</button></div>'
+      + '<p class="muted">' + esc(clock(t.ts)) + ' · ' + esc(t.platform || '') + (t.eval ? ' · test run' : '') + '</p>'
+      + '<table><tbody>'
+      + [['specialist', t.mode], ['routed by', (t.by || '—') + (t.conf != null ? ' (confidence ' + Math.round(t.conf * 100) + '%)' : '') + (t.guarded ? ' · first guess overruled' : '')], ['outcome', t.outcome + (t.fallback ? ' (' + t.fallback + ')' : '')], ['retries', t.retries], ['queue wait', sec(t.wait_ms)], ['before router', sec(t.pre_ms)], ['router', sec(t.route_ms)], ['context', sec(t.build_ms)], ['reply', sec(t.gen_ms)], ['checks/retries', sec(t.after_ms)], ['total', sec(t.total_ms)]]
+        .map(([k, v]) => '<tr><td class="muted">' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('')
+      + '</tbody></table><h2 style="margin-top:14px">Steps (redacted)</h2>'
+      + (t.steps.length ? t.steps.map((s) => '<div class="step"><span class="muted">' + esc(s.t) + '</span><span>' + esc(s.title) + '</span><span class="muted" style="text-align:right">' + (s.ms != null ? sec(s.ms) : '') + '</span></div>').join('') : '<div class="empty">No steps recorded.</div>');
+    $('closeTrace').onclick = () => { box.hidden = true; };
+  } catch (e) {
+    box.innerHTML = '<button id="closeTrace">Close</button><p class="bad">' + esc(e.message) + '</p>';
+    $('closeTrace').onclick = () => { box.hidden = true; };
+  }
+}
+
+document.querySelectorAll('#win button').forEach((b) => {
+  b.classList.toggle('on', b.dataset.w === win);
+  b.onclick = () => { win = b.dataset.w; try { localStorage.setItem('obs-window', win); } catch {} document.querySelectorAll('#win button').forEach((x) => x.classList.toggle('on', x === b)); load().catch(() => {}); };
+});
+$('eval').onchange = () => load().catch(() => {});
+$('traceq').onkeydown = (e) => { if (e.key === 'Enter' && $('traceq').value.trim()) openTrace($('traceq').value.trim()); };
+$('check').onclick = async () => { $('status').textContent = 'checking…'; try { const r = await api('/api/v1/observatory/check', { method: 'POST' }); $('status').textContent = r.findings.length ? r.findings.length + ' regression(s) found' : 'no regressions'; await load(); } catch (e) { $('status').textContent = e.message; } };
+$('save').onclick = () => { token = $('token').value.trim(); try { localStorage.setItem('nexus-learning-token', token); } catch {} load().catch((e) => { $('status').textContent = e.message; }); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('trace').hidden = true; });
+const h = location.hash.match(/trace=([\w-]+)/); if (h) openTrace(h[1]);
+load().catch((e) => { if (e.message !== 'token') $('status').textContent = e.message; });
+setInterval(() => { if (!document.hidden && token) load().catch(() => {}); }, 30000);
+</script>
+</body>
+</html>

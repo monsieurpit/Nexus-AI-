@@ -6,6 +6,7 @@
 // (first run ≈ the last 100 messages, later runs cover more history through the previous summary — a 4B model can't
 // read 2,000 messages at once, but it can fold 100 new ones into what it already knew).
 
+import { recordMemory } from '../observatory';
 import * as localLlmClient from '../localLlmClient';
 import { engineIsIdle } from '../learning/worker';
 import { cleanupMemory, peopleNeedingSummary, saveFacts, saveSummary, type PersonRecord } from './personalMemory';
@@ -63,9 +64,16 @@ export function parseFacts(text: string): Array<{ text: string; kind: 'interest'
     if (!m) continue;
     // "F1 | running_joke |": the model sometimes keeps writing columns — only the first one is the memory.
     const memo = m[3].split('|')[0].replace(/\s*\((?:implied|e\.g\.)[^)]*\)/gi, '').trim();
-    if (memo.length < 2 || /^(?:is|has)\s+\S{1,8}$/i.test(memo) || /\bparents?\b/i.test(memo) || SENSITIVE_LINE_RE.test(m[3]) || ABOUT_THE_CHAT_RE.test(m[3]) || EXPLICIT_RE.test(m[3])) continue;
+    // Observatory: why each line was thrown away (counts only).
+    const why = memo.length < 2 || /^(?:is|has)\s+\S{1,8}$/i.test(memo) ? 'junk' : /\bparents?\b/i.test(memo) || SENSITIVE_LINE_RE.test(m[3]) ? 'sensitive' : ABOUT_THE_CHAT_RE.test(m[3]) ? 'about the chat, not them' : EXPLICIT_RE.test(m[3]) ? 'sexual / slur / site' : '';
+    if (why) {
+      recordMemory('rejected', why);
+      continue;
+    }
     out.push({ kind: m[1].toLowerCase().replace(' ', '_'), source: m[2].toLowerCase(), text: memo });
   }
+  if (out.length > 8) recordMemory('rejected', 'over the 8-per-pass limit', out.length - 8);
+  recordMemory('accepted', 'extracted', Math.min(8, out.length));
   return out.slice(0, 8);
 }
 
