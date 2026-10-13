@@ -1,3 +1,4 @@
+import { browseAndAct, browseFacts, browserAvailable, BROWSE_INTENT_RE } from './browserAgent';
 import {
   AISettings,
   ChatMessage,
@@ -5077,6 +5078,14 @@ async function generateReasoningPathInner(
   // A partnership request is the helper's job (it reads the invite itself, with the real member count): the link
   // reader below used to grab it first and just say "that's a server invite" (2026-10-05).
   const linkInPrompt = useV2(settings, persona, isCrashout) && isPartnershipMessage(prompt) ? null : detectUrlInPrompt(prompt);
+  // "go to X and click Y", "watch the video on X", "look at the pics on X": the cloud browser does it (browserAgent.ts).
+  if (linkInPrompt && BROWSE_INTENT_RE.test(prompt.replace(linkInPrompt, ' ')) && browserAvailable()) {
+    const goal = prompt.replace(/^\s*nexus[\s,:-]*/i, '').trim();
+    const browsed = await browseAndAct(linkInPrompt, goal);
+    thoughtSteps.push({ id: 'step-browse', type: 'web_search', title: `🧭 Used the page${browsed.steps.length ? ` (${browsed.steps.length} click${browsed.steps.length > 1 ? 's' : ''})` : ''}`, description: browsed.ok ? [...browsed.steps, browsed.photos.length ? `${browsed.photos.length} photo(s) looked at` : '', browsed.video ? 'watched the video' : ''].filter(Boolean).join(' · ') || `opened ${browsed.finalUrl}` : String(browsed.error) });
+    const reply = await phraseWithFacts('question', prompt, browseFacts(browsed, goal), recentRepliesFor(settings.discordUserId), thoughtSteps, 'browse');
+    if (reply) return primeReturn(reply, browsed.finalUrl ? [`Page: ${browsed.finalUrl}`] : []);
+  }
   if (linkInPrompt) {
     const link = await readLink(linkInPrompt);
     thoughtSteps.push({ id: 'step-link', type: 'web_search', title: `🔗 Read link (${link.kind})`, description: link.text.slice(0, 200) });
