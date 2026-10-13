@@ -194,10 +194,12 @@ const SHORT_WEATHER_RE = /^\s*(?:(?:hey\s+)?nexus[\s,]*)?(?:the\s+|what'?s\s+the
 const ONLY_TIME_WORD_RE = /^(?:today|tonight|tomorrow|tmrw|tmr|now|rn|right\s+now|this\s+week(?:end)?|the\s+week(?:end)?|next\s+week|later|the\s+day|demain|aujourd'?hui|ce\s+soir|cette\s+semaine)$/i;
 // Typos ("what's the whether in Quebec City?" got a chat reply, 2026-10-12): "whether" only counts after "the"/"'s"
 // or before "in/for/today…", so "whether or not" stays a normal word.
-const WEATHER_TYPO_RE = /(?<=\b(?:the|s)\s+)(?:whether|wether|weathr|wheather|weahter|wheater|waether)\b|\b(?:whether|wether|weathr|wheather|weahter|wheater|waether)(?=\s+(?:in|for|at|today|tonight|tomorrow|tmrw|like|rn|now|this\s+week))/gi;
+// ("Determine whether at least one permutation exists" became weather in "Leaston" — 2026-10-12: no "at", and only in
+// short messages.)
+const WEATHER_TYPO_RE = /(?<=\b(?:the|s)\s+)(?:whether|wether|weathr|wheather|weahter|wheater|waether)\b|\b(?:whether|wether|weathr|wheather|weahter|wheater|waether)(?=\s+(?:in|for|today|tonight|tomorrow|tmrw|like|rn|now|this\s+week))/gi;
 export function detectWeatherIntent(rawPrompt: string): { city: string | null } | null {
   // "what's the weather like there / where you are / in your city" = where HE lives: Sydney (his identity, 2026-10-12).
-  const prompt = rawPrompt.replace(WEATHER_TYPO_RE, 'weather').replace(/\b(?:(?:like\s+)?(?:over\s+)?there|where\s+(?:you|u)\s+(?:are|live|at)|(?:in|at)\s+(?:your|ur)\s+(?:city|place|end|area|side))\b(?=[\s?!.]*$)/i, 'in Sydney');
+  const prompt = (rawPrompt.split(/\s+/).length <= 15 ? rawPrompt.replace(WEATHER_TYPO_RE, 'weather') : rawPrompt).replace(/\b(?:(?:like\s+)?(?:over\s+)?there|where\s+(?:you|u)\s+(?:are|live|at)|(?:in|at)\s+(?:your|ur)\s+(?:city|place|end|area|side))\b(?=[\s?!.]*$)/i, 'in Sydney');
   if (!WEATHER_REGEX.test(prompt) && !SHORT_WEATHER_RE.test(prompt)) return null;
   // A your-mum joke that mentions weather ("ta mère est tellement grosse qu'elle a sa propre météo") is a roast (2026-10-12).
   if (/(?<![\p{L}])(?:(?:your|ur|yo)\s+(?:mom|mum|mother|mama|momma)|ta\s+(?:mère|mere|môman|moman)|twoja\s+(?:stara|matka|mama)|deine\s+(?:mutter|mudda|mama))(?![\p{L}])/iu.test(prompt)) return null;

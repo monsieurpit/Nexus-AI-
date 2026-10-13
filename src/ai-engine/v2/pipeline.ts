@@ -250,7 +250,8 @@ const AUSSIE_SWAPS: Array<[RegExp, string]> = [
 // (2026-10-12). Unless the message is about being an AI / a bot / a boy or girl / called an object, the tag goes.
 const BOII_RELEVANT_RE = /\b(?:ai|a\.i\.|bot|robot|chatgpt|human|real\s+person|boy|girl|man|woman|gender|male|female|pickle|potato|object|thing|rock|nugget|toaster|bitch|it)\b/i;
 export function dropBoiiTag(reply: string, message: string): string {
-  if (BOII_RELEVANT_RE.test(message)) return reply;
+  // Never inside code: its space-squeezing destroyed Python indentation in every code answer (2026-10-12).
+  if (BOII_RELEVANT_RE.test(message) || /```/.test(reply)) return reply;
   const out = reply
     .replace(/[,;]?\s*(?:(?:cuz|cause|coz|bc|because|since|and|but|tho)\s+)?(?:i'?m|im|i\s+am)\s+(?:just\s+)?(?:a\s+)?(?:fucking\s+|bloody\s+|proper\s+|goddamn\s+|real\s+)*bo+i+s?\b(?:\s+(?:gng|mate|bro|tho|fr))?/gi, '')
     .replace(/[ \t]{2,}/g, ' ')
@@ -296,6 +297,7 @@ export const XANT_PING = '<@1427274237470703712>';
 // "gng" (= gang) only ADDRESSES someone, like "bro": "wsg gng", "nah gng". The model also used it as a description —
 // "im gng more real rn", "ur gng" (2026-10-12, Patrick: "wtf, I'm gang?"). Those uses are dropped.
 export function fixGng(reply: string): string {
+  if (/```/.test(reply)) return reply;
   return reply
     .replace(/\b(i'?m|i\s+am|ima|imma|ur|you'?re|youre|u\s+r|u\s+are|you\s+are|he'?s|she'?s|it'?s|its|we'?re|they'?re|that'?s|thats|is|are|was|be|so|more|less|real|proper|very)\s+gng\b/gi, '$1')
     .replace(/\bgng\s+(?=(?:more|less|real|realer|better|worse|than|as)\b)/gi, '')
@@ -1163,7 +1165,10 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const numbers = numberConversionNote(text || '');
   const program = pickBinaryProgram(text || '');
   const morse = route.mode === 'chat' ? morseTask(text || '') : null;
-  const userTurn = `${parrotNote}${morse ? morseNote(morse) : ''}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${built.text}${langNote}`;
+  const multiTaskNote = (route.mode === 'code' || route.mode === 'maths' || route.mode === 'question') && ((text || '').match(/(?:^|\n)\s*\d{1,2}[.)]\s+\S/g)?.length || 0) >= 3 && /\btasks?\b|\b(?:explain|prove|determine|find|provide)\b/i.test(text || '')
+    ? 'THEY GAVE SEVERAL NUMBERED TASKS: answer EVERY one, in order, with its number as a heading (1., 2., 3., …) — code only where a task asks for code, written answers/explanations for the others. Never skip a task, never invent a result you did not derive.\n'
+    : '';
+  const userTurn = `${parrotNote}${multiTaskNote}${morse ? morseNote(morse) : ''}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${built.text}${langNote}`;
   const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt) && !casualServerDraft(prompt);
   // A list they asked for keeps its lines (chat's one-line cleanup cut "top 10" down to "1.", 2026-10-12).
@@ -1176,7 +1181,11 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // A list needs room (chat's 90 tokens stopped "top 10" at item 9).
   const listN = wantsList ? Number((said(prompt).match(LIST_REQUEST_RE) || []).slice(1).find(Boolean) || 0) : 0;
   // When the calculator already has the exact answer, the maths specialist doesn't need to think (10-13 s → ~2 s).
-  const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * 30) } : route.mode === 'maths' && mathsFacts(prompt) ? { ...spec, think: false } : spec;
+  // Several numbered tasks ("Tasks: 1. … 2. … 5. …"): the code specialist only wrote the program and skipped the
+  // proof / analysis / testing parts (2026-10-12) — every task gets answered, with room for it.
+  const numberedTasks = (text || '').match(/(?:^|\n)\s*\d{1,2}[.)]\s+\S/g)?.length || 0;
+  const multiTask = (route.mode === 'code' || route.mode === 'maths' || route.mode === 'question') && numberedTasks >= 3 && /\btasks?\b|\b(?:explain|prove|determine|find|provide)\b/i.test(text || '');
+  const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * 30) } : multiTask ? { ...spec, maxTokens: Math.max(spec.maxTokens, 2600) } : route.mode === 'maths' && mathsFacts(prompt) ? { ...spec, think: false } : spec;
   const raw = await generateWith(genSpec, userTurn, lang);
   const tGenerated = Date.now();
   if (!raw) {
