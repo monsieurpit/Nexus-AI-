@@ -22,6 +22,7 @@ import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, planRo
 import { sportsFacts } from './sports';
 import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
 import { runPythonSandboxed, pythonBlock, WANTS_RESULT_RE } from './sandbox';
+import { effectiveDials, toneLine, chatTokenCap } from './personality';
 import { personaFacts, FULL_IDENTITY_RE, fullIdentityCard } from './persona';
 import { aussieNote, AUSSIE_WORD_SWAPS } from './aussie';
 import { morseConversation, morseNote, morseReply, morseTask, withMorse } from './morse';
@@ -729,7 +730,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }
@@ -750,7 +751,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
       thoughtSteps.push({ id: 'step-v2-roast-plan', type: 'reasoning', title: `🔥 Roast engine: ${plan.kind}${plan.move ? ` / ${plan.move}` : ''}${plan.round > 1 ? ` · round ${plan.round}` : ''}`, description: plan.note.slice(0, 600) });
       return {
-        text: `${thread}${facts}${lang === 'en' ? `${aussieNote(s)}\n` : ''}${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 5 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 5 DIFFERENT comebacks of that type, each one brutal and specific, one per line, no numbers, no intro (the best one gets sent):'}`,
+        text: `${thread}${facts}${lang === 'en' ? `${aussieNote(s)}\n` : ''}${toneLine(effectiveDials(settings?.discordUserId))}\n${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 5 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 5 DIFFERENT comebacks of that type, each one brutal and specific, one per line, no numbers, no intro (the best one gets sent):'}`,
         sources: [],
       };
     }
@@ -882,7 +883,9 @@ async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en
     maxTokens: spec.maxTokens + (spec.think ? (spec.id === 'maths' ? 1400 : 800) : 0),
     think: spec.think,
     model: localLlmClient.chatModel(),
-    userPreamble: spec.moodPreamble ? buildMoodUserPreamble(false, lang === 'pl', lang === 'fr') : undefined,
+    // (The old global "MOOD OVERRIDE" paragraph is gone: it made him angry with everyone after one person's insults. The
+    // tone line from personality.ts carries the mood now — this person's first, the server's as a small nudge.)
+    userPreamble: undefined,
   };
   let res: any = await localLlmClient.generate(userTurn, options as any);
   // Thinking ran out of room / sampling fluke: once more without thinking.
@@ -1200,7 +1203,9 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // proof / analysis / testing parts (2026-10-12) — every task gets answered, with room for it.
   const numberedTasks = (text || '').match(/(?:^|\n)\s*\d{1,2}[.)]\s+\S/g)?.length || 0;
   const multiTask = (route.mode === 'code' || route.mode === 'maths' || route.mode === 'question') && numberedTasks >= 3 && /\btasks?\b|\b(?:explain|prove|determine|find|provide)\b/i.test(text || '');
-  const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * 30) } : multiTask ? { ...spec, maxTokens: Math.max(spec.maxTokens, 2600) } : route.mode === 'maths' && mathsFacts(prompt) ? { ...spec, think: false } : spec;
+  // Chat length follows the verbosity setting (personality.ts).
+  const toneSpec = route.mode === 'chat' ? { ...spec, maxTokens: chatTokenCap(effectiveDials(settings.discordUserId)) } : spec;
+  const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * 30) } : multiTask ? { ...spec, maxTokens: Math.max(spec.maxTokens, 2600) } : route.mode === 'maths' && mathsFacts(prompt) ? { ...spec, think: false } : toneSpec;
   // (Step 1 is only the program: no thinking pass, the run is the check.)
   const firstSpec = route.mode === 'code' && WANTS_RESULT_RE.test(text || '') && /\bpython\b|\bprogram\b|\bscript\b|\bcode\b/i.test(text || '') ? { ...genSpec, think: false, maxTokens: 2800 } : genSpec;
   const raw = await generateWith(firstSpec, userTurn, lang);

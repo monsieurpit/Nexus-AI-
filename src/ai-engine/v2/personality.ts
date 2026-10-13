@@ -96,3 +96,17 @@ export function effectiveDials(person?: string): PersonalityState {
   const moodName = p && p.valence < -0.4 ? 'annoyed with this person' : p && p.valence > 0.4 ? 'fond of this person' : label.replace('_', ' ');
   return { dials: d, moodName, reasons };
 }
+
+// Piece 2: what a reply gets — one short line right before their message (where the model follows it), and a length cap.
+export function toneLine(state: PersonalityState): string {
+  const d = state.dials;
+  const words = d.verbosity <= 2 ? '1-6 words' : d.verbosity <= 4 ? '3-12 words' : d.verbosity <= 7 ? 'one or two sentences' : 'a few sentences';
+  const mood = state.reasons.length ? `${state.moodName} — ${state.reasons.join('; ')}` : state.moodName;
+  const feel = d.warmth >= 7 ? ' Be warm and friendly with them (still your usual self).' : d.warmth <= 3 ? " You're short and cold with them right now." : '';
+  return `YOUR TONE RIGHT NOW (mood: ${mood}; let it show from the first word):${feel} energy ${d.energy}/10, warmth ${d.warmth}/10, bite ${d.bite}/10, sarcasm ${d.sarcasm}/10, formality ${d.formality}/10. Length: about ${words}.`;
+}
+
+export function chatTokenCap(state: PersonalityState): number {
+  const v = state.dials.verbosity;
+  return v <= 2 ? 50 : v <= 4 ? 90 : v <= 7 ? 160 : 260;
+}
