@@ -53,19 +53,28 @@ ${recent}
 One memory per line, exactly: kind | source | short memory
 kind = interest (games, teams, music, hobbies) | preference (likes / dislikes) | fact (something real and lasting about them they stated) | current (true for now: a rank, an ongoing project) | temporary (today's plans, current mood) | running_joke (a bit, boast or exaggeration, NOT a real fact) | style (how they talk)
 source = stated (they clearly said it about themselves, seriously) | inferred (your guess from how they write)
-Rules: obvious jokes, trolling, tests, boasts ("I'm the best player alive") and wild claims are running_joke, never fact. A change ("I don't play X anymore", "I support Y now") keeps its words (no longer / now / switched to). Max 8 lines. Nothing about health, sexuality, religion, ethnicity, family problems, school, address or location, age. No intro.`;
+Rules: memories are about THEIR life (what they play, watch, support, do, like) — never about how they treat Nexus or the chat (insulting him, testing him, provoking, asking him questions, being aggressive, demanding roasts): that is not a memory. Write the memory as plain words, no "|" inside it, e.g. "interest | stated | plays Fortnite", "preference | stated | thinks Olise is better than Yamal", "style | inferred | mixes Polish and English". Obvious jokes, trolling, boasts ("I'm the best player alive") and wild claims are running_joke, never fact. A change ("I don't play X anymore", "I support Y now") keeps its words (no longer / now / switched to). Max 8 lines, fewer is fine, none is fine. Nothing about health, sexuality, porn or sexual stuff, religion, ethnicity, family problems, school, address or location, age, websites. No intro.`;
 }
 
 export function parseFacts(text: string): Array<{ text: string; kind: 'interest' | 'preference' | 'fact' | 'current' | 'temporary' | 'running_joke' | 'style'; source: 'stated' | 'inferred' }> {
   const out: Array<{ text: string; kind: any; source: any }> = [];
   for (const line of text.split('\n')) {
     const m = line.replace(/^\s*[-*\d.)]+\s*/, '').match(/^(interest|preference|fact|current|temporary|running[_ ]joke|style)\s*\|\s*(stated|inferred)\s*\|\s*(.{4,160})$/i);
-    if (!m || SENSITIVE_LINE_RE.test(m[3])) continue;
-    out.push({ kind: m[1].toLowerCase().replace(' ', '_'), source: m[2].toLowerCase(), text: m[3].trim() });
+    if (!m) continue;
+    // "F1 | running_joke |": the model sometimes keeps writing columns — only the first one is the memory.
+    const memo = m[3].split('|')[0].replace(/\s*\((?:implied|e\.g\.)[^)]*\)/gi, '').trim();
+    if (memo.length < 2 || /^(?:is|has)\s+\S{1,8}$/i.test(memo) || /\bparents?\b/i.test(memo) || SENSITIVE_LINE_RE.test(m[3]) || ABOUT_THE_CHAT_RE.test(m[3]) || EXPLICIT_RE.test(m[3])) continue;
+    out.push({ kind: m[1].toLowerCase().replace(' ', '_'), source: m[2].toLowerCase(), text: memo });
   }
   return out.slice(0, 8);
 }
 
+// How they behave towards Nexus is not a memory about them (the first migration produced "used aggressive and insulting
+// language towards the bot", "seems to enjoy provoking the bot"…, which would only make every reply hostile); the
+// per-person mood (v2/personality.ts) already handles how they treated him lately.
+const ABOUT_THE_CHAT_RE = /\b(?:the\s+bot|bot['’]?s?|nexus|towards?\s+(?:him|it)|provok\w*|provocat\w*|offensive|controversial|specific\s+(?:online\s+)?(?:content|people|individuals|users|communities|sites)|online\s+content|other\s+users|a\s+person\s+named|antagoni\w*|confrontational|aggressive\w*|insult\w*|abusive|hostil\w*|demand\w*|test(?:s|ing)?\s+(?:the|him|it|boundaries)|attention[\s-]seeking|emotional\s+(?:volatility|attachment)|roasts?|threat\w*|profan\w*|vulgar|curs(?:e|es|ing)|swear\w*|commanding|insistent|repetitive|rapid\s+succession|excessive\s+capital\w*|asks?\s+about|questions?\s+(?:nexus|him)|engag\w*\s+(?:in|with))\b/i;
+// Sexual stuff, porn sites, slurs: never kept.
+const EXPLICIT_RE = /\b(?:sex\w*|porn\w*|nsfw|explicit|goon\w*|e621|bonnie\s+blue|hentai|onlyfans|nigg\w*|fag\w*|retard\w*|\w+\.(?:com|net|org|at|xxx|io))\b/i;
 // Lines about sensitive topics are dropped even if the model wrote them anyway.
 const SENSITIVE_LINE_RE = /\b(?:depress\w*|anxiety|anxious|suicid\w*|self[\s-]?harm|therap\w*|diagnos\w*|adhd|autis\w*|disab\w*|religio\w*|church|mosque|muslim|christian|jewish|ethnic\w*|race|racial|lives\s+in|address|school\s+name|attends|grade\s+\d|years?\s+old|\b1[0-7]\s*yo\b|divorce|abuse\w*|parents?\s+(?:fight|split))\b/i;
 export function cleanSummary(text: string): string {

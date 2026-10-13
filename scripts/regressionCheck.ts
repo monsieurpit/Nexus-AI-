@@ -1021,6 +1021,9 @@ async function runV2Checks() {
     process.env.NEXUS_MEMORY_DIR = dir;
     const pm = await import('../src/ai-engine/memory/personalMemory');
     const mw = await import('../src/ai-engine/memory/memoryWorker');
+    { const pf = mw.parseFacts;
+      const kept = pf(['interest | inferred | F1 | running_joke |', 'style | stated | used aggressive and insulting language towards the bot', 'preference | inferred | seems to enjoy provoking the bot', 'interest | inferred | gasthof-niggas.at', 'interest | inferred | interest in explicit content (Pornhub)', 'fact | stated | has parents', 'interest | stated | interested in football (Olise vs Yamal)', 'style | inferred | mixes Polish and English'].join('\n')).map((x) => x.text);
+      check('memory extraction keeps only things about THEM (no "insults the bot", no sexual stuff/slurs/sites, no junk columns)', kept.join('|') === 'F1|interested in football (Olise vs Yamal)|mixes Polish and English'); }
     pm.recordMessage('discord', '111', 'Tester', 'im hard stuck silver in valorant lol');
     for (let i = 0; i < pm.MAX_MESSAGES + 5; i++) pm.recordMessage('discord', '222', 'Big', `message ${i}`);
     const big = pm.loadPerson('discord', '222')!;

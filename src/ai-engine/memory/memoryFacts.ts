@@ -57,7 +57,7 @@ export function mergeFacts(existing: MemoryFact[], observed: Array<Pick<MemoryFa
   const facts = pruneFacts(existing, now).map((f) => ({ ...f, confirmedDays: [...f.confirmedDays] }));
   for (const o of observed) {
     const text = o.text.trim().replace(/\s+/g, ' ').slice(0, 160);
-    if (text.length < 4) continue;
+    if (text.length < 2) continue;
     // A correction ("no longer plays Valorant", "switched to Arsenal", "supports Arsenal now"): the old memory on that
     // topic goes (kept as .replaced on the new one), instead of two "current" facts that contradict each other. Only
     // when they STATED it — a guess never overwrites what they told you.
