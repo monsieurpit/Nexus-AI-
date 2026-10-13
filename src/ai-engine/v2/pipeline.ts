@@ -923,6 +923,8 @@ const CHAT_EXAMPLE_GRAMS: Set<string> = (() => {
 })();
 // "top 10 ...", "list 5 ...", "3 reasons ...": the number they asked for.
 const LIST_REQUEST_RE = /\b(?:top|best|worst)\s+(\d{1,2})\b|\b(?:list|name|give\s+me|tell\s+me)\s+(\d{1,2})\b|\b(\d{1,2})\s+(?:people|reasons|things|names|players|drivers|songs|games|facts|ways)\b/i;
+// Dissing his own club ("fuck barca", "barra bastards", "barça is overrated / trash / mid").
+export const BARCA_DISS_RE = /\b(?:fuck|screw|hate|fk)\s+(?:barca|barça|barcelona|barra|fcb|culers?)\b|\b(?:barca|barça|barcelona|barra|fcb)\s+(?:bastards?|is\s+(?:shit|trash|mid|overrated|garbage|dogshit|washed)|are\s+(?:shit|trash|mid|overrated|garbage|washed)|sucks?)\b/i;
 // A real question answered with a deflection ("what do u want", "wtf are u on about", "are u dense") — no answer at all.
 const DEFLECT_RE = /^(?:\W*(?:yo|bruh|bro|nah|mate|oi|lol|lmao|ffs|jesus|bloody\s+hell)\W+)*(?:(?:what|wtf|wth|wat)\b[^.?!]{0,30}\b(?:want|wanna|mean|on\s+(?:about|abt)|talkin|talking|saying|is\s+(?:this|that))|(?:are|r)\s+(?:u|you|ya)\s+(?:fucking\s+|bloody\s+)?(?:dense|serious|mental|stupid|dumb|kidding|deaf|high|ok)|say\s+smth\s+else|speak\s+up)\b/i;
 export function dodgedQuestion(message: string, reply: string): boolean {
@@ -1263,6 +1265,14 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
         const rItems = (r.match(/^\s*\d{1,2}[.)]\s+\S/gm) || []).length;
         if (want >= 2 ? rItems > items : !dodgedQuestion(t, r)) content = want >= 2 ? tidyList(r) : r;
       }
+    }
+  }
+  // He loves FC Barcelona (Patrick): a reply that disses Barça ("fuck barca", "barra bastards are overrated") is redone.
+  if ((route.mode === 'chat' || route.mode === 'roast' || route.mode === 'question') && BARCA_DISS_RE.test(content)) {
+    const retry = await generateWith(spec, `${userTurn}\n(FC Barcelona is YOUR club, you LOVE it — never diss Barça. Real Madrid is the one you hate, "Real Vardrid".)`, lang);
+    if (retry) {
+      const r = dropBannedEmoji(finalize(retry));
+      if (!BARCA_DISS_RE.test(r)) content = r;
     }
   }
   // The "at least ..." crutch in chat too ("nah im chuffed lmao at least i got xant", 2026-10-12 gate): one more try.

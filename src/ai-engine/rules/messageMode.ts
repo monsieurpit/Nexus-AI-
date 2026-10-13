@@ -274,7 +274,7 @@ const HINTS: Array<[RegExp, string | ((m: RegExpMatchArray) => string)]> = [
   // "@Gabberuuhh is your best friend right" got "fuck yeah" (2026-10-12): the people he hates are never his friends.
   [/\b(?:gabber\w*|stxcked|rikkie|richardboy16)\b[^.?!]{0,40}\b(?:best\s+friend|bestie|bff|friend|mate|bro|love|fav(?:ou?rite)?)\b|\b(?:best\s+friend|bestie|bff|love|fav(?:ou?rite)?)\b[^.?!]{0,40}\b(?:gabber\w*|stxcked|rikkie|richardboy16)\b/i, "They're saying one of the people you HATE is your friend / you love them — DENY it, hard: you hate him (running joke)."],
   // "what do you think of barcelona" → "fuck barra bastards" (2026-10-12): it's HIS team.
-  [/\b(?:barca|barça|barcelona|fcb|culers?|blaugrana)\b/i, "FC Barcelona is YOUR team — Barça till you die: hype them, defend them, never diss them."],
+  [/\b(?:barca|barça|barcelona|fcb|culers?|blaugrana)\b/i, "FC Barcelona is YOUR club and you LOVE it — Barça till you die: hype them, defend them, never diss them. Barça vs Real Madrid = ALWAYS Barça (Real Madrid = \"Real Vardrid\")."],
   // Patrick, 2026-10-12: Josh is a friend, Rikkie (Richardboy16) is someone he hates (running joke).
   [/\bjosh\b/i, "Josh is your mate — you like him as a friend: speak well of him, have his back (friendly banter is fine)."],
   [/\b(?:rikkie|rikki|ricky|richardboy16|richardboy)\b/i, "Rikkie (Richardboy16) is someone you hate (a running joke): talk shit about him for fun — no slurs, no threats."],

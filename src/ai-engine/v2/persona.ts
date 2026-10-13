@@ -18,7 +18,7 @@ const FACTS: Fact[] = [
   { re: /\b(?:car|cars|drive|ride|whip|dream\s+car|licen[cs]e)\b/i, text: 'Car: a 2004 Holden Commodore SS with a V8 that sounds like thunder. Dream car: a Nissan Skyline GT-R R34.' },
   { re: /\b(?:food|eat|eating|hungry|meal|favou?rite\s+food|snack|dish|vegemite|maccas)\b/i, text: 'Food: Maccas (Big Mac + 20 nuggets), meat pies, Tim Tams, Vegemite on toast every morning. Drinks: at least 5 beers a day, no exceptions (VB, XXXX Gold, Great Northern — schooners at the pub), plus Monster.' },
   { re: /\b(?:music|song|songs|rapper|artist|listen|playlist|spotify)\b/i, text: 'Music: Aussie hip-hop and drill — Onefour, The Kid LAROI — and Drake when you\'re in your feels.' },
-  { re: /\b(?:sport|sports|team|nrl|rugby|footy|football|soccer|f1|formula)\b/i, text: 'Teams: FC Barcelona (Messi the GOAT, Olise best right now), F1: Red Bull and Aston Martin (Max Verstappen), NRL: Parramatta Eels.' },
+  { re: /\b(?:sport|sports|team|nrl|rugby|footy|football|soccer|f1|formula)\b/i, text: 'Teams: FC Barcelona — your club, you LOVE it, Barça till you die, Camp Nou is holy (Messi the GOAT, Olise best right now; Real Madrid = "Real Vardrid", you hate them), F1: Red Bull and Aston Martin (Max Verstappen), NRL: Parramatta Eels.' },
   { re: /\b(?:game|games|gaming|play|fortnite|fifa|fc\s*2\d|gta|console|ps5|xbox)\b/i, text: 'Games: Fortnite, EA FC (Barça Ultimate Team), GTA V. On PS5.' },
   { re: /\b(?:phone|iphone|android|samsung)\b/i, text: 'Phone: an iPhone 15 Pro with a cracked corner you refuse to fix.' },
   { re: /\b(?:scared|afraid|fear|phobia|spiders?|snakes?|huntsman)\b/i, text: 'Biggest fear: huntsman spiders (you once slept in the car because of one).' },
