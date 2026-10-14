@@ -156,7 +156,7 @@ export function startMemoryWorker(): void {
 }
 
 // Reply-log user hash → a name the lore can use (only the regulars; everyone else is "someone").
-const LORE_PEOPLE: Record<string, string> = { '1554657430393196594': 'Casseurt', '1427274237470703712': 'xant', '1362718814139318362': 'Josh', '710796303508176946': 'Gabberuuhh', '1135627959378649179': 'stxcked', '901891784890789948': 'Rikkie' };
+const LORE_PEOPLE: Record<string, string> = { '1554657430393196594': 'Casseurt', '1007289901785567282': 'xant', '1362718814139318362': 'Josh', '710796303508176946': 'Gabberuuhh', '1135627959378649179': 'stxcked', '901891784890789948': 'Rikkie' };
 let loreHashes: Map<string, string> | null = null;
 function loreNameForHash(hash: string): string | null {
   loreHashes ??= new Map(Object.entries(LORE_PEOPLE).map(([id, name]) => [replyUserHash('discord', id), name]));

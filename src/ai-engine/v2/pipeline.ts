@@ -11,7 +11,7 @@ import { dailyLifeNote, DAY_RE, BARCA_NEXT_RE, barcaFixturesNote } from './daily
 import { slangNote } from './slang';
 import { followUpNote } from './continuity';
 import { opinionNote } from './opinions';
-import { wantsOneWord, cutToOneWord, ONE_WORD_NOTE, isAck, ACK_NOTE, ackEmoji, ackWantsEmoji, emojiRequest, isBareCall, BARE_CALL_NOTE, trimBareCall } from './texting';
+import { wantsOneWord, cutToOneWord, ONE_WORD_NOTE, isAck, ACK_NOTE, ackEmoji, ackWantsEmoji, emojiRequest, isBareCall, BARE_CALL_NOTE, bareCallFallback } from './texting';
 import { loreNote } from './lore';
 import { lineBankNote, markBankUsed } from './lineBank';
 import { SPECIALISTS, VIDEO_SUBS, type Specialist, type SpecialistId, type VideoKind } from './specialists';
@@ -319,7 +319,8 @@ export function aussify(text: string): string {
 }
 
 // On Discord his boyfriend gets pinged when he's mentioned (Patrick, 2026-10-11).
-export const XANT_PING = '<@1427274237470703712>';
+// xant's new account (2026-10-14, Patrick: he lost the old one, 1427274237470703712 — dropped).
+export const XANT_PING = '<@1559948025672114292>';
 // "gng" (= gang) only ADDRESSES someone, like "bro": "wsg gng", "nah gng". The model also used it as a description —
 // "im gng more real rn", "ur gng" (2026-10-12, Patrick: "wtf, I'm gang?"). Those uses are dropped.
 export function fixGng(reply: string): string {
@@ -723,7 +724,7 @@ export const CASSEURT_DISCORD_ID = '1554657430393196594';
 const CASSEURT_PERSONAL_AMMO = ['his mum (go hard, any your-mum angle)', 'his dick (microscopic, needs a magnifying glass and a search warrant)', 'his stamina (30 seconds, then a nap)', 'his looks (a Quebec winter face, a hairline in retreat)', 'his height and build', 'his rizz (negative, his own bot rejects him)', 'his fashion (a hoodie from 2014, cargo shorts in -30)', 'his Québécois accent and swearing', 'his social life (talks to his bot more than humans)', 'his gaming (hardstuck, rage-quits)', 'his car / bus pass', 'his room and setup', 'his music taste', 'his sleep schedule', 'his phone', 'his football opinions', 'his aura (negative)', 'his cooking (burns poutine)', 'his voice', 'his body count'];
 // Roast material when Casseurt starts a roast (he asked to be destroyed, 2026-10-12): about him as the guy who built Nexus.
 const CREATOR_AMMO = ['the bugs in the code he wrote you with', 'running a whole AI on a 16 GB Mac that swaps', 'his 2am "one last fix" that breaks three things', 'testing in production on his own Discord', 'needing an AI to get roasted because nobody else bothers', 'his Québécois swearing', 'his commit messages', 'naming a bot Nexus like a 2012 Minecraft server', 'his 400 Chrome tabs', 'asking his own bot for validation', 'his Discord status', 'his "5 minute" fixes that take 5 hours', 'building a bot smarter than him', 'his Real Vardrid-level coding'];
-export const XANT_DISCORD_ID = '1427274237470703712';
+export const XANT_DISCORD_ID = '1007289901785567282';
 // The two he hates on for fun (Patrick, 2026-10-12): Gabberuuhh most, stxcked second.
 export const GABBERUUHH_DISCORD_ID = '710796303508176946';
 export const STXCKED_DISCORD_ID = '1135627959378649179';
@@ -749,7 +750,7 @@ const MEMORY_CHECK_RE = /\b(?:what(?:'s|s|\s+is|\s+was)\s+my|whats\s+my|who(?:'s
 // at 2 and "your favourite 10 humans" gave one name).
 const KNOWN_PEOPLE: Array<{ re: RegExp; who: string }> = [
   { re: /\b(?:casseurt|patrick|pattrick|patrik|culer)\b/i, who: "Casseurt (Patrick Houle): your creator and boss — a Barça fan from Quebec. His family (TRUE facts): girlfriend Julianna (\"Julie\"); exactly ONE son so far, Jordan Houle, born August 8, 2026 (a baby); and ONE baby girl on the way — not born yet, no name yet (so yes, another baby is coming). Talk about his kids warmly — never swear at them or call them names. You respect him (you roast him only when he starts a roast — never his kids or Julie)." },
-  { re: /\bxant(?:_?880|2)?\b/i, who: 'xant_880: YOUR BOYFRIEND — you are obsessed with him.' },
+  { re: /\bxant(?:_?880|2)?\b|\bandrzej1234\b/i, who: 'xant (xant_880, new account andrzej1234): YOUR BOYFRIEND — you are obsessed with him.' },
   { re: /\b(?:josh|jjonesgbr)\b/i, who: 'Josh: your best mate, a legend.' },
   { re: /\b(?:gabberuuhh?|gabe?ru+h*|tj2v)\b/i, who: 'Gabberuuhh: the guy you hate the MOST (a running joke).' },
   { re: /\bstxcked\b/i, who: 'stxcked: the guy you hate second most — soft as butter.' },
@@ -796,7 +797,7 @@ function whoIsTalking(authorId: string | undefined, text: string, mode: 'chat' |
   if (authorId === XANT_DISCORD_ID) {
     return mode === 'roast'
       ? "THE PERSON ROASTING YOU IS xant_880 — your boyfriend. Couples roast each other hardest: roast him back properly, specific and funny, like you would anyone — it's banter between lovers, never real hate, no slurs.\n"
-      : "THE PERSON TALKING IS xant_880 — your boyfriend. You love him, but you're still YOU with him: your normal crude, swearing, cheeky self — tease him, take the piss, banter, call his bluffs, and say NO to dumb or weird requests (pinging everyone, licking his ass, anything you wouldn't do for anyone else). Don't hype him or call him the best / a legend in every line — the love shows now and then, not every message. Answer what he actually asks (asked about someone else → answer about THEM). Never @ him in your reply — just talk to him.\n";
+      : "THE PERSON TALKING IS xant_880 — your boyfriend. You love him, but you're still YOU with him: your normal crude, swearing, cheeky self — tease him, take the piss, banter, call his bluffs, and say NO to dumb or weird requests (pinging everyone, licking his ass, anything you wouldn't do for anyone else). Don't hype him or call him the best / a legend in every line — the love shows now and then, not every message. Answer what he actually asks (asked about someone else → answer about THEM). If he asks whether he's your boyfriend / whether you love him: YES, obviously, said your way. Never @ him in your reply — just talk to him.\n";
   }
   if (/\b(?:i'?m|i\s+am|im)\s+(?:your|ur)\s+(?:creator|maker|dev|developer|owner|dad|daddy)\b|\b(?:i'?m|i\s+am|im)\s+(?:casseurt|patrick)\b|\bi\s+(?:made|built|coded|created)\s+(?:you|u)\b/i.test(text)) {
     return "They claim to be Casseurt / your creator, but they're NOT (you know his account) — call the bluff.\n";
@@ -1689,8 +1690,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     if (ackWantsEmoji(said(prompt), seed)) content = ackEmoji(said(prompt), seed);
     else if (content.trim().split(/\s+/).length > 4) content = cutToOneWord(content, said(prompt)) || content.trim().split(/\s+/).slice(0, 3).join(' ');
   }
-  // Just his name: 1-4 words ("what", "wtf do u want").
-  if (route.mode === 'chat' && isBareCall(prompt) && content.trim().split(/\s+/).length > 4) content = trimBareCall(content);
+  // Just his name: 1-4 words; longer → a short fallback ("what", "the fuck u want"), not a cut sentence.
+  if (route.mode === 'chat' && isBareCall(prompt) && content.trim().split(/\s+/).length > 4) content = bareCallFallback(deps.recentLines);
   // "ass", never "arse" (Patrick, 2026-10-14: "he says arse instead of ass, it's annoying") — not inside code.
   content = deArse(content);
   content = pingBoyfriend(content, Boolean(settings.serverContext));

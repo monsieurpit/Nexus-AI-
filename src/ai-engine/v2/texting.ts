@@ -177,3 +177,13 @@ export function trimBareCall(reply: string): string {
   while (words.length > 1 && DANGLING.test(words[words.length - 1].replace(/[?!.]+$/, ''))) words = words.slice(0, -1);
   return words.join(' ');
 }
+
+// Too long for just being called: one of these instead of cutting the sentence (Patrick, 2026-10-14: "it should go back
+// to a fallback where it has what, the fuck you want and other things like this"). Never the one he just used.
+export const BARE_CALL_FALLBACKS = ['what', 'what?', 'wot', 'what again', 'yeah?', 'the fuck u want', 'wtf do u want', 'what now', 'sup', 'huh?', 'mate what', 'oi what', 'spit it out', 'yes?', 'whaaat', 'im here, what', 'what do ya want', 'what u want', 'speak', 'go on then'];
+export function bareCallFallback(recent: string[] = [], r = Math.random()): string {
+  const used = new Set(recent.slice(-6).map((x) => x.trim().toLowerCase()));
+  const pool = BARE_CALL_FALLBACKS.filter((f) => !used.has(f));
+  const list = pool.length ? pool : BARE_CALL_FALLBACKS;
+  return list[Math.floor(r * list.length) % list.length];
+}
