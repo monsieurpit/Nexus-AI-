@@ -70,11 +70,13 @@ import { registerLearningAdminRoutes, loadAdminToken, isLearningAdminRequest } f
 import { newTraceId, recordTrace, startObservatory } from './src/ai-engine/observatory';
 import { textingPlan } from './src/ai-engine/v2/texting';
 import { phraseWithFacts } from './src/ai-engine/v2/pipeline';
+import { analyzeThreat, needsModel, checkLinks } from './src/ai-engine/v2/raidshieldSpecialist';
 import { recordExchange, exchangesAsHistory, detectFollowUp, forgetExchanges } from './src/ai-engine/v2/continuity';
 import { rememberOpinion } from './src/ai-engine/v2/opinions';
 import { warmLineBank } from './src/ai-engine/v2/lineBank';
 import { registerObservatoryRoutes } from './src/ai-engine/observatoryRoutes';
-import { timingSafeEqual } from 'crypto';
+import { timingSafeEqual, randomBytes as cryptoRandomBytes } from 'crypto';
+import { homedir as osHomedir } from 'os';
 import { startPriceTracker, refreshPrices, loadPrices } from './src/ai-engine/priceTracker';
 import { warmRouter } from './src/ai-engine/v2/router';
 import { analyzeVideo } from './src/ai-engine/videoAnalyzer';
@@ -1442,6 +1444,8 @@ app.post('/api/v1/nexus', async (req, res) => {
         ? clientSettings.customPersona
         : DEFAULT_PERSONAS[clientSettings.activePersonaId as ModelPersonaId] || DEFAULT_PERSONAS['crashout-bot']
       : resolveRequestedPersona(personaSelector);
+  // RaidShield is a security specialist reached only through /api/v1/raidshield/analyze — never a chat persona.
+  if (persona?.id === 'raidshield-ai') persona = DEFAULT_PERSONAS['crashout-bot'];
 
   // Aggregate user custom SDK rules
   const userRules = rules || customRules || directives || instructions || systemInstruction || '';
@@ -2486,6 +2490,67 @@ app.post('/api/v1/raidshield', aiComputeLimiter, async (req, res) => {
     const queuedExecution = await globalRequestQueue.enqueue('raidshield', scan);
     res.setHeader('X-Nexus-Queue-Wait-Ms', queuedExecution.waitTimeMs.toString());
     return res.json(remember(queuedExecution.data));
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Internal Security Evaluation Error', message: err?.message || String(err) });
+  }
+});
+
+// The RaidShield specialist (v2/raidshieldSpecialist.ts) — the bot's AI moderation only. It needs the dedicated RaidShield
+// key (~/.nexus-learning/raidshield-key, or NEXUS_RAIDSHIELD_KEY): the normal API key is accepted from anyone, so it can't
+// guard this. Same 21-rule scan and image reading as /api/v1/raidshield, then the specialist's full report.
+let raidshieldKey: string | null = null;
+function loadRaidshieldKey(): string | null {
+  if (raidshieldKey) return raidshieldKey;
+  if (process.env.NEXUS_RAIDSHIELD_KEY) return (raidshieldKey = process.env.NEXUS_RAIDSHIELD_KEY.trim());
+  const f = path.join(osHomedir(), '.nexus-learning', 'raidshield-key');
+  try {
+    if (!fs.existsSync(f)) fs.writeFileSync(f, cryptoRandomBytes(32).toString('hex'), { mode: 0o600 });
+    raidshieldKey = fs.readFileSync(f, 'utf8').trim() || null;
+  } catch {
+    raidshieldKey = null;
+  }
+  return raidshieldKey;
+}
+function isRaidshieldCaller(req: express.Request): boolean {
+  const expected = loadRaidshieldKey();
+  const given = String(req.headers['x-raidshield-key'] || '').trim();
+  if (!expected || !given) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+app.post('/api/v1/raidshield/analyze', aiComputeLimiter, async (req, res) => {
+  if (!isRaidshieldCaller(req)) return res.status(404).json({ error: 'Not found' });
+  const body = req.body || {};
+  let targetText = String(body.messageText || body.content || body.text || '').slice(0, 8000);
+  const imagePart = await resolveImagePart(body.imageUrl, body.imageData, body.image || body.attachmentUrl);
+  if (!targetText && !imagePart) return res.status(400).json({ error: 'Missing messageText or image in request body.' });
+  const ctx = body.context && typeof body.context === 'object' ? body.context : {};
+  const context = {
+    recentMessages: Array.isArray(ctx.recentMessages) ? ctx.recentMessages.filter((m: any) => typeof m === 'string').slice(-5).map((m: string) => m.slice(0, 300)) : undefined,
+    accountAgeDays: Number.isFinite(Number(ctx.accountAgeDays)) ? Number(ctx.accountAgeDays) : undefined,
+    joinedMinutesAgo: Number.isFinite(Number(ctx.joinedMinutesAgo)) ? Number(ctx.joinedMinutesAgo) : undefined,
+    channelName: typeof ctx.channelName === 'string' ? ctx.channelName.slice(0, 80) : undefined,
+  };
+  try {
+    const run = async () => {
+      let imageDescription: string | null = null;
+      if (imagePart) {
+        const v = await generateVision(imagePart.inlineData.data, 'Describe exactly what is shown in this image, in detail — including any visible text, links, QR codes, logos, or people. If there is any text visible anywhere in the image, transcribe it EXACTLY as written, word for word, in its original language (do not translate it), and state what language it appears to be in. Be factual and literal.', { timeoutMs: 30000 });
+        if (v.status === 'success') imageDescription = v.text;
+      }
+      const evalInput = [targetText, imageDescription ? `[Attached image shows: ${imageDescription}]` : ''].filter(Boolean).join(' ');
+      const rules = evaluateRaidShieldRules(evalInput || 'image_attachment_scanned');
+      const report = await analyzeThreat({ text: targetText, imageDescription, rules: { classification: rules.classification, confidence: rules.confidence, reason: rules.reason }, context });
+      return { ...report, scannedImage: Boolean(imagePart), imageDescription: imageDescription || undefined };
+    };
+    // A plain text message with nothing to judge (no rule hit, no link, no bait word) never touches the model: answered at
+    // once, without waiting behind chat replies in the model queue. Images and anything worth judging go through it.
+    const quickRules = evaluateRaidShieldRules(targetText || 'image_attachment_scanned');
+    const quick = !imagePart && !needsModel({ text: targetText, rules: quickRules, context }, checkLinks(targetText));
+    const result: any = quick ? await run() : await globalRequestQueue.enqueue('raidshield', run).then((q) => q.data);
+    if (result.classification !== 'safe' && targetText) markFlaggedByRaidShield(targetText);
+    return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ error: 'Internal Security Evaluation Error', message: err?.message || String(err) });
   }
