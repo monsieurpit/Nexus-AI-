@@ -11,6 +11,7 @@ import { dailyLifeNote, DAY_RE, BARCA_NEXT_RE, barcaFixturesNote } from './daily
 import { slangNote } from './slang';
 import { wantsOneWord, cutToOneWord, ONE_WORD_NOTE } from './texting';
 import { loreNote } from './lore';
+import { lineBankNote, markBankUsed } from './lineBank';
 import { SPECIALISTS, VIDEO_SUBS, type Specialist, type SpecialistId, type VideoKind } from './specialists';
 import { chatMeaningHints, isRepeat, isEchoReply, SAD_RE, overusedPhrases, FACT_CLAIM_RE } from '../rules/messageMode';
 import { finalizeSpecialistReply, hasContextLeak, stripCrudeAside } from '../rules/postProcess';
@@ -773,7 +774,7 @@ function whoIsTalking(authorId: string | undefined, text: string, mode: 'chat' |
   return '';
 }
 
-async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, thoughtSteps: ThoughtStep[], lang: Lang = 'en', settings?: AISettings): Promise<{ text: string; sources: string[] }> {
+async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, thoughtSteps: ThoughtStep[], lang: Lang = 'en', settings?: AISettings): Promise<{ text: string; sources: string[]; bankLines?: string[] }> {
   const s = said(prompt);
   const thread = deps.threadText ? `The chat so far (oldest first; "You" = you):\n${deps.threadText}\n\n` : '';
   const facts = deps.factsNote ? `${deps.factsNote}\n` : '';
@@ -784,6 +785,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       // His own day (dailyLife.ts) when they ask about it — "wyd", "hru", "how was your day", "you drunk?".
       const dayNote = DAY_RE.test(s) ? await dailyLifeNote().catch(() => '') : '';
       if (wantsOneWord(s)) hints.push(ONE_WORD_NOTE);
+      const bank = await lineBankNote(s);
       const lore = loreNote(s, loreName(settings?.discordUserId), !settings?.evalRun);
       if (lore) thoughtSteps.push({ id: 'step-v2-lore', type: 'reasoning', title: '🎭 Server lore (inside joke)', description: lore.slice(0, 300) });
       // A slur, or "kill yourself", is never repeated — even on "say ..." (2026-10-12: "say nigggggger" was said back).
@@ -805,8 +807,9 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${peopleNote(s)}${lore}${dayNote ? `${dayNote}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${peopleNote(s)}${lore}${bank.note}${dayNote ? `${dayNote}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
+        bankLines: bank.lines,
       };
     }
     case 'roast': {
@@ -828,10 +831,12 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       }
       lastRoastPlan = { plan, ammo: isCreator ? [] : settings?.personal?.recent?.length ? settings.personal.recent.slice(-6) : ammoFrom(deps.threadText) };
       const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
+      const bank = await lineBankNote(s);
       thoughtSteps.push({ id: 'step-v2-roast-plan', type: 'reasoning', title: `🔥 Roast engine: ${plan.kind}${plan.move ? ` / ${plan.move}` : ''}${plan.round > 1 ? ` · round ${plan.round}` : ''}`, description: plan.note.slice(0, 600) });
       return {
-        text: `${thread}${facts}${lang === 'en' ? `${aussieNote(s)}\n` : ''}${toneLine(effectiveDials(settings?.discordUserId))}\n${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${loreNote(s, loreName(settings?.discordUserId), !settings?.evalRun)}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${MULTI_ROAST_RE.test(s) ? `They asked for SEVERAL roasts: write ${multiRoastCount(s) + 2} DIFFERENT savage roasts of them (8-25 words each), one per line, no numbers, no intro (the best ${multiRoastCount(s)} get sent):` : settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 5 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 5 DIFFERENT comebacks of that type, each one brutal and specific, one per line, no numbers, no intro (the best one gets sent):'}`,
+        text: `${thread}${facts}${lang === 'en' ? `${aussieNote(s)}\n` : ''}${toneLine(effectiveDials(settings?.discordUserId))}\n${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${loreNote(s, loreName(settings?.discordUserId), !settings?.evalRun)}${bank.note}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${MULTI_ROAST_RE.test(s) ? `They asked for SEVERAL roasts: write ${multiRoastCount(s) + 2} DIFFERENT savage roasts of them (8-25 words each), one per line, no numbers, no intro (the best ${multiRoastCount(s)} get sent):` : settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 5 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 5 DIFFERENT comebacks of that type, each one brutal and specific, one per line, no numbers, no intro (the best one gets sent):'}`,
         sources: [],
+        bankLines: bank.lines,
       };
     }
     case 'question': {
@@ -1545,6 +1550,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
   else content = stripBannedEmojiOutsideCode(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = fixGng(content);
+  // A bank line he used (lineBank.ts) rests for 12 h, so the same joke doesn't come back all day.
+  if ((route.mode === 'chat' || route.mode === 'roast') && built.bankLines?.length) markBankUsed(content, built.bankLines);
   // A one-word question gets one word (Patrick, 2026-10-13: "if he can answer in only 1 word, he actually does") — last,
   // after the clean-up steps that can add Aussie filler ("messi" → "messi bloody oath").
   if (route.mode === 'chat' && wantsOneWord(said(prompt))) {

@@ -69,6 +69,7 @@ import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
 import { registerLearningAdminRoutes, loadAdminToken, isLearningAdminRequest } from './src/ai-engine/learning/admin';
 import { newTraceId, recordTrace, startObservatory } from './src/ai-engine/observatory';
 import { textingPlan } from './src/ai-engine/v2/texting';
+import { warmLineBank } from './src/ai-engine/v2/lineBank';
 import { registerObservatoryRoutes } from './src/ai-engine/observatoryRoutes';
 import { timingSafeEqual } from 'crypto';
 import { startPriceTracker, refreshPrices, loadPrices } from './src/ai-engine/priceTracker';
@@ -3187,6 +3188,7 @@ async function startServer() {
     // Weekly automatic PC price snapshot via live web search (NEXUS_PRICE_TRACKER=off to disable).
     startPriceTracker(() => isModelBusy());
     warmRouter();
+    warmLineBank();
     startKeepHot();
     // Regressions found automatically also go to the engine's Discord log channel (when DISCORD_LOG_WEBHOOK_URL is set).
     startObservatory({ onAlert: (f) => void postToDiscordLog(`📉 Nexus regression (${f.severity}): ${f.message}`, f.severity === 'high' ? 'error' : 'warn') });

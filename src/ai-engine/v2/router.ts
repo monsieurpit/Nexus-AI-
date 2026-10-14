@@ -410,6 +410,9 @@ export async function routeMessage(raw: string): Promise<Route> {
     if (m.mode === 'writing' && (!WRITING_CUE_RE.test(text) || /^what\s+would\s+(?:you|u)\b|\bwrite\s+(?:your|ur|my|his|her)\s+name\b/i.test(text))) return fallback('no writing request');
     if (m.mode === 'pc' && TECH_HELP_RE.test(text) && !/\b(?:build|budget|parts?\s+list|upgrade|which\s+(?:gpu|cpu)|should\s+i\s+(?:buy|get))\b/i.test(text)) return { mode: 'question', by: 'meaning', reason: `${m.reason}; tech help, not a build`, confidence: 0.6 };
     if (m.mode === 'pc' && !PC_CUE_RE.test(text)) return fallback('no pc word');
+    // Telling Nexus about themselves ("i let in 6 goals today", "my team lost") is chat, not a web search — a near-tie
+    // vote sent it to search and he answered with a Cristiano FC 26 video (2026-10-13).
+    if (m.mode === 'search' && m.confidence < 0.3 && /^(?:i|im|i'm|i've|ive|my|we|we're|our)\b/i.test(text) && !/\?\s*$/.test(text)) return { mode: 'chat', by: 'meaning', reason: `${m.reason}; they're telling you about themselves, so chat`, confidence: 0.5 };
     // Search costs quota and seconds: a close vote for it without anything current in the message is a normal question
     // ("who is messi" needs no live search; "who won last night" does).
     if (m.mode === 'search' && m.confidence < 0.3 && !/\b(?:price|prices|cost|news|today|tonight|yesterday|now|rn|currently|latest|recent(?:ly)?|score|won|winning|weather|forecast|update|released?|this\s+(?:week|month|year|season|weekend)|last\s+(?:night|week|match|game|race)|20[2-3]\d)\b/i.test(text)) return fallback('close vote for search but nothing current, so a normal question');
