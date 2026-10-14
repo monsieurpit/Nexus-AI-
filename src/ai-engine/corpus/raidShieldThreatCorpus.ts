@@ -31,6 +31,8 @@
  * the `rules/raidshield.ts` cascade.
  */
 
+import { RAIDSHIELD_EXPANSION } from './raidShieldCorpusExpansion';
+
 export type RaidShieldCorpusClassification = 'scam' | 'spam' | 'bot' | 'raid' | 'safe';
 
 export interface RaidShieldThreatPattern {
@@ -615,6 +617,8 @@ const RAID: RaidShieldThreatPattern[] = [
   t('raid-tool-advert', 'raid', 0.92, 'Advertising a raid tool / server nuker / token raider.', {
     keywords: ['raid tool', 'nuker', 'raider'],
     allOf: [/\b(?:raid\s+tool|server\s+nuker|nuke\s+bot|discord\s+raider|token\s+raider|raid\s+bot|self[-\s]?bot\s+raid|nightmare\s+bot|deleter\s+bot)\b/i],
+    // ("we need an anti-raid bot" was flagged as advertising a raid tool, 2026-10-14)
+    exempt: [/\banti[-\s]?(?:raid|nuke)\b|\b(?:protect|protection|stop|prevent|block)\b/i],
   }),
   t('raid-join-token-raid', 'raid', 0.9, 'Recruiting for a "token raid" / mass-account raid.', {
     keywords: ['token raid', 'join the raid'],
@@ -1398,6 +1402,8 @@ export const RAIDSHIELD_THREAT_CORPUS: RaidShieldThreatPattern[] = [
   ...PARTNER,
   ...MULTILANG,
   ...SUPPLEMENT,
+  // 2026-10-14: +800 scam / spam / bot / raid patterns (raidShieldCorpusExpansion.ts)
+  ...RAIDSHIELD_EXPANSION,
 ];
 
 /** Total distinct patterns in this corpus (threats + safe guards). */
