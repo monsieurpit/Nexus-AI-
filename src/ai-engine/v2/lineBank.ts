@@ -257,6 +257,8 @@ export function copiesBankLine(reply: string, lines: string[]): boolean {
   const r = ` ${w(reply).join(' ')} `;
   return lines.some((l) => {
     const lw = w(l);
+    // a short line (≤ 3 words, "present, unfortunately") counts when all its words are there, in order
+    if (lw.length <= 3) return lw.length >= 1 && new RegExp(`\\b${lw.join('\\b.*\\b')}\\b`).test(r);
     for (let i = 0; i + 3 <= lw.length; i++) {
       const gram = lw.slice(i, i + 3);
       // three tiny words ("i dont do") aren't a copy; three with something distinctive are

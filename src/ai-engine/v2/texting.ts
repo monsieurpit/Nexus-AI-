@@ -160,3 +160,20 @@ export function emojiRequest(message: string): string | null {
   const literal = message.match(/\p{Extended_Pictographic}️?/u);
   return literal ? literal[0] : null;
 }
+
+// Just his name ("nexus", "yo nexus", "nexus?", "nexus nexus nexus", a bare mention): answered like a mate who got
+// called — "what", "what again", "wtf do u want" (Patrick, 2026-10-14: "when we only say Nexus he answers too long").
+export const BARE_CALL_RE = /^\s*(?:(?:yo+|oi+|hey+|ay+|ayo+|psst|bro|mate|hello|hi)[\s,]+)?(?:@?nexus[\s?!.,]*)+$/i;
+export function isBareCall(message: string): boolean {
+  return BARE_CALL_RE.test(message.trim());
+}
+export const BARE_CALL_NOTE = 'They just called your name, nothing else. Answer like a mate who got called: 1-4 words MAX ("what", "what again", "yeah?", "wtf do u want", "sup") — if they keep calling you, sound more annoyed. Nothing else.';
+// Longer than 4 words → its first short clause, max 4 words.
+// (never ends on a dangling word: "what again u fuckin" / "sup cuz u want" were cut mid-phrase)
+const DANGLING = /^(?:u|ur|you|your|ya|yer|the|a|an|to|do|did|is|are|and|or|but|cuz|cos|fuckin|fucking|so|for|of|with|what|wtf|want|ay)$/i;
+export function trimBareCall(reply: string): string {
+  const first = reply.trim().split(/(?<=[?!.])\s+|,\s+/)[0].replace(/[,;:]$/, '');
+  let words = first.split(/\s+/).slice(0, 5);
+  while (words.length > 1 && DANGLING.test(words[words.length - 1].replace(/[?!.]+$/, ''))) words = words.slice(0, -1);
+  return words.join(' ');
+}
