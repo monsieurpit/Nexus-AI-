@@ -216,8 +216,10 @@ const TIME_REGEX =
   /\bwie\s+sp(?:ä|ae)t\s+ist\s+es\b|\bwieviel\s+uhr\s+ist\s+es\b|\bwhat\s+time\s+is\s+it\b|\bwhat'?s\s+the\s+time\b|\bcurrent\s+time\b|\bquelle\s+heure\s+(?:est[- ]il|il\s+est|qu'il\s+est)\b|\bil\s+est\s+quelle\s+heure\b/i;
 const TIME_CITY_REGEX = /(?:^|\s)(?:in|for|at|à|a|en|pour|dans)\s+([a-zà-ÿ][a-zà-ÿ\s'-]{1,40}?)(?:[?.!,]|$)/i;
 
-export function detectTimeIntent(prompt: string): { city: string | null } | null {
-  if (!TIME_REGEX.test(prompt)) return null;
+export function detectTimeIntent(rawPrompt: string): { city: string | null } | null {
+  if (!TIME_REGEX.test(rawPrompt)) return null;
+  // "what time is it there / for you / where you are" = where HE lives: Sydney (it answered Quebec time, 2026-10-13).
+  const prompt = rawPrompt.replace(/\b(?:(?:over\s+)?there|for\s+(?:you|u)|where\s+(?:you|u)\s+(?:are|live|at)|(?:in|at)\s+(?:your|ur)\s+(?:city|place|end|area|side))\b(?=[\s?!.]*$)/i, 'in Sydney');
   const cityMatch = prompt.match(TIME_CITY_REGEX);
   const city = cityMatch ? cityMatch[1].trim() : null;
   return { city };

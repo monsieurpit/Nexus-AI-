@@ -65,7 +65,10 @@ export function parseFacts(text: string): Array<{ text: string; kind: 'interest'
     // "F1 | running_joke |": the model sometimes keeps writing columns — only the first one is the memory.
     const memo = m[3].split('|')[0].replace(/\s*\((?:implied|e\.g\.)[^)]*\)/gi, '').trim();
     // Observatory: why each line was thrown away (counts only).
-    const why = memo.length < 2 || /^(?:is|has)\s+\S{1,8}$/i.test(memo) ? 'junk' : /\bparents?\b/i.test(memo) || SENSITIVE_LINE_RE.test(m[3]) ? 'sensitive' : ABOUT_THE_CHAT_RE.test(m[3]) ? 'about the chat, not them' : EXPLICIT_RE.test(m[3]) ? 'sexual / slur / site' : '';
+    // Questions they asked ABOUT NEXUS are not facts about them ("so your last name is Francklin and your black?" became
+    // "claims last name is Francklin" / "claims to be black" on Casseurt, 2026-10-13), and "claims…" is never a fact.
+    const aboutNexus = /\b(?:francklin|nexus|chatgpt|the\s+ai|sydney|bondi|parramatta|aussie|australian|staffy|bogan\s+the|kiara|denise)\b/i.test(memo) || (m[1].toLowerCase() === 'fact' && /^claims?\b/i.test(memo));
+    const why = aboutNexus ? 'about Nexus, not them' : memo.length < 2 || /^(?:is|has)\s+\S{1,8}$/i.test(memo) ? 'junk' : /\bparents?\b/i.test(memo) || SENSITIVE_LINE_RE.test(m[3]) ? 'sensitive' : ABOUT_THE_CHAT_RE.test(m[3]) ? 'about the chat, not them' : EXPLICIT_RE.test(m[3]) ? 'sexual / slur / site' : '';
     if (why) {
       recordMemory('rejected', why);
       continue;
@@ -84,7 +87,7 @@ const ABOUT_THE_CHAT_RE = /\b(?:the\s+bot|bot['’]?s?|nexus|towards?\s+(?:him|i
 // Sexual stuff, porn sites, slurs: never kept.
 const EXPLICIT_RE = /\b(?:sex\w*|porn\w*|nsfw|explicit|goon\w*|e621|bonnie\s+blue|hentai|onlyfans|nigg\w*|fag\w*|retard\w*|\w+\.(?:com|net|org|at|xxx|io))\b/i;
 // Lines about sensitive topics are dropped even if the model wrote them anyway.
-const SENSITIVE_LINE_RE = /\b(?:depress\w*|anxiety|anxious|suicid\w*|self[\s-]?harm|therap\w*|diagnos\w*|adhd|autis\w*|disab\w*|religio\w*|church|mosque|muslim|christian|jewish|ethnic\w*|race|racial|lives\s+in|address|school\s+name|attends|grade\s+\d|years?\s+old|\b1[0-7]\s*yo\b|divorce|abuse\w*|parents?\s+(?:fight|split))\b/i;
+const SENSITIVE_LINE_RE = /\b(?:(?:is|be|being|am|as|they'?re|a)\s+(?:a\s+)?(?:black|white|asian|latino|latina|hispanic|arab|mixed)(?:\s+(?:guy|girl|man|woman|person|kid|dude))?(?:\s*$|\s*[,.;])|skin\s+colou?r|depress\w*|anxiety|anxious|suicid\w*|self[\s-]?harm|therap\w*|diagnos\w*|adhd|autis\w*|disab\w*|religio\w*|church|mosque|muslim|christian|jewish|ethnic\w*|race|racial|lives\s+in|address|school\s+name|attends|grade\s+\d|years?\s+old|\b1[0-7]\s*yo\b|divorce|abuse\w*|parents?\s+(?:fight|split))\b/i;
 export function cleanSummary(text: string): string {
   return text
     .split('\n')

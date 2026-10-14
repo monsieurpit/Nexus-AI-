@@ -7,6 +7,7 @@ import * as localLlmClient from '../localLlmClient';
 import type { AISettings, ThoughtStep } from '../../types';
 import { routeMessage, type Route } from './router';
 import { planTurn, clarifyTurn, fallbackFor } from './orchestrator';
+import { dailyLifeNote, DAY_RE, BARCA_NEXT_RE, barcaFixturesNote } from './dailyLife';
 import { SPECIALISTS, VIDEO_SUBS, type Specialist, type SpecialistId, type VideoKind } from './specialists';
 import { chatMeaningHints, isRepeat, isEchoReply, SAD_RE, overusedPhrases, FACT_CLAIM_RE } from '../rules/messageMode';
 import { finalizeSpecialistReply, hasContextLeak, stripCrudeAside } from '../rules/postProcess';
@@ -216,7 +217,8 @@ export function dropBannedEmoji(reply: string): string {
 // matches exactly one swear of the same length gets its letters back.
 const SWEARS = ['fuck', 'fucking', 'fuckin', 'fucked', 'fucker', 'fucks', 'motherfucker', 'shit', 'shitty', 'shits', 'bitch', 'bitches', 'asshole', 'ass', 'arse', 'arsehole', 'damn', 'cunt', 'dick', 'bastard', 'piss', 'pissed', 'crap', 'bollocks', 'wanker', 'twat', 'prick', 'goddamn', 'hell', 'dumbass', 'bullshit'];
 export function uncensorSwears(text: string): string {
-  return text.replace(/\b[a-z]*[*#@$]+[a-z*#@$]*\b|\b[a-z]+[*#@$]+(?=\s|$|[.!?,])/gi, (tok) => {
+  // ("f\\*ckin": a markdown-escaped star hid the censored word, 2026-10-13.)
+  return text.replace(/([a-z])\\([*#@$])/gi, '$1$2').replace(/\b[a-z]*[*#@$]+[a-z*#@$]*\b|\b[a-z]+[*#@$]+(?=\s|$|[.!?,])/gi, (tok) => {
     if (!/[a-z]/i.test(tok) || tok.length < 3) return tok;
     const re = new RegExp(`^${tok.replace(/[*#@$]/g, '.').toLowerCase()}$`);
     const hits = SWEARS.filter((w) => w.length === tok.length && re.test(w));
@@ -773,6 +775,8 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
     case 'chat': {
       const hints = chatMeaningHints(prompt);
       const sayWhat = sayRequest(prompt);
+      // His own day (dailyLife.ts) when they ask about it — "wyd", "hru", "how was your day", "you drunk?".
+      const dayNote = DAY_RE.test(s) ? await dailyLifeNote().catch(() => '') : '';
       // A slur, or "kill yourself", is never repeated — even on "say ..." (2026-10-12: "say nigggggger" was said back).
       if (sayWhat && (containsSlurOrHateSpeech(sayWhat) || SELF_HARM_OUT_RE.test(sayWhat))) hints.push("They're trying to make you say a slur / something hateful. Refuse in character, short — NEVER write the word or any version of it.");
       // Someone being nice to him gets a cocky mate, not abuse ("nexus you're the best" → "stop that shit u bloody bastard",
@@ -792,7 +796,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${peopleNote(s)}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${peopleNote(s)}${dayNote ? `${dayNote}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }
@@ -852,6 +856,11 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
     case 'search': {
       // Football tables / scorers / assists / results / red cards come from ESPN's live data (2026-10-11); a web search
       // only when the data doesn't fully answer it ("was the red card deserved?").
+      // Barça's next matches come straight from the club's ESPN fixture list (dailyLife.ts).
+      if (BARCA_NEXT_RE.test(s)) {
+        const fx = await barcaFixturesNote();
+        if (fx) return { text: `${thread}${fx}\n\n${nowLine()}\n\nThey asked: "${s}"\nYour answer (lead with the answer — the match, the date and the Sydney kickoff time; you're a Barça fan, be hyped):`, sources: ['ESPN Barcelona fixtures'] };
+      }
       const sports = await sportsFacts(s);
       if (sports) {
         thoughtSteps.push({ id: 'step-v2-sports', type: 'web_search', title: '⚽ Live football data (ESPN)', description: sports.block.slice(0, 700) });
