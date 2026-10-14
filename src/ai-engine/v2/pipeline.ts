@@ -726,12 +726,16 @@ const loreName = (id?: string) => ({ [CASSEURT_DISCORD_ID]: 'casseurt', [XANT_DI
 // "i dunno who the fuck that is", "what do you think of pattrick" got "he's just code", "top 10 people you hate" stopped
 // at 2 and "your favourite 10 humans" gave one name).
 const KNOWN_PEOPLE: Array<{ re: RegExp; who: string }> = [
-  { re: /\b(?:casseurt|patrick|pattrick|patrik|culer)\b/i, who: 'Casseurt (Patrick): your creator and boss — a Barça fan from Quebec. You respect him (you roast him only when he starts a roast).' },
+  { re: /\b(?:casseurt|patrick|pattrick|patrik|culer)\b/i, who: "Casseurt (Patrick Houle): your creator and boss — a Barça fan from Quebec. His family (TRUE facts): girlfriend Julianna (\"Julie\"); exactly ONE son so far, Jordan Houle, born August 8, 2026 (a baby); and ONE baby girl on the way — not born yet, no name yet (so yes, another baby is coming). Talk about his kids warmly — never swear at them or call them names. You respect him (you roast him only when he starts a roast — never his kids or Julie)." },
   { re: /\bxant(?:_?880|2)?\b/i, who: 'xant_880: YOUR BOYFRIEND — you are obsessed with him.' },
   { re: /\b(?:josh|jjonesgbr)\b/i, who: 'Josh: your best mate, a legend.' },
   { re: /\b(?:gabberuuhh?|gabe?ru+h*|tj2v)\b/i, who: 'Gabberuuhh: the guy you hate the MOST (a running joke).' },
   { re: /\bstxcked\b/i, who: 'stxcked: the guy you hate second most — soft as butter.' },
   { re: /\b(?:rikkie|rikkieboy14|richardboy16|richard)\b/i, who: 'Rikkie (Richardboy16): someone you hate (a running joke).' },
+  // His family by their own names (2026-10-13: "whats the name of patrick's son" got "he dont have a son", "when was jordan
+  // born" was answered about Michael Jordan).
+  { re: /(?<!michael\s|air\s)\bjordan(?:\s+houle)?\b(?!\s*(?:peterson|river|1|4|11|shoes?|retro|brand))|\b(?:his|patrick'?s|casseurt'?s)\s+(?:son|kid|kids|baby|babies|daughter|children|family)\b/i, who: 'Jordan Houle: Casseurt\'s only son so far, born August 8, 2026 — a baby. Casseurt also has ONE baby girl on the way (not born yet, no name yet). Warm about them — never swear at them, call them names or joke at their expense.' },
+  { re: /\b(?:julie|julianna|juliana)\b|\b(?:his|patrick'?s|casseurt'?s)\s+(?:gf|girlfriend|missus|wife|partner)\b/i, who: 'Julianna ("Julie"): Casseurt\'s girlfriend, mum of Jordan and of the baby girl on the way. Respectful, never a joke about her.' },
   { re: /^\s*owo\s+\w+/i, who: '"owo <word>" (owo kill / lick / hug / kiss…) is a command for OwO, ANOTHER Discord bot — not really aimed at you; react in a few words or take the piss out of the command.' },
 ];
 const PEOPLE_LIST_RE = /\b(?:top\s*\d+|\d+\s+(?:people|persons?|humans?|members?|guys|girls|men|women|celebs|celebrities)|(?:people|humans?|members?|persons?)\s+(?:you|u)\s+(?:like|love|hate|rate)|(?:favou?rite|best|worst)\s+(?:people|humans?|members?|persons?|mates?)|(?:enemies|friends|besties)\b|who\s+(?:do\s+)?(?:you|u)\s+(?:hate|like|love)\s+(?:the\s+)?most|(?:everyone|every\s*1|all\s+the\s+people)\s+(?:you|u)\s+(?:hate|like))/i;
@@ -1282,7 +1286,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     }
   }
   // "who is Richardboy16" / "what do you think of pattrick": people he knows, not a web lookup (17 s for "i dunno").
-  if ((route.mode === 'question' || route.mode === 'search') && /^(?:who\s+(?:is|r|are)|what\s+do\s+(?:you|u)\s+think\s+(?:of|about)|do\s+(?:you|u)\s+(?:know|like|hate))\b/i.test(said(text || '')) && KNOWN_PEOPLE.slice(0, 6).some((p) => p.re.test(text || ''))) {
+  if ((route.mode === 'question' || route.mode === 'search') && ((/^(?:who\s+(?:is|r|are)|what\s+do\s+(?:you|u)\s+think\s+(?:of|about)|do\s+(?:you|u)\s+(?:know|like|hate))\b/i.test(said(text || '')) && KNOWN_PEOPLE.slice(0, 6).some((p) => p.re.test(text || ''))) || KNOWN_PEOPLE.slice(6, 8).some((p) => p.re.test(text || '')) || /\b(?:casseurt|patrick)\b.*\b(?:kids?|son|daughter|baby|children|girlfriend|gf|family)\b|\b(?:kids?|son|daughter|baby|children|girlfriend|gf|family)\b.*\b(?:casseurt|patrick)\b/i.test(text || ''))) {
     route = { mode: 'chat', by: 'rule', reason: `someone you know (was ${route.mode})`, confidence: 1 };
   }
   if (author && route.mode !== 'roast') noteNonRoast(author);
@@ -1578,11 +1582,45 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (route.mode === 'chat' || route.mode === 'roast') content = fixGng(content);
   // A cheeky "who would you crack / smash" list never names anyone from the server (some are minors) or his family —
   // the model put xant in one twice (2026-10-13). Those lines go, the rest is renumbered.
-  if (route.mode === 'chat' && LIST_REQUEST_RE.test(said(prompt)) && /\b(?:crack\w*|smash|goon\w*|fuck|bang|rail|hot|sexy|thirst\w*)\b/i.test(said(prompt))) {
-    const banned = [...KNOWN_PEOPLE.slice(0, 6).map((p) => p.re), /\b(?:kiara|denise|bogan|nexus|casseurt|patrick)\b/i];
+  const crudeList = route.mode === 'chat' && LIST_REQUEST_RE.test(said(prompt)) && /\b(?:crack\w*|smash|goon\w*|fuck|bang|rail|hot|sexy|thirst\w*)\b/i.test(said(prompt));
+  const scrubCrudeList = () => {
+    if (!crudeList) return;
+    // (2026-10-13: a 100-name list had "julianna", "jordan the future tiny boss" and "baby girl coming soon" in it —
+    // Casseurt's girlfriend, baby son and unborn daughter. Never: family, babies, kids, anyone he knows, himself.)
+    const banned = [...KNOWN_PEOPLE.slice(0, 8).map((p) => p.re), /\b(?:kiara|denise|bogan|nexus|casseurt|patrick|houle|julie|julianna|juliana|jordan|pookie|my\s+(?:bf|boyfriend|man|babe|boo|king|mum|mom|sister|creator|boss)|babies|baby|kids?|child(?:ren)?|son|daughter|toddler|infant|newborn|little\s+(?:girl|boy)|teen\w*|minor|young(?:er)?\s+(?:girl|boy|actress|actor)|schoolgirl|schoolboy|underage|wonderkid|prodigy|gemma|chatbot|xant)\b|\b1[0-7]\s*(?:yo|year)/i];
     let n = 0;
     content = content.split('\n').filter((l) => !(/^\s*\d{1,3}[.)]/.test(l) && banned.some((re) => re.test(l)))).map((l) => (/^\s*\d{1,3}[.)]/.test(l) ? l.replace(/^\s*\d{1,3}[.)]/, `${++n}.`) : l)).join('\n');
+  };
+  scrubCrudeList();
+  // Lists: no name twice (a 100-list had DiCaprio 6 times), and a list that stopped short is CONTINUED from where it
+  // stopped, not accepted half-done (Patrick, 2026-10-13: "he doesn't finish his answers").
+  if (route.mode === 'chat' && LIST_REQUEST_RE.test(said(prompt))) {
+    const want = listCount(said(prompt));
+    const numbered = (t: string) => t.split('\n').filter((l) => /^\s*\d{1,3}[.)]\s+\S/.test(l));
+    const key = (l: string) => l.replace(/^\s*\d{1,3}[.)]\s+/, '').toLowerCase().replace(/[^\p{L}\s]/gu, '').split(/\s+/).slice(0, 2).join(' ');
+    const dedupe = (t: string) => {
+      const seen = new Set<string>();
+      let n = 0;
+      return t.split('\n').filter((l) => !/^\s*\d{1,3}[.)]\s+\S/.test(l) || (seen.has(key(l)) ? false : (seen.add(key(l)), true))).map((l) => (/^\s*\d{1,3}[.)]/.test(l) ? l.replace(/^\s*\d{1,3}[.)]/, `${++n}.`) : l)).join('\n');
+    };
+    content = dedupe(content);
+    for (let round = 0; round < 4 && want > 1 && numbered(content).length < want; round++) {
+      const have = numbered(content);
+      const more = await generateWith(
+        { ...genSpec, maxTokens: 40 + (want - have.length) * (want > 20 ? 16 : 30) },
+        `${userTurn}\n\nYOUR LIST SO FAR:\n${have.map((l) => l.trim()).join('\n').slice(-3500)}\n\nContinue it: write ONLY items ${have.length + 1} to ${want}, same format, one per line, numbered — none of the names already above, no intro, no outro.`,
+        lang
+      );
+      if (!more) break;
+      const added = numbered(dropBannedEmoji(finalizeSpecialistReply(more, 'list', said(prompt), baseLang(lang))));
+      if (!added.length) break;
+      content = dedupe(`${content}\n${added.join('\n')}`);
+    }
+    // never more than they asked for
+    let kept = 0;
+    content = content.split('\n').filter((l) => !/^\s*\d{1,3}[.)]\s+\S/.test(l) || ++kept <= Math.max(want, 1)).join('\n');
   }
+  scrubCrudeList(); // again: continued items get the same filter
   // A bank line he used (lineBank.ts) rests for 12 h, so the same joke doesn't come back all day.
   if ((route.mode === 'chat' || route.mode === 'roast') && built.bankLines?.length) markBankUsed(content, built.bankLines);
   // A one-word question gets one word (Patrick, 2026-10-13: "if he can answer in only 1 word, he actually does") — last,

@@ -602,7 +602,9 @@ async function runDeterministicChecks() {
       const tool = d.query('INSERT INTO tools (ts, tool, outcome, ms) VALUES (?, ?, ?, 100)');
       // A normal week: chat ~3 s, nothing failing, web search fine.
       for (let i = 0; i < 300; i++) { ins.run(`b${i}`, now - 3 * H - i * 30 * 60_000, 'chat', 2800 + (i % 7) * 100, 'ok', null, 0); tool.run(now - 3 * H - i * 30 * 60_000, 'web search', 'ok'); }
-      const quiet = obs.detectRegressions(now).length === 0;
+      // (only what this test seeds: the reply-log flags and the gate history are read from the real files)
+      const own = (k: string) => !/^(?:quality|gate)/.test(k);
+      const quiet = obs.detectRegressions(now).filter((f) => own(f.key)).length === 0;
       // The last 2 hours: chat 3x slower, 4 failed replies, search failing — and a burst of slow TEST runs that must not count.
       for (let i = 0; i < 20; i++) ins.run(`c${i}`, now - i * 5 * 60_000, 'chat', 9500 + i * 50, i < 4 ? 'failed' : 'ok', null, 0);
       for (let i = 0; i < 30; i++) ins.run(`e${i}`, now - i * 60_000, 'code', 60000, 'error', null, 1);
@@ -651,6 +653,8 @@ async function runDeterministicChecks() {
     { const jd = await import('../src/ai-engine/v2/judge');
       const c = jd.chatCandidates('1. welcome to the club mate\n2) "hard knocks gng"\n- muppet got cooked\nwelcome to the club mate');
       check('judge: chat\'s three replies are split cleanly (numbers, quotes, bullets, duplicates)', c.join('|') === 'welcome to the club mate|hard knocks gng|muppet got cooked'); }
+    { const pl3 = await import('../src/ai-engine/v2/pipeline');
+      check("Casseurt's family: son Jordan (born Aug 8, 2026), a baby girl on the way, Julie — and Michael Jordan stays Michael Jordan", /Jordan Houle, born August 8, 2026/.test(pl3.peopleNote('does casseurt have kids?')) && /baby girl on the way/.test(pl3.peopleNote('whats the name of patricks son')) && /Jordan Houle/.test(pl3.peopleNote('when was jordan born')) && !/Jordan Houle/.test(pl3.peopleNote('is michael jordan the goat')) && /Julie/.test(pl3.peopleNote('who is julie'))); }
     check('morse: written and read exactly, only when asked', morseTask('say hi in morse')?.morse === '.... ..' && morseTask('morse code for SOS')?.morse === '... --- ...' && morseTask('translate this to morse: good night')?.morse === '--. --- --- -.. / -. .. --. .... -' && morseTask('.... . .-.. .-.. --- / -. . -..- ..- ...')?.text === 'HELLO NEXUS' && morseToText(textToMorse('Hello, World! 123')) === 'HELLO, WORLD! 123' && !morseTask('how does morse code work') && !morseTask('hmm... ok - fine') && !morseTask('lol ...') && !morseTask('nexus you are a pickle') && !morseTask("j'ai vu un morse au zoo") && !morseTask("c'est quoi un morse") && !morseTask('les morses sont gros en esti') && !morseTask('nexus t un morse') && !morseTask('un morse ça mange quoi?') && withMorse('easy .... ..', morseTask('say hi in morse')!) === 'easy\n```\n.... ..\n```');
     check('longer echoes with slang are detected ("alr bet, i will gn this shitbag")', isEchoReply('alr bet, i will gn this shitbag', 'Wdym I will goodnight this shitbag 😭😭') && !isEchoReply('alr bet', 'go to sleep nexus') && !isEchoReply('gn mate sleep tight', 'goodnight nexus') && !isEchoReply('messi is the goat obviously, not even close', 'who is the goat messi or ronaldo'));
     check('repeats are detected', isRepeat('a clone?', ['a clone?']) && !isRepeat('nah fam', ['a clone?']));
