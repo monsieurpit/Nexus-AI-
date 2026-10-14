@@ -73,9 +73,6 @@ export function cutToOneWord(reply: string, message: string): string | null {
   return null;
 }
 
-// A pure reaction message: "lol", "lmao", "💀", "W", "bruh" — nothing to answer but the vibe.
-const REACTION_RE = /^(?:lol+|lmao+|lmfao+|haha+|hahaha+|xd+|w|l|bruh+|bro+|damn+|sheesh+|💀+|😭+|😂+|🤣+|🔥+|ok+|k+|fr+|real+|true+|facts|same)[\s!.💀😭😂🤣🔥]*$/iu;
-const REACTION_EMOJI = ['💀', '😭', '🤣', '😂', '🗿', '💯'];
 
 function seeded(seed: string): number {
   let h = 2166136261;
@@ -110,13 +107,56 @@ export function textingPlan(reply: string, userText: string, mode: string, messa
   const casual = mode === 'chat' || mode === 'roast';
   const plain = reply.trim();
   if (!casual || !plain) return { parts: [plain], react: null };
-  // A pure reaction: sometimes just an emoji back (still an answer), sometimes the reply.
-  if (REACTION_RE.test(userText.trim()) && r < 0.35) {
-    return { parts: [REACTION_EMOJI[Math.floor(r * 100) % REACTION_EMOJI.length]], react: null };
-  }
   const funny = /(?:lol|lmao|haha|😂|🤣|💀|😭|\bw\b|ur\s+mum|your\s+mom|roast)/i.test(userText);
   const react = funny && r > 0.8 ? (r > 0.9 ? '💀' : '😭') : null;
   // Roasts land as one line; chat sometimes goes out in pieces (about a third of the time when it can be split).
   const parts = mode === 'chat' && r < 0.35 ? splitLikeTexting(plain) : [plain];
   return { parts, react };
+}
+
+// ---- reactions and acknowledgements (2026-10-14, Patrick: "at some, he could've just answered with an emoji or in one
+// word but he didn't — I liked the one time he only answered 😭") -------------------------------------------------
+// "yeah", "lol", "damn", "nice", "ight", "idk", "bet", "ikr", "you bet i am"…: nothing to answer but the vibe. About half
+// get an emoji that fits, the rest 1-3 words ("fr", "ikr", "real") — never a filler sentence, and never nothing.
+const ACK_WORDS = String.raw`(?:ya+h*|yea+h?|yep|yup|ye+|nice|ight|aight|alr|alright|ok+(?:ay)?|k+|idk|ikr|true|tru|real|facts|fax|same|bet|damn+|dang|lo+l+|lmao+|lmfao+|ha(?:ha)+|xd+|w|l|bruh+|bro+|fr+|frfr|ong|cool|sure|mhm+|hm+|wow+|oof|rip|gg|nah|no+|yes+|exactly|word|based|sheesh+|crazy|wild|insane|wtf|true\s+that|fair|fair\s+enough|ok\s+bro|thats\s+crazy|for\s+real|no\s+way|bet\s+bro|you\s+bet(?:\s+i\s+am)?|(?:you'?re|ur|u\s+r|you\s+are|thats|that'?s)\s+right|i\s+know|ik|well\s+shit|oh\s+well|whatever|wtv|lowkey|highkey|ts\s+pmo)`;
+const ACK_RE = new RegExp(String.raw`^(?:${ACK_WORDS}[\s,.!?]*){1,3}[\s💀😭😂🤣🔥🙏👍💯🗿😮‍💨]*$`, 'iu');
+export function isAck(message: string): boolean {
+  const t = message.replace(/^\s*nexus[\s,]*/i, '').trim();
+  return t.length > 0 && t.length <= 30 && (ACK_RE.test(t) || /^(?:\p{Extended_Pictographic}️?\s*){1,4}$/u.test(t));
+}
+export const ACK_NOTE = "This is just a reaction / acknowledgement — reply like a real person texting: 1-3 words max (\"fr\", \"ikr\", \"real\", \"lmao\", \"bet\") or just an emoji. No sentence, no question back.";
+
+// The emoji that fits the reaction.
+export function ackEmoji(message: string, seed = ''): string {
+  const t = message.toLowerCase();
+  const r = (n: number) => Math.floor(seeded(`${seed}|${t}`) * n);
+  const pick = (a: string[]) => a[r(a.length)];
+  if (/lo+l|lmao|lmfao|haha|xd|💀|😭|😂|🤣/.test(t)) return pick(['💀', '😭', '🤣']);
+  if (/damn|dang|wow|crazy|wild|insane|wtf|sheesh|no\s+way|oof|rip|well\s+shit/.test(t)) return pick(['💀', '😭', '😮‍💨']);
+  if (/idk|hm+|whatever|wtv|oh\s+well/.test(t)) return pick(['🤷', '🗿']);
+  if (/true|tru|real|facts|fax|same|exactly|ikr|ik\b|i\s+know|fair|based|fr|ong|you\s+bet/.test(t)) return pick(['💯', '🤝', '🗿']);
+  if (/nice|cool|\bw\b|gg|bet/.test(t)) return pick(['🔥', '🤝', '💯']);
+  if (/\bl\b|nah|no+\b/.test(t)) return pick(['💀', '🗿']);
+  return pick(['🤝', '🗿', '💯', '👍']);
+}
+export function ackWantsEmoji(message: string, seed = ''): boolean {
+  return seeded(`emoji|${seed}|${message.toLowerCase()}`) < 0.5;
+}
+
+// "hit us with the stone face of doom", "send the skull", "give me a 🔥": the emoji itself.
+const EMOJI_NAMES: Array<[RegExp, string]> = [
+  [/stone\s+face|moai|easter\s+island/, '🗿'], [/skull|dead\s+emoji/, '💀'], [/crying|sob\b|tears/, '😭'], [/\bfire\b|flame/, '🔥'],
+  [/clown/, '🤡'], [/\bcap\b|blue\s+hat/, '🧢'], [/\bgoat\b/, '🐐'], [/eyes/, '👀'], [/middle\s+finger|the\s+finger|bird\b/, '🖕'],
+  [/heart/, '❤️'], [/thumbs?\s+up/, '👍'], [/thumbs?\s+down/, '👎'], [/praying|pray|please\s+hands/, '🙏'], [/nerd/, '🤓'], [/100|hundred/, '💯'],
+  [/kangaroo/, '🦘'], [/aussie\s+flag|australian\s+flag|australia\s+flag/, '🇦🇺'], [/beer/, '🍺'], [/shrug/, '🤷'], [/salute/, '🫡'],
+];
+export function emojiRequest(message: string): string | null {
+  const t = message.toLowerCase();
+  const verb = /\b(?:hit\s+(?:us|me)\s+with|send|give\s+(?:us|me)|drop|show\s+(?:us|me)|do)\s+(?:the|a|an|ur|your)?\s*/.test(t);
+  const literal0 = message.match(/\p{Extended_Pictographic}\uFE0F?/u);
+  if (verb && literal0 && t.split(/\s+/).length <= 6) return literal0[0];
+  if (!verb || !/\b(?:emoji|face|skull|fire|clown|cap|goat|eyes|finger|heart|thumbs?|praying|nerd|stone|moai|kangaroo|flag|beer|shrug|salute|100)\b/.test(t)) return null;
+  for (const [re, e] of EMOJI_NAMES) if (re.test(t)) return e;
+  const literal = message.match(/\p{Extended_Pictographic}️?/u);
+  return literal ? literal[0] : null;
 }

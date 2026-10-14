@@ -69,6 +69,7 @@ import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
 import { registerLearningAdminRoutes, loadAdminToken, isLearningAdminRequest } from './src/ai-engine/learning/admin';
 import { newTraceId, recordTrace, startObservatory } from './src/ai-engine/observatory';
 import { textingPlan } from './src/ai-engine/v2/texting';
+import { phraseWithFacts } from './src/ai-engine/v2/pipeline';
 import { recordExchange, exchangesAsHistory, detectFollowUp, forgetExchanges } from './src/ai-engine/v2/continuity';
 import { rememberOpinion } from './src/ai-engine/v2/opinions';
 import { warmLineBank } from './src/ai-engine/v2/lineBank';
@@ -1729,7 +1730,23 @@ app.post('/api/v1/nexus', async (req, res) => {
       // Roast / crashout / chill "modes" used to answer with a fixed list of lines; for Nexus's own voice the model
       // writes them now (Patrick, 2026-10-04: no hardcoded answers). JSON/safety-scan rule outputs still apply.
       const templatedMode = (strictEvaluation.activeRulesApplied || []).some((r: string) => /Roast mode|Crashout mode|Chill mode/i.test(r));
-      if (strictEvaluation.hasCustomRules && strictEvaluation.output && !(templatedMode && persona.id === 'crashout-bot')) {
+      // Nexus himself is v2 only (Patrick, 2026-10-14: "make sure he runs on v2"): the legacy rule replies (the "homie"
+      // template — it answered "is the guy in P1 good" with a JPEG essay) don't answer for him. The safety scan still runs
+      // exactly as before; its result is handed to v2, which tells them in his voice (the canned table said "98% safe"
+      // about the words "is this a scam?" themselves). If v2 can't word it, the scan's own table goes out.
+      const nexusV2Only = persona.id === 'crashout-bot' && !isCodeEdit;
+      if (nexusV2Only && strictEvaluation.hasCustomRules && strictEvaluation.output && strictEvaluation.isDiscordSafetyCheck) {
+        const scan = String(strictEvaluation.output).replace(/[#*>`|]/g, ' ').replace(/-{3,}/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 900);
+        const worded = await phraseWithFacts(
+          'chat',
+          promptToEvaluate,
+          `They asked if something is a scam / safe. Your safety scanner's result for it: ${scan}. Tell them what it found in your own voice: scam or not, the actual red flags it found by name (fake / look-alike link, free Nitro or prize bait, \"click fast\" urgency, asks for a login or token…), and what to do (don't click it / don't log in / report it to staff / it looks fine) — 2-3 short lines. If there's no actual message or link to check, say so and ask them to paste it.`,
+          [],
+          thoughtStepsResult,
+          'scam check'
+        ).catch(() => null);
+        outputText = worded || strictEvaluation.output;
+      } else if (strictEvaluation.hasCustomRules && strictEvaluation.output && !nexusV2Only && !(templatedMode && persona.id === 'crashout-bot')) {
         outputText = strictEvaluation.output;
       } else if (isCodeEdit) {
         // "Nexus Code" repo-editing feature — skips generateReasoningPath entirely rather than
@@ -1964,7 +1981,16 @@ app.post('/api/v1/nexus', async (req, res) => {
     // Which engine answered: "v2:<specialist>" (router), "v2:facts" (a pre-router handler worded by v2) or "v1".
     const steps: any[] = (queuedExecution.data as any).thoughtSteps || [];
     const routeStep = steps.find((st) => /^🧭 Router/.test(st?.title || ''));
-    const engineLabel = routeStep ? `v2:${routeStep.data?.mode ?? '?'}` : steps.some((st) => /\(.*\)$/.test(st?.title || '') && /Chat|Live search/.test(st?.title || '') && /Worded from the true facts/.test(st?.description || '')) ? 'v2:facts' : 'v1';
+    // (v1 is deleted: a reply without a router step was still labelled "v1" — link reading, the browser, his identity card,
+    // the "fix what?" question are all v2. Now: v2:<mode>, v2:facts (worded by v2 from true facts), v2:direct (v2 early
+    // answers), or pre-v2 (a refusal / template before v2 — what's still left to move).)
+    const engineLabel = routeStep
+      ? `v2:${routeStep.data?.mode ?? '?'}`
+      : steps.some((st) => st?.id === 'step-v2-phrase' || /Worded from the true facts/.test(st?.description || ''))
+        ? 'v2:facts'
+        : steps.some((st) => /^step-v2-/.test(st?.id || ''))
+          ? 'v2:direct'
+          : 'pre-v2';
     const v2Gen = steps.find((st) => st?.id === 'step-v2-generate' || st?.id === 'step-v2-phrase' || / reply( \(.*\))?$/.test(st?.title || '') && typeof st?.durationMs === 'number');
     const outcome = engineLabel.startsWith('v2') && v2Gen ? `real LLM (${v2Gen.durationMs}ms)` : llmOutcome;
     const pre = steps.find((st) => st?.title === '⏱️ Before the router')?.durationMs;

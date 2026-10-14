@@ -11,7 +11,7 @@ import { dailyLifeNote, DAY_RE, BARCA_NEXT_RE, barcaFixturesNote } from './daily
 import { slangNote } from './slang';
 import { followUpNote } from './continuity';
 import { opinionNote } from './opinions';
-import { wantsOneWord, cutToOneWord, ONE_WORD_NOTE } from './texting';
+import { wantsOneWord, cutToOneWord, ONE_WORD_NOTE, isAck, ACK_NOTE, ackEmoji, ackWantsEmoji, emojiRequest } from './texting';
 import { loreNote } from './lore';
 import { lineBankNote, markBankUsed } from './lineBank';
 import { SPECIALISTS, VIDEO_SUBS, type Specialist, type SpecialistId, type VideoKind } from './specialists';
@@ -802,6 +802,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       // wouldn't say it (2026-10-13) — a memory check gets the actual answer first.
       if (MEMORY_CHECK_RE.test(s)) hints.push("They're checking if you REMEMBER: the answer is in the chat so far (or what you know about them) — say the actual answer plainly first (the name / the thing), then your attitude. Never \"u already told me\" or a dodge.");
       if (wantsOneWord(s)) hints.push(ONE_WORD_NOTE);
+      if (isAck(s)) hints.push(ACK_NOTE);
       // A follow-up that's due ("how'd the exam go") — asked once, marked done by the server (continuity.ts).
       const follow = settings?.personal?.followUp && !SAD_RE.test(s) ? settings.personal.followUp : null;
       if (follow) thoughtSteps.push({ id: 'step-v2-followup', type: 'reasoning', title: `🔁 Following up: ${follow.what}`, description: follow.said.slice(0, 160), data: { followUpId: follow.id } as any });
@@ -1348,13 +1349,19 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const numberedTasks = (text || '').match(/(?:^|\n)\s*\d{1,2}[.)]\s+\S/g)?.length || 0;
   const multiTask = (route.mode === 'code' || route.mode === 'maths' || route.mode === 'question') && numberedTasks >= 3 && /\btasks?\b|\b(?:explain|prove|determine|find|provide)\b/i.test(text || '');
   // Chat length follows the verbosity setting (personality.ts).
-  const toneSpec = route.mode === 'chat' ? { ...spec, maxTokens: wantsOneWord(said(prompt)) ? 24 : chatTokenCap(effectiveDials(settings.discordUserId)) } : spec;
+  const toneSpec = route.mode === 'chat' ? { ...spec, maxTokens: wantsOneWord(said(prompt)) ? 24 : isAck(said(prompt)) ? 16 : chatTokenCap(effectiveDials(settings.discordUserId)) } : spec;
   // (a list of 100 names — DiCaprio, Bale, Gosling… — was thrown away twice as "wrong language", 2026-10-13)
   const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * (listN > 20 ? 16 : 30)), skipLanguageCheck: listN > 8 } : multiTask ? { ...spec, maxTokens: Math.max(spec.maxTokens, 2600) } : route.mode === 'maths' && mathsFacts(prompt) ? { ...spec, think: false } : toneSpec;
   // (Step 1 is only the program: no thinking pass, the run is the check.)
   const firstSpec = route.mode === 'code' && WANTS_RESULT_RE.test(text || '') && /\bpython\b|\bprogram\b|\bscript\b|\bcode\b/i.test(text || '') ? { ...genSpec, think: false, maxTokens: 2800 } : genSpec;
+  // "hit us with the stone face of doom" → 🗿 (texting.ts): the emoji they asked for, nothing else.
+  const askedEmoji = route.mode === 'chat' ? emojiRequest(said(prompt)) : null;
+  if (askedEmoji) {
+    thoughtSteps.push({ id: 'step-v2-emoji', type: 'reasoning', title: `${askedEmoji} Emoji they asked for`, description: said(prompt).slice(0, 120) });
+    return { content: askedEmoji, route, sources: [] };
+  }
   // The judge (judge.ts): chat writes 3 replies in one go, a tiny second call picks the best. Not where it can't help.
-  const judgeChat = route.mode === 'chat' && !wantsOneWord(said(prompt)) && !LIST_REQUEST_RE.test(said(prompt)) && !sayRequest(prompt) && !morse && !image && !parrotNote && (text || '').length < 500 && process.env.NEXUS_JUDGE !== 'off';
+  const judgeChat = route.mode === 'chat' && !wantsOneWord(said(prompt)) && !isAck(said(prompt)) && !LIST_REQUEST_RE.test(said(prompt)) && !sayRequest(prompt) && !morse && !image && !parrotNote && (text || '').length < 500 && process.env.NEXUS_JUDGE !== 'off';
   const raw = await generateWith(
     judgeChat ? { ...firstSpec, maxTokens: Math.min(300, firstSpec.maxTokens * 3) } : firstSpec,
     judgeChat ? `${userTurn}\n(Write 3 DIFFERENT replies — different angles — one per line, no numbers, no labels. The best one gets sent.)` : userTurn,
@@ -1656,6 +1663,13 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (route.mode === 'chat' && wantsOneWord(said(prompt))) {
     const cut = cutToOneWord(content, said(prompt));
     if (cut) content = cut;
+  }
+  // A reaction ("yeah", "lol", "damn", "idk") gets an emoji that fits about half the time, otherwise his 1-3 words
+  // (Patrick, 2026-10-14: "he could've just answered with an emoji or in one word — I liked the time he only sent 😭").
+  if (route.mode === 'chat' && isAck(said(prompt))) {
+    const seed = `${author}|${Date.now() >> 16}`;
+    if (ackWantsEmoji(said(prompt), seed)) content = ackEmoji(said(prompt), seed);
+    else if (content.trim().split(/\s+/).length > 4) content = cutToOneWord(content, said(prompt)) || content.trim().split(/\s+/).slice(0, 3).join(' ');
   }
   content = pingBoyfriend(content, Boolean(settings.serverContext));
   // Talking TO xant: never @ him in his own reply ("fuck yeah u are my fucking <@xant>", 2026-10-13 reply log).
