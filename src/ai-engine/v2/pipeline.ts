@@ -8,6 +8,7 @@ import type { AISettings, ThoughtStep } from '../../types';
 import { routeMessage, type Route } from './router';
 import { planTurn, clarifyTurn, fallbackFor } from './orchestrator';
 import { dailyLifeNote, DAY_RE, BARCA_NEXT_RE, barcaFixturesNote } from './dailyLife';
+import { slangNote } from './slang';
 import { SPECIALISTS, VIDEO_SUBS, type Specialist, type SpecialistId, type VideoKind } from './specialists';
 import { chatMeaningHints, isRepeat, isEchoReply, SAD_RE, overusedPhrases, FACT_CLAIM_RE } from '../rules/messageMode';
 import { finalizeSpecialistReply, hasContextLeak, stripCrudeAside } from '../rules/postProcess';
@@ -1294,7 +1295,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // real output — writing everything twice didn't fit under Cloudflare's ~100 s (2026-10-12).
   const programFirst = route.mode === 'code' && WANTS_RESULT_RE.test(text || '') && /\bpython\b|\bprogram\b|\bscript\b|\bcode\b/i.test(text || '');
   const programFirstNote = programFirst ? 'STEP 1 OF 2: write ONLY the complete Python program now (one ```python block, no explanations) — it will be RUN, then you will write the answers from its real output. Make it PRINT every number the answers need (counts, results, per-step survivors).\n' : '';
-  const userTurn = `${parrotNote}${programFirst ? programFirstNote : multiTaskNote}${morse ? morseNote(morse) : ''}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${built.text}${langNote}`;
+  const userTurn = `${parrotNote}${programFirst ? programFirstNote : multiTaskNote}${morse ? morseNote(morse) : ''}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${route.mode === 'code' || route.mode === 'helper' ? '' : slangNote(text || '')}${built.text}${langNote}`;
   const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt) && !casualServerDraft(prompt);
   // A list they asked for keeps its lines (chat's one-line cleanup cut "top 10" down to "1.", 2026-10-12).
