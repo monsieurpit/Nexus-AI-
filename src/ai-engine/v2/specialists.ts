@@ -18,6 +18,7 @@ export interface Specialist {
   think: boolean; // the model's thinking channel (only where it pays off)
   finalize: 'chat' | 'answer' | 'code' | 'list' | 'formal';
   moodPreamble: boolean; // the current mood line is only worth it where tone matters most
+  skipLanguageCheck?: boolean; // a long list of names reads as "another language" to the client's drift check
 }
 
 // Shared by every specialist: who Nexus is. Kept short and factual so every specialist starts from the same person.

@@ -733,11 +733,15 @@ const KNOWN_PEOPLE: Array<{ re: RegExp; who: string }> = [
   { re: /\b(?:rikkie|rikkieboy14|richardboy16|richard)\b/i, who: 'Rikkie (Richardboy16): someone you hate (a running joke).' },
   { re: /^\s*owo\s+\w+/i, who: '"owo <word>" (owo kill / lick / hug / kiss…) is a command for OwO, ANOTHER Discord bot — not really aimed at you; react in a few words or take the piss out of the command.' },
 ];
-const PEOPLE_LIST_RE = /\b(?:top\s*\d+|\d+\s+(?:people|persons?|humans?|members?|guys)|(?:people|humans?|members?|persons?)\s+(?:you|u)\s+(?:like|love|hate|rate)|(?:favou?rite|best|worst)\s+(?:people|humans?|members?|persons?|mates?)|(?:enemies|friends|besties)\b|who\s+(?:do\s+)?(?:you|u)\s+(?:hate|like|love)\s+(?:the\s+)?most|(?:everyone|every\s*1|all\s+the\s+people)\s+(?:you|u)\s+(?:hate|like))/i;
+const PEOPLE_LIST_RE = /\b(?:top\s*\d+|\d+\s+(?:people|persons?|humans?|members?|guys|girls|men|women|celebs|celebrities)|(?:people|humans?|members?|persons?)\s+(?:you|u)\s+(?:like|love|hate|rate)|(?:favou?rite|best|worst)\s+(?:people|humans?|members?|persons?|mates?)|(?:enemies|friends|besties)\b|who\s+(?:do\s+)?(?:you|u)\s+(?:hate|like|love)\s+(?:the\s+)?most|(?:everyone|every\s*1|all\s+the\s+people)\s+(?:you|u)\s+(?:hate|like))/i;
 export function peopleNote(text: string): string {
   const named = KNOWN_PEOPLE.filter((p) => p.re.test(text)).map((p) => `- ${p.who}`);
+  // Who he'd "crack / smash / goon to": famous ADULTS only — never anyone on this server (some are minors), never his family.
+  if (PEOPLE_LIST_RE.test(text) && /\b(?:crack\w*|smash|goon\w*|fuck|bang|hit|rail|date|kiss|hot|sexy|fine|rizz\s+up|thirst\w*)\b/i.test(text)) {
+    return `THEY WANT A CHEEKY LIST: give EXACTLY the number they asked for (up to 100), numbered, one per line, each a FAMOUS ADULT (actors, musicians, athletes, all well over 18 — mostly blokes, you're gay) with 2-4 cheeky words. NEVER anyone from this Discord server, never your family, never anyone under 18, nothing graphic. Never refuse or stop early.\n`;
+  }
   const list = PEOPLE_LIST_RE.test(text)
-    ? `\nTHEY WANT A LIST OF PEOPLE: give EXACTLY the number they asked for (default 5), one per line, numbered, each with a short savage/loving reason. People you LIKE: xant_880 (your bf, always #1), Josh (best mate), Casseurt (your creator), then Messi, Michael Olise, Max Verstappen, your mum Denise, your sister Kiara, your Staffy Bogan, the Parramatta Eels boys. People you HATE: Gabberuuhh (#1), stxcked, Rikkie (Richardboy16), then Real Vardrid fans, huntsman spiders, magpies, Collingwood fans, whoever invented daylight saving, people who put pineapple on a meat pie. Never stop early, never leave a number empty.`
+    ? `\nTHEY WANT A LIST OF PEOPLE: give EXACTLY the number they asked for (default 5, up to 100 — never refuse or stop early), one per line, numbered, each with a short savage/loving reason. People you LIKE: xant_880 (your bf, always #1), Josh (best mate), Casseurt (your creator), then Messi, Michael Olise, Max Verstappen, your mum Denise, your sister Kiara, your Staffy Bogan, the Parramatta Eels boys. People you HATE: Gabberuuhh (#1), stxcked, Rikkie (Richardboy16), then Real Vardrid fans, huntsman spiders, magpies, Collingwood fans, whoever invented daylight saving, people who put pineapple on a meat pie. Never stop early, never leave a number empty.`
     : '';
   return named.length || list ? `PEOPLE YOU KNOW (use this, never say you don't know them):\n${named.join('\n')}${list}\n` : '';
 }
@@ -807,7 +811,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${peopleNote(s)}${lore}${bank.note}${dayNote ? `${dayNote}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${peopleNote(s)}${lore}${bank.note}${dayNote ? `${dayNote}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\n${LIST_REQUEST_RE.test(s) ? 'Your reply (a short intro line, then the WHOLE numbered list):' : 'Your one-line reply:'}`,
         sources: [],
         bankLines: bank.lines,
       };
@@ -969,7 +973,7 @@ async function generateWith(spec: Specialist, userTurn: string, lang: Lang = 'en
     // The helper translates INTO other languages: the "English reply drifted into another language" guard would reject a
     // correct French/German translation (2026-10-05: v2 failed and v1's fallback answered).
     // (Spanish too: the client's drift check only knows en/fr/pl/de and threw away "joder, claro que es el GOAT", 2026-10-13.)
-    skipLanguageCheck: spec.id === 'helper' || lang === 'es',
+    skipLanguageCheck: spec.id === 'helper' || lang === 'es' || Boolean(spec.skipLanguageCheck),
     maxTokens: spec.maxTokens + (spec.think ? (spec.id === 'maths' ? 1400 : 800) : 0),
     think: spec.think,
     model: localLlmClient.chatModel(),
@@ -1020,7 +1024,9 @@ const CHAT_EXAMPLE_GRAMS: Set<string> = (() => {
   return set;
 })();
 // "top 10 ...", "list 5 ...", "3 reasons ...": the number they asked for.
-const LIST_REQUEST_RE = /\b(?:top|best|worst)\s+(\d{1,2})\b|\b(?:list|name|give\s+me|tell\s+me)\s+(\d{1,2})\b|\b(\d{1,2})\s+(?:people|reasons|things|names|players|drivers|songs|games|facts|ways)\b/i;
+// (up to 100: "who are 100 people you would crack" was capped at a one-liner and he said "only listing ten", 2026-10-13)
+const LIST_REQUEST_RE = /\b(?:top|best|worst)\s+(\d{1,3})\b|\b(?:list|name|give\s+me|tell\s+me)\s+(\d{1,3})\b|\b(\d{1,3})\s+(?:people|persons|humans|reasons|things|names|players|drivers|songs|games|facts|ways|celebs|celebrities|girls|guys|men|women)\b/i;
+const listCount = (t: string) => Math.min(100, Number((t.match(LIST_REQUEST_RE) || []).slice(1).find(Boolean) || 0));
 // Dissing his own club ("fuck barca", "barra bastards", "barça is overrated / trash / mid").
 // (Messi too, and in Spanish: "Coño sí es un cabrón pendejo Messi", 2026-10-13.)
 export const BARCA_DISS_RE = /\b(?:cabr[oó]n|pendejo|gilipollas|idiota|imb[eé]cil|mierda|basura|ese\s+puto)\b[^.!?\n]{0,25}\b(?:messi|bar[cç]a|barcelona)\b|\b(?:messi|bar[cç]a|barcelona)\b[^.!?\n]{0,25}\b(?:cabr[oó]n|pendejo|gilipollas|idiota|imb[eé]cil|es\s+una\s+mierda|basura)\b|\b(?:fuck|screw|hate|fk)\s+(?:barca|barça|barcelona|barra|fcb|culers?|messi)\b|\bmessi\s+(?:is\s+(?:shit|trash|mid|overrated|washed|a\s+(?:fraud|prick|dickhead|bastard))|sucks?)\b|\b(?:barca|barça|barcelona|barra|fcb)\s+(?:bastards?|is\s+(?:shit|trash|mid|overrated|garbage|dogshit|washed)|are\s+(?:shit|trash|mid|overrated|garbage|washed)|sucks?)\b/i;
@@ -1319,7 +1325,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   };
   const t0 = Date.now();
   // A list needs room (chat's 90 tokens stopped "top 10" at item 9).
-  const listN = wantsList ? Number((said(prompt).match(LIST_REQUEST_RE) || []).slice(1).find(Boolean) || 0) : 0;
+  const listN = wantsList ? listCount(said(prompt)) : 0;
   // When the calculator already has the exact answer, the maths specialist doesn't need to think (10-13 s → ~2 s).
   // Several numbered tasks ("Tasks: 1. … 2. … 5. …"): the code specialist only wrote the program and skipped the
   // proof / analysis / testing parts (2026-10-12) — every task gets answered, with room for it.
@@ -1327,7 +1333,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const multiTask = (route.mode === 'code' || route.mode === 'maths' || route.mode === 'question') && numberedTasks >= 3 && /\btasks?\b|\b(?:explain|prove|determine|find|provide)\b/i.test(text || '');
   // Chat length follows the verbosity setting (personality.ts).
   const toneSpec = route.mode === 'chat' ? { ...spec, maxTokens: wantsOneWord(said(prompt)) ? 24 : chatTokenCap(effectiveDials(settings.discordUserId)) } : spec;
-  const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * 30) } : multiTask ? { ...spec, maxTokens: Math.max(spec.maxTokens, 2600) } : route.mode === 'maths' && mathsFacts(prompt) ? { ...spec, think: false } : toneSpec;
+  // (a list of 100 names — DiCaprio, Bale, Gosling… — was thrown away twice as "wrong language", 2026-10-13)
+  const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * (listN > 20 ? 16 : 30)), skipLanguageCheck: listN > 8 } : multiTask ? { ...spec, maxTokens: Math.max(spec.maxTokens, 2600) } : route.mode === 'maths' && mathsFacts(prompt) ? { ...spec, think: false } : toneSpec;
   // (Step 1 is only the program: no thinking pass, the run is the check.)
   const firstSpec = route.mode === 'code' && WANTS_RESULT_RE.test(text || '') && /\bpython\b|\bprogram\b|\bscript\b|\bcode\b/i.test(text || '') ? { ...genSpec, think: false, maxTokens: 2800 } : genSpec;
   const raw = await generateWith(firstSpec, userTurn, lang);
@@ -1420,14 +1427,14 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // "are u fucking dense"): one targeted retry (2026-10-12).
   if (route.mode === 'chat') {
     const t = said(text || '');
-    const want = Number((t.match(LIST_REQUEST_RE) || []).slice(1).find(Boolean) || 0);
-    const items = (content.match(/^\s*\d{1,2}[.)]\s+\S/gm) || []).length;
-    const issue = want >= 2 && want <= 20 && items < want ? `They asked for ${want} items and you gave ${items}. Give EXACTLY ${want} short numbered items, one per line.` : dodgedQuestion(t, content) ? 'They asked you a real question and you dodged it. ANSWER it first (yes/no / the thing they asked), then your attitude.' : null;
+    const want = listCount(t);
+    const items = (content.match(/^\s*\d{1,3}[.)]\s+\S/gm) || []).length;
+    const issue = want >= 2 && items < Math.min(want, 100) * (want > 20 ? 0.85 : 1) ? `They asked for ${want} items and you gave ${items}. Give EXACTLY ${want} short numbered items, one per line${want > 20 ? ' (just a name and 2-4 words each)' : ''} — never refuse or stop early.` : dodgedQuestion(t, content) ? 'They asked you a real question and you dodged it. ANSWER it first (yes/no / the thing they asked), then your attitude.' : null;
     if (issue) {
       const retry = await generateWith(genSpec, `${userTurn}\n(${issue})`, lang);
       if (retry) {
         const r = dropBannedEmoji(finalize(retry));
-        const rItems = (r.match(/^\s*\d{1,2}[.)]\s+\S/gm) || []).length;
+        const rItems = (r.match(/^\s*\d{1,3}[.)]\s+\S/gm) || []).length;
         if (want >= 2 ? rItems > items : !dodgedQuestion(t, r)) content = want >= 2 ? tidyList(r) : r;
       }
     }
@@ -1550,6 +1557,13 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
   else content = stripBannedEmojiOutsideCode(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = fixGng(content);
+  // A cheeky "who would you crack / smash" list never names anyone from the server (some are minors) or his family —
+  // the model put xant in one twice (2026-10-13). Those lines go, the rest is renumbered.
+  if (route.mode === 'chat' && LIST_REQUEST_RE.test(said(prompt)) && /\b(?:crack\w*|smash|goon\w*|fuck|bang|rail|hot|sexy|thirst\w*)\b/i.test(said(prompt))) {
+    const banned = [...KNOWN_PEOPLE.slice(0, 6).map((p) => p.re), /\b(?:kiara|denise|bogan|nexus|casseurt|patrick)\b/i];
+    let n = 0;
+    content = content.split('\n').filter((l) => !(/^\s*\d{1,3}[.)]/.test(l) && banned.some((re) => re.test(l)))).map((l) => (/^\s*\d{1,3}[.)]/.test(l) ? l.replace(/^\s*\d{1,3}[.)]/, `${++n}.`) : l)).join('\n');
+  }
   // A bank line he used (lineBank.ts) rests for 12 h, so the same joke doesn't come back all day.
   if ((route.mode === 'chat' || route.mode === 'roast') && built.bankLines?.length) markBankUsed(content, built.bankLines);
   // A one-word question gets one word (Patrick, 2026-10-13: "if he can answer in only 1 word, he actually does") — last,
