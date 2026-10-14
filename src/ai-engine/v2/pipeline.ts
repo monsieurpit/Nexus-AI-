@@ -330,6 +330,23 @@ export function fixGng(reply: string): string {
     .replace(/[ \t]{2,}/g, ' ');
 }
 
+export function deArse(text: string): string {
+  return text
+    .split(/(```[\s\S]*?(?:```|$))/)
+    .map((part) =>
+      part.startsWith('```')
+        ? part
+        : part
+            .replace(/\b(can'?t|cannot|couldn'?t|won'?t)\s+be\s+arsed\b/gi, '$1 be bothered')
+            .replace(/\barse(hole|holes|s|y|d)?\b/gi, (m, suf: string | undefined) => {
+              const out = suf === 'hole' ? 'asshole' : suf === 'holes' ? 'assholes' : suf === 's' ? 'asses' : suf === 'y' ? 'assy' : suf === 'd' ? 'bothered' : 'ass';
+              return m[0] === m[0].toUpperCase() ? out[0].toUpperCase() + out.slice(1) : out;
+            })
+            .replace(/\b(dumb|smart|lard|fat|lazy|half|kick|hard|bad|jack|tight|wise|sore|big|kiss|candy|sweet|grumpy|cheeky|silly|stupid|dick)arse(s|d)?\b/gi, (_m, pre: string, suf: string | undefined) => `${pre}${suf === 'd' ? 'assed' : suf === 's' ? 'asses' : 'ass'}`)
+    )
+    .join('');
+}
+
 export function pingBoyfriend(reply: string, onDiscord: boolean): string {
   if (!onDiscord || reply.includes(XANT_PING)) return reply;
   return reply.replace(/@?\bxant(?:_880|2)?\b/i, XANT_PING);
@@ -1671,6 +1688,8 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     if (ackWantsEmoji(said(prompt), seed)) content = ackEmoji(said(prompt), seed);
     else if (content.trim().split(/\s+/).length > 4) content = cutToOneWord(content, said(prompt)) || content.trim().split(/\s+/).slice(0, 3).join(' ');
   }
+  // "ass", never "arse" (Patrick, 2026-10-14: "he says arse instead of ass, it's annoying") — not inside code.
+  content = deArse(content);
   content = pingBoyfriend(content, Boolean(settings.serverContext));
   // Talking TO xant: never @ him in his own reply ("fuck yeah u are my fucking <@xant>", 2026-10-13 reply log).
   if (author === XANT_DISCORD_ID) {
