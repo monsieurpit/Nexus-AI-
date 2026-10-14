@@ -6,6 +6,8 @@
 // (first run ≈ the last 100 messages, later runs cover more history through the previous summary — a 4B model can't
 // read 2,000 messages at once, but it can fold 100 new ones into what it already knew).
 
+import { proposeLore } from '../v2/lore';
+import { replyUserHash } from './replyLog';
 import { recordMemory } from '../observatory';
 import * as localLlmClient from '../localLlmClient';
 import { engineIsIdle } from '../learning/worker';
@@ -110,7 +112,18 @@ export async function runMemoryTick(): Promise<'busy' | 'idle' | 'worked'> {
   }
   if (!engineIsIdle()) return 'busy';
   const [rec] = peopleNeedingSummary();
-  if (!rec) return 'idle';
+  if (!rec) {
+    // Nobody's profile to update: maybe suggest server lore from the last day of chat (every 6 h, pending review).
+    const added = await proposeLore(
+      async (prompt) => {
+        const r = await localLlmClient.generate(prompt, { model: localLlmClient.chatModel(), temperature: 0.5, maxTokens: 260, think: false, skipLanguageCheck: true, timeoutMs: 60000 });
+        return r.status === 'success' ? r.text : null;
+      },
+      loreNameForHash
+    ).catch(() => 0);
+    if (added) console.log(`[lore] ${added} inside joke(s) suggested — waiting for Patrick on the learning page`);
+    return 'idle';
+  }
   running = true;
   try {
     const { prompt, basedOn } = summaryPrompt(rec);
@@ -140,4 +153,12 @@ export async function runMemoryTick(): Promise<'busy' | 'idle' | 'worked'> {
 export function startMemoryWorker(): void {
   if (timer || process.env.NEXUS_PERSONAL_MEMORY === 'off') return;
   timer = setInterval(() => void runMemoryTick(), TICK_MS);
+}
+
+// Reply-log user hash → a name the lore can use (only the regulars; everyone else is "someone").
+const LORE_PEOPLE: Record<string, string> = { '1554657430393196594': 'Casseurt', '1427274237470703712': 'xant', '1362718814139318362': 'Josh', '710796303508176946': 'Gabberuuhh', '1135627959378649179': 'stxcked', '901891784890789948': 'Rikkie' };
+let loreHashes: Map<string, string> | null = null;
+function loreNameForHash(hash: string): string | null {
+  loreHashes ??= new Map(Object.entries(LORE_PEOPLE).map(([id, name]) => [replyUserHash('discord', id), name]));
+  return loreHashes.get(hash) || null;
 }

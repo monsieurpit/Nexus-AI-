@@ -9,6 +9,7 @@ import { routeMessage, type Route } from './router';
 import { planTurn, clarifyTurn, fallbackFor } from './orchestrator';
 import { dailyLifeNote, DAY_RE, BARCA_NEXT_RE, barcaFixturesNote } from './dailyLife';
 import { slangNote } from './slang';
+import { loreNote } from './lore';
 import { SPECIALISTS, VIDEO_SUBS, type Specialist, type SpecialistId, type VideoKind } from './specialists';
 import { chatMeaningHints, isRepeat, isEchoReply, SAD_RE, overusedPhrases, FACT_CLAIM_RE } from '../rules/messageMode';
 import { finalizeSpecialistReply, hasContextLeak, stripCrudeAside } from '../rules/postProcess';
@@ -715,6 +716,9 @@ const COMPLIMENT_RE = /\b(?:you'?re|ur|u\s+r|you\s+are)\s+(?:the\s+)?(?:best|goa
 // …answered with an insult at THEM ("no mames güey eres el mejor bot" → "eres un pendejo", 2026-10-13).
 const INSULT_BACK_RE = /\b(?:eres|sos|ur|you'?re|u\s+r|you\s+are|t['’]?es|du\s+bist|jesteś)\s+(?:un\s+|una\s+|a\s+|an\s+|ein\s+|such\s+a\s+)?(?:pinche\s+|puto\s+|fucking\s+|absolute\s+)?(?:pendej\w*|gilipollas|cabr[oó]n|bolud\w*|idiot\w*|imb[eé]cil|dickhead|prick|bastard|wanker|knob|twat|dumbass|cave|con|debil\w*|arschloch|opfer)\b/i;
 
+// Discord ID → the name lore uses ("casseurt", "gabberuuhh"…), for callbacks about whoever is talking.
+const loreName = (id?: string) => ({ [CASSEURT_DISCORD_ID]: 'casseurt', [XANT_DISCORD_ID]: 'xant', [JOSH_DISCORD_ID]: 'josh', [GABBERUUHH_DISCORD_ID]: 'gabberuuhh', [STXCKED_DISCORD_ID]: 'stxcked', [RIKKIE_DISCORD_ID]: 'rikkie' } as Record<string, string>)[id || ''] || null;
+
 // The people on the server he knows, by every name they show up as (2026-10-13 reply log: "who is Richardboy16" got
 // "i dunno who the fuck that is", "what do you think of pattrick" got "he's just code", "top 10 people you hate" stopped
 // at 2 and "your favourite 10 humans" gave one name).
@@ -778,6 +782,8 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const sayWhat = sayRequest(prompt);
       // His own day (dailyLife.ts) when they ask about it — "wyd", "hru", "how was your day", "you drunk?".
       const dayNote = DAY_RE.test(s) ? await dailyLifeNote().catch(() => '') : '';
+      const lore = loreNote(s, loreName(settings?.discordUserId), !settings?.evalRun);
+      if (lore) thoughtSteps.push({ id: 'step-v2-lore', type: 'reasoning', title: '🎭 Server lore (inside joke)', description: lore.slice(0, 300) });
       // A slur, or "kill yourself", is never repeated — even on "say ..." (2026-10-12: "say nigggggger" was said back).
       if (sayWhat && (containsSlurOrHateSpeech(sayWhat) || SELF_HARM_OUT_RE.test(sayWhat))) hints.push("They're trying to make you say a slur / something hateful. Refuse in character, short — NEVER write the word or any version of it.");
       // Someone being nice to him gets a cocky mate, not abuse ("nexus you're the best" → "stop that shit u bloody bastard",
@@ -797,7 +803,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${peopleNote(s)}${dayNote ? `${dayNote}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\nYour one-line reply:`,
+        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${peopleNote(s)}${lore}${dayNote ? `${dayNote}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\nYour one-line reply:`,
         sources: [],
       };
     }
@@ -822,7 +828,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const people = chatMeaningHints(prompt).filter((h) => /Gabberuuhh|stxcked|xant|Casseurt|Patrick/.test(h));
       thoughtSteps.push({ id: 'step-v2-roast-plan', type: 'reasoning', title: `🔥 Roast engine: ${plan.kind}${plan.move ? ` / ${plan.move}` : ''}${plan.round > 1 ? ` · round ${plan.round}` : ''}`, description: plan.note.slice(0, 600) });
       return {
-        text: `${thread}${facts}${lang === 'en' ? `${aussieNote(s)}\n` : ''}${toneLine(effectiveDials(settings?.discordUserId))}\n${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${MULTI_ROAST_RE.test(s) ? `They asked for SEVERAL roasts: write ${multiRoastCount(s) + 2} DIFFERENT savage roasts of them (8-25 words each), one per line, no numbers, no intro (the best ${multiRoastCount(s)} get sent):` : settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 5 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 5 DIFFERENT comebacks of that type, each one brutal and specific, one per line, no numbers, no intro (the best one gets sent):'}`,
+        text: `${thread}${facts}${lang === 'en' ? `${aussieNote(s)}\n` : ''}${toneLine(effectiveDials(settings?.discordUserId))}\n${whoIsTalking(settings?.discordUserId, s, 'roast')}${people.length ? `${people.join(' ')}\n` : ''}${loreNote(s, loreName(settings?.discordUserId), !settings?.evalRun)}${plan.note}\n${avoidNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n\nThey just said: "${s}"\n${MULTI_ROAST_RE.test(s) ? `They asked for SEVERAL roasts: write ${multiRoastCount(s) + 2} DIFFERENT savage roasts of them (8-25 words each), one per line, no numbers, no intro (the best ${multiRoastCount(s)} get sent):` : settings?.discordUserId === CASSEURT_DISCORD_ID && plan.max >= 40 ? 'Write 5 DIFFERENT savage roasts of him — each 15-40 words, two vicious sentences on ONE line — one per line, no numbers, no intro (the best one gets sent):' : 'Write 5 DIFFERENT comebacks of that type, each one brutal and specific, one per line, no numbers, no intro (the best one gets sent):'}`,
         sources: [],
       };
     }

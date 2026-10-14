@@ -3,6 +3,7 @@
 // check can't protect anything. These routes need their own secret, generated once into
 // ~/.nexus-learning/admin-token (mode 600, never in the repo); `cat` it to use the API.
 
+import { addLore, loadLore, setLoreStatus } from '../v2/lore';
 import { randomBytes, timingSafeEqual } from 'crypto';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
@@ -93,6 +94,25 @@ export function registerLearningAdminRoutes(app: Express): void {
         reports: listReports(30),
         audit: recentAudit(100),
       });
+    })
+  );
+
+  // Server lore — the inside jokes (v2/lore.ts): nothing is used until approved here.
+  app.get('/api/v1/learning/lore', guard((_req, res) => { res.json({ lore: loadLore() }); }));
+  app.post(
+    '/api/v1/learning/lore',
+    guard((req, res) => {
+      const e = addLore(String(req.body?.text || ''), 'patrick', 'approved');
+      if (!e) return void res.status(400).json({ error: 'empty, too short, unsafe, or already there' });
+      res.json({ ok: true, entry: e });
+    })
+  );
+  app.post(
+    '/api/v1/learning/lore/:id',
+    guard((req, res) => {
+      const status = String(req.body?.status || '');
+      if (!['approved', 'rejected', 'pending', 'delete'].includes(status)) return void res.status(400).json({ error: 'status must be approved / rejected / pending / delete' });
+      res.json({ ok: setLoreStatus(String(req.params.id), status as any) });
     })
   );
 

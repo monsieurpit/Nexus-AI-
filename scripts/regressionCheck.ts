@@ -627,6 +627,17 @@ async function runDeterministicChecks() {
     { const sl = await import('../src/ai-engine/v2/slang');
       const terms = (m: string) => sl.slangHits(m).map((h) => h.term).join(',');
       check('slang dictionary: 500+ entries, phrases beat their parts, obvious words skipped, normal sentences untouched', sl.slangSize() > 500 && terms('ong ur glazing messi') === 'ong,glazing' && terms('no cap he mogs u') === 'no cap,mogs' && terms('yeah nah thats dodgy mate') === 'yeah nah,dodgy' && terms('i went to the shop') === '' && /dead/.test(sl.slangNote('lmao 💀'))); }
+    { const lo = await import('../src/ai-engine/v2/lore');
+      const fake = [{ id: 'a', text: 'Gabberuuhh keeps asking Nexus why he hates him', people: ['gabberuuhh', 'nexus'], status: 'approved', source: 'seed', createdAt: 0, uses: 0 }, { id: 'b', text: "Casseurt's legendary $800k PC budget", people: ['casseurt'], status: 'pending', source: 'seed', createdAt: 0, uses: 0 }];
+      const { mkdtempSync: mkl, writeFileSync: wfl } = await import('fs');
+      const { tmpdir: tdl } = await import('os');
+      const { join: jl } = await import('path');
+      const loreTmp = jl(mkl(jl(tdl(), 'nexus-lore-test-')), 'lore.json');
+      wfl(loreTmp, JSON.stringify(fake));
+      lo.__useLoreFileForTest(loreTmp);
+      const hit = (m: string, who: string | null, r = 0.99) => lo.loreFor(m, who, r, false).map((e) => e.id).join(',');
+      check('server lore: only approved jokes, when the message touches them (or now and then about whoever is talking), never pending ones', hit('why does gabberuuhh hate everyone', null) === 'a' && hit('what pc should i buy with my budget', null) === '' && hit('yo', 'gabberuuhh', 0.1) === 'a' && hit('yo', 'gabberuuhh', 0.9) === '' && lo.peopleIn('rikkieboy14 and pattrick').join(',') === 'casseurt,rikkie');
+    }
     check('morse: written and read exactly, only when asked', morseTask('say hi in morse')?.morse === '.... ..' && morseTask('morse code for SOS')?.morse === '... --- ...' && morseTask('translate this to morse: good night')?.morse === '--. --- --- -.. / -. .. --. .... -' && morseTask('.... . .-.. .-.. --- / -. . -..- ..- ...')?.text === 'HELLO NEXUS' && morseToText(textToMorse('Hello, World! 123')) === 'HELLO, WORLD! 123' && !morseTask('how does morse code work') && !morseTask('hmm... ok - fine') && !morseTask('lol ...') && !morseTask('nexus you are a pickle') && !morseTask("j'ai vu un morse au zoo") && !morseTask("c'est quoi un morse") && !morseTask('les morses sont gros en esti') && !morseTask('nexus t un morse') && !morseTask('un morse ça mange quoi?') && withMorse('easy .... ..', morseTask('say hi in morse')!) === 'easy\n```\n.... ..\n```');
     check('longer echoes with slang are detected ("alr bet, i will gn this shitbag")', isEchoReply('alr bet, i will gn this shitbag', 'Wdym I will goodnight this shitbag 😭😭') && !isEchoReply('alr bet', 'go to sleep nexus') && !isEchoReply('gn mate sleep tight', 'goodnight nexus') && !isEchoReply('messi is the goat obviously, not even close', 'who is the goat messi or ronaldo'));
     check('repeats are detected', isRepeat('a clone?', ['a clone?']) && !isRepeat('nah fam', ['a clone?']));

@@ -33,6 +33,9 @@ export const LEARNING_ADMIN_PAGE = `<!doctype html>
   <div class="row"><input id="token" type="password" autocomplete="off"><button class="ok" id="save">Open</button></div>
 </div>
 <div id="app" hidden>
+  <h2>Server lore (inside jokes)</h2>
+  <div class="card"><div class="meta">Nexus only uses approved ones, as quick callbacks — never as facts. Add one:</div><div class="row"><input id="loreText" placeholder="e.g. Gabberuuhh keeps asking Nexus why he hates him"><button class="ok" id="loreAdd">Add</button></div></div>
+  <div id="lorePending"></div><div id="loreApproved"></div>
   <h2>Waiting for your OK</h2><div id="review"></div>
   <h2>Learned</h2><div id="learned"></div>
   <h2>Waiting for more people</h2><div id="waiting"></div>
@@ -74,6 +77,9 @@ async function load() {
   list('reports', d.reports || [], (r) => card('<div class="meta">"' + esc(r.question) + '" → "' + esc(r.complaint) + '"</div><div>' + esc(r.botReply.slice(0, 200)) + '</div><div class="meta"><span class="pill">' + esc(r.suspect) + '</span>' + esc(r.outcome) + ' · ' + when(r.createdAt) + '</div>'));
   const gapState = { 0: 'will search when idle', 1: 'answer found, verifying', 6: 'no answer found online' };
   list('gaps', (d.gaps || []).slice(0, 30), (g) => card('<div>' + esc(g.userText) + '</div><div class="meta">' + esc(gapState[g.processed] || 'processed') + ' · ' + when(g.createdAt) + '</div>'));
+  const lore = (await api('/lore')).lore || [];
+  list('lorePending', lore.filter((l) => l.status === 'pending'), (l) => card('<div class="claim">' + esc(l.text) + '</div><div class="meta"><span class="pill">suggested (' + esc(l.source) + ')</span>' + when(l.createdAt) + '</div><div class="row"><button class="ok" data-lore="' + esc(l.id) + '" data-lorestatus="approved">Use it</button><button class="bad" data-lore="' + esc(l.id) + '" data-lorestatus="rejected">No</button></div>'));
+  list('loreApproved', lore.filter((l) => l.status === 'approved'), (l) => card('<div class="claim">' + esc(l.text) + '</div><div class="meta"><span class="pill">in use</span><span class="pill">used ' + l.uses + '×</span></div><div class="row"><button class="bad" data-lore="' + esc(l.id) + '" data-lorestatus="delete">Delete</button></div>'));
   list('recent', d.recentCandidates.slice(0, 40), (c) => card('<div>' + (c.claim ? esc(c.claim) : '<i>(no claim)</i>') + '</div><div class="meta"><span class="pill">' + esc(c.status) + '</span>' + esc(c.statusReason) + '</div>'));
 }
 document.addEventListener('click', async (e) => {
@@ -81,12 +87,14 @@ document.addEventListener('click', async (e) => {
   try {
     if (t.dataset.approve) { await api('/approve', { method: 'POST', body: JSON.stringify({ candidateId: Number(t.dataset.approve) }) }); }
     else if (t.dataset.reject) { await api('/reject', { method: 'POST', body: JSON.stringify({ candidateId: Number(t.dataset.reject), reason: 'rejected from admin page' }) }); }
+    else if (t.dataset.lore) { await api('/lore/' + encodeURIComponent(t.dataset.lore), { method: 'POST', body: JSON.stringify({ status: t.dataset.lorestatus }) }); }
     else if (t.dataset.forgetvoice) { if (!confirm('Forget this reply style?')) return; await api('/voice/' + encodeURIComponent(t.dataset.forgetvoice), { method: 'DELETE', body: JSON.stringify({ reason: 'removed from admin page' }) }); }
     else if (t.dataset.forget) { if (!confirm('Forget this fact?')) return; await api('/learned/' + encodeURIComponent(t.dataset.forget), { method: 'DELETE', body: JSON.stringify({ reason: 'removed from admin page' }) }); }
     else return;
     await load();
   } catch (err) { if (String(err.message) !== '401') $('status').textContent = 'Error: ' + err.message; }
 });
+$('loreAdd').onclick = async () => { const text = $('loreText').value.trim(); if (!text) return; try { await api('/lore', { method: 'POST', body: JSON.stringify({ text }) }); $('loreText').value = ''; await load(); } catch (err) { $('status').textContent = 'Error: ' + err.message; } };
 $('save').onclick = () => { token = $('token').value.trim(); try { localStorage.setItem('nexus-learning-token', token); } catch {} load().catch(() => {}); };
 $('rollback').onclick = async () => {
   const v = $('since').value; if (!v) return;
