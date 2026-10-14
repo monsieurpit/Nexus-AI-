@@ -24,7 +24,8 @@ import { fxNote, fxNoteEur, getUsdToCad } from '../fx';
 import { isPartnershipMessage, partnershipTurn } from './partnership';
 import { formatNameList, nameIdeasBlock } from './names';
 import { pickBestComeback } from './roast';
-import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, pickRoasts, planRoast, type RoastPlan } from './roastEngine';
+import { ammoFrom, battleActive, classifyHit, noteNonRoast, pickComeback, pickRoasts, planRoast, rankComebacks, rememberComeback, type RoastPlan } from './roastEngine';
+import { judgeBest, chatCandidates } from './judge';
 import { sportsFacts } from './sports';
 import { bitsToBytes, disassembleBits, disassemblyNote, TRANSLATE_BINARY_RE } from './disasm';
 import { runPythonSandboxed, pythonBlock, WANTS_RESULT_RE } from './sandbox';
@@ -1337,7 +1338,13 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * (listN > 20 ? 16 : 30)), skipLanguageCheck: listN > 8 } : multiTask ? { ...spec, maxTokens: Math.max(spec.maxTokens, 2600) } : route.mode === 'maths' && mathsFacts(prompt) ? { ...spec, think: false } : toneSpec;
   // (Step 1 is only the program: no thinking pass, the run is the check.)
   const firstSpec = route.mode === 'code' && WANTS_RESULT_RE.test(text || '') && /\bpython\b|\bprogram\b|\bscript\b|\bcode\b/i.test(text || '') ? { ...genSpec, think: false, maxTokens: 2800 } : genSpec;
-  const raw = await generateWith(firstSpec, userTurn, lang);
+  // The judge (judge.ts): chat writes 3 replies in one go, a tiny second call picks the best. Not where it can't help.
+  const judgeChat = route.mode === 'chat' && !wantsOneWord(said(prompt)) && !LIST_REQUEST_RE.test(said(prompt)) && !sayRequest(prompt) && !morse && !image && !parrotNote && (text || '').length < 500 && process.env.NEXUS_JUDGE !== 'off';
+  const raw = await generateWith(
+    judgeChat ? { ...firstSpec, maxTokens: Math.min(300, firstSpec.maxTokens * 3) } : firstSpec,
+    judgeChat ? `${userTurn}\n(Write 3 DIFFERENT replies — different angles — one per line, no numbers, no labels. The best one gets sent.)` : userTurn,
+    lang
+  );
   const tGenerated = Date.now();
   if (!raw) {
     thoughtSteps.push({ id: 'step-v2-failed', type: 'verification', title: `⚠️ ${spec.label} generation failed`, description: lastFailure || 'empty reply' });
@@ -1347,6 +1354,18 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   let picked = route.mode === 'roast' && MULTI_ROAST_RE.test(said(prompt)) && lastRoastPlan
     ? pickRoasts(raw, said(prompt), lastRoastPlan.plan, multiRoastCount(said(prompt)))
     : route.mode === 'roast' ? (lastRoastPlan ? pickComeback(raw, said(prompt), lastRoastPlan.plan, lastRoastPlan.ammo) : pickBestComeback(raw, said(prompt))) : raw;
+  // The judge picks among chat's 3 replies, or the roast engine's top 3 (its scoring is the fallback).
+  if (process.env.NEXUS_JUDGE !== 'off' && (judgeChat || (route.mode === 'roast' && lastRoastPlan && !MULTI_ROAST_RE.test(said(prompt))))) {
+    const cands = judgeChat ? chatCandidates(raw) : rankComebacks(raw, said(prompt), lastRoastPlan!.plan, lastRoastPlan!.ammo).slice(0, 3);
+    if (judgeChat && cands.length) picked = cands[0];
+    const tj = Date.now();
+    const best = cands.length >= 2 ? await judgeBest(cands, said(prompt), deps.threadText, route.mode === 'roast' ? 'roast' : 'chat') : null;
+    if (best !== null) {
+      picked = cands[best];
+      if (route.mode === 'roast') rememberComeback(picked, lastRoastPlan!.plan.person);
+    }
+    thoughtSteps.push({ id: 'step-v2-judge', type: 'reasoning', title: best !== null ? `⚖️ Judge picked ${best + 1} of ${cands.length}` : `⚖️ Judge: no pick (${cands.length} option${cands.length === 1 ? '' : 's'})`, description: cands.map((c, i) => `${i === best ? '→ ' : '   '}${c}`).join('\n').slice(0, 800), durationMs: Date.now() - tj });
+  }
   // All three leaned on the "at least my mum..." crutch Patrick hates: one more try without it.
   if (route.mode === 'roast' && AT_LEAST_CRUTCH_RE.test(picked)) {
     const again = await generateWith(spec, `${userTurn}\n(NEVER use "at least" / "au moins" / "przynajmniej" / "wenigstens" — every line of yours used it. Hit them directly.)`, lang);

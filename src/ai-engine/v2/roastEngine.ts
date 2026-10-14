@@ -286,6 +286,17 @@ export function pickComeback(raw: string, theirs: string, plan: Pick<RoastPlan, 
   return best;
 }
 
+// The comebacks best-first (same scoring), for the judge (judge.ts) to pick among the top ones.
+export function rankComebacks(raw: string, theirs: string, plan: Pick<RoastPlan, 'kind' | 'min' | 'max' | 'person'>, ammo: string[] = []): string[] {
+  return raw
+    .split(/\n+/)
+    .map((l) => l.replace(/^\s*(?:\d+[.)]|[-*•]|comeback\s*\d*:?)\s*/i, '').replace(/^["“]|["”]$/g, '').trim())
+    .filter((l) => l.length >= 2 && !/^(?:here|okay|sure|comebacks?)\b/i.test(l))
+    .map((l, i) => ({ l, s: scoreComeback(l, theirs, plan, ammo) - i * 0.01 }))
+    .sort((a, b) => b.s - a.s)
+    .map((x) => x.l);
+}
+
 // Several roasts asked for at once: the best N different lines (same scoring), in the order written.
 export function pickRoasts(raw: string, theirs: string, plan: Pick<RoastPlan, 'kind' | 'min' | 'max' | 'person'>, n: number): string {
   const lines = raw
