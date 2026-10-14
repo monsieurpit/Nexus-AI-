@@ -9,6 +9,7 @@ import { routeMessage, type Route } from './router';
 import { planTurn, clarifyTurn, fallbackFor } from './orchestrator';
 import { dailyLifeNote, DAY_RE, BARCA_NEXT_RE, barcaFixturesNote } from './dailyLife';
 import { slangNote } from './slang';
+import { wantsOneWord, cutToOneWord, ONE_WORD_NOTE } from './texting';
 import { loreNote } from './lore';
 import { SPECIALISTS, VIDEO_SUBS, type Specialist, type SpecialistId, type VideoKind } from './specialists';
 import { chatMeaningHints, isRepeat, isEchoReply, SAD_RE, overusedPhrases, FACT_CLAIM_RE } from '../rules/messageMode';
@@ -782,6 +783,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const sayWhat = sayRequest(prompt);
       // His own day (dailyLife.ts) when they ask about it — "wyd", "hru", "how was your day", "you drunk?".
       const dayNote = DAY_RE.test(s) ? await dailyLifeNote().catch(() => '') : '';
+      if (wantsOneWord(s)) hints.push(ONE_WORD_NOTE);
       const lore = loreNote(s, loreName(settings?.discordUserId), !settings?.evalRun);
       if (lore) thoughtSteps.push({ id: 'step-v2-lore', type: 'reasoning', title: '🎭 Server lore (inside joke)', description: lore.slice(0, 300) });
       // A slur, or "kill yourself", is never repeated — even on "say ..." (2026-10-12: "say nigggggger" was said back).
@@ -1319,7 +1321,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   const numberedTasks = (text || '').match(/(?:^|\n)\s*\d{1,2}[.)]\s+\S/g)?.length || 0;
   const multiTask = (route.mode === 'code' || route.mode === 'maths' || route.mode === 'question') && numberedTasks >= 3 && /\btasks?\b|\b(?:explain|prove|determine|find|provide)\b/i.test(text || '');
   // Chat length follows the verbosity setting (personality.ts).
-  const toneSpec = route.mode === 'chat' ? { ...spec, maxTokens: chatTokenCap(effectiveDials(settings.discordUserId)) } : spec;
+  const toneSpec = route.mode === 'chat' ? { ...spec, maxTokens: wantsOneWord(said(prompt)) ? 24 : chatTokenCap(effectiveDials(settings.discordUserId)) } : spec;
   const genSpec = listN ? { ...spec, maxTokens: Math.max(spec.maxTokens, 40 + listN * 30) } : multiTask ? { ...spec, maxTokens: Math.max(spec.maxTokens, 2600) } : route.mode === 'maths' && mathsFacts(prompt) ? { ...spec, think: false } : toneSpec;
   // (Step 1 is only the program: no thinking pass, the run is the check.)
   const firstSpec = route.mode === 'code' && WANTS_RESULT_RE.test(text || '') && /\bpython\b|\bprogram\b|\bscript\b|\bcode\b/i.test(text || '') ? { ...genSpec, think: false, maxTokens: 2800 } : genSpec;
@@ -1543,6 +1545,12 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   if (route.mode === 'chat' || route.mode === 'roast') content = humanEmoji(content, deps.recentLines);
   else content = stripBannedEmojiOutsideCode(content);
   if (route.mode === 'chat' || route.mode === 'roast') content = fixGng(content);
+  // A one-word question gets one word (Patrick, 2026-10-13: "if he can answer in only 1 word, he actually does") — last,
+  // after the clean-up steps that can add Aussie filler ("messi" → "messi bloody oath").
+  if (route.mode === 'chat' && wantsOneWord(said(prompt))) {
+    const cut = cutToOneWord(content, said(prompt));
+    if (cut) content = cut;
+  }
   content = pingBoyfriend(content, Boolean(settings.serverContext));
   // Talking TO xant: never @ him in his own reply ("fuck yeah u are my fucking <@xant>", 2026-10-13 reply log).
   if (author === XANT_DISCORD_ID) {

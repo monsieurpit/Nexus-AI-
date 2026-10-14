@@ -638,6 +638,10 @@ async function runDeterministicChecks() {
       const hit = (m: string, who: string | null, r = 0.99) => lo.loreFor(m, who, r, false).map((e) => e.id).join(',');
       check('server lore: only approved jokes, when the message touches them (or now and then about whoever is talking), never pending ones', hit('why does gabberuuhh hate everyone', null) === 'a' && hit('what pc should i buy with my budget', null) === '' && hit('yo', 'gabberuuhh', 0.1) === 'a' && hit('yo', 'gabberuuhh', 0.9) === '' && lo.peopleIn('rikkieboy14 and pattrick').join(',') === 'casseurt,rikkie');
     }
+    { const tx = await import('../src/ai-engine/v2/texting');
+      check('texting: one-word questions are spotted (not help / why / are u ok), a sentence is cut to its answer', tx.wantsOneWord('are u gay') && tx.wantsOneWord('messi or ronaldo?') && tx.wantsOneWord('whats ur fav colour') && tx.wantsOneWord('rate my pfp out of 10') && !tx.wantsOneWord('are you okay?') && !tx.wantsOneWord('can u help me with my code') && !tx.wantsOneWord('why do you hate me') && !tx.wantsOneWord('wyd') && tx.cutToOneWord('yeah obviously mate im proper gay', 'are u gay') === 'yeah' && tx.cutToOneWord('messi easy mate ronaldo is mid', 'messi or ronaldo?') === 'messi');
+      const plans = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => tx.textingPlan('nah mate, ur absolutely cooked lol', 'test', 'chat', id));
+      check('texting: chat sometimes splits into short messages, always the whole reply, code never split, every message answered', plans.some((p) => p.parts.length === 2) && plans.some((p) => p.parts.length === 1) && plans.every((p) => p.parts.join(' ').replace(/,/g, '').includes('ur absolutely cooked')) && tx.textingPlan('```js\nx\n```', 't', 'code').parts.length === 1 && tx.textingPlan('', 'lol', 'chat').parts.length === 1); }
     check('morse: written and read exactly, only when asked', morseTask('say hi in morse')?.morse === '.... ..' && morseTask('morse code for SOS')?.morse === '... --- ...' && morseTask('translate this to morse: good night')?.morse === '--. --- --- -.. / -. .. --. .... -' && morseTask('.... . .-.. .-.. --- / -. . -..- ..- ...')?.text === 'HELLO NEXUS' && morseToText(textToMorse('Hello, World! 123')) === 'HELLO, WORLD! 123' && !morseTask('how does morse code work') && !morseTask('hmm... ok - fine') && !morseTask('lol ...') && !morseTask('nexus you are a pickle') && !morseTask("j'ai vu un morse au zoo") && !morseTask("c'est quoi un morse") && !morseTask('les morses sont gros en esti') && !morseTask('nexus t un morse') && !morseTask('un morse ça mange quoi?') && withMorse('easy .... ..', morseTask('say hi in morse')!) === 'easy\n```\n.... ..\n```');
     check('longer echoes with slang are detected ("alr bet, i will gn this shitbag")', isEchoReply('alr bet, i will gn this shitbag', 'Wdym I will goodnight this shitbag 😭😭') && !isEchoReply('alr bet', 'go to sleep nexus') && !isEchoReply('gn mate sleep tight', 'goodnight nexus') && !isEchoReply('messi is the goat obviously, not even close', 'who is the goat messi or ronaldo'));
     check('repeats are detected', isRepeat('a clone?', ['a clone?']) && !isRepeat('nah fam', ['a clone?']));
@@ -831,7 +835,7 @@ async function runLiveChecks() {
 
   _resetMoodForTests();
   const frGreeting = await timed('fr-greeting', () => generateReasoningPath('salut nexus, comment ça va?', [], persona, settings, allKnowledge, []));
-  check('FR greeting stays in French', /[àâçéèêëîïôùûü]|tabarnak|câlisse|ostie|criss/i.test(frGreeting.content), frGreeting.content.slice(0, 80));
+  check('FR greeting stays in French', /[àâçéèêëîïôùûü]|tabarnak|câlisse|ostie|criss|calvaire|ciboire|esti|mon gars|t'es|c'est/i.test(frGreeting.content), frGreeting.content.slice(0, 80));
 
   _resetMoodForTests();
   const creator = await timed('creator', () => generateReasoningPath("qui t'a créé", [], persona, settings, allKnowledge, []));

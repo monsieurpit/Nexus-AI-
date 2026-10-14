@@ -68,6 +68,7 @@ import { startMemoryWorker } from './src/ai-engine/memory/memoryWorker';
 import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
 import { registerLearningAdminRoutes, loadAdminToken, isLearningAdminRequest } from './src/ai-engine/learning/admin';
 import { newTraceId, recordTrace, startObservatory } from './src/ai-engine/observatory';
+import { textingPlan } from './src/ai-engine/v2/texting';
 import { registerObservatoryRoutes } from './src/ai-engine/observatoryRoutes';
 import { timingSafeEqual } from 'crypto';
 import { startPriceTracker, refreshPrices, loadPrices } from './src/ai-engine/priceTracker';
@@ -1966,6 +1967,13 @@ app.post('/api/v1/nexus', async (req, res) => {
     );
     recordTrace({ traceId, steps, totalMs: queuedExecution.processTimeMs, waitMs: queuedExecution.waitTimeMs, response: queuedExecution.data?.response, eval: requestedEvalRun === true, platform: memPlatform });
     if (queuedExecution.data && typeof queuedExecution.data === 'object') (queuedExecution.data as any).traceId = traceId;
+    // How a person would send it (v2/texting.ts): split into short messages, an emoji back, a reaction — the bot does the
+    // sending. The full text stays in "response" for everything else.
+    if (queuedExecution.data && typeof (queuedExecution.data as any).response === 'string') {
+      const plan = textingPlan((queuedExecution.data as any).response, userText, String(routeStep?.data?.mode || ''), typeof req.body?.messageId === 'string' ? req.body.messageId : traceId);
+      (queuedExecution.data as any).parts = plan.parts;
+      (queuedExecution.data as any).react = plan.react;
+    }
 
     // Reply log (memory/replyLog.ts): every exchange, for the nightly quality report — not test runs, not people who
     // turned saving off; support conversations only for 24 hours.
