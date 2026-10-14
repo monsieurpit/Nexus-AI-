@@ -37,7 +37,7 @@ export function fallbackFor(mode: SpecialistId): SpecialistId | null {
 
 // "fix it", "do that pls", "can you help me", "explain this" — with nothing before it to say what "it" is.
 const VAGUE_RE =
-  /^(?:(?:can|could|will|would)\s+(?:you|u)\s+|pls\s+|please\s+|yo\s+)?(?:(?:do|fix|make|write|code|explain|translate|finish|check|redo|change|improve|edit|rewrite|send|solve)\s+(?:it|that|this|them|one|the\s+thing|mine)|help(?:\s+me)?|i\s+need\s+(?:some\s+)?help|help\s+me\s+(?:with\s+)?(?:it|that|this|something|smth|sum))(?:\s+(?:pls|please|plz|for\s+me|rn|now|asap|quick))*\s*[?!.]*$/i;
+  /^(?:(?:can|could|will|would)\s+(?:you|u)\s+|pls\s+|please\s+|yo\s+)?(?:(?:do|fix|make|write|code|explain|translate|finish|check|redo|change|improve|edit|rewrite|send|solve)\s+(?:it|that|this|them|one|the\s+thing|mine)|help(?:\s+me)?|i\s+need\s+(?:some\s+)?help|help\s+me\s+(?:with\s+)?(?:it|that|this|something|smth|sum)|help\s+me\s+(?:fix|do|finish|solve|sort|understand|with)\s+(?:it|that|this|them|something|smth))(?:\s+(?:pls|please|plz|for\s+me|rn|now|asap|quick))*\s*[?!.]*$/i;
 export function needsClarification(message: string, threadText: string, hasImage: boolean): boolean {
   if (hasImage || threadText.trim()) return false;
   return VAGUE_RE.test(message.trim());

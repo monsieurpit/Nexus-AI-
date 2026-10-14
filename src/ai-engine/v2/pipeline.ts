@@ -9,6 +9,8 @@ import { routeMessage, type Route } from './router';
 import { planTurn, clarifyTurn, fallbackFor } from './orchestrator';
 import { dailyLifeNote, DAY_RE, BARCA_NEXT_RE, barcaFixturesNote } from './dailyLife';
 import { slangNote } from './slang';
+import { followUpNote } from './continuity';
+import { opinionNote } from './opinions';
 import { wantsOneWord, cutToOneWord, ONE_WORD_NOTE } from './texting';
 import { loreNote } from './lore';
 import { lineBankNote, markBankUsed } from './lineBank';
@@ -67,11 +69,12 @@ export function langOf(text: string): Lang {
   // (2026-10-12: a Portuguese partnership post was reviewed in French because of "ç", Spanish was read as Polish).
   // Spanish has its own mode (2026-10-13: "entonces quién es el GOAT" was answered in Québécois French).
   // "es el / es la / eres un…": Spanish even in a 4-word message ("Messi es el GOAT" was read as German).
-  const spanishPair = (text.match(/(?<![\p{L}])(?:es\s+(?:el|la|un|una|muy|mi|tu|mejor|peor)|eres\s+(?:un|una|el|la|muy)|soy\s+(?:un|una|el|la|muy))(?![\p{L}])/giu) || []).length * 2;
+  const spanishPair = (text.match(/(?<![\p{L}'’])(?:es\s+(?:el|la|un|una|muy|mi|tu|mejor|peor)|eres\s+(?:un|una|el|la|muy)|soy\s+(?:un|una|el|la|muy))(?![\p{L}])/giu) || []).length * 2;
   const spanish = (text.match(/(?<![\p{L}])(?:qué|quién|quien|cómo|cuál|cuándo|dónde|entonces|vete|madre|padre|mamá|papá|hermano|tan|fea|feo|mierda|hijo|tu\s+vieja|eres|estoy|tengo|hacer|hace|funciona|piensas|piensa|opinas|sabes|tienes|quieres|gusta|dime|hablas|hablar|del|eres|soy|puto|puta|pendejo|coño|joder|cabrón|gilipollas|hostia|mierda|pasa|porque|también|gracias|hola|usted|tengo|quiero|pero|muy|año|gana|cree|crees|eres|estás|está|hablas|español|amigo|amiga|vamos|jugar|mejor|peor|nada|bueno|vale|tío|güey|pues|ahora|siempre|nunca)(?![\p{L}])/giu) || []).length;
   // á / í / ó / ú are Spanish (French writes à, î, ô, û) — "cómo funciona la fotosíntesis" was answered in joual.
   const spanishAccent = /[áíóú]/i.test(text) || /\p{L}+[éáíú]\p{L}{0,3}(?:me|te|lo|la|nos)(?![\p{L}])/iu.test(text) ? 2 : 0;
-  if ((/[ñ¿¡]/.test(text) || spanish + spanishPair + spanishAccent >= 2) && !/ção|ções|[ãõ]|(?<![\p{L}])(?:não|você|muito|obrigad[oa]|tudo)(?![\p{L}])/iu.test(text)) return 'es';
+  // (Polish writes ó too — "a lubisz chłopaków?" was read as Spanish: Polish letters rule Spanish out.)
+  if (!/[ąęłśźżćń]/i.test(text) && (/[ñ¿¡]/.test(text) || spanish + spanishPair + spanishAccent >= 2) && !/ção|ções|[ãõ]|(?<![\p{L}])(?:não|você|muito|obrigad[oa]|tudo)(?![\p{L}])/iu.test(text)) return 'es';
   const iberian = (text.match(/(?<![\p{L}])(?:não|você|vocês|uma|nossa|nosso|muito|obrigad[oa]|tudo|servidor|comunidade|venha|hola|cómo|como\s+estás|están|estás|gracias|amigos|vamos|jugar|también|usted|tengo|quiero|pero|muy)(?![\p{L}])/giu) || []).length;
   if (/ção|ções|[ãõñ¿¡]/i.test(text) || iberian >= 2) return 'en';
   if (/[ąęłśźżćń]/i.test(text) && !/[äöüß]/i.test(text)) return 'pl';
@@ -722,6 +725,8 @@ const INSULT_BACK_RE = /\b(?:eres|sos|ur|you'?re|u\s+r|you\s+are|t['’]?es|du\s
 // Discord ID → the name lore uses ("casseurt", "gabberuuhh"…), for callbacks about whoever is talking.
 const loreName = (id?: string) => ({ [CASSEURT_DISCORD_ID]: 'casseurt', [XANT_DISCORD_ID]: 'xant', [JOSH_DISCORD_ID]: 'josh', [GABBERUUHH_DISCORD_ID]: 'gabberuuhh', [STXCKED_DISCORD_ID]: 'stxcked', [RIKKIE_DISCORD_ID]: 'rikkie' } as Record<string, string>)[id || ''] || null;
 
+const MEMORY_CHECK_RE = /\b(?:what(?:'s|s|\s+is|\s+was)\s+my|whats\s+my|who(?:'s|s|\s+is)\s+my|which\s+\w+\s+(?:do|did)\s+i|what\s+did\s+i\s+(?:just\s+)?(?:say|tell)|what\s+(?:do|did)\s+i\s+have|do\s+(?:you|u)\s+remember|remember\s+(?:what|my)|what\s+am\s+i\s+(?:doing|having))\b/i;
+
 // The people on the server he knows, by every name they show up as (2026-10-13 reply log: "who is Richardboy16" got
 // "i dunno who the fuck that is", "what do you think of pattrick" got "he's just code", "top 10 people you hate" stopped
 // at 2 and "your favourite 10 humans" gave one name).
@@ -793,7 +798,13 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const sayWhat = sayRequest(prompt);
       // His own day (dailyLife.ts) when they ask about it — "wyd", "hru", "how was your day", "you drunk?".
       const dayNote = DAY_RE.test(s) ? await dailyLifeNote().catch(() => '') : '';
+      // "whats my dog called" right after they told him: he knew ("he's a ripper bastard", "u already told me that") but
+      // wouldn't say it (2026-10-13) — a memory check gets the actual answer first.
+      if (MEMORY_CHECK_RE.test(s)) hints.push("They're checking if you REMEMBER: the answer is in the chat so far (or what you know about them) — say the actual answer plainly first (the name / the thing), then your attitude. Never \"u already told me\" or a dodge.");
       if (wantsOneWord(s)) hints.push(ONE_WORD_NOTE);
+      // A follow-up that's due ("how'd the exam go") — asked once, marked done by the server (continuity.ts).
+      const follow = settings?.personal?.followUp && !SAD_RE.test(s) ? settings.personal.followUp : null;
+      if (follow) thoughtSteps.push({ id: 'step-v2-followup', type: 'reasoning', title: `🔁 Following up: ${follow.what}`, description: follow.said.slice(0, 160), data: { followUpId: follow.id } as any });
       const bank = await lineBankNote(s);
       const lore = loreNote(s, loreName(settings?.discordUserId), !settings?.evalRun);
       if (lore) thoughtSteps.push({ id: 'step-v2-lore', type: 'reasoning', title: '🎭 Server lore (inside joke)', description: lore.slice(0, 300) });
@@ -816,7 +827,7 @@ async function buildUserTurn(id: SpecialistId, prompt: string, deps: V2Deps, tho
       const replyCtx = lastMine && insistsAny && deniedAny ? `They're INSISTING on what your last line ("${lastMine.slice(0, 200)}") denied. Deny it again flat out, harder ("no im fucking not" energy, your own words).\n` : lastMine && s.split(/\s+/).length <= 8 ? `Their message is an answer to YOUR last line: "${lastMine.slice(0, 200)}". Reply to it in that context (they agree with what you said → own it, you said it; they argue → push back).\n` : '';
       const casseurt = /\bcasseurt\b/i.test(prompt) ? 'They mentioned Casseurt, your creator: react to what they said about him — he\'s the boss and you\'ve got his back (if they diss him, defend him and clap back at THEM).\n' : '';
       return {
-        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${peopleNote(s)}${lore}${bank.note}${dayNote ? `${dayNote}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\n${LIST_REQUEST_RE.test(s) ? 'Your reply (a short intro line, then the WHOLE numbered list):' : 'Your one-line reply:'}`,
+        text: `${thread}${facts}${knowThem}${replyCtx}${hints.length ? `What their message means: ${hints.join(' ')}\n` : ''}${peopleNote(s)}${opinionNote(s)}${lore}${bank.note}${follow ? followUpNote(follow) : ''}${dayNote ? `${dayNote}\n` : ''}${casseurt}${nowLine()}${avoidNote(deps.recentLines)}${openersNote(deps.recentLines)}${((o) => (o.length ? `\nPhrases you've been overusing lately (don't use any of them): ${o.map((x) => `"${x}"`).join(', ')}` : ''))(overusedPhrases())}\n${((f) => (f ? `\n${f}` : ''))(personaFacts(prompt))}${lang === 'en' ? `\n${aussieNote(s)}` : ''}${((w) => (w ? `\n${w.trim()}` : ''))(whoIsTalking(settings?.discordUserId, s, 'chat'))}\n${toneLine(effectiveDials(settings?.discordUserId))}\n\nThey just said: "${s}"\n${LIST_REQUEST_RE.test(s) ? 'Your reply (a short intro line, then the WHOLE numbered list):' : 'Your one-line reply:'}`,
         sources: [],
         bankLines: bank.lines,
       };
@@ -1319,7 +1330,7 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
   // real output — writing everything twice didn't fit under Cloudflare's ~100 s (2026-10-12).
   const programFirst = route.mode === 'code' && WANTS_RESULT_RE.test(text || '') && /\bpython\b|\bprogram\b|\bscript\b|\bcode\b/i.test(text || '');
   const programFirstNote = programFirst ? 'STEP 1 OF 2: write ONLY the complete Python program now (one ```python block, no explanations) — it will be RUN, then you will write the answers from its real output. Make it PRINT every number the answers need (counts, results, per-step survivors).\n' : '';
-  const userTurn = `${parrotNote}${programFirst ? programFirstNote : multiTaskNote}${morse ? morseNote(morse) : ''}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${route.mode === 'code' || route.mode === 'helper' ? '' : slangNote(text || '')}${built.text}${langNote}`;
+  const userTurn = `${parrotNote}${programFirst ? programFirstNote : multiTaskNote}${morse ? morseNote(morse) : ''}${program ? binaryProgramNote(program) : `${binary || ''}${numbers || ''}`}${imageBlock}${route.mode === 'code' || route.mode === 'helper' ? '' : slangNote(text || '')}${route.mode === 'question' ? opinionNote(text || '') : ''}${built.text}${langNote}`;
   const sources = built.sources;
   const formal = route.mode === 'writing' && isFormalDraftRequest(prompt) && !casualServerDraft(prompt);
   // A list they asked for keeps its lines (chat's one-line cleanup cut "top 10" down to "1.", 2026-10-12).
@@ -1363,7 +1374,10 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     const cands = judgeChat ? chatCandidates(raw) : rankComebacks(raw, said(prompt), lastRoastPlan!.plan, lastRoastPlan!.ammo).slice(0, 3);
     if (judgeChat && cands.length) picked = cands[0];
     const tj = Date.now();
-    const best = cands.length >= 2 ? await judgeBest(cands, said(prompt), deps.threadText, route.mode === 'roast' ? 'roast' : 'chat') : null;
+    // The judge gets the same instructions the drafts had ("your a pickle" has a set bit — "fuck u im a boy" — and the
+    // judge, not knowing it, picked "im not a vegetable", 2026-10-13).
+    const rules = (userTurn.match(/What their message means: ([^\n]+)/) || [])[1] || '';
+    const best = cands.length >= 2 ? await judgeBest(cands, said(prompt), deps.threadText, route.mode === 'roast' ? 'roast' : 'chat', rules) : null;
     if (best !== null) {
       picked = cands[best];
       if (route.mode === 'roast') rememberComeback(picked, lastRoastPlan!.plan.person);
@@ -1621,6 +1635,20 @@ export async function runV2(rawPrompt: string, settings: AISettings, deps: V2Dep
     content = content.split('\n').filter((l) => !/^\s*\d{1,3}[.)]\s+\S/.test(l) || ++kept <= Math.max(want, 1)).join('\n');
   }
   scrubCrudeList(); // again: continued items get the same filter
+  // A memory check answered without the thing they said ("who's my favourite band" → "they already told u"): one retry
+  // with what they said quoted.
+  if (route.mode === 'chat' && MEMORY_CHECK_RE.test(said(prompt)) && deps.threadText) {
+    const stop = new Set('the and but you your for are was what whats who whos my called name its this that with have just told said btw lol mate bro'.split(' '));
+    const asked = new Set((said(prompt).toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) || []));
+    const theirs = deps.threadText.split('\n').filter((l) => l.startsWith('Them: ')).map((l) => l.slice(6)).filter((l) => !MEMORY_CHECK_RE.test(l));
+    const keyWords = [...new Set(theirs.join(' ').toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) || [])].filter((w) => !stop.has(w) && !asked.has(w));
+    const hit = (t: string) => keyWords.some((w) => t.toLowerCase().includes(w));
+    if (keyWords.length && !hit(content)) {
+      const retry = await generateWith(spec, `${userTurn}\n(They told you earlier: "${theirs.slice(-3).join('" / "').slice(0, 300)}". Say the answer plainly — the actual name / thing — then your attitude.)`, lang);
+      const r = retry ? dropBannedEmoji(finalize(retry)) : '';
+      if (r && hit(r)) content = r;
+    }
+  }
   // A bank line he used (lineBank.ts) rests for 12 h, so the same joke doesn't come back all day.
   if ((route.mode === 'chat' || route.mode === 'roast') && built.bankLines?.length) markBankUsed(content, built.bankLines);
   // A one-word question gets one word (Patrick, 2026-10-13: "if he can answer in only 1 word, he actually does") — last,

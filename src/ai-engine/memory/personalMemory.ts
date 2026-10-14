@@ -15,6 +15,7 @@
 // A file untouched for 30 days is deleted. "nexus forget me" deletes it at once.
 // Size: ~120 bytes a message → 2,000 messages ≈ 250 KB a person; a hard total cap protects the disk anyway.
 
+import { dueFollowUp, type FollowUp } from '../v2/continuity';
 import { recordMemory } from '../observatory';
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
@@ -40,6 +41,7 @@ export interface PersonRecord {
   noticeSentAt: number | null;
   sinceSummary: number; // messages added since the last summary
   facts?: MemoryFact[]; // structured memories with source / confidence / expiry (memoryFacts.ts)
+  followUps?: FollowUp[]; // things coming up they mentioned ("exam tomorrow") — asked about once afterwards (v2/continuity.ts)
 }
 
 const ROOT = process.env.NEXUS_MEMORY_DIR || join(homedir(), '.nexus-memory');
@@ -119,6 +121,7 @@ export function setOptedOut(platform: Platform, id: string, username: string, op
   if (optedOut) {
     if (rec.messages.length || rec.facts?.length) recordMemory('deleted', 'stopped saving (everything)');
     rec.facts = [];
+    rec.followUps = [];
     rec.messages = [];
     rec.summary = null;
     rec.sinceSummary = 0;
@@ -188,11 +191,29 @@ export function claimPrivacyNotice(platform: Platform, id: string, username: str
   }
 }
 
-// What the specialists get: the personality summary and their last few messages (roast ammo / context).
-export function personalContext(platform: Platform, id: string, lastN = 20): { summary: string | null; recent: string[]; facts: MemoryFact[] } {
+// What the specialists get: the personality summary, their last few messages (roast ammo / context), their memories, and
+// a follow-up that's due ("how'd the exam go").
+export function personalContext(platform: Platform, id: string, lastN = 20): { summary: string | null; recent: string[]; facts: MemoryFact[]; followUp: FollowUp | null } {
   const rec = loadPerson(platform, id);
-  if (!rec || rec.optedOut) return { summary: null, recent: [], facts: [] };
-  return { summary: rec.summary?.text || null, recent: rec.messages.slice(-lastN).map((m) => m.text), facts: pruneFacts(rec.facts || []) };
+  if (!rec || rec.optedOut) return { summary: null, recent: [], facts: [], followUp: null };
+  return { summary: rec.summary?.text || null, recent: rec.messages.slice(-lastN).map((m) => m.text), facts: pruneFacts(rec.facts || []), followUp: dueFollowUp(rec.followUps) };
+}
+
+// "exam tomorrow" → kept (max 5, the same event isn't kept twice). Nothing for someone who opted out.
+export function addFollowUp(platform: Platform, id: string, f: Omit<FollowUp, 'id' | 'asked'>): boolean {
+  const rec = loadPerson(platform, id);
+  if (!rec || rec.optedOut) return false;
+  const list = (rec.followUps || []).filter((x) => !x.asked && Date.now() - x.due < 4 * 24 * 3600_000 && x.what !== f.what);
+  rec.followUps = [...list, { ...f, id: Math.random().toString(36).slice(2, 10), asked: false }].slice(-5);
+  save(rec);
+  return true;
+}
+
+export function markFollowUpAsked(platform: Platform, id: string, followUpId: string): void {
+  const rec = loadPerson(platform, id);
+  if (!rec?.followUps?.length) return;
+  rec.followUps = rec.followUps.map((x) => (x.id === followUpId ? { ...x, asked: true } : x));
+  save(rec);
 }
 
 // People who went quiet for 5+ minutes with enough new messages since their last summary.

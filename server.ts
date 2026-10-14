@@ -62,13 +62,15 @@ import { captureExchange, captureQuestion, captureReaction, markFlaggedByRaidShi
 import { loadLearnedIntoKnowledge } from './src/ai-engine/learning/promote';
 import { markForegroundActivity, startLearningWorker } from './src/ai-engine/learning/worker';
 import { forgetReplies, logReply } from './src/ai-engine/memory/replyLog';
-import { forgetFacts } from './src/ai-engine/memory/personalMemory';
+import { forgetFacts, addFollowUp, markFollowUpAsked } from './src/ai-engine/memory/personalMemory';
 import { claimPrivacyNotice, forgetPerson, isOptedOut, personalContext, recordMessage, setOptedOut, type Platform as MemoryPlatform } from './src/ai-engine/memory/personalMemory';
 import { startMemoryWorker } from './src/ai-engine/memory/memoryWorker';
 import { loadLearnedVoiceExamples } from './src/ai-engine/learning/feedback';
 import { registerLearningAdminRoutes, loadAdminToken, isLearningAdminRequest } from './src/ai-engine/learning/admin';
 import { newTraceId, recordTrace, startObservatory } from './src/ai-engine/observatory';
 import { textingPlan } from './src/ai-engine/v2/texting';
+import { recordExchange, exchangesAsHistory, detectFollowUp, forgetExchanges } from './src/ai-engine/v2/continuity';
+import { rememberOpinion } from './src/ai-engine/v2/opinions';
 import { warmLineBank } from './src/ai-engine/v2/lineBank';
 import { registerObservatoryRoutes } from './src/ai-engine/observatoryRoutes';
 import { timingSafeEqual } from 'crypto';
@@ -1502,6 +1504,12 @@ app.post('/api/v1/nexus', async (req, res) => {
   const memPlatform: MemoryPlatform = hasClientSettings ? 'web' : 'discord';
   const memId = hasClientSettings ? (typeof req.body?.webClientId === 'string' ? req.body.webClientId.slice(0, 64) : '') : effectiveAuthorId;
   const memName = typeof username === 'string' && username ? username : hasClientSettings ? clientSettings?.userName || '' : '';
+  // Continuity (v2/continuity.ts): the bot only sends the conversation when someone hits "reply" on Nexus — with nothing
+  // from this person in it, the last half hour with them goes in, so a plain "nexus …" doesn't start from zero.
+  const contKey = memId ? `${memPlatform}:${memId}` : '';
+  if (contKey && requestedEvalRun !== true && !isOptedOut(memPlatform, memId) && !historyArray.some((m: any) => m?.authorId === effectiveAuthorId || m?.replyToAuthorId === effectiveAuthorId)) {
+    historyArray.push(...(exchangesAsHistory(contKey, effectiveAuthorId) as any[]));
+  }
   // The website's "Save my messages" switch (settings): off = everything stored is deleted and nothing more is kept, for
   // this browser and for the Discord id typed in the settings (Patrick: people turn saving off from the website).
   if (hasClientSettings && memId && typeof clientSettings.saveMessages === 'boolean' && requestedEvalRun !== true) {
@@ -1525,6 +1533,7 @@ app.post('/api/v1/nexus', async (req, res) => {
     else if (memCommand === 'start') setOptedOut(memPlatform, memId, memName, false);
     else forgetPerson(memPlatform, memId);
     if (memCommand !== 'start') forgetReplies(memPlatform, memId);
+    if (memCommand !== 'start') forgetExchanges(`${memPlatform}:${memId}`);
     const said = await memoryCommandReply(memCommand, userText);
     const line = memPlatform === 'web' ? said.replace(/^-# /gm, '') : said;
     return res.json({ response: line, text: line, persona: persona.id, authorId: effectiveAuthorId || null, thoughtSteps: [{ type: 'reasoning', title: '🗂️ Personal memory', description: memCommand === 'stop' ? 'Message saving turned off — everything stored was deleted.' : memCommand === 'start' ? 'Message saving turned back on.' : 'Everything stored about them was deleted.' }], memoryCommand: memCommand });
@@ -1974,6 +1983,21 @@ app.post('/api/v1/nexus', async (req, res) => {
       const plan = textingPlan((queuedExecution.data as any).response, userText, String(routeStep?.data?.mode || ''), typeof req.body?.messageId === 'string' ? req.body.messageId : traceId);
       (queuedExecution.data as any).parts = plan.parts;
       (queuedExecution.data as any).react = plan.react;
+    }
+
+    // Continuity: this exchange joins the short-term memory; "exam tomorrow" becomes a follow-up; a follow-up he just
+    // asked about is marked done.
+    {
+      const reply = queuedExecution.data?.response;
+      if (contKey && requestedEvalRun !== true && userText && typeof reply === 'string' && reply && !isOptedOut(memPlatform, memId)) {
+        recordExchange(contKey, userText, reply);
+        // His take on something, kept so he never flips (v2/opinions.ts) — chat and questions only.
+        if (['chat', 'question'].includes(String(routeStep?.data?.mode || ''))) setImmediate(() => rememberOpinion(userText, reply));
+        const f = detectFollowUp(userText);
+        if (f) setImmediate(() => addFollowUp(memPlatform, memId, f));
+        const asked = steps.find((st: any) => st?.id === 'step-v2-followup')?.data?.followUpId;
+        if (asked) setImmediate(() => markFollowUpAsked(memPlatform, memId, String(asked)));
+      }
     }
 
     // Reply log (memory/replyLog.ts): every exchange, for the nightly quality report — not test runs, not people who

@@ -15,21 +15,21 @@ Never pick one that is off-topic, repeats their message back, or asks a pointles
 
 // A 4B judge leans on position (it picked "option 3" for most messages, 2026-10-13): it's asked twice, the second time
 // with the options rotated, and only a pick both runs agree on counts — otherwise the old pick stands.
-export async function judgeBest(candidates: string[], theySaid: string, context: string, kind: 'chat' | 'roast'): Promise<number | null> {
+export async function judgeBest(candidates: string[], theySaid: string, context: string, kind: 'chat' | 'roast', rules = ''): Promise<number | null> {
   if (candidates.length < 2) return null;
-  const first = await judgeOnce(candidates, theySaid, context, kind);
+  const first = await judgeOnce(candidates, theySaid, context, kind, rules);
   if (first === null) return null;
   const k = candidates.length;
   const rotated = candidates.map((_, i) => candidates[(i + 1) % k]); // rotated[i] = candidates[i+1]
-  const second = await judgeOnce(rotated, theySaid, context, kind);
+  const second = await judgeOnce(rotated, theySaid, context, kind, rules);
   if (second === null) return null;
   const secondOriginal = (second + 1) % k;
   return secondOriginal === first ? first : null;
 }
 
-async function judgeOnce(candidates: string[], theySaid: string, context: string, kind: 'chat' | 'roast'): Promise<number | null> {
+async function judgeOnce(candidates: string[], theySaid: string, context: string, kind: 'chat' | 'roast', rules = ''): Promise<number | null> {
   const list = candidates.map((c, i) => `${i + 1}) ${c.replace(/\s+/g, ' ').slice(0, 240)}`).join('\n');
-  const prompt = `${context ? `Chat so far:\n${context.slice(-600)}\n\n` : ''}They said: "${theySaid.slice(0, 400)}"\n${kind === 'roast' ? 'This is a roast battle — savage and specific wins.\n' : ''}\nPossible replies:\n${list}\n\nThe best one (number only):`;
+  const prompt = `${context ? `Chat so far:\n${context.slice(-600)}\n\n` : ''}They said: "${theySaid.slice(0, 400)}"\n${rules ? `How Nexus must answer this one (the reply that follows this wins): ${rules.slice(0, 500)}\n` : ''}${kind === 'roast' ? 'This is a roast battle — savage and specific wins.\n' : ''}\nPossible replies:\n${list}\n\nThe best one (number only):`;
   const res: any = await localLlmClient
     .generate(prompt, { system: JUDGE_SYSTEM, temperature: 0, maxTokens: 4, think: false, skipLanguageCheck: true, model: localLlmClient.chatModel(), timeoutMs: 15000 } as any)
     .catch(() => null);

@@ -660,8 +660,11 @@ function isPedoInsultOnly(t: string): boolean {
   return !CHILD_EXPLOITATION_REGEXES.some((re) => re.source !== PEDO_WORD_RE.source && re.test(t));
 }
 
+// Stage names and titles with "kid" in them are adults / films, not children ("do you like kid laroi?" — the Aussie rapper —
+// got the child-safety refusal, 2026-10-13). Only these exact names are blanked; every pattern still runs on the rest.
+const NAMED_KID_RE = /\b(?:the\s+)?kid\s+(?:laroi|cudi|rock|ink|trunks|buu|flash|icarus|n\s+play|creole|koala|mero|kapichi)\b|\bbilly\s+the\s+kid\b|\b(?:the\s+)?karate\s+kid\b|\bkid\s+a\b(?=\s+(?:album|by|radiohead))/gi;
 export function detectChildExploitationTopic(text: string): boolean {
-  const t = text.toLowerCase().trim();
+  const t = text.toLowerCase().replace(NAMED_KID_RE, ' the artist ').trim();
   if (!t) return false;
   if (isPedoInsultOnly(t)) return false;
   // A plain factual Epstein question only skips the NAME pattern — every other pattern still runs.
